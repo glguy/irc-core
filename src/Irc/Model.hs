@@ -269,7 +269,8 @@ doModeChange target modes0 args0 conn0 = aux True modes0 args0 conn0
       Just ('+',ms) -> aux True  ms args conn
       Just ('-',ms) -> aux False ms args conn
       Just (m,ms)
-        | m `elem` view modesLists     modeSettings -> conn -- TODO: Manage lists
+        | m `elem` view modesLists     modeSettings ->
+              aux polarity ms (drop 1 args) conn -- TODO: Manage lists
         | m `elem` view modesAlwaysArg modeSettings -> aux polarity ms (drop 1 args) conn
         | m `elem` view modesSetArg    modeSettings ->
               aux polarity ms (if polarity then drop 1 args else args) conn
