@@ -4,6 +4,7 @@ module Views.Channel where
 import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Monoid
+import Data.Char (isControl)
 import Data.Foldable (toList)
 import Data.List (stripPrefix, intersperse)
 import Data.Maybe (mapMaybe)
@@ -28,17 +29,16 @@ detailedImageForState st
   $ reverse
   $ take (view clientHeight st - 4)
   $ drop (view clientScrollPos st)
-  $ concatMap (reverse . renderOne)
+  $ concatMap (reverse . lineWrap width . renderOne)
   $ activeMessages st
   where
   width = view clientWidth st
   renderOne x =
-    composeLine width
-      (renderTimestamp (view mesgStamp x)
-       <|> string (withForeColor defAttr blue) (ty ++ " ")
-       <|> renderFullUsermask (view mesgSender x)
-       <|> string (withForeColor defAttr blue) (": "))
-      content
+      renderTimestamp (view mesgStamp x) <|>
+      string (withForeColor defAttr blue) (ty ++ " ") <|>
+      renderFullUsermask (view mesgSender x) <|>
+      string (withForeColor defAttr blue) (": ") <|>
+      cleanText content
     where
     (ty, content) = case view mesgType x of
        JoinMsgType -> ("J", "")
@@ -88,7 +88,7 @@ compressedImageForState st
   $ reverse
   $ take (view clientHeight st - 4)
   $ drop (view clientScrollPos st)
-  $ concatMap (reverse . renderOne)
+  $ concatMap (reverse . lineWrap width . renderOne)
   $ compressMessages
   $ activeMessages st
   where
@@ -101,47 +101,42 @@ compressedImageForState st
       | otherwise = yellow
 
   renderOne (CompChat modes me who what) =
-    composeLine width
-      (modePrefix modes <|>
-       formatNick me who <|>
-       string (withForeColor defAttr blue) (": "))
-      what
+      modePrefix modes <|>
+      formatNick me who <|>
+      string (withForeColor defAttr blue) (": ") <|>
+      cleanText what
 
   renderOne (CompNotice modes who what) =
-    composeLine width
-      (modePrefix modes <|>
-       utf8Bytestring' (withForeColor defAttr red) who <|>
-       string (withForeColor defAttr blue) (": "))
-      what
+      modePrefix modes <|>
+      utf8Bytestring' (withForeColor defAttr red) who <|>
+      string (withForeColor defAttr blue) (": ") <|>
+      cleanText what
 
   renderOne (CompAction modes who what) =
-    composeLine width
-      (modePrefix modes <|>
-       utf8Bytestring' (withForeColor defAttr blue) who <|> char defAttr ' ')
-      what
+      modePrefix modes <|>
+      utf8Bytestring' (withForeColor defAttr blue) who <|>
+      char defAttr ' ' <|>
+      cleanText what
 
   renderOne (CompKick op who reason) =
-    composeLine width
-      (utf8Bytestring' (withForeColor defAttr yellow) op <|>
-       string (withForeColor defAttr red) " kicked " <|>
-       utf8Bytestring' (withForeColor defAttr yellow) who <|>
-       string (withForeColor defAttr blue) (": "))
-      reason
+      utf8Bytestring' (withForeColor defAttr yellow) op <|>
+      string (withForeColor defAttr red) " kicked " <|>
+      utf8Bytestring' (withForeColor defAttr yellow) who <|>
+      string (withForeColor defAttr blue) (": ") <|>
+      cleanText reason
 
   renderOne (CompError err) =
-    composeLine width
-      (string (withForeColor defAttr red) "Error: ")
-      err
+      string (withForeColor defAttr red) "Error: " <|>
+      cleanText err
 
   renderOne (CompMode who pol m arg) =
-    [utf8Bytestring' (withForeColor defAttr yellow) who <|>
-     string (withForeColor defAttr red) " set mode " <|>
-     string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
-     utf8Bytestring' (withForeColor defAttr yellow) who
-    ]
+      utf8Bytestring' (withForeColor defAttr yellow) who <|>
+      string (withForeColor defAttr red) " set mode " <|>
+      string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
+      utf8Bytestring' (withForeColor defAttr yellow) who
 
   renderOne (CompMeta xs) =
-     [horizCat (intersperse (char defAttr ' ') (map renderMeta xs))]
+      cropRight width (horizCat (intersperse (char defAttr ' ') (map renderMeta xs)))
 
   renderMeta (CompJoin who)
     =   char (withForeColor defAttr green) '+'

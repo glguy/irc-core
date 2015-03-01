@@ -7,18 +7,15 @@ import Graphics.Vty.Image
 
 import Irc.Format
 
-composeLine :: Int -> Image -> Text -> [Image]
-composeLine width header txt = firstLine : aux wrapTxt
+lineWrap :: Int -> Image -> [Image]
+lineWrap width img
+  | w <= width = [img]
+  | otherwise = cropRight width img : lineWrap width (cropLeft (w-width) img)
   where
-  firstLine = header <|> text' defAttr firstTxt
-  txtClean = Text.filter (not . isControl) txt
-  (firstTxt,wrapTxt) = Text.splitAt (width - imageWidth header) txtClean
+  w = imageWidth img
 
-  aux t
-    | Text.null t = []
-    | otherwise   = text' defAttr a : aux b
-    where
-    (a,b) = Text.splitAt width t
+cleanText :: Text -> Image
+cleanText = text' defAttr . Text.filter (not . isControl)
 
 renderFullUsermask :: UserInfo -> Image
 renderFullUsermask u

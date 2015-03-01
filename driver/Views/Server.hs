@@ -11,6 +11,7 @@ serverInfoImage :: ClientState -> Image
 serverInfoImage st = vertCat
                    $ take (height - 4)
                    $ drop (view clientScrollPos st)
+                   $ concatMap (lineWrap width)
                    $ concat
                        [ myInfoLine
                        , channelsList
@@ -26,25 +27,20 @@ serverInfoImage st = vertCat
       Nothing -> [string (withForeColor defAttr red)
                         "Unknown server host/version"]
       Just (host,version) ->
-        composeLine
-          width
-          (string (withForeColor defAttr green) "Server: ")
-          (asUtf8 host)
-        ++
-        composeLine
-          width
-          (string (withForeColor defAttr green) "Version: ")
-          (asUtf8 version)
+        [ string (withForeColor defAttr green) "Server: " <|>
+          utf8Bytestring' defAttr host
+        , string (withForeColor defAttr green) "Version: " <|>
+          utf8Bytestring' defAttr version
+        ]
 
   channels = views clientConnection activeChannelNames st
   channelsList
     | null channels = [string (withForeColor defAttr red)
                               "No active channels"]
     | otherwise =
-        composeLine
-          width
-          (string (withForeColor defAttr green) "Channels: ")
-          (Text.unwords (map asUtf8 channels))
+          [ string (withForeColor defAttr green) "Channels: " <|>
+            text' defAttr (Text.unwords (map asUtf8 channels))
+          ]
 
   motdLines =
     case view (clientConnection . connMotd) st of
@@ -52,4 +48,4 @@ serverInfoImage st = vertCat
                              "No MOTD"]
       Just motd ->
         string (withForeColor defAttr green) "Message of the day:"
-        : map (utf8Bytestring' defAttr) motd
+        : map (cleanText . asUtf8) motd

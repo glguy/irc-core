@@ -18,15 +18,17 @@ queryImage st user =
     Just msgs -> vertCat
                $ reverse
                $ take (view clientHeight st - 4)
-               $ concatMap (reverse . renderOne (view clientWidth st))
+               $ concatMap ( reverse
+                           . lineWrap (view clientWidth st)
+                           . renderOne
+                           )
                $ toList msgs
 
-renderOne :: Int -> IrcMessage -> [Image]
-renderOne width msg =
-    composeLine width
-      (utf8Bytestring' (withForeColor defAttr yellow) who <|>
-       string (withForeColor defAttr blue) (": "))
-      txt
+renderOne :: IrcMessage -> Image
+renderOne msg
+  = utf8Bytestring' (withForeColor defAttr yellow) who <|>
+    string (withForeColor defAttr blue) (": ") <|>
+    cleanText txt
   where
   who = views mesgSender userNick msg
   txt = case view mesgType msg of
