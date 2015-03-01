@@ -3,3 +3,4 @@ chanserv automation
 name highlighting
 formatting in chat
 make errors visible e.g. ErrChanOpNeeded shows in the channel it was needed in
+outgoing rate limiter
