@@ -87,6 +87,8 @@ data MsgFromServer
   | RplListEnd
   | RplHostHidden ByteString
   | RplYoureOper ByteString
+  | RplInfo ByteString
+  | RplEndOfInfo
   | ErrNoSuchNick ByteString
   | ErrWasNoSuchNick ByteString
   | ErrNoTextToSend
@@ -230,7 +232,13 @@ ircMsgToServerMsg ircmsg =
        Just (RplEndOfBanList chan)
 
     ("369",[_,nick]) ->
-         Just (RplEndOfWhoWas nick)
+       Just (RplEndOfWhoWas nick)
+
+    ("371",[_,txt]) ->
+       Just (RplInfo txt)
+
+    ("374",[_,txt]) ->
+       Just RplEndOfInfo
 
     ("375",[_,_]) -> Just RplMotdStart
     ("372",[_,txt]) -> Just (RplMotd txt)

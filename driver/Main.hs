@@ -34,6 +34,7 @@ import Irc.Core
 import Irc.Cmd
 import Irc.Format
 import Irc.Model
+import Irc.RateLimit
 
 import CommandArgs
 import ClientState
@@ -66,6 +67,7 @@ main = do
 
   vtyEventChan <- atomically newTChan
   socketChan   <- atomically newTChan
+  sendChan     <- atomically newTChan
 
   let conn0 = defaultIrcConnection { _connNick = B8.pack (view cmdArgNick args) }
 
@@ -73,9 +75,10 @@ main = do
   bracket (mkVty cfg) shutdown $ \vty ->
     do _ <- forkIO (socketLoop socketChan h hErr)
        _ <- forkIO (vtyEventLoop vtyEventChan vty)
+       _ <- forkIO (sendLoop sendChan h)
        (width,height) <- displayBounds (outputIface vty)
        driver vty vtyEventChan socketChan ClientState
-         { _clientSocket          = h
+         { _clientSendChan        = sendChan
          , _clientErrors          = hErr
          , _clientConnection      = conn0
          , _clientFocus           = ServerFocus
@@ -119,6 +122,10 @@ driver vty vtyEventChan ircMsgChan st =
       EvKey key mods -> continue =<< keyEvent key mods st
 
       _ -> continue st
+
+  processIrcMsg (Ping x) =
+    do clientSend (pongCmd x) st
+       continue st
 
   processIrcMsg msg =
     do now <- getCurrentTime
@@ -183,7 +190,7 @@ doSendMessageCurrent st =
 
 doSendMessage :: ByteString -> Text -> ClientState -> IO ClientState
 doSendMessage target message st =
-  do send'
+  do clientSend (privMsgCmd target (Text.encodeUtf8 message)) st
      now <- getCurrentTime
      let addMessageToConnection =
              over clientConnection (recordMessage (fakeMsg now) target)
@@ -202,9 +209,6 @@ doSendMessage target message st =
   who = UserInfo (view (clientConnection . connNick) st)
                  Nothing
                  Nothing
-
-  send' = B.hPut (view clientSocket st)
-                 (privMsgCmd target (Text.encodeUtf8 message))
 
 
 pattern (:-) arg rest <- (splitArg -> Just (arg,rest))
@@ -258,12 +262,13 @@ commandEvent cmd st =
 
 doJoinCmd :: ByteString -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
-  do B.hPut (view clientSocket st) (joinCmd c mbKey)
+  do clientSend (joinCmd c mbKey) st
+     clientSend (modeCmd c []   ) st
      let c0 = B.takeWhile (/=44) c -- , separates channels
      return (set clientFocus (ChannelFocus c0) st)
 
 doQuote :: String -> ClientState -> IO ClientState
-doQuote cmd st = st <$ hPutStrLn (view clientSocket st) cmd
+doQuote cmd st = st <$ clientSend (Text.encodeUtf8 (Text.pack (cmd ++ "\r\n"))) st
 
 -- TODO : Add fake Action message to connection
 doActionMsg :: String -> ClientState -> IO ClientState
@@ -273,9 +278,7 @@ doActionMsg msg st =
     UserFocus user -> send user >> return st
     _ -> return st
   where
-  send target = B.hPut
-                  (view clientSocket st)
-                  (actionCmd target (Text.encodeUtf8 (Text.pack msg)))
+  send target = clientSend (actionCmd target (Text.encodeUtf8 (Text.pack msg))) st
 
 ------------------------------------------------------------------------
 -- Primary UI rendering
@@ -385,6 +388,14 @@ dividerImage st
 -- Event loops
 ------------------------------------------------------------------------
 
+sendLoop :: TChan ByteString -> Handle -> IO ()
+sendLoop queue h =
+  do r <- newRateLimit 2 5
+     forever $
+       do x <- atomically (readTChan queue)
+          tickRateLimit r
+          B.hPut h x
+
 socketLoop :: TChan MsgFromServer -> Handle -> Handle -> IO a
 socketLoop chan h hErr = forever (atomically . writeTChan chan =<< getOne h hErr)
 
@@ -405,7 +416,6 @@ getOne h hErr =
          Nothing -> hPrint hErr xs >> getOne h hErr
          Just msg ->
            case ircMsgToServerMsg msg of
-             Just (Ping x) -> B.hPut h (pongCmd x) >> getOne h hErr
              Just x -> hPrint hErr x >> return x
              Nothing -> hPrint hErr msg >> getOne h hErr
 

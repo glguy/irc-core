@@ -7,6 +7,13 @@ import Data.Foldable (toList)
 
 import Irc.Format
 
+modeCmd :: ByteString -> [ByteString] -> ByteString
+modeCmd c modes = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand  = "MODE"
+  , msgParams = c : modes
+  }
+
 joinCmd :: ByteString -> Maybe ByteString -> ByteString
 joinCmd chan mbKey = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing

@@ -3,6 +3,7 @@
 module ClientState where
 
 import Control.Applicative (Applicative)
+import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Data.ByteString (ByteString)
 import Data.Monoid
 import System.IO (Handle)
@@ -22,7 +23,7 @@ import EditBox (EditBox)
 import qualified EditBox as Edit
 
 data ClientState = ClientState
-  { _clientSocket     :: Handle
+  { _clientSendChan   :: TChan ByteString
   , _clientErrors     :: Handle
   , _clientConnection :: IrcConnection
   , _clientFocus      :: Focus
@@ -140,3 +141,6 @@ incrementFocus f st
 
 clearTabPattern :: ClientState -> ClientState
 clearTabPattern = set clientTabPattern Nothing
+
+clientSend :: ByteString -> ClientState -> IO ()
+clientSend x st = atomically (writeTChan (view clientSendChan st) x)

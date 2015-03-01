@@ -17,6 +17,7 @@ library
                        Irc.Model
                        Irc.List
                        Irc.Format
+                       Irc.RateLimit
 
   build-depends:       base             >=4.7       && <4.8,
                        attoparsec       >= 0.12.1.2 && < 0.13,
