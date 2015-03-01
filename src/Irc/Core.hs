@@ -61,6 +61,7 @@ data MsgFromServer
   | RplWhoisAccount ByteString ByteString
   | RplWhoisIdle ByteString ByteString ByteString
   | RplWhoisOperator ByteString ByteString
+  | RplWhoisModes ByteString ByteString
   | RplEndOfWhois ByteString
   | RplWhoWasUser ByteString ByteString ByteString ByteString
   | RplBanList ByteString ByteString ByteString UTCTime
@@ -113,7 +114,7 @@ ircMsgToServerMsg ircmsg =
     ("005",_:params) ->
        Just (RplISupport params)
 
-    ("042",[_,yourid]) ->
+    ("042",[_,yourid,_]) ->
        Just (RplYourId yourid)
 
     ("250",[_,stats]) ->
@@ -164,7 +165,7 @@ ircMsgToServerMsg ircmsg =
     ("315",[_,chan,_]) ->
        Just (RplEndOfWho chan)
 
-    ("317",[_,nick,idle,signon]) ->
+    ("317",[_,nick,idle,signon,_txt]) ->
        Just (RplWhoisIdle nick idle signon)
 
     ("318",[_,nick,_txt]) ->
@@ -234,6 +235,9 @@ ircMsgToServerMsg ircmsg =
     ("375",[_,_]) -> Just RplMotdStart
     ("372",[_,txt]) -> Just (RplMotd txt)
     ("376",[_,_]) -> Just RplEndOfMotd
+
+    ("379",[_,nick,txt]) ->
+       Just (RplWhoisModes nick txt)
 
     ("378",[_,nick,txt]) ->
        Just (RplWhoisHost nick txt)
