@@ -199,8 +199,7 @@ doSendMessage target message st =
   where
   fakeMsg now = IrcMessage
     { _mesgSender = who
-    , _mesgContent = message
-    , _mesgType = PrivMsgType
+    , _mesgType = PrivMsgType message
     , _mesgStamp = now
     , _mesgModes = ""
     , _mesgMe = True

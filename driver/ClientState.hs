@@ -98,8 +98,9 @@ countNewMessages st =
     $ take (List.length msgs - seen)
     $ toList msgs
 
-  isRelevant PrivMsgType   = True
-  isRelevant NoticeMsgType = True
+  isRelevant PrivMsgType{}   = True
+  isRelevant NoticeMsgType{} = True
+  isRelevant ActionMsgType{} = True
   isRelevant _             = False
 
 

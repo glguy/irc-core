@@ -103,7 +103,6 @@ data IrcBan = IrcBan
 data IrcMessage = IrcMessage
   { _mesgType :: !IrcMessageType
   , _mesgSender :: !UserInfo
-  , _mesgContent :: !Text
   , _mesgStamp :: !UTCTime
   , _mesgMe :: !Bool
   , _mesgModes :: String
@@ -111,9 +110,16 @@ data IrcMessage = IrcMessage
   deriving (Read, Show)
 
 data IrcMessageType
-  = PrivMsgType | NoticeMsgType | ActionMsgType
-  | JoinMsgType | KickMsgType | PartMsgType | QuitMsgType | NickMsgType
-  | TopicMsgType
+  = PrivMsgType   Text
+  | NoticeMsgType Text
+  | ActionMsgType Text
+  | JoinMsgType
+  | KickMsgType   ByteString Text
+  | PartMsgType   Text
+  | QuitMsgType   Text
+  | NickMsgType   ByteString
+  | TopicMsgType  Text
+  | ErrorMsgType  Text
   deriving (Read, Show)
 
 data IrcUser = IrcUser
@@ -194,9 +200,8 @@ advanceModel stamp msg0 conn =
                            (Just (topicText,userInfoBytestring who,stamp))
          topicText = asUtf8 topic
          m = IrcMessage
-                { _mesgType = TopicMsgType
+                { _mesgType = TopicMsgType topicText
                 , _mesgSender = who
-                , _mesgContent = topicText
                 , _mesgStamp = stamp
                 , _mesgModes = ""
                 , _mesgMe = False
@@ -207,18 +212,17 @@ advanceModel stamp msg0 conn =
          mesg = IrcMessage
                 { _mesgType    = ty
                 , _mesgSender  = who
-                , _mesgContent = asUtf8 content
                 , _mesgStamp   = stamp
                 , _mesgMe      = False
                 , _mesgModes   = ""
                 }
 
-         (ty,content)
+         ty
            | B.length msg >= 9
            , B.isPrefixOf "\SOHACTION " msg
            , B.last msg == 1
-               = (ActionMsgType, B.init (B.drop 8 msg))
-           | otherwise = (PrivMsgType, msg)
+           = ActionMsgType (asUtf8 (B.init (B.drop 8 msg)))
+           | otherwise = PrivMsgType (asUtf8 msg)
 
        Notice who chan msg -> doNotifyChannel stamp who chan msg conn
 
@@ -255,6 +259,17 @@ advanceModel stamp msg0 conn =
        Mode _who target (modes:args) ->
          return (doModeChange target modes args conn)
 
+       ErrChanOpPrivsNeeded chan txt ->
+         return (recordMessage mesg chan conn)
+         where
+         mesg = IrcMessage
+           { _mesgType    = ErrorMsgType (asUtf8 txt)
+           , _mesgSender  = UserInfo "server" Nothing Nothing
+           , _mesgStamp   = stamp
+           , _mesgMe      = False
+           , _mesgModes   = ""
+           }
+
        _ -> fail ("Unsupported: " ++ show msg0)
 
 
@@ -286,14 +301,6 @@ doModeChange target modes0 args0 conn0 = aux True modes0 args0 conn0
           toggle
             | polarity = nub . cons m
             | otherwise = delete m
-
-traverseMessagesFor :: Applicative f => ByteString -> LensLike' f IrcConnection (List IrcMessage)
-traverseMessagesFor name f conn
-  | B.head name `elem` view connChanTypes conn =
-       (connChannelIx name . chanMessages) f conn
-  | otherwise =
-       (connUserIx name . usrMessages) f conn
-
 
 doBanList :: [IrcBan] -> IrcConnection -> Logic IrcConnection
 doBanList acc conn =
@@ -335,9 +342,8 @@ doNick stamp who newnick = return
     | otherwise = chan
 
   m = IrcMessage
-         { _mesgType = NickMsgType
+         { _mesgType = NickMsgType newnick
          , _mesgSender = who
-         , _mesgContent = asUtf8 newnick
          , _mesgStamp = stamp
          , _mesgModes = ""
          , _mesgMe = False
@@ -349,9 +355,8 @@ doPart stamp who chan reason conn =
           $ recordMessage mesg chan conn
   where
   mesg = IrcMessage
-         { _mesgType = PartMsgType
+         { _mesgType = PartMsgType (asUtf8 reason)
          , _mesgSender = who
-         , _mesgContent = asUtf8 reason
          , _mesgStamp = stamp
          , _mesgMe = False
          , _mesgModes = ""
@@ -367,9 +372,8 @@ doKick stamp who chan tgt reason conn =
   return (recordMessage mesg chan conn)
   where
   mesg = IrcMessage
-         { _mesgType = KickMsgType
+         { _mesgType = KickMsgType tgt (asUtf8 reason)
          , _mesgSender = who
-         , _mesgContent = asUtf8 tgt <> " - " <> asUtf8 reason
          , _mesgStamp = stamp
          , _mesgModes = ""
          , _mesgMe = False
@@ -397,9 +401,8 @@ doQuit stamp who reason conn = return
                        $ conn
   where
   mesg = IrcMessage
-         { _mesgType = QuitMsgType
+         { _mesgType = QuitMsgType (asUtf8 reason)
          , _mesgSender = who
-         , _mesgContent = asUtf8 reason
          , _mesgStamp = stamp
          , _mesgMe = False
          , _mesgModes = ""
@@ -439,7 +442,6 @@ doJoinChannel stamp who chan conn =
   m = IrcMessage
         { _mesgType = JoinMsgType
         , _mesgSender = who
-        , _mesgContent = ""
         , _mesgStamp = stamp
         , _mesgMe = False
         , _mesgModes = ""
@@ -455,9 +457,8 @@ doNotifyChannel ::
 doNotifyChannel stamp who chan msg conn = return (recordMessage mesg chan conn)
   where
   mesg = IrcMessage
-        { _mesgType = NoticeMsgType
+        { _mesgType = NoticeMsgType (asUtf8 msg)
         , _mesgSender = who
-        , _mesgContent = asUtf8 msg
         , _mesgStamp = stamp
         , _mesgMe = False
         , _mesgModes = ""
