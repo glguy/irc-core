@@ -6,10 +6,11 @@ import Data.ByteString (ByteString)
 import Data.Char
 import Data.Time
 import Data.Time.Clock.POSIX
-import Network.IRC.ByteString.Parser
 import System.IO
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
+
+import Irc.Format
 
 data MsgFromServer
   = RplWelcome  ByteString
@@ -31,7 +32,7 @@ data MsgFromServer
   | RplLuserAdminLoc2 ByteString
   | RplLuserAdminEmail ByteString
   | RplLocalUsers      ByteString ByteString
-  | RplGlobalUsers      ByteString
+  | RplGlobalUsers ByteString ByteString
   | RplStatsConn      ByteString
   | RplTopic ByteString ByteString
   | RplTopicWhoTime ByteString ByteString UTCTime
@@ -39,18 +40,18 @@ data MsgFromServer
   | RplWhoReply ByteString ByteString ByteString ByteString ByteString ByteString ByteString
   | RplEndOfWho ByteString
   | Ping ByteString
-  | Notice  (Either UserInfo ServerName) ByteString ByteString
-  | Topic (Either UserInfo ServerName) ByteString ByteString
-  | PrivMsg (Either UserInfo ServerName) ByteString ByteString
+  | Notice  UserInfo ByteString ByteString
+  | Topic UserInfo ByteString ByteString
+  | PrivMsg UserInfo ByteString ByteString
   | RplNameReply ChannelType ByteString [ByteString]
   | RplEndOfNames
   | ExtJoin UserInfo ByteString ByteString ByteString
   | Join UserInfo ByteString
   | Nick UserInfo ByteString
-  | Mode (Either UserInfo ServerName) ByteString [ByteString]
+  | Mode UserInfo ByteString [ByteString]
   | Quit UserInfo ByteString
   | Cap ByteString ByteString
-  | Kick (Either UserInfo ServerName) ByteString ByteString ByteString
+  | Kick UserInfo ByteString ByteString ByteString
   | Part UserInfo ByteString ByteString
   | RplWhoisUser ByteString ByteString ByteString ByteString
   | RplWhoisHost ByteString ByteString
@@ -75,7 +76,7 @@ data MsgFromServer
   | ErrUnknownCommand ByteString
   | ErrNeedsMoreParams ByteString
   | ErrBadChannelKey ByteString
-  | Invite (Either UserInfo ServerName) ByteString
+  | Invite UserInfo ByteString
   | RplListStart
   | RplList ByteString ByteString ByteString
   | RplListEnd
@@ -83,6 +84,7 @@ data MsgFromServer
   | RplYoureOper ByteString
   | ErrNoSuchNick ByteString
   | ErrWasNoSuchNick ByteString
+  | ErrNoTextToSend
   | Away UserInfo ByteString
   deriving (Read, Show)
 
@@ -94,268 +96,223 @@ ircGetLine h =
   do b <- BS.hGetLine h
      return $! if not (BS.null b) && BS.last b == fromIntegral (ord '\r') then BS.init b else b
 
-parseIrcMsg :: ByteString -> Either String IRCMsg
-parseIrcMsg bs = aux (toIRCMsg bs)
-  where
-  aux (Fail _ _ e) = Left e
-  aux (Partial k ) = aux (k BS.empty)
-  aux (Done _ x  ) = Right x
-
-ircMsgToServerMsg :: IRCMsg -> Maybe MsgFromServer
+ircMsgToServerMsg :: RawIrcMsg -> Maybe MsgFromServer
 ircMsgToServerMsg ircmsg =
-  case msgCmd ircmsg of
-    "001" -> Just (RplWelcome (msgTrail ircmsg))
-    "002" -> Just (RplYourHost (msgTrail ircmsg))
-    "003" -> Just (RplCreated (msgTrail ircmsg))
+  case (msgCommand ircmsg, msgParams ircmsg) of
+    ("001",[_,txt]) -> Just (RplWelcome txt)
+    ("002",[_,txt]) -> Just (RplYourHost txt)
+    ("003",[_,txt]) -> Just (RplCreated txt)
 
-    "004" ->
-      do [_,host,version,umodes,lmodes,cmodes] <- Just (msgParams ircmsg)
-         Just (RplMyInfo host version umodes lmodes cmodes)
+    ("004",[_,host,version,umodes,lmodes,cmodes]) ->
+       Just (RplMyInfo host version umodes lmodes cmodes)
 
-    "005" ->
-      do _:params <- Just (msgParams ircmsg)
-         let params'
-               | BS.null (msgTrail ircmsg) = params
-               | otherwise = params ++ [msgTrail ircmsg]
-         Just (RplISupport params')
-    "042" ->
-      do [_,yourid] <- Just (msgParams ircmsg)
-         Just (RplYourId yourid)
+    ("005",_:params) ->
+       Just (RplISupport params)
 
-    "250" -> Just (RplStatsConn (msgTrail ircmsg))
-    "251" -> Just (RplLuserClient (msgTrail ircmsg))
+    ("042",[_,yourid]) ->
+       Just (RplYourId yourid)
 
-    "252" ->
-      do [_,num] <- Just (msgParams ircmsg)
-         Just (RplLuserOp num (msgTrail ircmsg))
+    ("250",[_,stats]) ->
+       Just (RplStatsConn stats)
 
-    "253" -> Just (RplLuserUnknown (msgTrail ircmsg))
+    ("251",[_,stats]) ->
+       Just (RplLuserClient stats)
 
-    "254" ->
-      do [_,num] <- Just (msgParams ircmsg)
-         Just (RplLuserChannels num (msgTrail ircmsg))
+    ("252",[_,num,txt]) ->
+       Just (RplLuserOp num txt)
 
-    "255" -> Just (RplLuserMe (msgTrail ircmsg))
-    "256" -> Just (RplLuserAdminMe (msgTrail ircmsg))
-    "257" -> Just (RplLuserAdminLoc1 (msgTrail ircmsg))
-    "258" -> Just (RplLuserAdminLoc2 (msgTrail ircmsg))
-    "259" -> Just (RplLuserAdminEmail (msgTrail ircmsg))
+    ("253",[_,txt]) ->
+       Just (RplLuserUnknown txt)
 
-    "265" ->
-      do [_,localusers,maxusers] <- Just (msgParams ircmsg)
-         Just (RplLocalUsers localusers maxusers)
+    ("254",[_,num,txt]) ->
+       Just (RplLuserChannels num txt)
 
-    "266" -> Just (RplGlobalUsers (msgTrail ircmsg))
+    ("255",[_,txt]) -> Just (RplLuserMe txt)
+    ("256",[_,txt]) -> Just (RplLuserAdminMe txt)
+    ("257",[_,txt]) -> Just (RplLuserAdminLoc1 txt)
+    ("258",[_,txt]) -> Just (RplLuserAdminLoc2 txt)
+    ("259",[_,txt]) -> Just (RplLuserAdminEmail txt)
 
-    "303" -> Just (RplIsOn (filter (not . BS.null) (BS.split 32 (msgTrail ircmsg))))
+    ("265",[_,localusers,maxusers,_txt]) ->
+       Just (RplLocalUsers localusers maxusers)
 
-    "311" ->
-      do [_,nick,user,host,_star] <- Just (msgParams ircmsg)
-         Just (RplWhoisUser nick user host (msgTrail ircmsg))
+    ("266",[_,globalusers,maxusers,_txt]) ->
+       Just (RplGlobalUsers globalusers maxusers)
 
-    "312" ->
-      do [_,nick,server] <- Just (msgParams ircmsg)
-         Just (RplWhoisServer nick server (msgTrail ircmsg))
+    ("303",[_,txt]) ->
+       Just (RplIsOn (filter (not . BS.null) (BS.split 32 txt)))
 
-    "314" ->
-      do [_,nick,user,host,_star] <- Just (msgParams ircmsg)
-         Just (RplWhoWasUser nick user host (msgTrail ircmsg))
+    ("311",[_,nick,user,host,_star,txt]) ->
+       Just (RplWhoisUser nick user host txt)
 
-    "319" ->
-      do [_,nick] <- Just (msgParams ircmsg)
-         Just (RplWhoisChannels nick (msgTrail ircmsg))
+    ("312",[_,nick,server,txt]) ->
+       Just (RplWhoisServer nick server txt)
 
-    "313" ->
-      do [_,nick] <- Just (msgParams ircmsg)
-         Just (RplWhoisOperator nick (msgTrail ircmsg))
+    ("314",[_,nick,user,host,_star,txt]) ->
+       Just (RplWhoWasUser nick user host txt)
 
-    "315" ->
-      do [_,chan] <- Just (msgParams ircmsg)
-         Just (RplEndOfWho chan)
+    ("319",[_,nick,txt]) ->
+       Just (RplWhoisChannels nick txt)
 
-    "317" ->
-      do [_,nick,idle,signon] <- Just (msgParams ircmsg)
-         Just (RplWhoisIdle nick idle signon)
+    ("313",[_,nick,txt]) ->
+       Just (RplWhoisOperator nick txt)
 
-    "318" ->
-      do [_,nick] <- Just (msgParams ircmsg)
-         Just (RplEndOfWhois nick)
+    ("315",[_,chan,_]) ->
+       Just (RplEndOfWho chan)
 
-    "321" -> Just RplListStart
+    ("317",[_,nick,idle,signon]) ->
+       Just (RplWhoisIdle nick idle signon)
 
-    "322" ->
-      do [_,chan,num,topic] <- Just (msgParams ircmsg)
-         Just (RplList chan num topic)
+    ("318",[_,nick,_txt]) ->
+       Just (RplEndOfWhois nick)
 
-    "323" -> Just RplListEnd
+    ("321",[_]) ->
+       Just RplListStart
 
-    "324" -> 
-      do _:chan:modes <- Just (msgParams ircmsg)
-         Just (RplChannelModeIs chan modes)
+    ("322",[_,chan,num,topic]) ->
+       Just (RplList chan num topic)
 
-    "328" ->
-      do [_,chan] <- Just (msgParams ircmsg)
-         Just (RplChannelUrl chan (msgTrail ircmsg))
+    ("323",[]) ->
+       Just RplListEnd
 
-    "329" ->
-      do [_,chan,time] <- Just (msgParams ircmsg)
-         Just (RplCreationTime chan (asTimeStamp time))
+    ("324",_:chan:modes) ->
+       Just (RplChannelModeIs chan modes)
 
-    "330" ->
-      do [_,nick,account] <- Just (msgParams ircmsg)
-         Just (RplWhoisAccount nick account)
+    ("328",[_,chan,url]) ->
+       Just (RplChannelUrl chan url)
 
-    "332" ->
-      do [_,chan] <- Just (msgParams ircmsg)
-         Just (RplTopic chan (msgTrail ircmsg))
+    ("329",[_,chan,time]) ->
+       Just (RplCreationTime chan (asTimeStamp time))
 
-    "333" ->
-      do [_,chan,who,time] <- Just (msgParams ircmsg)
-         Just (RplTopicWhoTime chan who (asTimeStamp time))
+    ("330",[_,nick,account,_txt]) ->
+       Just (RplWhoisAccount nick account)
 
-    "352" ->
-      do [_,chan,user,host,server,account,flags] <- Just (msgParams ircmsg)
-         Just (RplWhoReply chan user host server account flags (msgTrail ircmsg)) -- trailing is: <hop> <realname>
+    ("332",[_,chan,txt]) ->
+       Just (RplTopic chan txt)
 
-    "353" ->
-      do [_,ty,chan] <- Just (msgParams ircmsg)
-         ty' <- case ty of
+    ("333",[_,chan,who,time]) ->
+       Just (RplTopicWhoTime chan who (asTimeStamp time))
+
+    ("352",[_,chan,user,host,server,account,flags,txt]) ->
+       Just (RplWhoReply chan user host server account flags txt) -- trailing is: <hop> <realname>
+
+    ("353",[_,ty,chan,txt]) ->
+      do ty' <- case ty of
                   "=" -> Just PublicChannel
                   "*" -> Just PrivateChannel
                   "@" -> Just SecretChannel
                   _   -> Nothing
-         Just (RplNameReply ty' chan (filter (not . BS.null) (BS.split 32 (msgTrail ircmsg))))
+         Just (RplNameReply ty' chan (filter (not . BS.null) (BS.split 32 txt)))
 
-    "366" -> Just RplEndOfNames
+    ("366",[_,_chan,_]) -> Just RplEndOfNames
 
-    "367" ->
-      do [_,chan,banned,banner,time] <- Just (msgParams ircmsg)
-         Just (RplBanList chan banned banner (asTimeStamp time))
+    ("367",[_,chan,banned,banner,time]) ->
+       Just (RplBanList chan banned banner (asTimeStamp time))
 
-    "368" ->
-      do [_,chan] <- Just (msgParams ircmsg)
-         Just (RplEndOfBanList chan)
+    ("368",[_,chan,_txt]) ->
+       Just (RplEndOfBanList chan)
 
-    "369" ->
-      do [_,nick] <- Just (msgParams ircmsg)
+    ("369",[_,nick]) ->
          Just (RplEndOfWhoWas nick)
 
-    "375" -> Just RplMotdStart
-    "372" -> Just (RplMotd (msgTrail ircmsg))
-    "376" -> Just RplEndOfMotd
+    ("375",[_,_]) -> Just RplMotdStart
+    ("372",[_,txt]) -> Just (RplMotd txt)
+    ("376",[_,_]) -> Just RplEndOfMotd
 
-    "378" ->
-      do [_,nick] <- Just (msgParams ircmsg)
-         Just (RplWhoisHost nick (msgTrail ircmsg))
+    ("378",[_,nick,txt]) ->
+       Just (RplWhoisHost nick txt)
 
-    "381" ->
-      do [_] <- Just (msgParams ircmsg)
-         Just (RplYoureOper (msgTrail ircmsg))
+    ("381",[_,txt]) ->
+         Just (RplYoureOper txt)
 
-    "396" ->
-      do [_,host] <- Just (msgParams ircmsg)
+    ("396",[_,host,txt]) ->
          Just (RplHostHidden host)
 
-    "401" ->
-      do [_,nick] <- Just (msgParams ircmsg)
+    ("401",[_,nick,_]) ->
          Just (ErrNoSuchNick nick)
 
-    "406" ->
-      do [_,nick] <- Just (msgParams ircmsg)
+    ("406",[_,nick,_]) ->
          Just (ErrWasNoSuchNick nick)
 
-    "421" ->
-      do [_,cmd] <- Just (msgParams ircmsg)
+    ("412",[_,_]) ->
+         Just ErrNoTextToSend
+
+    ("421",[_,cmd,_]) ->
          Just (ErrUnknownCommand cmd)
 
-    "433" -> Just ErrNickInUse
+    ("433",[_,_]) -> Just ErrNickInUse
 
-    "461" ->
-      do [_,cmd] <- Just (msgParams ircmsg)
+    ("461",[_,cmd,_]) ->
          Just (ErrNeedsMoreParams cmd)
 
-    "475" ->
-      do [_,chan] <- Just (msgParams ircmsg)
+    ("475",[_,chan,_]) ->
          Just (ErrBadChannelKey chan)
 
-    "482" ->
-      do [_,chan] <- Just (msgParams ircmsg)
-         Just (ErrChanOpPrivsNeeded chan (msgTrail ircmsg))
+    ("482",[_,chan,txt]) ->
+         Just (ErrChanOpPrivsNeeded chan txt)
 
-    "671" ->
-      do [_,nick] <- Just (msgParams ircmsg)
+    ("671",[_,nick,_]) ->
          Just (RplWhoisSecure nick)
 
-    "728" ->
-      do [_,chan,_mode,banned,banner,time] <- Just (msgParams ircmsg)
+    ("728",[_,chan,_mode,banned,banner,time]) ->
          Just (RplQuietList chan banned banner time)
 
-    "729" ->
-      do [_,chan,_mode] <- Just (msgParams ircmsg)
+    ("729",[_,chan,_mode,_]) ->
          Just (RplEndOfQuietList chan)
 
-    "PING" -> Just (Ping (msgTrail ircmsg))
+    ("PING",[txt]) -> Just (Ping txt)
 
-    "PRIVMSG" ->
+    ("PRIVMSG",[dst,txt]) ->
       do src <- msgPrefix ircmsg
-         [dst] <- Just (msgParams ircmsg)
-         Just (PrivMsg src dst (msgTrail ircmsg))
+         Just (PrivMsg src dst txt)
 
-    "NOTICE" ->
+    ("NOTICE",[dst,txt]) ->
       do src <- msgPrefix ircmsg
-         [dst] <- Just (msgParams ircmsg)
-         Just (Notice src dst (msgTrail ircmsg))
+         Just (Notice src dst txt)
 
-    "TOPIC" ->
+    ("TOPIC",[chan,txt]) ->
       do who <- msgPrefix ircmsg
-         [chan] <- Just (msgParams ircmsg)
-         Just (Topic who chan (msgTrail ircmsg))
+         Just (Topic who chan txt)
 
-    "JOIN" ->
-      do Left who <- msgPrefix ircmsg
-         case msgParams ircmsg of
-           [chan,account] -> Just (ExtJoin who chan account (msgTrail ircmsg))
-           [chan] -> Just (Join who chan)
-           []     -> Just (Join who (msgTrail ircmsg))
-           _      -> Nothing
-
-    "NICK" ->
-      do Left who <- msgPrefix ircmsg
-         Just (Nick who (msgTrail ircmsg))
-
-    "MODE" ->
+    ("JOIN",[chan,account,real]) ->
       do who <- msgPrefix ircmsg
-         (tgt:modes) <- Just (msgParams ircmsg)
-         let modes' | BS.null (msgTrail ircmsg) = modes
-                    | otherwise = modes ++ [msgTrail ircmsg]
-         Just (Mode who tgt modes')
+         Just (ExtJoin who chan account real)
 
-    "PART" ->
-      do Left who <- msgPrefix ircmsg
-         [chan] <- Just (msgParams ircmsg)
-         Just (Part who chan (msgTrail ircmsg))
-
-    "AWAY" ->
-      do Left who <- msgPrefix ircmsg
-         Just (Away who (msgTrail ircmsg))
-
-    "QUIT" ->
-      do Left who <- msgPrefix ircmsg
-         Just (Quit who (msgTrail ircmsg))
-
-    "KICK" ->
+    ("JOIN",[chan]) ->
       do who <- msgPrefix ircmsg
-         [chan,tgt] <- Just (msgParams ircmsg)
-         Just (Kick who chan tgt (msgTrail ircmsg))
+         Just (Join who chan)
 
-    "INVITE" ->
+    ("NICK",[newnick]) ->
+      do who <- msgPrefix ircmsg
+         Just (Nick who newnick)
+
+    ("MODE",tgt:modes) ->
+      do who <- msgPrefix ircmsg
+         Just (Mode who tgt modes)
+
+    ("PART",[chan,txt]) ->
+      do who <- msgPrefix ircmsg
+         Just (Part who chan txt)
+
+    ("AWAY",[txt]) ->
+      do who <- msgPrefix ircmsg
+         Just (Away who txt)
+
+    ("QUIT",[txt]) ->
+      do who <- msgPrefix ircmsg
+         Just (Quit who txt)
+
+    ("KICK",[chan,tgt,txt]) ->
+      do who <- msgPrefix ircmsg
+         Just (Kick who chan tgt txt)
+
+    ("INVITE",[_,chan]) ->
       do who <- msgPrefix ircmsg
          [_] <- Just (msgParams ircmsg)
-         Just (Invite who (msgTrail ircmsg))
+         Just (Invite who chan)
 
-    "CAP" ->
-      do [_,cmd] <- Just (msgParams ircmsg)
-         Just (Cap cmd (msgTrail ircmsg))
+    ("CAP",[_,cmd,txt]) ->
+         Just (Cap cmd txt)
 
     _ -> Nothing
 
@@ -365,20 +322,18 @@ asTimeStamp b =
     Just (n,_) -> posixSecondsToUTCTime (fromIntegral n)
     Nothing    -> posixSecondsToUTCTime 0
 
-copyIRCMsg :: IRCMsg -> IRCMsg
+copyIRCMsg :: RawIrcMsg -> RawIrcMsg
 copyIRCMsg msg =
-  prefix' `seq` params' `seq` trail' `seq`
-  IRCMsg { msgPrefix = prefix'
-         , msgCmd = msgCmd msg
-         , msgParams = params'
-         , msgTrail = trail'
-         }
+  prefix' `seq` params' `seq`
+  RawIrcMsg
+    { msgPrefix = prefix'
+    , msgCommand = msgCommand msg
+    , msgParams = params'
+    }
   where
   prefix' = case msgPrefix msg of
-              Just (Right s) -> Just $! (Right $! BS.copy s)
-              Just (Left  u) -> Just $! (Left  $! copyUserInfo u)
-              Nothing        -> Nothing
-  trail'  = BS.copy (msgTrail msg)
+              Just u -> Just $! copyUserInfo u
+              Nothing -> Nothing
   params' = foldr (\x xs -> ((:) $! BS.copy x) $! xs) [] (msgParams msg)
 
 copyUserInfo :: UserInfo -> UserInfo

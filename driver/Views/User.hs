@@ -5,9 +5,10 @@ import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Foldable (toList)
 import Graphics.Vty.Image
-import Irc.Model
 import ImageUtils
-import Network.IRC.ByteString.Parser
+
+import Irc.Model
+import Irc.Format
 
 queryImage :: ClientState -> ByteString -> Image
 queryImage st user =
@@ -26,6 +27,4 @@ renderOne width msg =
        string (withForeColor defAttr blue) (": "))
       (view mesgContent msg)
   where
-  who = case view mesgSender msg of
-          Right x -> x -- probably shouldn't happen
-          Left  u -> userNick u
+  who = views mesgSender userNick msg

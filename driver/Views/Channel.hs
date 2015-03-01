@@ -1,6 +1,5 @@
 module Views.Channel where
 
-import ClientState
 import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Monoid
@@ -9,10 +8,14 @@ import Data.List (stripPrefix, intersperse)
 import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Graphics.Vty.Image
-import ImageUtils
-import Irc.Model
-import Network.IRC.ByteString.Parser
 import qualified Data.ByteString.Char8 as BS8
+import qualified Data.CaseInsensitive as CI
+
+import Irc.Format
+import Irc.Model
+
+import ClientState
+import ImageUtils
 
 detailedImageForState :: ClientState -> Image
 detailedImageForState st
@@ -54,9 +57,8 @@ activeMessages st =
   where
   conn = view clientConnection st
   nickFilter nick msg
-    = case view mesgSender msg of
-        Left u -> userNick u == nick
-        _ -> False
+    = CI.foldCase (views mesgSender userNick msg)
+      == CI.foldCase nick
 
 startFromBottom :: ClientState -> [Image] -> [Image]
 startFromBottom st xs
@@ -152,9 +154,7 @@ compressMessages (x:xs) =
     _             -> meta [] (x:xs)
 
   where
-  nick = case view mesgSender x of
-           Left u -> userNick u
-           Right s -> s
+  nick = views mesgSender userNick x
 
 meta :: [CompressedMeta] -> [IrcMessage] -> [CompressedMessage]
 meta acc [] = [CompMeta (reverse acc)]
@@ -169,9 +169,7 @@ meta acc (x:xs) =
       _ -> CompMeta (reverse acc) : compressMessages (x:xs)
 
   where
-  nick = case view mesgSender x of
-           Left u -> userNick u
-           Right s -> s
+  nick = views mesgSender userNick x
 
 data CompressedMessage
   = CompChat String Bool ByteString Text

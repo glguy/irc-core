@@ -21,7 +21,6 @@ import Data.Text (Text)
 import Data.Time
 import Graphics.Vty
 import Network
-import Network.IRC.ByteString.Parser
 import System.IO
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
@@ -33,6 +32,7 @@ import qualified Data.Text.Encoding as Text
 
 import Irc.Core
 import Irc.Cmd
+import Irc.Format
 import Irc.Model
 
 import CommandArgs
@@ -191,7 +191,7 @@ doSendMessage target message st =
 
   where
   fakeMsg now = IrcMessage
-    { _mesgSender = Left who
+    { _mesgSender = who
     , _mesgContent = message
     , _mesgType = PrivMsgType
     , _mesgStamp = now
@@ -398,9 +398,9 @@ interpretLogicOp _ (Failure e) = return (Left e)
 getOne :: Handle -> Handle -> IO MsgFromServer
 getOne h hErr =
     do xs <- ircGetLine h
-       case parseIrcMsg xs of
-         Left e -> hPrint hErr (e, xs) >> getOne h hErr
-         Right msg ->
+       case parseRawIrcMsg xs of
+         Nothing -> hPrint hErr xs >> getOne h hErr
+         Just msg ->
            case ircMsgToServerMsg (copyIRCMsg msg) of
              Just (Ping x) -> B.hPut h (pongCmd x) >> getOne h hErr
              Just x -> hPrint hErr x >> return x

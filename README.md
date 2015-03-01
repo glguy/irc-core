@@ -42,6 +42,7 @@ Keyboard Shortcuts
 * `^K` delete to end
 * `^U` delete to beginning
 * `^D` delete at cursor
+* `^W` delete word
 * `TAB` nickname completion
 * `F2` toggle detailed view
 * `Page Up` scroll up

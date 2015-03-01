@@ -4,85 +4,76 @@ module Irc.Cmd where
 import Data.Monoid
 import Data.ByteString (ByteString)
 import Data.Foldable (toList)
-import Network.IRC.ByteString.Parser
+
+import Irc.Format
 
 joinCmd :: ByteString -> Maybe ByteString -> ByteString
-joinCmd chan mbKey = fromIRCMsg IRCMsg
+joinCmd chan mbKey = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "JOIN"
+  , msgCommand  = "JOIN"
   , msgParams = [chan] <> toList mbKey
-  , msgTrail  = ""
   }
 
 nickCmd :: ByteString -> ByteString
-nickCmd nick = fromIRCMsg IRCMsg
+nickCmd nick = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "NICK"
+  , msgCommand    = "NICK"
   , msgParams = [nick]
-  , msgTrail  = ""
   }
 
 userCmd :: ByteString -> ByteString -> ByteString -> ByteString
-userCmd user mode realname = fromIRCMsg IRCMsg
+userCmd user mode realname = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "USER"
-  , msgParams = [user,mode,"*"]
-  , msgTrail  = realname
+  , msgCommand    = "USER"
+  , msgParams = [user,mode,"*",realname]
   }
 
 pongCmd :: ByteString -> ByteString
-pongCmd token = fromIRCMsg IRCMsg
+pongCmd token = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "PONG"
-  , msgParams = []
-  , msgTrail  = token
+  , msgCommand    = "PONG"
+  , msgParams = [token]
   }
 
 passCmd :: ByteString -> ByteString
-passCmd password = fromIRCMsg IRCMsg
+passCmd password = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "PASS"
-  , msgParams = []
-  , msgTrail  = password
+  , msgCommand    = "PASS"
+  , msgParams = [password]
   }
 
 capLsCmd :: ByteString
-capLsCmd = fromIRCMsg IRCMsg
+capLsCmd = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "CAP"
+  , msgCommand    = "CAP"
   , msgParams = ["LS"]
-  , msgTrail  = ""
   }
 
 capReqCmd :: ByteString -> ByteString
-capReqCmd caps = fromIRCMsg IRCMsg
+capReqCmd caps = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "CAP"
-  , msgParams = ["REQ"]
-  , msgTrail  = caps
+  , msgCommand    = "CAP"
+  , msgParams = ["REQ",caps]
   }
 
 capEndCmd :: ByteString
-capEndCmd = fromIRCMsg IRCMsg
+capEndCmd = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "CAP"
+  , msgCommand    = "CAP"
   , msgParams = ["END"]
-  , msgTrail  = ""
   }
 
 actionCmd :: ByteString -> ByteString -> ByteString
-actionCmd target msg = fromIRCMsg IRCMsg
+actionCmd target msg = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "PRIVMSG"
-  , msgParams = [target]
-  , msgTrail  = "\SOHACTION " <> msg <> "\SOH"
+  , msgCommand    = "PRIVMSG"
+  , msgParams = [target,"\SOHACTION " <> msg <> "\SOH"]
   }
 
 privMsgCmd :: ByteString -> ByteString -> ByteString
-privMsgCmd target msg = fromIRCMsg IRCMsg
+privMsgCmd target msg = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCmd    = "PRIVMSG"
-  , msgParams = [target]
-  , msgTrail  = msg
+  , msgCommand = "PRIVMSG"
+  , msgParams = [target,msg]
   }
 

@@ -17,13 +17,13 @@ import Data.Time
 import Data.Word
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
-import Network.IRC.ByteString.Parser
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Map as Map
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 
+import Irc.Format
 import Irc.Core
 import Irc.List (List)
 import qualified Irc.List as List
@@ -102,7 +102,7 @@ data IrcBan = IrcBan
 
 data IrcMessage = IrcMessage
   { _mesgType :: !IrcMessageType
-  , _mesgSender :: !(Either UserInfo ServerName)
+  , _mesgSender :: !UserInfo
   , _mesgContent :: !Text
   , _mesgStamp :: !UTCTime
   , _mesgMe :: !Bool
@@ -146,7 +146,7 @@ advanceModel stamp msg0 conn =
        RplLuserChannels _ _ -> return conn
        RplLuserMe _         -> return conn
        RplLocalUsers _ _    -> return conn
-       RplGlobalUsers _     -> return conn
+       RplGlobalUsers _ _   -> return conn
        RplStatsConn _       -> return conn
 
 
@@ -191,7 +191,7 @@ advanceModel stamp msg0 conn =
                 $ conn
          where
          changeTopic = set chanTopic
-                           (Just (topicText,either userInfoBytestring id who,stamp))
+                           (Just (topicText,userInfoBytestring who,stamp))
          topicText = asUtf8 topic
          m = IrcMessage
                 { _mesgType = TopicMsgType
@@ -335,7 +335,7 @@ doNick stamp who newnick = return
 
   m = IrcMessage
          { _mesgType = NickMsgType
-         , _mesgSender = Left who
+         , _mesgSender = who
          , _mesgContent = asUtf8 newnick
          , _mesgStamp = stamp
          , _mesgModes = ""
@@ -349,7 +349,7 @@ doPart stamp who chan reason conn =
   where
   mesg = IrcMessage
          { _mesgType = PartMsgType
-         , _mesgSender = Left who
+         , _mesgSender = who
          , _mesgContent = asUtf8 reason
          , _mesgStamp = stamp
          , _mesgMe = False
@@ -359,7 +359,7 @@ doPart stamp who chan reason conn =
   removeUser = set (chanUserAt (userNick who)) Nothing
 
 doKick ::
-  UTCTime -> Either UserInfo ServerName ->
+  UTCTime -> UserInfo ->
   ByteString -> ByteString -> ByteString ->
   IrcConnection -> Logic IrcConnection
 doKick stamp who chan tgt reason conn =
@@ -397,7 +397,7 @@ doQuit stamp who reason conn = return
   where
   mesg = IrcMessage
          { _mesgType = QuitMsgType
-         , _mesgSender = Left who
+         , _mesgSender = who
          , _mesgContent = asUtf8 reason
          , _mesgStamp = stamp
          , _mesgMe = False
@@ -437,7 +437,7 @@ doJoinChannel stamp who chan conn =
   where
   m = IrcMessage
         { _mesgType = JoinMsgType
-        , _mesgSender = Left who
+        , _mesgSender = who
         , _mesgContent = ""
         , _mesgStamp = stamp
         , _mesgMe = False
@@ -446,7 +446,7 @@ doJoinChannel stamp who chan conn =
 
 doNotifyChannel ::
   UTCTime ->
-  Either UserInfo ServerName ->
+  UserInfo ->
   ByteString ->
   ByteString ->
   IrcConnection ->
@@ -568,9 +568,7 @@ recordMessage mesg target conn =
       | otherwise                        -> recordUserMsg conn
 
   where
-  isMe = case view mesgSender mesg of
-           Right _ -> False
-           Left u  -> isMyNick (userNick u) conn
+  isMe = isMyNick (views mesgSender userNick mesg) conn
 
   mesg1 = set mesgMe isMe mesg
 
@@ -578,19 +576,15 @@ recordMessage mesg target conn =
   recordChannelMsg =
     over (connChannelIx target) $ \channel ->
 
-      let mesg' = case view mesgSender mesg of
-                    Right _ -> mesg1
-                    Left  u ->
-                      set mesgModes (view (chanUserIx (userNick u)) channel) mesg1
+      let mesg' = set mesgModes
+                      (view (chanUserIx (views mesgSender userNick mesg)) channel)
+                      mesg1
 
       in over chanMessages (cons mesg') channel
 
-  recordUserMsg =
-    case view mesgSender mesg of
-      Right _ -> id -- TODO: handle server messages
-      Left who
-        | isMe      -> recordUserMsgFor target
-        | otherwise -> recordUserMsgFor (userNick who)
+  recordUserMsg
+    | isMe      = recordUserMsgFor target
+    | otherwise = recordUserMsgFor (userNick (view mesgSender mesg))
 
   recordUserMsgFor u =
     over (connUserAt u) $ \mbUser ->
