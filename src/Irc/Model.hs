@@ -6,6 +6,7 @@ module Irc.Model where
 
 import Data.Map (Map)
 import Data.Monoid
+import Data.Char (chr)
 import Data.Text (Text)
 import Control.Applicative
 import Control.Lens
@@ -120,6 +121,7 @@ data IrcMessageType
   | NickMsgType   ByteString
   | TopicMsgType  Text
   | ErrorMsgType  Text
+  | ModeMsgType Bool Char ByteString
   deriving (Read, Show)
 
 data IrcUser = IrcUser
@@ -256,8 +258,8 @@ advanceModel stamp msg0 conn =
        RplEndOfBanList chan ->
          return (set (connChannelIx chan . chanBans) Nothing conn)
 
-       Mode _who target (modes:args) ->
-         return (doModeChange target modes args conn)
+       Mode who target (modes:args) ->
+         return (doModeChange who stamp target modes args conn)
 
        ErrChanOpPrivsNeeded chan txt ->
          return (recordMessage mesg chan conn)
@@ -273,8 +275,8 @@ advanceModel stamp msg0 conn =
        _ -> fail ("Unsupported: " ++ show msg0)
 
 
-doModeChange :: ByteString -> ByteString -> [ByteString] -> IrcConnection -> IrcConnection
-doModeChange target modes0 args0 conn0 = aux True modes0 args0 conn0
+doModeChange :: UserInfo -> UTCTime -> ByteString -> ByteString -> [ByteString] -> IrcConnection -> IrcConnection
+doModeChange who now target modes0 args0 conn0 = aux True modes0 args0 conn0
   where
   modeSettings = view connChanModes conn0
 
@@ -293,6 +295,7 @@ doModeChange target modes0 args0 conn0 = aux True modes0 args0 conn0
               case args of
                 [] -> conn -- ?
                 arg:args' -> aux polarity ms args'
+                           $ recordMessage (modeMsg polarity m arg) target
                            $ over (connChannelIx target . chanUserIx arg)
                                   toggle
                                   conn
@@ -301,6 +304,14 @@ doModeChange target modes0 args0 conn0 = aux True modes0 args0 conn0
           toggle
             | polarity = nub . cons m
             | otherwise = delete m
+
+  modeMsg polarity m arg = IrcMessage
+         { _mesgType = ModeMsgType polarity m arg
+         , _mesgSender = who
+         , _mesgStamp = now
+         , _mesgModes = ""
+         , _mesgMe = False
+         }
 
 doBanList :: [IrcBan] -> IrcConnection -> Logic IrcConnection
 doBanList acc conn =

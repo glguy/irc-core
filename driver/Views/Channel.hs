@@ -13,6 +13,7 @@ import Graphics.Vty.Image
 import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Text as Text
 
 import Irc.Format
 import Irc.Model
@@ -50,6 +51,9 @@ detailedImageForState st
        NoticeMsgType txt -> ("N", txt)
        KickMsgType who txt -> ("K", asUtf8 who <> " - " <> txt)
        ErrorMsgType txt -> ("E", txt)
+       ModeMsgType pol mode arg -> ("Z", (if pol then "+" else "-")
+                                        <> Text.pack [mode, ' ']
+                                        <> asUtf8 arg)
 
 renderTimestamp :: UTCTime -> Image
 renderTimestamp
@@ -129,6 +133,13 @@ compressedImageForState st
       (string (withForeColor defAttr red) "Error: ")
       err
 
+  renderOne (CompMode who pol m arg) =
+    [utf8Bytestring' (withForeColor defAttr yellow) who <|>
+     string (withForeColor defAttr red) " set mode " <|>
+     string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
+     utf8Bytestring' (withForeColor defAttr yellow) who
+    ]
+
   renderOne (CompMeta xs) =
      [horizCat (intersperse (char defAttr ' ') (map renderMeta xs))]
 
@@ -172,6 +183,8 @@ compressMessages (x:xs) =
                        : compressMessages xs
     ErrorMsgType err  -> CompError err
                        : compressMessages xs
+    ModeMsgType pol mode arg -> CompMode nick pol mode arg
+                       : compressMessages xs
     _                 -> meta [] (x:xs)
 
   where
@@ -197,6 +210,7 @@ data CompressedMessage
   | CompAction String ByteString Text
   | CompKick ByteString ByteString Text
   | CompError Text
+  | CompMode ByteString Bool Char ByteString
   | CompMeta [CompressedMeta]
 
 data CompressedMeta

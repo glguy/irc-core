@@ -80,7 +80,7 @@ data MsgFromServer
   | ErrNickInUse
   | ErrUnknownCommand ByteString
   | ErrNeedsMoreParams ByteString
-  | ErrBadChannelKey ByteString
+  | ErrBadChannelKey ByteString ByteString
   | Invite UserInfo ByteString
   | RplListStart
   | RplList ByteString ByteString ByteString
@@ -273,8 +273,8 @@ ircMsgToServerMsg ircmsg =
     ("461",[_,cmd,_]) ->
          Just (ErrNeedsMoreParams cmd)
 
-    ("475",[_,chan,_]) ->
-         Just (ErrBadChannelKey chan)
+    ("475",[_,chan,txt]) ->
+         Just (ErrBadChannelKey chan txt)
 
     ("482",[_,chan,txt]) ->
          Just (ErrChanOpPrivsNeeded chan txt)
