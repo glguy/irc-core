@@ -153,6 +153,7 @@ advanceModel stamp msg0 conn =
        RplLuserOp _ _       -> return conn
        RplLuserChannels _ _ -> return conn
        RplLuserMe _         -> return conn
+       RplLuserClient _     -> return conn
        RplLocalUsers _ _    -> return conn
        RplGlobalUsers _ _   -> return conn
        RplStatsConn _       -> return conn
