@@ -3,6 +3,8 @@ My IRC client
 
 This client has fewer features than the one you're using now. You probably don't want to use it.
 
+![](https://raw.githubusercontent.com/wiki/glguy/irc-core/images/screenshot.png)
+
 Library
 =======
 
@@ -11,12 +13,14 @@ This package is split into a generic IRC modeling library and a VTY-base text cl
 Startup
 =======
 
+```
 glirc <options> SERVER
   -p PORT  --port=PORT  IRC Server Port
   -n NICK  --nick=NICK  Nickname
   -u USER  --user=USER  Username
   -r REAL  --real=REAL  Real Name
   -h       --help       Show help
+```
 
 Commands
 ========
