@@ -247,17 +247,20 @@ commandEvent cmd st =
       doQuote rest st'
 
     -- channel commands
-    "join" :- c :- "" ->
-      st' <$ B.hPut (view clientSocket st) (joinCmd (toB c) Nothing)
+    "join" :- c :- "" -> doJoinCmd (toB c) Nothing st'
+    "join" :- c :- k :- "" -> doJoinCmd (toB c) (Just (toB k)) st'
 
-    "join" :- c :- k :- "" ->
-      st' <$ B.hPut (view clientSocket st) (joinCmd (toB c) (Just (toB k)))
-
-    _                    -> return st
+    _ -> return st
 
   where
   st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
+
+doJoinCmd :: ByteString -> Maybe ByteString -> ClientState -> IO ClientState
+doJoinCmd c mbKey st =
+  do B.hPut (view clientSocket st) (joinCmd c mbKey)
+     let c0 = B.takeWhile (/=44) c -- , separates channels
+     return (set clientFocus (ChannelFocus c0) st)
 
 doQuote :: String -> ClientState -> IO ClientState
 doQuote cmd st = st <$ hPutStrLn (view clientSocket st) cmd
