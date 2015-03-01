@@ -7,7 +7,9 @@ import Data.Foldable (toList)
 import Data.List (stripPrefix, intersperse)
 import Data.Maybe (mapMaybe)
 import Data.Text (Text)
+import Data.Time (UTCTime, formatTime)
 import Graphics.Vty.Image
+import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.CaseInsensitive as CI
 
@@ -30,7 +32,8 @@ detailedImageForState st
   width = view clientWidth st
   renderOne x =
     composeLine width
-      (string (withForeColor defAttr blue) (ty ++ " ")
+      (renderTimestamp (view mesgStamp x)
+       <|> string (withForeColor defAttr blue) (ty ++ " ")
        <|> renderFullUsermask (view mesgSender x)
        <|> string (withForeColor defAttr blue) (": "))
       (view mesgContent x)
@@ -45,6 +48,11 @@ detailedImageForState st
            ActionMsgType -> "A"
            NoticeMsgType -> "N"
            KickMsgType -> "K"
+
+renderTimestamp :: UTCTime -> Image
+renderTimestamp
+  = string (withForeColor defAttr brightBlack)
+  . formatTime defaultTimeLocale "%H:%M:%S "
 
 activeMessages :: ClientState -> [IrcMessage]
 activeMessages st =
