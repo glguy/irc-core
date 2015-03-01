@@ -321,34 +321,3 @@ asTimeStamp b =
   case BS8.readInteger b of
     Just (n,_) -> posixSecondsToUTCTime (fromIntegral n)
     Nothing    -> posixSecondsToUTCTime 0
-
-copyIRCMsg :: RawIrcMsg -> RawIrcMsg
-copyIRCMsg msg =
-  prefix' `seq` params' `seq`
-  RawIrcMsg
-    { msgPrefix = prefix'
-    , msgCommand = msgCommand msg
-    , msgParams = params'
-    }
-  where
-  prefix' = case msgPrefix msg of
-              Just u -> Just $! copyUserInfo u
-              Nothing -> Nothing
-  params' = foldr (\x xs -> ((:) $! BS.copy x) $! xs) [] (msgParams msg)
-
-copyUserInfo :: UserInfo -> UserInfo
-copyUserInfo u =
-  nick' `seq` host' `seq` name' `seq`
-  UserInfo
-    { userNick = nick'
-    , userHost = host'
-    , userName = name'
-    }
-  where
-  nick' = BS.copy (userNick u)
-  host' = case userHost u of
-            Nothing -> Nothing
-            Just h  -> Just $! BS.copy h
-  name' = case userName u of
-            Nothing -> Nothing
-            Just h  -> Just $! BS.copy h

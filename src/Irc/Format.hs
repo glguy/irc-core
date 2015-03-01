@@ -25,13 +25,15 @@ parseRawIrcMsg :: ByteString -> Maybe RawIrcMsg
 parseRawIrcMsg x =
   do (y,ys) <- B.uncons x
      if y == 58
-       then case tokens ys of
+       then case duplicate (tokens ys) of
               prefix : command : rest ->
-                return (RawIrcMsg (Just (parsePrefix prefix)) command rest)
+                return $! RawIrcMsg (Just (parsePrefix prefix))
+                                    command
+                                    rest
               _ -> Nothing
-       else case tokens x of
+       else case duplicate (tokens x) of
               command : rest ->
-                return (RawIrcMsg Nothing command rest)
+                return $! RawIrcMsg Nothing command rest
               _ -> Nothing
 
 tokens :: ByteString -> [ByteString]
@@ -63,5 +65,12 @@ buildParams :: [ByteString] -> Builder
 buildParams [x]
   | B.elem 32 x || B.elem 58 x
   = Builder.word8 32 <> Builder.word8 58 <> Builder.byteString x
+buildParams (x:xs)
+  = Builder.word8 32 <> Builder.byteString x <> buildParams xs
 buildParams [] = mempty
-buildParams (x:xs) = Builder.word8 32 <> Builder.byteString x <> buildParams xs
+
+-- | Copy all of the bytestrings strictly to make sure
+-- we're not holding on to large packets.
+duplicate :: [ByteString] -> [ByteString]
+duplicate [] = []
+duplicate (x:xs) = ((:) $! B.copy x) $! duplicate xs

@@ -404,7 +404,7 @@ getOne h hErr =
        case parseRawIrcMsg xs of
          Nothing -> hPrint hErr xs >> getOne h hErr
          Just msg ->
-           case ircMsgToServerMsg (copyIRCMsg msg) of
+           case ircMsgToServerMsg msg of
              Just (Ping x) -> B.hPut h (pongCmd x) >> getOne h hErr
              Just x -> hPrint hErr x >> return x
              Nothing -> hPrint hErr msg >> getOne h hErr
