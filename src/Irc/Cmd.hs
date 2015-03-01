@@ -70,17 +70,17 @@ capEndCmd = renderRawIrcMsg RawIrcMsg
   , msgParams = ["END"]
   }
 
-actionCmd :: ByteString -> ByteString -> ByteString
-actionCmd target msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand    = "PRIVMSG"
-  , msgParams = [target,"\SOHACTION " <> msg <> "\SOH"]
-  }
-
 privMsgCmd :: ByteString -> ByteString -> ByteString
 privMsgCmd target msg = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand = "PRIVMSG"
+  , msgParams = [target,msg]
+  }
+
+noticeCmd :: ByteString -> ByteString -> ByteString
+noticeCmd target msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "NOTICE"
   , msgParams = [target,msg]
   }
 

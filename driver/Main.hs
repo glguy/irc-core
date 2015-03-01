@@ -167,7 +167,7 @@ keyEvent (KChar c)   []      st = return $ clearTabPattern $ over clientEditBox 
 keyEvent KEnter      []      st = case clientInput st of
                                     []          -> return st
                                     '/':command -> commandEvent command st
-                                    _           -> doSendMessageCurrent st
+                                    _           -> doSendMessageCurrent SendPriv st
 keyEvent _           _       st = return st
 
 
@@ -182,16 +182,23 @@ scrollUp st = over clientScrollPos (+ scrollOffset st) st
 scrollDown :: ClientState -> ClientState
 scrollDown st = over clientScrollPos (\x -> max 0 (x - scrollOffset st)) st
 
-doSendMessageCurrent :: ClientState -> IO ClientState
-doSendMessageCurrent st =
+doSendMessageCurrent :: SendType -> ClientState -> IO ClientState
+doSendMessageCurrent sendType st =
   case view clientFocus st of
-    ChannelFocus c -> doSendMessage c (Text.pack (clientInput st)) (clearInput st)
-    UserFocus u    -> doSendMessage u (Text.pack (clientInput st)) (clearInput st)
+    ChannelFocus c -> doSendMessage sendType c (Text.pack (clientInput st)) (clearInput st)
+    UserFocus u    -> doSendMessage sendType u (Text.pack (clientInput st)) (clearInput st)
     _ -> return st
 
-doSendMessage :: ByteString -> Text -> ClientState -> IO ClientState
-doSendMessage target message st =
-  do clientSend (privMsgCmd target (Text.encodeUtf8 message)) st
+data SendType = SendPriv | SendNotice | SendAction
+
+doSendMessage :: SendType -> ByteString -> Text -> ClientState -> IO ClientState
+doSendMessage sendType target message st =
+  do let bs = case sendType of
+                SendPriv -> privMsgCmd target (Text.encodeUtf8 message)
+                SendAction -> privMsgCmd target ("\SOHACTION " <>
+                                                 Text.encodeUtf8 message <> "\SOH")
+                SendNotice -> noticeCmd target (Text.encodeUtf8 message)
+     clientSend bs st
      now <- getCurrentTime
      let addMessageToConnection =
              over clientConnection (recordMessage (fakeMsg now) target)
@@ -200,7 +207,10 @@ doSendMessage target message st =
   where
   fakeMsg now = IrcMessage
     { _mesgSender = who
-    , _mesgType = PrivMsgType message
+    , _mesgType = case sendType of
+                    SendPriv   -> PrivMsgType   message
+                    SendNotice -> NoticeMsgType message
+                    SendAction -> ActionMsgType message
     , _mesgStamp = now
     , _mesgModes = ""
     , _mesgMe = True
@@ -243,13 +253,20 @@ commandEvent cmd st =
       return (set clientFocus (BanListFocus (B8.pack chan)) st')
 
     -- chat
-    "me" :- msg -> doActionMsg msg st'
-    "msg" :- target :- msg -> doSendMessage (B8.pack target) (Text.pack msg) st'
+    "me" :- msg ->
+      case view clientFocus st of
+        ChannelFocus c -> doSendMessage SendAction c (Text.pack msg) st'
+        UserFocus u    -> doSendMessage SendAction u (Text.pack msg) st'
+        _ -> return st
+    "notice" :- target :- msg ->
+      doSendMessage SendNotice (B8.pack target) (Text.pack msg) st'
+    "msg" :- target :- msg ->
+      doSendMessage SendPriv (B8.pack target) (Text.pack msg) st'
 
     "hs" :- rest ->
       case view clientFocus st of
-        ChannelFocus c -> doSendMessage c msg st'
-        UserFocus u    -> doSendMessage u msg st'
+        ChannelFocus c -> doSendMessage SendPriv c msg st'
+        UserFocus u    -> doSendMessage SendPriv u msg st'
         _ -> return st
        where
        msg = Text.pack (highlightHaskell rest)
@@ -278,15 +295,6 @@ doJoinCmd c mbKey st =
 doQuote :: String -> ClientState -> IO ClientState
 doQuote cmd st = st <$ clientSend (Text.encodeUtf8 (Text.pack (cmd ++ "\r\n"))) st
 
--- TODO : Add fake Action message to connection
-doActionMsg :: String -> ClientState -> IO ClientState
-doActionMsg msg st =
-  case view clientFocus st of
-    ChannelFocus chan -> send chan >> return st
-    UserFocus user -> send user >> return st
-    _ -> return st
-  where
-  send target = clientSend (actionCmd target (Text.encodeUtf8 (Text.pack msg))) st
 
 ------------------------------------------------------------------------
 -- Primary UI rendering
