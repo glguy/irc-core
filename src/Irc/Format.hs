@@ -1,11 +1,13 @@
+-- | This module provides a parser and printer for the low-level IRC
+-- message format.
 module Irc.Format (UserInfo(..), RawIrcMsg(..), parseRawIrcMsg, renderRawIrcMsg) where
 
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Builder as Builder
-import Data.ByteString.Builder (Builder)
 import Data.ByteString (ByteString)
+import Data.ByteString.Builder (Builder)
 import Data.Monoid
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy as L
 
 data UserInfo = UserInfo
   { userNick :: ByteString

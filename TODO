@@ -2,3 +2,4 @@ channel and my user modes
 chanserv automation
 name highlighting
 formatting in chat
+make errors visible e.g. ErrChanOpNeeded shows in the channel it was needed in

@@ -65,6 +65,10 @@ data MsgFromServer
   | RplWhoWasUser ByteString ByteString ByteString ByteString
   | RplBanList ByteString ByteString ByteString UTCTime
   | RplEndOfBanList ByteString
+  | RplInviteList ByteString ByteString ByteString UTCTime
+  | RplEndOfInviteList ByteString
+  | RplExceptionList ByteString ByteString ByteString UTCTime
+  | RplEndOfExceptionList ByteString
   | RplEndOfWhoWas ByteString
   | RplQuietList ByteString ByteString ByteString ByteString
   | RplEndOfQuietList ByteString
@@ -192,6 +196,18 @@ ircMsgToServerMsg ircmsg =
 
     ("333",[_,chan,who,time]) ->
        Just (RplTopicWhoTime chan who (asTimeStamp time))
+
+    ("346",[_,chan,mask,who,time]) ->
+       Just (RplInviteList chan mask who (asTimeStamp time))
+
+    ("347",[_,chan,_txt]) ->
+       Just (RplEndOfInviteList chan)
+
+    ("348",[_,chan,mask,who,time]) ->
+       Just (RplExceptionList chan mask who (asTimeStamp time))
+
+    ("349",[_,chan,_txt]) ->
+       Just (RplEndOfExceptionList chan)
 
     ("352",[_,chan,user,host,server,account,flags,txt]) ->
        Just (RplWhoReply chan user host server account flags txt) -- trailing is: <hop> <realname>
