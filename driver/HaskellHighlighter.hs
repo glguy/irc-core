@@ -11,7 +11,7 @@ colorize (tok, (_,str)) =
     Varid    -> str
     Conid    -> yellow str
     Varsym   -> lightgreen str
-    Consym   -> lightgreen str
+    Consym   -> lightblue str
     Reservedid -> lightgreen str
     Reservedop -> lightgreen str
     Specialid  -> str
@@ -21,9 +21,9 @@ colorize (tok, (_,str)) =
     StringLit  -> lightgray str
     Qvarid     -> str
     Qconid     -> yellow str
-    Qvarsym    -> lightblue str
-    Qconsym    -> lightgreen str
-    Special    -> str
+    Qvarsym    -> lightgreen str
+    Qconsym    -> lightblue str
+    Special    -> red str
     Whitespace -> str
     NestedCommentStart -> gray str
     NestedComment -> gray str
@@ -37,10 +37,11 @@ colorize (tok, (_,str)) =
     Layout -> str
     Indent _ -> str
     Open _ -> str
+    TheRest -> str
 
-yellow x = "\03\&08" ++ x ++ "\03\02\02"
-lightgreen  x = "\03\&09" ++ x ++ "\03\02\02"
+yellow x = "\03\&07" ++ x ++ "\03\02\02"
+lightgreen  x = "\03\&03" ++ x ++ "\03\02\02"
 red    x = "\03\&04" ++ x ++ "\03\02\02"
-lightblue x = "\03\&12" ++ x ++ "\03\02\02"
+lightblue x = "\03\&10" ++ x ++ "\03\02\02"
 gray x = "\03\&14" ++ x ++ "\03\02\02"
 lightgray x = "\03\&15" ++ x ++ "\03\02\02"
