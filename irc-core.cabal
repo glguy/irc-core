@@ -42,6 +42,7 @@ executable glirc
                  ImageUtils
                  CommandArgs
                  EditBox
+                 HaskellHighlighter
   hs-source-dirs: driver
   ghc-options: -threaded
   build-depends: irc-core,
@@ -55,5 +56,6 @@ executable glirc
                  stm              >= 2.4.4    && < 2.5,
                  text             >= 1.2.0.4  && < 1.3,
                  time             >= 1.4.2    && < 1.5,
-                 vty              >= 5.2.7    && < 5.3
+                 vty              >= 5.2.7    && < 5.3,
+                 haskell-lexer    >= 1.0      && < 1.1
   default-language:    Haskell2010

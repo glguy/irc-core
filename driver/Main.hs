@@ -37,6 +37,7 @@ import Irc.Model
 import Irc.RateLimit
 
 import CommandArgs
+import HaskellHighlighter
 import ClientState
 import Views.Channel
 import Views.ChannelInfo
@@ -244,6 +245,14 @@ commandEvent cmd st =
     -- chat
     "me" :- msg -> doActionMsg msg st'
     "msg" :- target :- msg -> doSendMessage (B8.pack target) (Text.pack msg) st'
+
+    "hs" :- rest ->
+      case view clientFocus st of
+        ChannelFocus c -> doSendMessage c msg st'
+        UserFocus u    -> doSendMessage u msg st'
+        _ -> return st
+       where
+       msg = Text.pack (highlightHaskell rest)
 
     -- raw
     "quote" :- rest ->
