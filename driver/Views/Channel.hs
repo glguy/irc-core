@@ -88,10 +88,14 @@ compressedImageForState st
   $ reverse
   $ take (view clientHeight st - 4)
   $ drop (view clientScrollPos st)
-  $ concatMap (reverse . lineWrap width . renderOne)
+  $ concatMap (reverse . addExtraWhitespace . lineWrap width . renderOne)
   $ compressMessages
   $ activeMessages st
   where
+  addExtraWhitespace
+    | view clientExtraWhitespace st = (++[char defAttr ' '])
+    | otherwise = id
+
   width = view clientWidth st
 
   formatNick me = utf8Bytestring' (withForeColor defAttr color)

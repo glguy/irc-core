@@ -84,10 +84,11 @@ main = do
          , _clientConnection      = conn0
          , _clientFocus           = ServerFocus
          , _clientDetailView      = False
+         , _clientExtraWhitespace = False
          , _clientEditBox         = Edit.empty
          , _clientTabPattern      = Nothing
          , _clientInputHistory    = []
-         , _clientInputHistoryPos = 0
+         , _clientInputHistoryPos = -1
          , _clientScrollPos       = 0
          , _clientHeight          = height
          , _clientWidth           = width
@@ -146,6 +147,7 @@ driver vty vtyEventChan ircMsgChan st =
 
 keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
 keyEvent (KFun 2)    []      st = return $ over clientDetailView not st
+keyEvent (KFun 3)    []      st = return $ over clientExtraWhitespace not st
 keyEvent KPageUp     _       st = return $ scrollUp st
 keyEvent KPageDown   _       st = return $ scrollDown st
 keyEvent (KChar 'n') [MCtrl] st = return $ nextFocus st
@@ -153,6 +155,8 @@ keyEvent (KChar 'p') [MCtrl] st = return $ prevFocus st
 keyEvent KBS         _       st = return $ clearTabPattern $ over clientEditBox Edit.backspace st
 keyEvent (KChar 'd') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.delete st
 keyEvent KDel        _       st = return $ clearTabPattern $ over clientEditBox Edit.delete st
+keyEvent KUp         _       st = return $ earlierHistory st
+keyEvent KDown       _       st = return $ laterHistory st
 keyEvent KLeft       _       st = return $ clearTabPattern $ over clientEditBox Edit.left st
 keyEvent KRight      _       st = return $ clearTabPattern $ over clientEditBox Edit.right st
 keyEvent KHome       _       st = return $ clearTabPattern $ over clientEditBox Edit.home st
@@ -185,8 +189,10 @@ scrollDown st = over clientScrollPos (\x -> max 0 (x - scrollOffset st)) st
 doSendMessageCurrent :: SendType -> ClientState -> IO ClientState
 doSendMessageCurrent sendType st =
   case view clientFocus st of
-    ChannelFocus c -> doSendMessage sendType c (Text.pack (clientInput st)) (clearInput st)
-    UserFocus u    -> doSendMessage sendType u (Text.pack (clientInput st)) (clearInput st)
+    ChannelFocus c -> doSendMessage sendType c (Text.pack (clientInput st))
+                                               (clearInput st)
+    UserFocus u    -> doSendMessage sendType u (Text.pack (clientInput st))
+                                               (clearInput st)
     _ -> return st
 
 data SendType = SendPriv | SendNotice | SendAction
