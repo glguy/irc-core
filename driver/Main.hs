@@ -61,8 +61,7 @@ main = do
   traverse_ (B.hPut h . passCmd . B8.pack) (view cmdArgPassword args)
   B.hPut h (nickCmd (B8.pack (view cmdArgNick args)))
   B.hPut h (userCmd (B8.pack (view cmdArgUser args))
-                     "0"
-                     (B8.pack (view cmdArgReal args)))
+                    (B8.pack (view cmdArgReal args)))
 
   vtyEventChan <- atomically newTChan
   socketChan   <- atomically newTChan
@@ -141,7 +140,7 @@ driver vty vtyEventChan ircMsgChan st =
 negotiateCaps :: Handle -> IO ()
 negotiateCaps h = do
   B.hPut h capLsCmd
-  B.hPut h (capReqCmd "multi-prefix")
+  B.hPut h (capReqCmd ["multi-prefix"])
   B.hPut h capEndCmd
 
 ------------------------------------------------------------------------

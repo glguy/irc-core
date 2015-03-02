@@ -1,14 +1,24 @@
 -- | This module provides a parser and printer for the low-level IRC
 -- message format.
-module Irc.Format (UserInfo(..), RawIrcMsg(..), parseRawIrcMsg, renderRawIrcMsg) where
+module Irc.Format
+  ( UserInfo(..)
+  , RawIrcMsg(..)
+  , parseRawIrcMsg
+  , renderRawIrcMsg
+  , ircGetLine
+  ) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.Monoid
+import System.IO (Handle)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as L
 
+-- | 'UserInfo' packages a nickname along with the username and hsotname
+-- if they are known in the current context.
 data UserInfo = UserInfo
   { userNick :: ByteString
   , userName :: Maybe ByteString
@@ -16,6 +26,11 @@ data UserInfo = UserInfo
   }
   deriving (Read, Show)
 
+-- | 'RawIrcMsg' breaks down the IRC protocol into its most basic parts.
+-- The "trailing" parameter indicated in the IRC protocol with a leading
+-- colon will appear as the last parameter in the parameter list.
+--
+-- @:prefix COMMAND param0 param1 param2 .. paramN@
 data RawIrcMsg = RawIrcMsg
   { msgPrefix  :: Maybe UserInfo
   , msgCommand :: ByteString
@@ -23,6 +38,8 @@ data RawIrcMsg = RawIrcMsg
   }
   deriving (Read, Show)
 
+-- | Attempt to split an IRC protocol message without its trailing newline
+-- information into a structured message.
 parseRawIrcMsg :: ByteString -> Maybe RawIrcMsg
 parseRawIrcMsg x =
   do (y,ys) <- B.uncons x
@@ -38,6 +55,8 @@ parseRawIrcMsg x =
                 return $! RawIrcMsg Nothing command rest
               _ -> Nothing
 
+-- | Split up a bytestring into space delimited tokens. The last token
+-- in the bytestring is potentially indicated by a leading colon.
 tokens :: ByteString -> [ByteString]
 tokens x =
   case B.uncons x of
@@ -46,6 +65,9 @@ tokens x =
     _            -> let (a,b) = B.break (==32) x
                     in a : tokens (B.drop 1 b)
 
+-- | Split up a message prefix into a nickname, username, and hostname.
+-- The username and hostname might not be defined but are delimited by
+-- a @!@ and @@@ respectively.
 parsePrefix :: ByteString -> UserInfo
 parsePrefix x = UserInfo
   { userNick = nick
@@ -56,6 +78,8 @@ parsePrefix x = UserInfo
   (nickuser,host) = B.break (==64) x
   (nick,user) = B.break (==33) nickuser
 
+-- | Serialize a structured IRC protocol message back into its wire
+-- format. This command adds the required trailing newline.
 renderRawIrcMsg :: RawIrcMsg -> ByteString
 renderRawIrcMsg m = L.toStrict $ Builder.toLazyByteString $
   Builder.byteString (msgCommand m)
@@ -76,3 +100,9 @@ buildParams [] = mempty
 duplicate :: [ByteString] -> [ByteString]
 duplicate [] = []
 duplicate (x:xs) = ((:) $! B.copy x) $! duplicate xs
+
+ircGetLine :: Handle -> IO ByteString
+ircGetLine h =
+  do b <- B.hGetLine h
+     return $! if not (B.null b) && B8.last b == '\r' then B.init b else b
+

@@ -99,11 +99,6 @@ data MsgFromServer
 data ChannelType = SecretChannel | PrivateChannel | PublicChannel
   deriving (Read, Show)
 
-ircGetLine :: Handle -> IO ByteString
-ircGetLine h =
-  do b <- BS.hGetLine h
-     return $! if not (BS.null b) && BS.last b == fromIntegral (ord '\r') then BS.init b else b
-
 ircMsgToServerMsg :: RawIrcMsg -> Maybe MsgFromServer
 ircMsgToServerMsg ircmsg =
   case (msgCommand ircmsg, msgParams ircmsg) of
