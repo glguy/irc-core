@@ -15,6 +15,9 @@ module EditBox
   , insert
   , insertString
   , empty
+  , earlier
+  , later
+  , success
   ) where
 
 import Control.Lens
@@ -23,6 +26,8 @@ import Data.Char
 data EditBox = EditBox
   { _content :: !String
   , _pos     :: !Int
+  , _history :: [String]
+  , _historyPos :: !Int
   }
   deriving (Read, Show)
 
@@ -32,7 +37,39 @@ empty :: EditBox
 empty = EditBox
   { _content = ""
   , _pos     = 0
+  , _history = []
+  , _historyPos = -1
   }
+
+success :: EditBox -> EditBox
+success e
+  = over history (cons (view content e))
+  $ set  content ""
+  $ set  historyPos (-1)
+  $ set  pos        0 e
+
+earlier :: EditBox -> Maybe EditBox
+earlier e =
+  do let i = view historyPos e + 1
+     x <- preview (history . ix i) e
+     return $ set content x
+            $ set pos (length x)
+            $ set historyPos i e
+
+later :: EditBox -> Maybe EditBox
+later e
+  | i <  0 = Nothing
+  | i == 0 = Just
+           $ set content ""
+           $ set pos     0
+           $ set historyPos (-1) e
+  | otherwise =
+      do x <- preview (history . ix (i-1)) e
+         return $ set content x
+                $ set pos (length x)
+                $ set historyPos (i-1) e
+  where
+  i = view historyPos e
 
 -- Remove a character without the associated checks
 -- internal helper for backspace and delete

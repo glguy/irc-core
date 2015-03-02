@@ -87,8 +87,6 @@ main = do
          , _clientExtraWhitespace = False
          , _clientEditBox         = Edit.empty
          , _clientTabPattern      = Nothing
-         , _clientInputHistory    = []
-         , _clientInputHistoryPos = -1
          , _clientScrollPos       = 0
          , _clientHeight          = height
          , _clientWidth           = width
@@ -155,8 +153,12 @@ keyEvent (KChar 'p') [MCtrl] st = return $ prevFocus st
 keyEvent KBS         _       st = return $ clearTabPattern $ over clientEditBox Edit.backspace st
 keyEvent (KChar 'd') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.delete st
 keyEvent KDel        _       st = return $ clearTabPattern $ over clientEditBox Edit.delete st
-keyEvent KUp         _       st = return $ earlierHistory st
-keyEvent KDown       _       st = return $ laterHistory st
+keyEvent KUp         _       st = case clientEditBox Edit.earlier st of
+                                    Nothing -> return st
+                                    Just st' -> return $ clearTabPattern st'
+keyEvent KDown       _       st = case clientEditBox Edit.later st of
+                                    Nothing -> return st
+                                    Just st' -> return $ clearTabPattern st'
 keyEvent KLeft       _       st = return $ clearTabPattern $ over clientEditBox Edit.left st
 keyEvent KRight      _       st = return $ clearTabPattern $ over clientEditBox Edit.right st
 keyEvent KHome       _       st = return $ clearTabPattern $ over clientEditBox Edit.home st

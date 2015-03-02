@@ -31,8 +31,6 @@ data ClientState = ClientState
   , _clientExtraWhitespace :: !Bool
   , _clientEditBox    :: EditBox
   , _clientTabPattern :: Maybe String
-  , _clientInputHistory :: [String]
-  , _clientInputHistoryPos :: Int
   , _clientScrollPos :: Int
   , _clientHeight :: Int
   , _clientWidth :: Int
@@ -109,36 +107,9 @@ clientInput :: ClientState -> String
 clientInput = view (clientEditBox . Edit.content)
 
 clearInput :: ClientState -> ClientState
-clearInput st
+clearInput
   = clearTabPattern
-  $ set clientEditBox Edit.empty
-  $ set clientInputHistoryPos (-1)
-  $ over clientInputHistory (cons (clientInput st)) st
-
-earlierHistory :: ClientState -> ClientState
-earlierHistory st =
-  case preview (clientInputHistory . ix (i+1)) st of
-    Nothing -> st
-    Just x  -> clearTabPattern
-             $ set clientEditBox (Edit.insertString x Edit.empty)
-             $ set clientInputHistoryPos (i+1) st
-  where
-  i = view clientInputHistoryPos st
-
-laterHistory :: ClientState -> ClientState
-laterHistory st
-  | i <  0 = st
-  | i == 0 = clearTabPattern
-           $ set clientEditBox Edit.empty
-           $ set clientInputHistoryPos (-1) st
-  | otherwise =
-      case preview (clientInputHistory . ix (i-1)) st of
-        Nothing -> st
-        Just x  -> clearTabPattern
-                 $ set clientEditBox (Edit.insertString x Edit.empty)
-                 $ set clientInputHistoryPos (i-1) st
-  where
-  i = view clientInputHistoryPos st
+  . over clientEditBox Edit.success
 
 nextFocus :: ClientState -> ClientState
 nextFocus = incrementFocus (+1)
