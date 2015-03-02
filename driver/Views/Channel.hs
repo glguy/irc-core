@@ -139,7 +139,7 @@ compressedImageForState st
       utf8Bytestring' (withForeColor defAttr yellow) who <|>
       string (withForeColor defAttr red) " set mode " <|>
       string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
-      utf8Bytestring' (withForeColor defAttr yellow) who
+      utf8Bytestring' (withForeColor defAttr yellow) arg
 
   renderOne (CompMeta xs) =
       cropRight width (horizCat (intersperse (char defAttr ' ') (map renderMeta xs)))

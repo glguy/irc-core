@@ -57,9 +57,7 @@ main = do
   hErr <- openFile "debug.txt" WriteMode
   hSetBuffering hErr NoBuffering
 
-  B.hPut h capLsCmd
-  B.hPut h (capReqCmd "away-notify account-notify extended-join")
-  B.hPut h capEndCmd
+  negotiateCaps h
   traverse_ (B.hPut h . passCmd . B8.pack) (view cmdArgPassword args)
   B.hPut h (nickCmd (B8.pack (view cmdArgNick args)))
   B.hPut h (userCmd (B8.pack (view cmdArgUser args))
@@ -140,6 +138,12 @@ driver vty vtyEventChan ircMsgChan st =
          Right conn' ->
            continue (set clientConnection conn' st)
 
+negotiateCaps :: Handle -> IO ()
+negotiateCaps h = do
+  B.hPut h capLsCmd
+  B.hPut h (capReqCmd "multi-prefix")
+  B.hPut h capEndCmd
+
 ------------------------------------------------------------------------
 -- Key Event Handlers!
 ------------------------------------------------------------------------
@@ -154,12 +158,8 @@ keyEvent (KChar 'p') [MCtrl] st = return $ prevFocus st
 keyEvent KBS         _       st = return $ clearTabPattern $ over clientEditBox Edit.backspace st
 keyEvent (KChar 'd') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.delete st
 keyEvent KDel        _       st = return $ clearTabPattern $ over clientEditBox Edit.delete st
-keyEvent KUp         _       st = case clientEditBox Edit.earlier st of
-                                    Nothing -> return st
-                                    Just st' -> return $ clearTabPattern st'
-keyEvent KDown       _       st = case clientEditBox Edit.later st of
-                                    Nothing -> return st
-                                    Just st' -> return $ clearTabPattern st'
+keyEvent KUp         _       st = return $ maybe st clearTabPattern $ clientEditBox Edit.earlier st
+keyEvent KDown       _       st = return $ maybe st clearTabPattern $ clientEditBox Edit.later st
 keyEvent KLeft       _       st = return $ clearTabPattern $ over clientEditBox Edit.left st
 keyEvent KRight      _       st = return $ clearTabPattern $ over clientEditBox Edit.right st
 keyEvent KHome       _       st = return $ clearTabPattern $ over clientEditBox Edit.home st
