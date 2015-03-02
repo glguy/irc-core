@@ -36,6 +36,7 @@ data MsgFromServer
   | RplStatsConn      ByteString
   | RplTopic ByteString ByteString
   | RplTopicWhoTime ByteString ByteString UTCTime
+  | RplNoTopicSet ByteString
   | RplIsOn [ByteString]
   | RplWhoReply ByteString ByteString ByteString ByteString ByteString ByteString ByteString
   | RplEndOfWho ByteString
@@ -193,6 +194,9 @@ ircMsgToServerMsg ircmsg =
 
     ("330",[_,nick,account,_txt]) ->
        Just (RplWhoisAccount nick account)
+
+    ("331",[_,chan,_]) ->
+       Just (RplNoTopicSet chan)
 
     ("332",[_,chan,txt]) ->
        Just (RplTopic chan txt)

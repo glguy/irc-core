@@ -284,14 +284,27 @@ commandEvent cmd st =
       doQuote rest st'
 
     -- channel commands
-    "join" :- c :- "" -> doJoinCmd (toB c) Nothing st'
+    "join" :- c :-      "" -> doJoinCmd (toB c) Nothing st'
     "join" :- c :- k :- "" -> doJoinCmd (toB c) (Just (toB k)) st'
+
+    "part" :- c :- msg     -> st' <$ clientSend (partCmd (toB c) (toB msg)) st'
+    "whois" :- u :- ""     -> st' <$ clientSend (whoisCmd (toB u)) st'
+
+    "topic" :- rest        -> doTopicCmd (toB rest) st
 
     _ -> return st
 
   where
   st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
+
+doTopicCmd :: ByteString -> ClientState -> IO ClientState
+doTopicCmd topic st =
+  case view clientFocus st of
+    ChannelFocus c ->
+      do clientSend (topicCmd c topic) st
+         return (clearInput st)
+    _ -> return st
 
 doJoinCmd :: ByteString -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
@@ -353,7 +366,7 @@ picForState st = Picture
                         <|> utf8Bytestring' defAttr c
 
   topicbar chan =
-    case preview (clientConnection . connChannelIx chan . chanTopic . folded . _1) st of
+    case preview (clientConnection . connChannelIx chan . chanTopic . folded . folded . _1) st of
       Just topic -> string defAttr " - " <|> text' (withForeColor defAttr green) topic
       Nothing    -> emptyImage
 

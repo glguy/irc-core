@@ -71,9 +71,8 @@ defaultChanModes = IrcChanModes
   , _modesPrefixModes = [('o','@'),('v','+')]
   }
 
-
 data IrcChannel = IrcChannel
-  { _chanTopic :: Maybe (Text, ByteString, UTCTime) -- TODO: use UserInfo
+  { _chanTopic :: Maybe (Maybe (Text, ByteString, UTCTime)) -- TODO: use UserInfo
   , _chanUsers :: !(Map (CI ByteString) String) -- modes: ov
   , _chanModes :: Maybe [ByteString]
   , _chanCreation :: Maybe UTCTime
@@ -188,10 +187,15 @@ advanceModel stamp msg0 conn =
                         (Just url)
                         conn)
 
+       RplNoTopicSet chan ->
+          return (set (connChannelIx chan . chanTopic)
+                      (Just Nothing)
+                      conn)
+
        RplTopic chan topic ->
          do RplTopicWhoTime _ who time <- getMessage
             return (set (connChannelIx chan . chanTopic)
-                        (Just (asUtf8 topic,who,time))
+                        (Just (Just (asUtf8 topic,who,time)))
                         conn)
 
        Topic who chan topic ->
@@ -200,7 +204,7 @@ advanceModel stamp msg0 conn =
                 $ conn
          where
          changeTopic = set chanTopic
-                           (Just (topicText,userInfoBytestring who,stamp))
+                           (Just (Just (topicText,userInfoBytestring who,stamp)))
          topicText = asUtf8 topic
          m = IrcMessage
                 { _mesgType = TopicMsgType topicText

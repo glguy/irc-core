@@ -29,7 +29,10 @@ channelInfoImage chan st =
       topicLines =
         case view chanTopic channel of
           Nothing -> [string (withForeColor defAttr red) "Unknown topic"]
-          Just (topic, user, time) ->
+          Just Nothing ->
+            [ string (withForeColor defAttr green) "Empty Topic "
+            ]
+          Just (Just (topic, user, time)) ->
             [ string (withForeColor defAttr green) "Topic: "  <|> cleanText topic
             , string (withForeColor defAttr green) "Set by: " <|> cleanText (asUtf8 user)
             , string (withForeColor defAttr green) "Set on: " <|> string defAttr (show time)

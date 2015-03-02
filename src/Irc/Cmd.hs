@@ -21,6 +21,27 @@ joinCmd chan mbKey = renderRawIrcMsg RawIrcMsg
   , msgParams = [chan] <> toList mbKey
   }
 
+partCmd :: ByteString -> ByteString -> ByteString
+partCmd chan msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand  = "PART"
+  , msgParams = [chan,msg]
+  }
+
+topicCmd :: ByteString -> ByteString -> ByteString
+topicCmd chan msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand  = "TOPIC"
+  , msgParams = [chan,msg]
+  }
+
+whoisCmd :: ByteString -> ByteString
+whoisCmd user = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand  = "WHOIS"
+  , msgParams = [user]
+  }
+
 nickCmd :: ByteString -> ByteString
 nickCmd nick = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
