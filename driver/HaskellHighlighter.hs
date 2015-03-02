@@ -3,10 +3,14 @@ module HaskellHighlighter (highlightHaskell) where
 import Language.Haskell.Lexer
 
 highlightHaskell :: String -> String
-highlightHaskell src = colorize =<< lexerPass0 src
+highlightHaskell src = init (colorize (lexerPass0 (src++"\n")))
+-- the lexer requires this newline for single-line comments to work
 
-colorize :: PosToken -> String
-colorize (tok, (_,str)) = aux str
+colorize :: [PosToken] -> String
+colorize [] = ""
+colorize ((_,(_,"`")):(Varid,(_,str)):(_,(_,"`")):rest)
+  = orange ("`" ++ str ++ "`") ++ colorize rest
+colorize ((tok, (_,str)):rest) = aux str ++ colorize rest
   where
   aux =
     case tok of
@@ -23,12 +27,12 @@ colorize (tok, (_,str)) = aux str
           "else" -> orange
           "let"  -> orange
           "in"   -> orange
-  
+
           "import" -> pink
           "infixl" -> pink
           "infixr" -> pink
           "infix"  -> pink
-  
+
           "_" -> id
           _ -> green
       Reservedop -> orange
