@@ -91,6 +91,7 @@ main = do
          , _clientHeight          = height
          , _clientWidth           = width
          , _clientMessagesSeen    = mempty
+         , _clientIgnores         = mempty
          }
 
 driver :: Vty -> TChan Event -> TChan MsgFromServer -> ClientState -> IO ()
@@ -291,6 +292,8 @@ commandEvent cmd st =
     "whois" :- u :- ""     -> st' <$ clientSend (whoisCmd (toB u)) st'
 
     "topic" :- rest        -> doTopicCmd (toB rest) st
+
+    "ignore" :- u :- "" -> return (over (clientIgnores . contains (CI.mk (toB u))) not st')
 
     _ -> return st
 

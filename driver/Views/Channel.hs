@@ -4,10 +4,12 @@ module Views.Channel where
 import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Monoid
+import Data.CaseInsensitive (CI)
 import Data.Char (isControl)
 import Data.Foldable (toList)
 import Data.List (stripPrefix, intersperse)
 import Data.Maybe (mapMaybe)
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (UTCTime, formatTime)
 import Graphics.Vty.Image
@@ -89,7 +91,7 @@ compressedImageForState st
   $ take (view clientHeight st - 4)
   $ drop (view clientScrollPos st)
   $ concatMap (reverse . addExtraWhitespace . lineWrap width . renderOne)
-  $ compressMessages
+  $ compressMessages (view clientIgnores st)
   $ activeMessages st
   where
   addExtraWhitespace
@@ -158,6 +160,9 @@ compressedImageForState st
   renderMeta (CompTopic who)
     =   char (withForeColor defAttr yellow) 'T'
     <|> utf8Bytestring' defAttr who
+  renderMeta (CompIgnored who)
+    =   char (withForeColor defAttr brightBlack) 'I'
+    <|> utf8Bytestring' defAttr who
 
 
   conn = view clientConnection st
@@ -168,40 +173,48 @@ compressedImageForState st
     string (withForeColor defAttr blue)
            (mapMaybe (`lookup` prefixes) modes)
 
-compressMessages :: [IrcMessage] -> [CompressedMessage]
-compressMessages [] = []
-compressMessages (x:xs) =
+compressMessages :: Set (CI ByteString) -> [IrcMessage] -> [CompressedMessage]
+compressMessages _ [] = []
+compressMessages ignores (x:xs) =
   case view mesgType x of
-    NoticeMsgType txt -> CompNotice (view mesgModes x) nick txt
-                       : compressMessages xs
-    PrivMsgType   txt -> CompChat (view mesgModes x) (view mesgMe x) nick txt
-                       : compressMessages xs
-    ActionMsgType txt -> CompAction (view mesgModes x) nick txt
-                       : compressMessages xs
+    NoticeMsgType txt | visible ->
+        CompNotice (view mesgModes x) nick txt
+      : compressMessages ignores xs
+    PrivMsgType txt | visible ->
+        CompChat (view mesgModes x) (view mesgMe x) nick txt
+      : compressMessages ignores xs
+    ActionMsgType txt | visible ->
+        CompAction (view mesgModes x) nick txt
+      : compressMessages ignores xs
     KickMsgType u reason -> CompKick nick u reason
-                       : compressMessages xs
+                       : compressMessages ignores xs
     ErrorMsgType err  -> CompError err
-                       : compressMessages xs
+                       : compressMessages ignores xs
     ModeMsgType pol mode arg -> CompMode nick pol mode arg
-                       : compressMessages xs
-    _                 -> meta [] (x:xs)
+                       : compressMessages ignores xs
+    _                 -> meta ignores [] (x:xs)
 
   where
   nick = views mesgSender userNick x
+  visible = not (view (contains (CI.mk nick)) ignores)
 
-meta :: [CompressedMeta] -> [IrcMessage] -> [CompressedMessage]
-meta acc [] = [CompMeta (reverse acc)]
-meta acc (x:xs) =
+meta :: Set (CI ByteString) -> [CompressedMeta] -> [IrcMessage] -> [CompressedMessage]
+meta _ acc [] = [CompMeta (reverse acc)]
+meta ignores acc (x:xs) =
     case view mesgType x of
-      JoinMsgType -> meta (CompJoin nick : acc) xs
-      QuitMsgType{} -> meta (CompQuit nick : acc) xs
-      PartMsgType{} -> meta (CompPart nick : acc) xs
-      NickMsgType nick' -> meta (CompNick nick nick' : acc) xs
-      TopicMsgType{} -> meta (CompTopic nick : acc) xs
-      _ -> CompMeta (reverse acc) : compressMessages (x:xs)
+      JoinMsgType -> meta ignores (CompJoin nick : acc) xs
+      QuitMsgType{} -> meta ignores (CompQuit nick : acc) xs
+      PartMsgType{} -> meta ignores (CompPart nick : acc) xs
+      NickMsgType nick' -> meta ignores (CompNick nick nick' : acc) xs
+      TopicMsgType{} -> meta ignores (CompTopic nick : acc) xs
+      PrivMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
+      ActionMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
+      NoticeMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
+      _ -> CompMeta (reverse acc) : compressMessages ignores (x:xs)
 
   where
   nick = views mesgSender userNick x
+  ignored = view (contains (CI.mk nick)) ignores
 
 data CompressedMessage
   = CompChat String Bool ByteString Text
@@ -218,3 +231,4 @@ data CompressedMeta
   | CompPart ByteString
   | CompNick ByteString ByteString
   | CompTopic ByteString
+  | CompIgnored ByteString

@@ -4,14 +4,15 @@ module ClientState where
 
 import Control.Applicative (Applicative)
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
-import Data.ByteString (ByteString)
-import Data.Monoid
-import System.IO (Handle)
 import Control.Lens
-import Data.List (elemIndex)
-import Data.Map (Map)
+import Data.ByteString (ByteString)
 import Data.CaseInsensitive (CI)
 import Data.Foldable (toList)
+import Data.List (elemIndex)
+import Data.Map (Map)
+import Data.Monoid
+import Data.Set (Set)
+import System.IO (Handle)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
 
@@ -35,6 +36,7 @@ data ClientState = ClientState
   , _clientHeight :: Int
   , _clientWidth :: Int
   , _clientMessagesSeen :: Map (CI ByteString) Int
+  , _clientIgnores :: !(Set (CI ByteString))
   }
 
 data Focus
