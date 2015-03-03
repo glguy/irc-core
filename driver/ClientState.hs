@@ -73,9 +73,9 @@ focusMessages x f conn = case x of
   ChannelFocus c
     | isChannelName c conn -> (connChannelIx c . chanMessages) f conn
     | otherwise            -> (connUserIx    c . usrMessages ) f conn
+  ServerFocus              -> connMessages                     f conn
   BanListFocus _           -> ignored                          f conn
   ChannelInfoFocus _       -> ignored                          f conn
-  ServerFocus              -> ignored                          f conn
 
 isChannelName :: ByteString -> IrcConnection -> Bool
 isChannelName c conn =

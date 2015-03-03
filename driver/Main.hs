@@ -42,7 +42,6 @@ import ClientState
 import Views.Channel
 import Views.ChannelInfo
 import Views.BanList
-import Views.Server
 import qualified EditBox as Edit
 
 main :: IO ()
@@ -346,12 +345,10 @@ picForState st = Picture
 
   messageFrame =
     case view clientFocus st of
-      ChannelFocus{}
-        | view clientDetailView st -> detailedImageForState st
-        | otherwise                -> compressedImageForState st
       BanListFocus chan -> banListImage chan st
       ChannelInfoFocus chan -> channelInfoImage chan st
-      ServerFocus           -> serverInfoImage st
+      _ | view clientDetailView st -> detailedImageForState st
+        | otherwise                -> compressedImageForState st
 
   titlebar =
     case view clientFocus st of

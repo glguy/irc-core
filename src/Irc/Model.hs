@@ -34,7 +34,7 @@ import qualified Irc.List as List
 data IrcConnection = IrcConnection
   { _connNick     :: ByteString
   , _connChannels :: !(Map (CI ByteString) IrcChannel)
-  , _connMotd     :: Maybe [ByteString]
+  , _connMessages :: !(List IrcMessage)
   , _connId       :: Maybe ByteString
   , _connChanTypes :: [Word8]
   , _connUsers    :: !(Map (CI ByteString) IrcUser)
@@ -45,14 +45,14 @@ data IrcConnection = IrcConnection
 
 defaultIrcConnection :: IrcConnection
 defaultIrcConnection = IrcConnection
-  { _connNick     = ""
-  , _connChannels = Map.empty
-  , _connMotd     = Nothing
-  , _connId       = Nothing
+  { _connNick      = ""
+  , _connChannels  = mempty
+  , _connMessages  = mempty
+  , _connId        = Nothing
   , _connChanTypes = map (fromIntegral.ord) "#" -- TODO: Use ISupport
-  , _connUsers = Map.empty
+  , _connUsers     = mempty
   , _connChanModes = defaultChanModes -- TODO: Use ISupport
-  , _connMyInfo   = Nothing
+  , _connMyInfo    = Nothing
   }
 
 data IrcChanModes = IrcChanModes
@@ -148,10 +148,9 @@ advanceModel stamp msg0 conn =
 
        Ping x -> sendMessage (pongCmd x) >> return conn
 
-       RplWelcome  _ -> return conn
-       RplYourHost _ -> return conn
-       RplCreated  _ -> return conn
-
+       RplWelcome  txt -> doServerMessage stamp "Welcome" txt conn
+       RplYourHost txt -> doServerMessage stamp "YourHost" txt conn
+       RplCreated  txt -> doServerMessage stamp "Created" txt conn
        RplMyInfo host version _ _ _ ->
          return (set connMyInfo (Just (host,version)) conn)
 
@@ -241,7 +240,9 @@ advanceModel stamp msg0 conn =
 
        RplYourId yourId -> return (set connId (Just yourId) conn)
 
-       RplMotdStart -> doMotd [] conn
+       RplMotdStart -> return conn
+       RplEndOfMotd -> return conn
+       RplMotd x    -> doServerMessage stamp "MOTD" x conn
 
        RplNameReply _ chan xs -> doNameReply chan xs conn
 
@@ -280,6 +281,27 @@ advanceModel stamp msg0 conn =
            , _mesgMe      = False
            , _mesgModes   = ""
            }
+
+       -- TODO: Structure this more nicely than as simple message,
+       -- perhaps store it in the user map
+       RplWhoisUser nick user host real ->
+         doServerMessage stamp "WHOIS" (B8.unwords [nick, user, host, real]) conn
+       RplWhoisChannels _nick channels ->
+         doServerMessage stamp "WHOIS" channels conn
+       RplWhoisServer _nick host txt ->
+         doServerMessage stamp "WHOIS" (B8.unwords [host,txt]) conn
+       RplWhoisSecure _nick ->
+         doServerMessage stamp "WHOIS" "secure connection" conn
+       RplWhoisHost _nick txt ->
+         doServerMessage stamp "WHOIS" txt conn
+       RplWhoisIdle _nick idle _signon ->
+         doServerMessage stamp "WHOIS" ("Idle seconds: " <> idle) conn
+       RplWhoisAccount _nick account ->
+         doServerMessage stamp "WHOIS" ("Logged in as: " <> account) conn
+       RplWhoisModes _nick modes args ->
+         doServerMessage stamp "WHOIS" ("Modes: " <> B8.unwords (modes:args)) conn
+       RplEndOfWhois _nick ->
+         doServerMessage stamp "WHOIS" "--END--" conn
 
        _ -> fail ("Unsupported: " ++ show msg0)
 
@@ -536,13 +558,20 @@ doNotifyChannel stamp who chan msg conn = return (recordMessage mesg chan conn)
         , _mesgModes = ""
         }
 
-doMotd :: [ByteString] -> IrcConnection -> Logic IrcConnection
-doMotd xs conn =
-  do msg <- getMessage
-     case msg of
-       RplMotd x -> doMotd (x:xs) conn
-       RplEndOfMotd -> return (set connMotd (Just (reverse xs)) conn)
-       _ -> fail "Expected Motd"
+doServerMessage ::
+  UTCTime {- ^ when -} ->
+  ByteString {- ^ who -} ->
+  ByteString {- ^ message -} ->
+  IrcConnection -> Logic IrcConnection
+doServerMessage stamp who txt conn = return (over connMessages (cons m) conn)
+  where
+  m = IrcMessage
+        { _mesgType    = PrivMsgType (asUtf8 txt)
+        , _mesgSender  = UserInfo who Nothing Nothing
+        , _mesgStamp   = stamp
+        , _mesgMe      = False
+        , _mesgModes   = ""
+        }
 
 doNameReply :: ByteString -> [ByteString] -> IrcConnection -> Logic IrcConnection
 doNameReply chan xs conn =
