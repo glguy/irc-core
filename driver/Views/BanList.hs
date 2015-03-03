@@ -6,17 +6,18 @@ import Data.ByteString (ByteString)
 import Graphics.Vty.Image
 import Irc.Model
 
-banListImage :: ByteString -> ClientState -> Image
-banListImage chan st =
-  case preview (clientConnection . connChannelIx chan . chanBans . folded) st of
-    Nothing -> string (withForeColor defAttr red) "Unknown ban list"
-    Just [] -> string (withForeColor defAttr green) "Empty ban list"
-    Just xs -> vertCat (map renderBan (take (view clientHeight st - 4) xs))
+banListImage :: Char -> ByteString -> ClientState -> Image
+banListImage mode chan st =
+  case view (clientConnection . connChannelIx chan . chanMaskLists . at mode) st of
+    Nothing -> string (withForeColor defAttr red) "Unknown list"
+    Just [] -> string (withForeColor defAttr green) "Empty list"
+    Just xs -> vertCat (map renderEntry (take (view clientHeight st - 4) xs))
 
-renderBan :: IrcBan -> Image
-renderBan ban = utf8Bytestring' (withForeColor defAttr red) (view banBannee ban)
-            <|> string defAttr " - "
-            <|> utf8Bytestring' (withForeColor defAttr green) (view banBanner ban)
-            <|> string defAttr " - "
-            <|> string (withForeColor defAttr yellow) (show (view banStamp ban))
+renderEntry :: IrcMaskEntry -> Image
+renderEntry entry =
+      utf8Bytestring' (withForeColor defAttr red) (view maskEntryMask entry)
+  <|> string defAttr " - "
+  <|> utf8Bytestring' (withForeColor defAttr green) (view maskEntryWho entry)
+  <|> string defAttr " - "
+  <|> string (withForeColor defAttr yellow) (show (view maskEntryStamp entry))
                  -- TODO: Interpret timestamp

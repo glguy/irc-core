@@ -28,6 +28,7 @@ import qualified Data.Text.Encoding.Error as Text
 import Irc.Format
 import Irc.Cmd
 import Irc.Core
+import Irc.Core.Prisms
 import Irc.List (List)
 import qualified Irc.List as List
 
@@ -79,7 +80,7 @@ data IrcChannel = IrcChannel
   , _chanModes :: Maybe [ByteString]
   , _chanCreation :: Maybe UTCTime
   , _chanMessages :: List IrcMessage
-  , _chanBans :: Maybe [IrcBan]
+  , _chanMaskLists :: Map Char [IrcMaskEntry]
   , _chanUrl :: Maybe ByteString
   }
   deriving (Read, Show)
@@ -89,16 +90,16 @@ defaultChannel = IrcChannel
   { _chanTopic = Nothing
   , _chanModes = Nothing
   , _chanCreation = Nothing
-  , _chanUsers = Map.empty
+  , _chanUsers = mempty
   , _chanMessages = mempty
-  , _chanBans = Nothing
+  , _chanMaskLists = mempty
   , _chanUrl = Nothing
   }
 
-data IrcBan = IrcBan
-  { _banBannee :: ByteString
-  , _banBanner :: ByteString
-  , _banStamp  :: UTCTime
+data IrcMaskEntry = IrcMaskEntry
+  { _maskEntryMask  :: ByteString
+  , _maskEntryWho   :: ByteString
+  , _maskEntryStamp :: UTCTime
   }
   deriving (Read, Show)
 
@@ -135,7 +136,7 @@ makeLenses ''IrcConnection
 makeLenses ''IrcChannel
 makeLenses ''IrcMessage
 makeLenses ''IrcUser
-makeLenses ''IrcBan
+makeLenses ''IrcMaskEntry
 makeLenses ''IrcChanModes
 
 
@@ -259,14 +260,51 @@ advanceModel stamp msg0 conn =
 
        RplIsOn nicks -> return (doIsOn nicks conn)
 
-       RplBanList _chan bannee banner bantime ->
-         doBanList [IrcBan { _banBannee = bannee
-                           , _banBanner = banner
-                           , _banStamp  = bantime
-                           } ] conn
+       RplBanList chan mask who when ->
+         doMaskList (preview _RplBanList) (has _RplEndOfBanList) 'b' chan
+                    [IrcMaskEntry
+                      { _maskEntryMask  = mask
+                      , _maskEntryWho   = who
+                      , _maskEntryStamp = when
+                      } ] conn
 
        RplEndOfBanList chan ->
-         return (set (connChannelIx chan . chanBans) Nothing conn)
+         return (set (connChannelIx chan . chanMaskLists . at 'b') (Just []) conn)
+
+       RplInviteList chan mask who when ->
+         doMaskList (preview _RplInviteList) (has _RplEndOfInviteList) 'I' chan
+                    [IrcMaskEntry
+                      { _maskEntryMask  = mask
+                      , _maskEntryWho   = who
+                      , _maskEntryStamp = when
+                      } ] conn
+
+       RplEndOfInviteList chan ->
+         return (set (connChannelIx chan . chanMaskLists . at 'I') (Just []) conn)
+
+       RplExceptionList chan mask who when ->
+         doMaskList (preview _RplExceptionList) (has _RplEndOfExceptionList) 'e' chan
+                    [IrcMaskEntry
+                      { _maskEntryMask  = mask
+                      , _maskEntryWho   = who
+                      , _maskEntryStamp = when
+                      } ] conn
+
+       RplEndOfExceptionList chan ->
+         return (set (connChannelIx chan . chanMaskLists . at 'e') (Just []) conn)
+
+       RplQuietList chan mode mask who when ->
+         let fixup (a,_,c,d,e) = (a,c,d,e) in -- drop the matched mode field
+         doMaskList (preview (_RplQuietList . to fixup)) (has _RplEndOfQuietList)
+                    mode chan
+                    [IrcMaskEntry
+                      { _maskEntryMask  = mask
+                      , _maskEntryWho   = who
+                      , _maskEntryStamp = when
+                      } ] conn
+
+       RplEndOfQuietList chan mode ->
+         return (set (connChannelIx chan . chanMaskLists . at mode) (Just []) conn)
 
        Mode who target (modes:args) ->
          return (doModeChange who stamp target modes args conn)
@@ -376,22 +414,34 @@ doModeChange who now target modes0 args0 conn0
          , _mesgMe = False
          }
 
-doBanList :: [IrcBan] -> IrcConnection -> Logic IrcConnection
-doBanList acc conn =
+doMaskList ::
+  (MsgFromServer -> Maybe (ByteString,ByteString,ByteString,UTCTime)) ->
+  (MsgFromServer -> Bool) ->
+  Char ->
+  ByteString ->
+  [IrcMaskEntry] ->
+  IrcConnection -> Logic IrcConnection
+doMaskList matchEntry matchEnd mode chan acc conn =
   do msg <- getMessage
-     case msg of
-       RplBanList _ bannee banner stamp ->
-         doBanList
-           (IrcBan { _banBannee = bannee
-                   , _banBanner = banner
-                   , _banStamp  = stamp
-                   } : acc)
+     case matchEntry msg of
+       Just (_,mask,who,stamp) ->
+         doMaskList
+           matchEntry matchEnd
+           mode chan
+           (IrcMaskEntry
+               { _maskEntryMask  = mask
+               , _maskEntryWho   = who
+               , _maskEntryStamp = stamp
+               } : acc)
            conn
 
-       RplEndOfBanList chan ->
-         return (set (connChannelIx chan . chanBans) (Just (reverse acc)) conn)
+       _ | matchEnd msg ->
+           return (set (connChannelIx chan . chanMaskLists . at mode)
+                       (Just (reverse acc))
+                       conn)
 
-       _ -> fail ("Expected ban list end: " ++ show msg)
+       _ -> fail "Expected mode list end"
+
 
 -- | Update an 'IrcConnection' when a user changes nicknames.
 doNick ::

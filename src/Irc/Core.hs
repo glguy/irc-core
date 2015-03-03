@@ -7,8 +7,8 @@ import Data.Char
 import Data.Time
 import Data.Time.Clock.POSIX
 import System.IO
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B8
 
 import Irc.Format
 
@@ -105,8 +105,8 @@ data MsgFromServer
 
   -- Random high-numbered stuff
   | RplWhoisSecure ByteString -- ^ 671 nick
-  | RplQuietList ByteString ByteString ByteString ByteString -- ^ 728 channel mask who timestamp
-  | RplEndOfQuietList ByteString -- ^ 729 channel
+  | RplQuietList ByteString Char ByteString ByteString UTCTime -- ^ 728 channel mode mask who timestamp
+  | RplEndOfQuietList ByteString Char -- ^ 729 channel mode
 
   | Away UserInfo ByteString
   | Ping ByteString
@@ -177,10 +177,10 @@ ircMsgToServerMsg ircmsg =
        Just (RplGlobalUsers globalusers maxusers)
 
     ("302",[_,txt]) ->
-       Just (RplUserHost (filter (not . BS.null) (BS.split 32 txt)))
+       Just (RplUserHost (filter (not . B.null) (B.split 32 txt)))
 
     ("303",[_,txt]) ->
-       Just (RplIsOn (filter (not . BS.null) (BS.split 32 txt)))
+       Just (RplIsOn (filter (not . B.null) (B.split 32 txt)))
 
     ("311",[_,nick,user,host,_star,txt]) ->
        Just (RplWhoisUser nick user host txt)
@@ -257,7 +257,7 @@ ircMsgToServerMsg ircmsg =
                   "*" -> Just PrivateChannel
                   "@" -> Just SecretChannel
                   _   -> Nothing
-         Just (RplNameReply ty' chan (filter (not . BS.null) (BS.split 32 txt)))
+         Just (RplNameReply ty' chan (filter (not . B.null) (B.split 32 txt)))
 
     ("366",[_,chan,_]) -> Just (RplEndOfNames chan)
 
@@ -366,11 +366,11 @@ ircMsgToServerMsg ircmsg =
     ("671",[_,nick,_]) ->
          Just (RplWhoisSecure nick)
 
-    ("728",[_,chan,_mode,banned,banner,time]) ->
-         Just (RplQuietList chan banned banner time)
+    ("728",[_,chan,mode,banned,banner,time]) ->
+         Just (RplQuietList chan (B8.head mode) banned banner (asTimeStamp time))
 
-    ("729",[_,chan,_mode,_]) ->
-         Just (RplEndOfQuietList chan)
+    ("729",[_,chan,mode,_]) ->
+         Just (RplEndOfQuietList chan (B8.head mode))
 
     ("PING",[txt]) -> Just (Ping txt)
 
@@ -430,6 +430,6 @@ ircMsgToServerMsg ircmsg =
 
 asTimeStamp :: ByteString -> UTCTime
 asTimeStamp b =
-  case BS8.readInteger b of
+  case B8.readInteger b of
     Just (n,_) -> posixSecondsToUTCTime (fromIntegral n)
     Nothing    -> posixSecondsToUTCTime 0

@@ -46,7 +46,7 @@ data ClientState = ClientState
 data Focus
   = ChannelFocus ByteString
   | ChannelInfoFocus ByteString
-  | BanListFocus ByteString
+  | MaskListFocus Char ByteString
   | ServerFocus
   deriving (Read, Show)
 
@@ -74,7 +74,7 @@ focusMessages x f conn = case x of
     | isChannelName c conn -> (connChannelIx c . chanMessages) f conn
     | otherwise            -> (connUserIx    c . usrMessages ) f conn
   ServerFocus              -> connMessages                     f conn
-  BanListFocus _           -> ignored                          f conn
+  MaskListFocus _ _        -> ignored                          f conn
   ChannelInfoFocus _       -> ignored                          f conn
 
 isChannelName :: ByteString -> IrcConnection -> Bool
@@ -169,9 +169,9 @@ incrementFocus f st
         case channels of
           []  -> ServerFocus
           c:_ -> ChannelFocus c
-      ChannelInfoFocus c -> ChannelInfoFocus (nextChannel c)
-      BanListFocus     c -> BanListFocus     (nextChannel c)
-      ChannelFocus     c -> ChannelFocus     (nextChannel c)
+      ChannelInfoFocus c -> ChannelFocus c
+      MaskListFocus _  c -> ChannelFocus c
+      ChannelFocus     c -> ChannelFocus (nextChannel c)
   channels = views clientConnection activeChannelNames st
           ++ views clientConnection activeUserNames st
   nextChannel c
@@ -186,3 +186,11 @@ clearTabPattern = set clientTabPattern Nothing
 
 clientSend :: ByteString -> ClientState -> IO ()
 clientSend x st = atomically (writeTChan (view clientSendChan st) x)
+
+focusedName :: ClientState -> Maybe ByteString
+focusedName st =
+  case view clientFocus st of
+    ServerFocus -> Nothing
+    ChannelInfoFocus c -> Just c
+    MaskListFocus _  c -> Just c
+    ChannelFocus     c -> Just c

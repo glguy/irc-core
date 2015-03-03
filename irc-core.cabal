@@ -13,6 +13,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Irc.Core
+                       Irc.Core.Prisms
                        Irc.Cmd
                        Irc.Model
                        Irc.List

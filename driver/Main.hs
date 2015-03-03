@@ -245,16 +245,21 @@ commandEvent cmd st =
       return (set clientFocus ServerFocus st')
 
     "query"  :- user :- "" ->
-      return (set clientFocus (ChannelFocus     (B8.pack user)) st')
+      return (set clientFocus (ChannelFocus (B8.pack user)) st')
 
     "channel" :- chan :- "" ->
-      return (set clientFocus (ChannelFocus     (B8.pack chan)) st')
+      return (set clientFocus (ChannelFocus (B8.pack chan)) st')
 
-    "channelinfo" :- chan :- "" ->
-      return (set clientFocus (ChannelInfoFocus (B8.pack chan)) st')
+    "channelinfo" :- "" | Just chan <- focusedName st ->
+      return (set clientFocus (ChannelInfoFocus chan) st')
 
-    "bans" :- chan :- "" ->
-      return (set clientFocus (BanListFocus (B8.pack chan)) st')
+    "bans" :- "" | Just chan <- focusedName st ->
+      return (set clientFocus (MaskListFocus 'b' chan) st')
+
+    "masks" :- [mode] :- ""
+      | mode `elem` view (clientConnection . connChanModes . modesLists) st
+      , Just chan <- focusedName st ->
+      return (set clientFocus (MaskListFocus mode chan) st')
 
     -- chat
     "me" :- msg ->
@@ -281,7 +286,9 @@ commandEvent cmd st =
     "join" :- c :-      "" -> doJoinCmd (toB c) Nothing st'
     "join" :- c :- k :- "" -> doJoinCmd (toB c) (Just (toB k)) st'
 
-    "part" :- c :- msg     -> st' <$ clientSend (partCmd (toB c) (toB msg)) st'
+    "part" :- msg | Just chan <- focusedName st ->
+         st' <$ clientSend (partCmd chan (toB msg)) st'
+
     "whois" :- u :- ""     -> st' <$ clientSend (whoisCmd (toB u)) st'
 
     "topic" :- rest        -> doTopicCmd (toB rest) st
@@ -345,7 +352,7 @@ picForState st = Picture
 
   messageFrame =
     case view clientFocus st of
-      BanListFocus chan -> banListImage chan st
+      MaskListFocus mode chan -> banListImage mode chan st
       ChannelInfoFocus chan -> channelInfoImage chan st
       _ | view clientDetailView st -> detailedImageForState st
         | otherwise                -> compressedImageForState st
@@ -354,15 +361,22 @@ picForState st = Picture
     case view clientFocus st of
       ServerFocus    -> string defAttr "Server"
       ChannelFocus c -> utf8Bytestring' defAttr c <|> topicbar c
-      BanListFocus c -> string defAttr "Bans: "
-                    <|> utf8Bytestring' defAttr c
       ChannelInfoFocus c -> string defAttr "Channel Info: "
                         <|> utf8Bytestring' defAttr c
+      MaskListFocus mode c -> string defAttr (maskListTitle mode ++ ": ")
+                          <|> utf8Bytestring' defAttr c
 
   topicbar chan =
     case preview (clientConnection . connChannelIx chan . chanTopic . folded . folded . _1) st of
       Just topic -> string defAttr " - " <|> text' (withForeColor defAttr green) topic
       Nothing    -> emptyImage
+
+maskListTitle :: Char -> String
+maskListTitle 'b' = "Bans"
+maskListTitle 'q' = "Quiets"
+maskListTitle 'I' = "Invite exceptions"
+maskListTitle 'e' = "Ban exceptions"
+maskListTitle m   = "Unknown '" ++ [m] ++ "' masks"
 
 textbox :: String -> Int -> Int -> Image
 textbox str pos width
