@@ -24,14 +24,9 @@ import Irc.Model
 import ClientState
 import ImageUtils
 
-detailedImageForState :: ClientState -> Image
+detailedImageForState :: ClientState -> [Image]
 detailedImageForState st
-  = startFromBottom st
-  $ vertCat
-  $ reverse
-  $ take (view clientHeight st - 4)
-  $ drop (view clientScrollPos st)
-  $ concatMap (reverse . lineWrap width . renderOne)
+  = map renderOne
   $ activeMessages st
   where
   width = view clientWidth st
@@ -75,26 +70,12 @@ activeMessages st =
   nickFilter nick msg
     = views mesgSender userNick msg == mkId nick
 
-startFromBottom :: ClientState -> Image -> Image
-startFromBottom st img = pad 0 top 0 0 img
-  where
-  top = max 0 (view clientHeight st - 4 - imageHeight img)
-
-compressedImageForState :: ClientState -> Image
+compressedImageForState :: ClientState -> [Image]
 compressedImageForState st
-  = startFromBottom st
-  $ vertCat
-  $ reverse
-  $ take (view clientHeight st - 4)
-  $ drop (view clientScrollPos st)
-  $ concatMap (reverse . addExtraWhitespace . lineWrap width . renderOne)
+  = map renderOne
   $ compressMessages (view clientIgnores st)
   $ activeMessages st
   where
-  addExtraWhitespace
-    | view clientExtraWhitespace st = (++[char defAttr ' '])
-    | otherwise = id
-
   width = view clientWidth st
 
   formatNick me = identImg (withForeColor defAttr color)

@@ -13,14 +13,11 @@ import qualified Data.Text as Text
 import Irc.Format
 import Irc.Model
 
-channelInfoImage :: Identifier -> ClientState -> Image
+channelInfoImage :: Identifier -> ClientState -> [Image]
 channelInfoImage chan st =
   case view (clientConnection . connChannelAt chan) st of
-    Nothing -> string (withForeColor defAttr red) "Unknown channel"
-    Just channel -> vertCat
-                  $ take (view clientHeight st - 4)
-                  $ concatMap (lineWrap width)
-                  $ topicLines
+    Nothing -> [string (withForeColor defAttr red) "Unknown channel"]
+    Just channel -> topicLines
                  ++ creationLines
                  ++ modeLines
                  ++ urlLines

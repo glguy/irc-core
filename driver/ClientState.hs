@@ -35,7 +35,6 @@ data ClientState = ClientState
   , _clientConnection :: IrcConnection
   , _clientFocus      :: Focus
   , _clientDetailView :: !Bool
-  , _clientExtraWhitespace :: !Bool
   , _clientEditBox    :: EditBox
   , _clientTabPattern :: Maybe String
   , _clientScrollPos :: Int

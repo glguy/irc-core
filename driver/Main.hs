@@ -83,7 +83,6 @@ main = do
          , _clientConnection      = conn0
          , _clientFocus           = ServerFocus
          , _clientDetailView      = False
-         , _clientExtraWhitespace = False
          , _clientEditBox         = Edit.empty
          , _clientTabPattern      = Nothing
          , _clientScrollPos       = 0
@@ -147,7 +146,6 @@ negotiateCaps h = do
 
 keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
 keyEvent (KFun 2)    []      st = return $ over clientDetailView not st
-keyEvent (KFun 3)    []      st = return $ over clientExtraWhitespace not st
 keyEvent KPageUp     _       st = return $ scrollUp st
 keyEvent KPageDown   _       st = return $ scrollDown st
 keyEvent (KChar 'n') [MCtrl] st = return $ nextFocus st
@@ -350,11 +348,28 @@ picForState st = Picture
   everythingBeforeInput = vertCat
     [ titlebar
     , string defAttr (replicate (view clientWidth st) '─')
-    , messageFrame
+    , mainFocusImage
     ]
+
   divider = dividerImage st
 
-  messageFrame =
+  -- Pad the main image when it doesn't fill the screen
+  -- so that it starts at the bottom of the frame
+  startFromBottom :: Image -> Image
+  startFromBottom img = pad 0 top 0 0 img
+    where
+    top = max 0 (view clientHeight st - 4 - imageHeight img)
+
+  mainFocusImage
+    = startFromBottom
+    . vertCat
+    . reverse
+    . take (view clientHeight st - 4)
+    . drop (view clientScrollPos st)
+    . concatMap (reverse . lineWrap (view clientWidth st))
+    $ mainFocusLines
+
+  mainFocusLines =
     case view clientFocus st of
       MaskListFocus mode chan -> banListImage mode chan st
       ChannelInfoFocus chan -> channelInfoImage chan st

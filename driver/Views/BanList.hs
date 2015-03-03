@@ -8,16 +8,12 @@ import Graphics.Vty.Image
 import Irc.Format
 import Irc.Model
 
-banListImage :: Char -> Identifier -> ClientState -> Image
+banListImage :: Char -> Identifier -> ClientState -> [Image]
 banListImage mode chan st =
   case view (clientConnection . connChannelIx chan . chanMaskLists . at mode) st of
-    Nothing -> string (withForeColor defAttr red) "Unknown list"
-    Just [] -> string (withForeColor defAttr green) "Empty list"
-    Just xs -> startFromBottom st
-             $ vertCat
-             $ map renderEntry
-             $ take (view clientHeight st - 4)
-             $ drop (view clientScrollPos st) xs
+    Nothing -> [string (withForeColor defAttr red) "Unknown list"]
+    Just [] -> [string (withForeColor defAttr green) "Empty list"]
+    Just xs -> map renderEntry xs
 
 renderEntry :: IrcMaskEntry -> Image
 renderEntry entry =
