@@ -22,6 +22,9 @@ data MsgFromServer
   | RplYourId ByteString -- ^ 042 unique-id
 
   -- 200-399 Command responses
+  | RplEndOfStats ByteString -- ^ 219 statsquery
+  | RplUmodeIs ByteString [ByteString] -- ^ 221 modes *(params)
+  | RplStatsConn ByteString -- ^ 250 connection
   | RplLuserClient ByteString -- ^ 251 "There are \<integer\> users and \<integer\> services on \<integer\> servers"
   | RplLuserOp ByteString -- ^ 252 number-of-ops
   | RplLuserUnknown ByteString -- ^ 253 number-of-unknown
@@ -33,19 +36,9 @@ data MsgFromServer
   | RplLuserAdminEmail ByteString -- ^ 259 admin-email
   | RplLocalUsers ByteString ByteString -- ^ 265 local max
   | RplGlobalUsers ByteString ByteString -- ^ 266 global max
+
   | RplUserHost [ByteString] -- ^ 302 *(user hosts)
-  | RplNoTopicSet ByteString -- ^ 331 channel
-  | RplTopic ByteString ByteString -- ^ 332 channel topic
-  | RplBanList ByteString ByteString ByteString UTCTime -- ^ 367 channel banned banner timestamp
-  | RplEndOfBanList ByteString -- ^ 368 channel
-  | RplMotd ByteString -- ^ 372 line-of-motd
-  | RplMotdStart -- ^ 375
-  | RplEndOfMotd -- ^ 376
-  | RplTime ByteString ByteString -- ^ 391 server "\<string showing server's local time\>"
-  | RplEndOfStats ByteString -- ^ 219 statsquery
-  | RplStatsConn ByteString -- ^ 250 connection
   | RplIsOn [ByteString] -- ^ 303 *(nick)
-  | RplWhoReply ByteString ByteString ByteString ByteString ByteString ByteString ByteString
   | RplWhoisUser ByteString ByteString ByteString ByteString -- ^ 311 nick user host realname
   | RplWhoisServer ByteString ByteString ByteString -- ^ 312 nick server serverinfo
   | RplWhoisOperator ByteString ByteString -- ^ 313 nick "is an IRC operator"
@@ -58,6 +51,8 @@ data MsgFromServer
   | RplList ByteString ByteString ByteString -- ^ 322 channel usercount topic
   | RplListEnd -- ^ 323
   | RplChannelModeIs ByteString [ByteString] -- ^ 324 channel *(modes)
+  | RplNoTopicSet ByteString -- ^ 331 channel
+  | RplTopic ByteString ByteString -- ^ 332 channel topic
   | RplChannelUrl ByteString ByteString -- ^ 328 channel url
   | RplCreationTime ByteString UTCTime -- ^ 329 channel timestamp
   | RplWhoisAccount ByteString ByteString -- ^ 330 nick account
@@ -66,18 +61,22 @@ data MsgFromServer
   | RplEndOfInviteList ByteString -- ^ 347 channel
   | RplExceptionList ByteString ByteString ByteString UTCTime -- ^ 348 channel mask who timestamp
   | RplEndOfExceptionList ByteString -- ^ 349 channel
+  | RplWhoReply ByteString ByteString ByteString ByteString ByteString ByteString ByteString -- ^ 352 channel user host server account flags txt
   | RplNameReply ChannelType ByteString [ByteString] -- ^ 353 channeltype channel names
   | RplEndOfNames ByteString -- ^ 366 channel
+  | RplBanList ByteString ByteString ByteString UTCTime -- ^ 367 channel banned banner timestamp
+  | RplEndOfBanList ByteString -- ^ 368 channel
   | RplEndOfWhoWas ByteString -- ^ 369 nick
+  | RplMotd ByteString -- ^ 372 line-of-motd
+  | RplMotdStart -- ^ 375
+  | RplEndOfMotd -- ^ 376
+  | RplTime ByteString ByteString -- ^ 391 server "\<string showing server's local time\>"
   | RplInfo ByteString -- ^ 371 info
   | RplEndOfInfo -- ^ 374
   | RplWhoisHost ByteString ByteString -- ^ 378 nick host
   | RplWhoisModes ByteString ByteString -- ^ 379 nick modes
   | RplYoureOper ByteString -- ^ 381 text
   | RplHostHidden ByteString -- ^ 396 hostname
-  | RplWhoisSecure ByteString -- ^ 671 nick
-  | RplQuietList ByteString ByteString ByteString ByteString -- ^ 728 channel mask who timestamp
-  | RplEndOfQuietList ByteString -- ^ 729 channel
 
   -- 400-499 Errors
   | ErrNoSuchNick ByteString -- ^ 401 nickname
@@ -103,6 +102,11 @@ data MsgFromServer
   | ErrBanListFull ByteString ByteString -- ^ 476 channel mode
   | ErrNoPrivileges -- ^ 481
   | ErrChanOpPrivsNeeded ByteString -- ^ 482 channel
+
+  -- Random high-numbered stuff
+  | RplWhoisSecure ByteString -- ^ 671 nick
+  | RplQuietList ByteString ByteString ByteString ByteString -- ^ 728 channel mask who timestamp
+  | RplEndOfQuietList ByteString -- ^ 729 channel
 
   | Away UserInfo ByteString
   | Ping ByteString
@@ -141,6 +145,9 @@ ircMsgToServerMsg ircmsg =
 
     ("219",[_,mode,_]) ->
        Just (RplEndOfStats mode)
+
+    ("221",_:mode:params) ->
+       Just (RplUmodeIs mode params)
 
     ("250",[_,stats]) ->
        Just (RplStatsConn stats)
