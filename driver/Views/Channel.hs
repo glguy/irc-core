@@ -119,6 +119,11 @@ compressedImageForState st
       string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
       utf8Bytestring' (withForeColor defAttr yellow) arg
 
+  renderOne (CompTopic who txt)
+    = identImg (withForeColor defAttr yellow) who <|>
+      string (withForeColor defAttr red) " set topic " <|>
+      cleanText txt
+
   renderOne (CompMeta xs) =
       cropRight width (horizCat (intersperse (char defAttr ' ') (map renderMeta xs)))
 
@@ -135,9 +140,6 @@ compressedImageForState st
     =   identImg defAttr who
     <|> char (withForeColor defAttr yellow) '-'
     <|> identImg defAttr who'
-  renderMeta (CompTopic who)
-    =   char (withForeColor defAttr yellow) 'T'
-    <|> identImg defAttr who
   renderMeta (CompIgnored who)
     =   char (withForeColor defAttr brightBlack) 'I'
     <|> identImg defAttr who
@@ -170,6 +172,8 @@ compressMessages ignores (x:xs) =
                        : compressMessages ignores xs
     ModeMsgType pol mode arg -> CompMode nick pol mode arg
                        : compressMessages ignores xs
+    TopicMsgType txt  -> CompTopic nick txt
+                       : compressMessages ignores xs
     _                 -> meta ignores [] (x:xs)
 
   where
@@ -184,7 +188,6 @@ meta ignores acc (x:xs) =
       QuitMsgType{} -> meta ignores (CompQuit nick : acc) xs
       PartMsgType{} -> meta ignores (CompPart nick : acc) xs
       NickMsgType nick' -> meta ignores (CompNick nick nick' : acc) xs
-      TopicMsgType{} -> meta ignores (CompTopic nick : acc) xs
       PrivMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
       ActionMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
       NoticeMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
@@ -201,6 +204,7 @@ data CompressedMessage
   | CompKick Identifier Identifier Text
   | CompError Text
   | CompMode Identifier Bool Char ByteString
+  | CompTopic Identifier Text
   | CompMeta [CompressedMeta]
 
 data CompressedMeta
@@ -208,5 +212,4 @@ data CompressedMeta
   | CompQuit Identifier
   | CompPart Identifier
   | CompNick Identifier Identifier
-  | CompTopic Identifier
   | CompIgnored Identifier
