@@ -26,6 +26,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 
 import Irc.Format
+import Irc.Cmd
 import Irc.Core
 import Irc.List (List)
 import qualified Irc.List as List
@@ -144,6 +145,8 @@ makeLenses ''IrcChanModes
 advanceModel :: UTCTime -> MsgFromServer -> IrcConnection -> Logic IrcConnection
 advanceModel stamp msg0 conn =
   case msg0 of
+
+       Ping x -> sendMessage (pongCmd x) >> return conn
 
        RplWelcome  _ -> return conn
        RplYourHost _ -> return conn
@@ -579,14 +582,23 @@ splitNamesReplyName modeMap = aux []
 -- to perform complex updates to the model.
 ------------------------------------------------------------------------
 
-runLogic :: Monad m => m MsgFromServer -> Logic a -> m (Either String a)
-runLogic getMsg (Logic a) = iter interp (fmap (return . Right) a)
+-- | Execute the 'Logic' value using a given operation for sending and
+-- recieving IRC messages.
+runLogic ::
+  Monad m =>
+  m MsgFromServer {- ^ operation for receiving message -} ->
+  (ByteString -> m ()) {- ^ operation for sending message -} ->
+  Logic a ->
+  m (Either String a)
+runLogic getMsg sendMsg (Logic a) = iter interp (fmap (return . Right) a)
   where
   interp (Expect k)  = k =<< getMsg
   interp (Failure e) = return (Left e)
+  interp (Emit x m) = sendMsg x >> m
 
 data LogicOp r
   = Expect  (MsgFromServer -> r)
+  | Emit ByteString r
   | Failure String
   deriving (Functor)
 
@@ -600,6 +612,9 @@ instance Monad Logic where
 
 getMessage :: Logic MsgFromServer
 getMessage = Logic (wrap (Expect return))
+
+sendMessage :: ByteString -> Logic ()
+sendMessage x = Logic (wrap (Emit x (return ())))
 
 asUtf8 :: ByteString -> Text
 asUtf8 = Text.decodeUtf8With Text.lenientDecode

@@ -121,13 +121,10 @@ driver vty vtyEventChan ircMsgChan st =
 
       _ -> continue st
 
-  processIrcMsg (Ping x) =
-    do clientSend (pongCmd x) st
-       continue st
-
   processIrcMsg msg =
     do now <- getCurrentTime
        r <- runLogic (atomically (readTChan ircMsgChan))
+                     (`clientSend` st)
                      (advanceModel now msg (view clientConnection st))
        case r of
          Left e ->
