@@ -87,6 +87,9 @@ renderRawIrcMsg m = L.toStrict $ Builder.toLazyByteString $
   <> Builder.word8 13
   <> Builder.word8 10
 
+-- | Build concatenate a list of parameters into a single, space-
+-- delimited bytestring. Use a colon for the last parameter if it contains
+-- a colon or a space.
 buildParams :: [ByteString] -> Builder
 buildParams [x]
   | B.elem 32 x || B.elem 58 x

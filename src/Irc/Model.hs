@@ -546,7 +546,7 @@ doNameReply chan xs conn =
   do msg <- getMessage
      case msg of
        RplNameReply _ _ x -> doNameReply chan (x++xs) conn
-       RplEndOfNames -> return
+       RplEndOfNames _ -> return
                      $ set (connChannelIx chan . chanUsers)
                            users
                            conn

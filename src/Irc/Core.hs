@@ -13,12 +13,15 @@ import qualified Data.ByteString.Char8 as BS8
 import Irc.Format
 
 data MsgFromServer
+  -- 001-099 Client-server connection messages
   = RplWelcome  ByteString -- ^ 001 "Welcome to the Internet Relay Network \<nick\>!\<user\>\@\<host\>"
   | RplYourHost ByteString -- ^ 002 "Your host is \<servername\>, running version \<ver\>"
   | RplCreated  ByteString -- ^ 003 "This server was created \<date\>"
   | RplMyInfo   ByteString ByteString ByteString ByteString ByteString -- ^ 004 servername version available-user-modes available-channel-modes
   | RplISupport [ByteString] -- ^ 005 *(KEY=VALUE)
   | RplYourId ByteString -- ^ 042 unique-id
+
+  -- 200-399 Command responses
   | RplLuserClient ByteString -- ^ 251 "There are \<integer\> users and \<integer\> services on \<integer\> servers"
   | RplLuserOp ByteString -- ^ 252 number-of-ops
   | RplLuserUnknown ByteString -- ^ 253 number-of-unknown
@@ -28,63 +31,55 @@ data MsgFromServer
   | RplLuserAdminLoc1 ByteString -- ^ 257 admin-info-1
   | RplLuserAdminLoc2 ByteString -- ^ 258 admin-info-2
   | RplLuserAdminEmail ByteString -- ^ 259 admin-email
+  | RplLocalUsers ByteString ByteString -- ^ 265 local max
+  | RplGlobalUsers ByteString ByteString -- ^ 266 global max
+  | RplUserHost [ByteString] -- ^ 302 *(user hosts)
+  | RplNoTopicSet ByteString -- ^ 331 channel
+  | RplTopic ByteString ByteString -- ^ 332 channel topic
+  | RplBanList ByteString ByteString ByteString UTCTime -- ^ 367 channel banned banner timestamp
+  | RplEndOfBanList ByteString -- ^ 368 channel
   | RplMotd ByteString -- ^ 372 line-of-motd
   | RplMotdStart -- ^ 375
   | RplEndOfMotd -- ^ 376
-  | RplLocalUsers ByteString ByteString
-  | RplGlobalUsers ByteString ByteString
-  | RplStatsConn ByteString
-  | RplTopic ByteString ByteString
-  | RplTopicWhoTime ByteString ByteString UTCTime
-  | RplNoTopicSet ByteString
-  | RplIsOn [ByteString]
+  | RplTime ByteString ByteString -- ^ 391 server "\<string showing server's local time\>"
+  | RplEndOfStats ByteString -- ^ 219 statsquery
+  | RplStatsConn ByteString -- ^ 250 connection
+  | RplIsOn [ByteString] -- ^ 303 *(nick)
   | RplWhoReply ByteString ByteString ByteString ByteString ByteString ByteString ByteString
-  | RplEndOfWho ByteString
-  | Ping ByteString
-  | Notice  UserInfo ByteString ByteString
-  | Topic UserInfo ByteString ByteString
-  | PrivMsg UserInfo ByteString ByteString
-  | RplNameReply ChannelType ByteString [ByteString]
-  | RplEndOfNames
-  | ExtJoin UserInfo ByteString ByteString ByteString
-  | Join UserInfo ByteString
-  | Nick UserInfo ByteString
-  | Mode UserInfo ByteString [ByteString]
-  | Quit UserInfo ByteString
-  | Cap ByteString ByteString
-  | Kick UserInfo ByteString ByteString ByteString
-  | Part UserInfo ByteString ByteString
-  | RplWhoisUser ByteString ByteString ByteString ByteString
-  | RplWhoisHost ByteString ByteString
-  | RplWhoisServer ByteString ByteString ByteString
-  | RplWhoisChannels ByteString ByteString
-  | RplWhoisSecure ByteString
-  | RplWhoisAccount ByteString ByteString
-  | RplWhoisIdle ByteString ByteString ByteString
-  | RplWhoisOperator ByteString ByteString
-  | RplWhoisModes ByteString ByteString
-  | RplEndOfWhois ByteString
-  | RplWhoWasUser ByteString ByteString ByteString ByteString
-  | RplBanList ByteString ByteString ByteString UTCTime
-  | RplEndOfBanList ByteString
-  | RplInviteList ByteString ByteString ByteString UTCTime
-  | RplEndOfInviteList ByteString
-  | RplExceptionList ByteString ByteString ByteString UTCTime
-  | RplEndOfExceptionList ByteString
-  | RplEndOfWhoWas ByteString
-  | RplQuietList ByteString ByteString ByteString ByteString
-  | RplEndOfQuietList ByteString
-  | RplChannelModeIs ByteString [ByteString]
-  | RplChannelUrl ByteString ByteString
-  | RplCreationTime ByteString UTCTime
-  | Invite UserInfo ByteString
-  | RplListStart
-  | RplList ByteString ByteString ByteString
-  | RplListEnd
-  | RplHostHidden ByteString
-  | RplYoureOper ByteString
-  | RplInfo ByteString
-  | RplEndOfInfo
+  | RplWhoisUser ByteString ByteString ByteString ByteString -- ^ 311 nick user host realname
+  | RplWhoisServer ByteString ByteString ByteString -- ^ 312 nick server serverinfo
+  | RplWhoisOperator ByteString ByteString -- ^ 313 nick "is an IRC operator"
+  | RplWhoWasUser ByteString ByteString ByteString ByteString -- ^ 314 nick user host realname
+  | RplEndOfWho ByteString -- ^ 315 channel
+  | RplWhoisIdle ByteString ByteString ByteString -- ^ 317 nick idle signon
+  | RplEndOfWhois ByteString -- ^ 318 nick
+  | RplWhoisChannels ByteString ByteString -- ^ 319 nick channels
+  | RplListStart -- ^ 321
+  | RplList ByteString ByteString ByteString -- ^ 322 channel usercount topic
+  | RplListEnd -- ^ 323
+  | RplChannelModeIs ByteString [ByteString] -- ^ 324 channel *(modes)
+  | RplChannelUrl ByteString ByteString -- ^ 328 channel url
+  | RplCreationTime ByteString UTCTime -- ^ 329 channel timestamp
+  | RplWhoisAccount ByteString ByteString -- ^ 330 nick account
+  | RplTopicWhoTime ByteString ByteString UTCTime -- ^ 333 channel nickname timestamp
+  | RplInviteList ByteString ByteString ByteString UTCTime -- ^ 346 channel mask who timestamp
+  | RplEndOfInviteList ByteString -- ^ 347 channel
+  | RplExceptionList ByteString ByteString ByteString UTCTime -- ^ 348 channel mask who timestamp
+  | RplEndOfExceptionList ByteString -- ^ 349 channel
+  | RplNameReply ChannelType ByteString [ByteString] -- ^ 353 channeltype channel names
+  | RplEndOfNames ByteString -- ^ 366 channel
+  | RplEndOfWhoWas ByteString -- ^ 369 nick
+  | RplInfo ByteString -- ^ 371 info
+  | RplEndOfInfo -- ^ 374
+  | RplWhoisHost ByteString ByteString -- ^ 378 nick host
+  | RplWhoisModes ByteString ByteString -- ^ 379 nick modes
+  | RplYoureOper ByteString -- ^ 381 text
+  | RplHostHidden ByteString -- ^ 396 hostname
+  | RplWhoisSecure ByteString -- ^ 671 nick
+  | RplQuietList ByteString ByteString ByteString ByteString -- ^ 728 channel mask who timestamp
+  | RplEndOfQuietList ByteString -- ^ 729 channel
+
+  -- 400-499 Errors
   | ErrNoSuchNick ByteString -- ^ 401 nickname
   | ErrNoSuchServer ByteString -- ^ 402 server
   | ErrNoSuchChannel ByteString -- ^ 403 channel
@@ -108,7 +103,21 @@ data MsgFromServer
   | ErrBanListFull ByteString ByteString -- ^ 476 channel mode
   | ErrNoPrivileges -- ^ 481
   | ErrChanOpPrivsNeeded ByteString -- ^ 482 channel
+
   | Away UserInfo ByteString
+  | Ping ByteString
+  | Notice  UserInfo ByteString ByteString
+  | Topic UserInfo ByteString ByteString
+  | PrivMsg UserInfo ByteString ByteString
+  | ExtJoin UserInfo ByteString ByteString ByteString
+  | Join UserInfo ByteString
+  | Nick UserInfo ByteString
+  | Mode UserInfo ByteString [ByteString]
+  | Quit UserInfo ByteString
+  | Cap ByteString ByteString
+  | Kick UserInfo ByteString ByteString ByteString
+  | Part UserInfo ByteString ByteString
+  | Invite UserInfo ByteString
   deriving (Read, Show)
 
 data ChannelType = SecretChannel | PrivateChannel | PublicChannel
@@ -129,6 +138,9 @@ ircMsgToServerMsg ircmsg =
 
     ("042",[_,yourid,_]) ->
        Just (RplYourId yourid)
+
+    ("219",[_,mode,_]) ->
+       Just (RplEndOfStats mode)
 
     ("250",[_,stats]) ->
        Just (RplStatsConn stats)
@@ -156,6 +168,9 @@ ircMsgToServerMsg ircmsg =
 
     ("266",[_,globalusers,maxusers,_txt]) ->
        Just (RplGlobalUsers globalusers maxusers)
+
+    ("302",[_,txt]) ->
+       Just (RplUserHost (filter (not . BS.null) (BS.split 32 txt)))
 
     ("303",[_,txt]) ->
        Just (RplIsOn (filter (not . BS.null) (BS.split 32 txt)))
@@ -237,7 +252,7 @@ ircMsgToServerMsg ircmsg =
                   _   -> Nothing
          Just (RplNameReply ty' chan (filter (not . BS.null) (BS.split 32 txt)))
 
-    ("366",[_,_chan,_]) -> Just RplEndOfNames
+    ("366",[_,chan,_]) -> Just (RplEndOfNames chan)
 
     ("367",[_,chan,banned,banner,time]) ->
        Just (RplBanList chan banned banner (asTimeStamp time))
@@ -266,6 +281,9 @@ ircMsgToServerMsg ircmsg =
 
     ("381",[_,txt]) ->
          Just (RplYoureOper txt)
+
+    ("391",[_,server,txt]) ->
+         Just (RplTime server txt)
 
     ("396",[_,host,txt]) ->
          Just (RplHostHidden host)
