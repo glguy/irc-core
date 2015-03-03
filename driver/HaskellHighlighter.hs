@@ -24,6 +24,7 @@ colorize ((tok, (_,str)):rest) = aux str ++ colorize rest
           "of"   -> orange
           "do"   -> orange
           "if"   -> orange
+          "then" -> orange
           "else" -> orange
           "let"  -> orange
           "in"   -> orange
