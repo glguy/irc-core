@@ -11,7 +11,11 @@ banListImage mode chan st =
   case view (clientConnection . connChannelIx chan . chanMaskLists . at mode) st of
     Nothing -> string (withForeColor defAttr red) "Unknown list"
     Just [] -> string (withForeColor defAttr green) "Empty list"
-    Just xs -> vertCat (map renderEntry (take (view clientHeight st - 4) xs))
+    Just xs -> startFromBottom st
+             $ vertCat
+             $ map renderEntry
+             $ take (view clientHeight st - 4)
+             $ drop (view clientScrollPos st) xs
 
 renderEntry :: IrcMaskEntry -> Image
 renderEntry entry =
@@ -20,4 +24,8 @@ renderEntry entry =
   <|> utf8Bytestring' (withForeColor defAttr green) (view maskEntryWho entry)
   <|> string defAttr " - "
   <|> string (withForeColor defAttr yellow) (show (view maskEntryStamp entry))
-                 -- TODO: Interpret timestamp
+
+startFromBottom :: ClientState -> Image -> Image
+startFromBottom st img = pad 0 top 0 0 img
+  where
+  top = max 0 (view clientHeight st - 4 - imageHeight img)

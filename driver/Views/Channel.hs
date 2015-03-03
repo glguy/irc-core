@@ -26,8 +26,8 @@ import ImageUtils
 
 detailedImageForState :: ClientState -> Image
 detailedImageForState st
-  = vertCat
-  $ startFromBottom st
+  = startFromBottom st
+  $ vertCat
   $ reverse
   $ take (view clientHeight st - 4)
   $ drop (view clientScrollPos st)
@@ -76,17 +76,15 @@ activeMessages st =
     = CI.foldCase (views mesgSender userNick msg)
       == CI.foldCase nick
 
-startFromBottom :: ClientState -> [Image] -> [Image]
-startFromBottom st xs
-  = replicate (view clientHeight st - 4 - length xs)
-                (char defAttr ' ')
-    ++ xs
-
+startFromBottom :: ClientState -> Image -> Image
+startFromBottom st img = pad 0 top 0 0 img
+  where
+  top = max 0 (view clientHeight st - 4 - imageHeight img)
 
 compressedImageForState :: ClientState -> Image
 compressedImageForState st
-  = vertCat
-  $ startFromBottom st
+  = startFromBottom st
+  $ vertCat
   $ reverse
   $ take (view clientHeight st - 4)
   $ drop (view clientScrollPos st)
