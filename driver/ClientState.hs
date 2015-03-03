@@ -10,11 +10,15 @@ import Data.CaseInsensitive (CI)
 import Data.Foldable (toList)
 import Data.List (elemIndex)
 import Data.Map (Map)
+import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Data.Set (Set)
+import Data.Text (Text)
 import System.IO (Handle)
 import qualified Data.CaseInsensitive as CI
+import qualified Data.ByteString as B
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 import Irc.Model
 import Irc.List (List)
@@ -35,7 +39,7 @@ data ClientState = ClientState
   , _clientScrollPos :: Int
   , _clientHeight :: Int
   , _clientWidth :: Int
-  , _clientMessagesSeen :: Map (CI ByteString) Int
+  , _clientMessagesSeen :: !(Map (CI ByteString) SeenMetrics)
   , _clientIgnores :: !(Set (CI ByteString))
   }
 
@@ -45,9 +49,25 @@ data Focus
   | UserFocus ByteString
   | BanListFocus ByteString
   | ServerFocus
+  deriving (Read, Show)
+
+data SeenMetrics = SeenMetrics
+  { _seenNewMessages :: !Int
+  , _seenTotalMessages :: !Int
+  , _seenMentioned :: !Bool
+  }
+  deriving (Read,Show)
+
+defaultSeenMetrics :: SeenMetrics
+defaultSeenMetrics = SeenMetrics
+  { _seenNewMessages = 0
+  , _seenTotalMessages = 0
+  , _seenMentioned = False
+  }
 
 makeLenses ''ClientState
 makePrisms ''Focus
+makeLenses ''SeenMetrics
 
 focusMessages :: Applicative f => Focus -> LensLike' f IrcConnection (List IrcMessage)
 focusMessages x = case x of
@@ -57,32 +77,35 @@ focusMessages x = case x of
   ChannelInfoFocus _ -> ignored
   ServerFocus        -> ignored
 
-updateNewMessages :: ClientState -> ClientState
-updateNewMessages st =
+resetCurrentChannelMessages :: ClientState -> ClientState
+resetCurrentChannelMessages st =
   case view clientFocus st of
-    ChannelFocus c ->
-       set (clientMessagesSeen . at (CI.mk c))
-           (preview (clientConnection . connChannelIx c . chanMessages . to List.length)
-                    st)
-           st
-    UserFocus    u     ->
-       set (clientMessagesSeen . at (CI.mk u))
-           (preview (clientConnection . connUserIx u . usrMessages . to List.length)
-                    st)
-           st
-    BanListFocus _     -> st
-    ServerFocus        -> st
-    ChannelInfoFocus _ -> st
+    ChannelFocus c -> clear c st
+    UserFocus    u -> clear u st
+    _              -> st
 
-countNewMessages :: ClientState -> Map (CI ByteString) Int
-countNewMessages st =
-  Map.mergeWithKey
-    (\_ x y -> Just (combine x y))
-    (const mempty) -- drop the counts that aren't relevant
-    (fmap (combine 0)) -- default value of none seen
-    (view clientMessagesSeen st)
-    (channelCounts <> userCounts)
   where
+  clear c = over (clientMessagesSeen . ix (CI.mk c))
+                 ( set seenNewMessages 0
+                 . set seenMentioned False
+                 )
+
+updateNewMessages :: ClientState -> ClientState
+updateNewMessages st
+  = resetCurrentChannelMessages
+  $ over clientMessagesSeen aux st
+  where
+  me = CI.foldCase (asUtf8 (view (clientConnection.connNick) st))
+  combine = updateSeen me
+
+  aux m0 =
+    Map.mergeWithKey
+      (\_ x y -> Just (combine x y))
+      (const mempty) -- drop the counts that aren't relevant
+      (fmap (combine defaultSeenMetrics)) -- default value of none seen
+      m0
+      (channelCounts <> userCounts)
+
   channelCounts
     = fmap (view chanMessages)
            (view (clientConnection . connChannels) st)
@@ -92,17 +115,28 @@ countNewMessages st =
     $ fmap (view usrMessages)
            (view (clientConnection . connUsers) st)
 
-  combine :: Int -> List IrcMessage -> Int
-  combine seen msgs
-    = length
-    $ filter (views mesgType isRelevant)
-    $ take (List.length msgs - seen)
-    $ toList msgs
+updateSeen :: Text -> SeenMetrics -> List IrcMessage -> SeenMetrics
+updateSeen me seen msgs
+    = over seenNewMessages (+ length additionalMessages)
+    $ over seenMentioned   (|| mention)
+    $ set  seenTotalMessages totalMessages seen
+    where
+    totalMessages = List.length msgs
+    additionalMessages
+      = mapMaybe (views mesgType isRelevant)
+      $ take (totalMessages - view seenTotalMessages seen)
+      $ toList msgs
 
-  isRelevant PrivMsgType{}   = True
-  isRelevant NoticeMsgType{} = True
-  isRelevant ActionMsgType{} = True
-  isRelevant _             = False
+    mention = any (Text.isInfixOf me) (map CI.foldCase additionalMessages)
+
+
+-- Return the message part of a message which counts
+-- toward unread message count.
+isRelevant :: IrcMessageType -> Maybe Text
+isRelevant (PrivMsgType   msg) = Just msg
+isRelevant (NoticeMsgType msg) = Just msg
+isRelevant (ActionMsgType msg) = Just msg
+isRelevant _                   = Nothing
 
 
 clientInput :: ClientState -> String

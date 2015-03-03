@@ -13,27 +13,27 @@ import qualified Data.ByteString.Char8 as BS8
 import Irc.Format
 
 data MsgFromServer
-  = RplWelcome  ByteString
-  | RplYourHost ByteString
-  | RplCreated  ByteString
-  | RplMyInfo   ByteString ByteString ByteString ByteString ByteString
-  | RplISupport [ByteString]
-  | RplYourId ByteString
-  | RplMotdStart
-  | RplMotd      ByteString
-  | RplEndOfMotd
-  | RplLuserClient ByteString
-  | RplLuserOp     ByteString ByteString
-  | RplLuserUnknown ByteString
-  | RplLuserChannels ByteString ByteString
-  | RplLuserMe ByteString
-  | RplLuserAdminMe ByteString
-  | RplLuserAdminLoc1 ByteString
-  | RplLuserAdminLoc2 ByteString
-  | RplLuserAdminEmail ByteString
-  | RplLocalUsers      ByteString ByteString
+  = RplWelcome  ByteString -- ^ 001 "Welcome to the Internet Relay Network \<nick\>!\<user\>\@\<host\>"
+  | RplYourHost ByteString -- ^ 002 "Your host is \<servername\>, running version \<ver\>"
+  | RplCreated  ByteString -- ^ 003 "This server was created \<date\>"
+  | RplMyInfo   ByteString ByteString ByteString ByteString ByteString -- ^ 004 servername version available-user-modes available-channel-modes
+  | RplISupport [ByteString] -- ^ 005 *(KEY=VALUE)
+  | RplYourId ByteString -- ^ 042 unique-id
+  | RplLuserClient ByteString -- ^ 251 "There are \<integer\> users and \<integer\> services on \<integer\> servers"
+  | RplLuserOp ByteString -- ^ 252 number-of-ops
+  | RplLuserUnknown ByteString -- ^ 253 number-of-unknown
+  | RplLuserChannels ByteString -- ^ 254 number-of-channels
+  | RplLuserMe ByteString -- ^ 255 "I have \<integer\> clients and \<integer\> servers"
+  | RplLuserAdminMe ByteString -- ^ 256 server
+  | RplLuserAdminLoc1 ByteString -- ^ 257 admin-info-1
+  | RplLuserAdminLoc2 ByteString -- ^ 258 admin-info-2
+  | RplLuserAdminEmail ByteString -- ^ 259 admin-email
+  | RplMotd ByteString -- ^ 372 line-of-motd
+  | RplMotdStart -- ^ 375
+  | RplEndOfMotd -- ^ 376
+  | RplLocalUsers ByteString ByteString
   | RplGlobalUsers ByteString ByteString
-  | RplStatsConn      ByteString
+  | RplStatsConn ByteString
   | RplTopic ByteString ByteString
   | RplTopicWhoTime ByteString ByteString UTCTime
   | RplNoTopicSet ByteString
@@ -77,11 +77,6 @@ data MsgFromServer
   | RplChannelModeIs ByteString [ByteString]
   | RplChannelUrl ByteString ByteString
   | RplCreationTime ByteString UTCTime
-  | ErrChanOpPrivsNeeded ByteString ByteString
-  | ErrNickInUse
-  | ErrUnknownCommand ByteString
-  | ErrNeedsMoreParams ByteString
-  | ErrBadChannelKey ByteString ByteString
   | Invite UserInfo ByteString
   | RplListStart
   | RplList ByteString ByteString ByteString
@@ -90,9 +85,29 @@ data MsgFromServer
   | RplYoureOper ByteString
   | RplInfo ByteString
   | RplEndOfInfo
-  | ErrNoSuchNick ByteString
-  | ErrWasNoSuchNick ByteString
-  | ErrNoTextToSend
+  | ErrNoSuchNick ByteString -- ^ 401 nickname
+  | ErrNoSuchServer ByteString -- ^ 402 server
+  | ErrNoSuchChannel ByteString -- ^ 403 channel
+  | ErrCannotSendToChan ByteString -- ^ 404 channel
+  | ErrTooManyChannels ByteString -- ^ 405 channel
+  | ErrWasNoSuchNick ByteString -- ^ 406 nick
+  | ErrTooManyTargets ByteString ByteString -- ^ 407 target "\<error code\> recipients. \<abort message\>"
+  | ErrNoSuchService ByteString -- ^ 408 target
+  | ErrNoRecipient ByteString -- ^ 411 "No recipient given (\<command\>)"
+  | ErrNoTextToSend -- ^ 412
+  | ErrUnknownCommand ByteString -- ^ 421 command
+  | ErrNoMotd -- ^ 422
+  | ErrNoAdminInfo ByteString -- ^ 423 server
+  | ErrNickInUse -- ^ 433
+  | ErrNeedMoreParams ByteString -- ^ 461 command
+  | ErrAlreadyRegistered -- ^ 462
+  | ErrNoPermForHost -- ^ 463
+  | ErrPasswordMismatch -- ^ 464
+  | ErrBadChannelKey ByteString -- ^ 475 channel
+  | ErrBadChannelMask ByteString -- ^ 476 channel
+  | ErrBanListFull ByteString ByteString -- ^ 476 channel mode
+  | ErrNoPrivileges -- ^ 481
+  | ErrChanOpPrivsNeeded ByteString -- ^ 482 channel
   | Away UserInfo ByteString
   deriving (Read, Show)
 
@@ -121,17 +136,17 @@ ircMsgToServerMsg ircmsg =
     ("251",[_,stats]) ->
        Just (RplLuserClient stats)
 
-    ("252",[_,num,txt]) ->
-       Just (RplLuserOp num txt)
+    ("252",[_,num,_]) ->
+       Just (RplLuserOp num)
 
-    ("253",[_,txt]) ->
-       Just (RplLuserUnknown txt)
+    ("253",[_,num,_]) ->
+       Just (RplLuserUnknown num)
 
-    ("254",[_,num,txt]) ->
-       Just (RplLuserChannels num txt)
+    ("254",[_,num,_]) ->
+       Just (RplLuserChannels num)
 
     ("255",[_,txt]) -> Just (RplLuserMe txt)
-    ("256",[_,txt]) -> Just (RplLuserAdminMe txt)
+    ("256",[_,server,_]) -> Just (RplLuserAdminMe server)
     ("257",[_,txt]) -> Just (RplLuserAdminLoc1 txt)
     ("258",[_,txt]) -> Just (RplLuserAdminLoc2 txt)
     ("259",[_,txt]) -> Just (RplLuserAdminEmail txt)
@@ -258,8 +273,29 @@ ircMsgToServerMsg ircmsg =
     ("401",[_,nick,_]) ->
          Just (ErrNoSuchNick nick)
 
+    ("402",[_,server,_]) ->
+         Just (ErrNoSuchServer server)
+
+    ("403",[_,channel,_]) ->
+         Just (ErrNoSuchChannel channel)
+
+    ("404",[_,channel,_]) ->
+         Just (ErrCannotSendToChan channel)
+
+    ("405",[_,channel,_]) ->
+         Just (ErrTooManyChannels channel)
+
     ("406",[_,nick,_]) ->
          Just (ErrWasNoSuchNick nick)
+
+    ("407",[_,target,txt]) ->
+         Just (ErrTooManyTargets target txt)
+
+    ("408",[_,target,_]) ->
+         Just (ErrNoSuchService target)
+
+    ("411",[_,txt]) ->
+         Just (ErrNoRecipient txt)
 
     ("412",[_,_]) ->
          Just ErrNoTextToSend
@@ -267,16 +303,40 @@ ircMsgToServerMsg ircmsg =
     ("421",[_,cmd,_]) ->
          Just (ErrUnknownCommand cmd)
 
+    ("422",[_,_]) ->
+         Just ErrNoMotd
+
+    ("423",[_,server,_]) ->
+         Just (ErrNoAdminInfo server)
+
     ("433",[_,_]) -> Just ErrNickInUse
 
     ("461",[_,cmd,_]) ->
-         Just (ErrNeedsMoreParams cmd)
+         Just (ErrNeedMoreParams cmd)
 
-    ("475",[_,chan,txt]) ->
-         Just (ErrBadChannelKey chan txt)
+    ("462",[_,_]) ->
+         Just ErrAlreadyRegistered
 
-    ("482",[_,chan,txt]) ->
-         Just (ErrChanOpPrivsNeeded chan txt)
+    ("463",[_,_]) ->
+         Just ErrNoPermForHost
+
+    ("464",[_,_]) ->
+         Just ErrPasswordMismatch
+
+    ("475",[_,chan,_]) ->
+         Just (ErrBadChannelKey chan)
+
+    ("476",[_,chan,_]) ->
+         Just (ErrBadChannelMask chan)
+
+    ("478",[_,chan,mode,_]) ->
+         Just (ErrBanListFull chan mode)
+
+    ("481",[_,_]) ->
+         Just ErrNoPrivileges
+
+    ("482",[_,chan,_]) ->
+         Just (ErrChanOpPrivsNeeded chan)
 
     ("671",[_,nick,_]) ->
          Just (RplWhoisSecure nick)

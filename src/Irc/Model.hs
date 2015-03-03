@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE PatternGuards #-}
 module Irc.Model where
 
 import Data.Map (Map)
@@ -13,13 +14,13 @@ import Control.Lens
 import Control.Monad.Free
 import Data.ByteString (ByteString)
 import Data.Char (ord)
-import Data.List (find,nub,delete)
+import Data.List (foldl',find,nub,delete)
 import Data.Time
 import Data.Word
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as BS8
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
@@ -137,7 +138,9 @@ makeLenses ''IrcBan
 makeLenses ''IrcChanModes
 
 
-
+-- | Primary state machine step function. Call this function with a timestamp
+-- and a server message to update the 'IrcConnection' state. If additional
+-- messages are required they will be requested via the 'Logic' type.
 advanceModel :: UTCTime -> MsgFromServer -> IrcConnection -> Logic IrcConnection
 advanceModel stamp msg0 conn =
   case msg0 of
@@ -149,8 +152,8 @@ advanceModel stamp msg0 conn =
        RplMyInfo host version _ _ _ ->
          return (set connMyInfo (Just (host,version)) conn)
 
-       RplLuserOp _ _       -> return conn
-       RplLuserChannels _ _ -> return conn
+       RplLuserOp _         -> return conn
+       RplLuserChannels _   -> return conn
        RplLuserMe _         -> return conn
        RplLuserClient _     -> return conn
        RplLocalUsers _ _    -> return conn
@@ -250,9 +253,7 @@ advanceModel stamp msg0 conn =
 
        RplEndOfWho _chan -> return conn
 
-       RplIsOn nicks -> return (foldl (\connAcc nick -> set (connUserIx nick.usrAway) False connAcc)
-                                      conn
-                                      nicks)
+       RplIsOn nicks -> return (doIsOn nicks conn)
 
        RplBanList _chan bannee banner bantime ->
          doBanList [IrcBan { _banBannee = bannee
@@ -266,11 +267,11 @@ advanceModel stamp msg0 conn =
        Mode who target (modes:args) ->
          return (doModeChange who stamp target modes args conn)
 
-       ErrChanOpPrivsNeeded chan txt ->
+       ErrChanOpPrivsNeeded chan ->
          return (recordMessage mesg chan conn)
          where
          mesg = IrcMessage
-           { _mesgType    = ErrorMsgType (asUtf8 txt)
+           { _mesgType    = ErrorMsgType "Channel privileges needed"
            , _mesgSender  = UserInfo "server" Nothing Nothing
            , _mesgStamp   = stamp
            , _mesgMe      = False
@@ -279,32 +280,64 @@ advanceModel stamp msg0 conn =
 
        _ -> fail ("Unsupported: " ++ show msg0)
 
+-- | Mark all the given nicks as active (not-away).
+doIsOn ::
+  [ByteString] {- ^ active nicks -} ->
+  IrcConnection -> IrcConnection
+doIsOn nicks conn = foldl' setIsOn conn nicks
+  where
+  setIsOn connAcc nick = set (connUserIx nick.usrAway) False connAcc
 
-doModeChange :: UserInfo -> UTCTime -> ByteString -> ByteString -> [ByteString] -> IrcConnection -> IrcConnection
-doModeChange who now target modes0 args0 conn0 = aux True modes0 args0 conn0
+doModeChange ::
+  UserInfo     {- ^ who           -} ->
+  UTCTime      {- ^ when          -} ->
+  ByteString   {- ^ target        -} ->
+  ByteString   {- ^ modes changed -} ->
+  [ByteString] {- ^ arguments     -} ->
+  IrcConnection -> IrcConnection
+doModeChange who now target modes0 args0 conn0
+  = aux True modes0 args0 conn0
   where
   modeSettings = view connChanModes conn0
 
   aux polarity modes args conn =
-    case BS8.uncons modes of
+    case B8.uncons modes of
       Nothing     -> conn
       Just ('+',ms) -> aux True  ms args conn
       Just ('-',ms) -> aux False ms args conn
       Just (m,ms)
-        | m `elem` view modesLists     modeSettings ->
-              aux polarity ms (drop 1 args) conn -- TODO: Manage lists
-        | m `elem` view modesAlwaysArg modeSettings -> aux polarity ms (drop 1 args) conn
-        | m `elem` view modesSetArg    modeSettings ->
-              aux polarity ms (if polarity then drop 1 args else args) conn
+
+        | m `elem` view modesLists modeSettings ->
+             case args of
+               a:args' -> aux polarity ms (drop 1 args) -- TODO: Manage lists
+                        $ recordMessage (modeMsg polarity m a) target conn
+
+        | m `elem` view modesAlwaysArg modeSettings ->
+              case args of
+                a:args' -> aux polarity ms args'
+                         $ recordMessage (modeMsg polarity m a) target conn
+                _ -> conn -- error
+
+        | m `elem` view modesSetArg modeSettings ->
+              case args of
+                _ | not polarity -> aux polarity ms args
+                                  $ recordMessage (modeMsg polarity m "") target conn
+                a:args' -> aux polarity ms args'
+                         $ recordMessage (modeMsg polarity m a) target conn
+                _ -> conn -- error state
+
         | m `elem` map fst (view modesPrefixModes modeSettings) ->
               case args of
-                [] -> conn -- ?
-                arg:args' -> aux polarity ms args'
-                           $ recordMessage (modeMsg polarity m arg) target
-                           $ over (connChannelIx target . chanUserIx arg)
-                                  toggle
-                                  conn
-        | otherwise -> conn
+                a:args' -> aux polarity ms args'
+                         $ recordMessage (modeMsg polarity m a) target
+                         $ over (connChannelIx target . chanUserIx a)
+                                toggle
+                                conn
+                _  -> conn -- error state
+
+        | otherwise ->
+                aux polarity ms args
+              $ recordMessage (modeMsg polarity m "") target conn
           where
           toggle
             | polarity = nub . cons m
@@ -335,7 +368,12 @@ doBanList acc conn =
 
        _ -> fail ("Expected ban list end: " ++ show msg)
 
-doNick :: UTCTime -> UserInfo -> ByteString -> IrcConnection -> Logic IrcConnection
+-- | Update an 'IrcConnection' when a user changes nicknames.
+doNick ::
+  UTCTime    {- ^ timestamp           -} ->
+  UserInfo   {- ^ old user infomation -} ->
+  ByteString {- ^ new nickname        -} ->
+  IrcConnection -> Logic IrcConnection
 doNick stamp who newnick = return
                    . over connUsers updateUsers
                    . over (connChannels . mapped) updateChannel
@@ -365,7 +403,13 @@ doNick stamp who newnick = return
          , _mesgMe = False
          }
 
-doPart :: UTCTime -> UserInfo -> ByteString -> ByteString -> IrcConnection -> Logic IrcConnection
+-- | Update the 'IrcConnection' when a user parts from a channel.
+doPart ::
+  UTCTime    {- ^ timestamp        -} ->
+  UserInfo   {- ^ user information -} ->
+  ByteString {- ^ channel          -} ->
+  ByteString {- ^ part reason      -} ->
+  IrcConnection -> Logic IrcConnection
 doPart stamp who chan reason conn =
    return $ over (connChannelIx chan) removeUser
           $ recordMessage mesg chan conn
@@ -380,9 +424,13 @@ doPart stamp who chan reason conn =
 
   removeUser = set (chanUserAt (userNick who)) Nothing
 
+-- | Update an 'IrcConnection' when a user is kicked from a channel.
 doKick ::
-  UTCTime -> UserInfo ->
-  ByteString -> ByteString -> ByteString ->
+  UTCTime    {- ^ timestamp   -} ->
+  UserInfo   {- ^ kicker      -} ->
+  ByteString {- ^ channel     -} ->
+  ByteString {- ^ kicked      -} ->
+  ByteString {- ^ kick reason -} ->
   IrcConnection -> Logic IrcConnection
 doKick stamp who chan tgt reason conn =
   return (recordMessage mesg chan conn)
@@ -410,7 +458,12 @@ doWhoReply nickname flags conn =
       Nothing -> mempty
       Just xs -> xs
 
-doQuit :: UTCTime -> UserInfo -> ByteString -> IrcConnection -> Logic IrcConnection
+-- | Update an 'IrcConnection' with the quitting of a user.
+doQuit ::
+  UTCTime    {- ^ timestamp   -} ->
+  UserInfo   {- ^ user info   -} ->
+  ByteString {- ^ quit reason -} ->
+  IrcConnection -> Logic IrcConnection
 doQuit stamp who reason conn = return
                        $ over (connChannels . mapped) upd
                        $ set (connUserAt (userNick who)) Nothing
@@ -499,20 +552,26 @@ doNameReply chan xs conn =
                            conn
        _ -> fail "Expected end of names"
        where
+       modeMap = view (connChanModes . modesPrefixModes) conn
        users = Map.fromList
              $ over (mapped._1) CI.mk
-             $ map (splitNamesReplyName conn) xs
+             $ map (splitNamesReplyName modeMap) xs
 
-splitNamesReplyName :: IrcConnection -> ByteString -> (ByteString, String)
-splitNamesReplyName conn = aux []
+-- | Compute the nickname and channel modes from an entry in
+-- a NAMES reply. The leading channel prefixes are translated
+-- into the appropriate modes.
+splitNamesReplyName ::
+  [(Char,Char)]        {- ^ [(mode,prefix)]   -} ->
+  ByteString           {- ^ names entry       -} ->
+  (ByteString, String) {- ^ (nickname, modes) -}
+splitNamesReplyName modeMap = aux []
   where
   aux modes n =
-    case B.uncons n of
-      Just (x,xs) ->
-        case find (\(_mode,symbol) -> x == fromIntegral (ord symbol))
-                  (view (connChanModes . modesPrefixModes) conn) of
-          Just (mode,_) -> aux (mode:modes) xs
-          Nothing       -> (n,modes)
+    case B8.uncons n of
+      Just (x,xs)
+        | Just (mode,_) <- find (\(_mode,symbol) -> x == symbol) modeMap
+        -> aux (mode:modes) xs
+
       _                 -> (n,modes)
 
 ------------------------------------------------------------------------
@@ -520,8 +579,11 @@ splitNamesReplyName conn = aux []
 -- to perform complex updates to the model.
 ------------------------------------------------------------------------
 
-runLogic :: Monad m => (LogicOp (m a) -> m a) -> Logic (m a) -> m a
-runLogic f (Logic a) = iter f a
+runLogic :: Monad m => m MsgFromServer -> Logic a -> m (Either String a)
+runLogic getMsg (Logic a) = iter interp (fmap (return . Right) a)
+  where
+  interp (Expect k)  = k =<< getMsg
+  interp (Failure e) = return (Left e)
 
 data LogicOp r
   = Expect  (MsgFromServer -> r)

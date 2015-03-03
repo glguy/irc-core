@@ -127,9 +127,8 @@ driver vty vtyEventChan ircMsgChan st =
 
   processIrcMsg msg =
     do now <- getCurrentTime
-       r <- runLogic (interpretLogicOp ircMsgChan)
-                     (fmap (return . Right)
-                           (advanceModel now msg (view clientConnection st)))
+       r <- runLogic (atomically (readTChan ircMsgChan))
+                     (advanceModel now msg (view clientConnection st))
        case r of
          Left e ->
            do hPutStrLn (view clientErrors st) ("!!! " ++ e)
@@ -271,7 +270,8 @@ commandEvent cmd st =
     "msg" :- target :- msg ->
       doSendMessage SendPriv (B8.pack target) (Text.pack msg) st'
 
-    "hs" :- rest ->
+    -- carefully preserve whitespace after the command
+    'h':'s':' ':rest ->
       case view clientFocus st of
         ChannelFocus c -> doSendMessage SendPriv c msg st'
         UserFocus u    -> doSendMessage SendPriv u msg st'
@@ -280,8 +280,7 @@ commandEvent cmd st =
        msg = Text.pack (highlightHaskell rest)
 
     -- raw
-    "quote" :- rest ->
-      doQuote rest st'
+    "quote" :- rest -> doQuote rest st'
 
     -- channel commands
     "join" :- c :-      "" -> doJoinCmd (toB c) Nothing st'
@@ -374,17 +373,12 @@ picForState st = Picture
 
 textbox :: String -> Int -> Int -> Image
 textbox str pos width
-  | pos > width - 2     = string defAttr (drop (pos - width + 1) str)
-                      <|> ending
-
-  | len <= width - 2    = beginning
-                      <|> string defAttr str
-                      <|> ending
-
-  | otherwise           = beginning
-                      <|> string defAttr (take (width-1) str)
+  = applyCrop
+  $ beginning <|> string defAttr str <|> ending
   where
-  len = length str
+  applyCrop
+    | pos < width = cropRight width
+    | otherwise   = cropLeft  width
 
   beginning = char (withForeColor defAttr brightBlack) '^'
   ending    = char (withForeColor defAttr brightBlack) '$'
@@ -393,25 +387,22 @@ dividerImage :: ClientState -> Image
 dividerImage st
   = extendToWidth
   $ ifoldr (\i x xs -> drawOne i x <|> xs) emptyImage
-  $ countNewMessages st
+  $ view clientMessagesSeen st
 
   where
-  drawOne :: CI ByteString -> Int -> Image
-  drawOne i n
-    | Just i == active
-          = string defAttr "─["
-        <|> coloredInt n
-        <|> string defAttr "]"
+  drawOne :: CI ByteString -> SeenMetrics -> Image
+  drawOne i seen
+    | Just i == active = string defAttr "─[" <|> txt <|> string defAttr "]"
+    | otherwise        = string defAttr "─<" <|> txt <|> string defAttr ">"
+    where
+    txt = string (withForeColor defAttr (seenColor seen))
+                 (show (view seenNewMessages seen))
 
-    | otherwise =
-            string defAttr "─<"
-        <|> coloredInt n
-        <|> string defAttr ">"
-
-  coloredInt :: Int -> Image
-  coloredInt x
-    | x > 0     = string (withForeColor defAttr green) (show x)
-    | otherwise = string (withForeColor defAttr brightBlack) (show x)
+  seenColor :: SeenMetrics -> Color
+  seenColor seen
+    | view seenMentioned seen = red
+    | view seenNewMessages seen > 0 = green
+    | otherwise = brightBlack
 
   extendToWidth img =
     img <|> string defAttr (replicate (view clientWidth st - imageWidth img) '─')
@@ -440,13 +431,6 @@ socketLoop chan h hErr = forever (atomically . writeTChan chan =<< getOne h hErr
 
 vtyEventLoop :: TChan Event -> Vty -> IO a
 vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)
-
-interpretLogicOp ::
-  TChan MsgFromServer {- ^ input -} ->
-  LogicOp (IO (Either String a)) ->
-  IO (Either String a)
-interpretLogicOp ircChan (Expect k) = k =<< atomically (readTChan ircChan)
-interpretLogicOp _ (Failure e) = return (Left e)
 
 getOne :: Handle -> Handle -> IO MsgFromServer
 getOne h hErr =
