@@ -18,13 +18,13 @@ import Irc.Format
 --
 -- @MODE target *(mode) *(modeparams)@
 modeCmd ::
-  ByteString   {- ^ target           -} ->
+  Identifier   {- ^ target           -} ->
   [ByteString] {- ^ modes and params -} ->
   ByteString
 modeCmd c modes = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand  = "MODE"
-  , msgParams = c : modes
+  , msgParams = idBytes c : modes
   }
 
 -- | Construct a JOIN command. A join command
@@ -33,23 +33,23 @@ modeCmd c modes = renderRawIrcMsg RawIrcMsg
 --
 -- @JOIN channels (keys)@
 joinCmd :: ByteString -> Maybe ByteString -> ByteString
-joinCmd chan mbKey = renderRawIrcMsg RawIrcMsg
+joinCmd chans mbKeys = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand  = "JOIN"
-  , msgParams = [chan] <> toList mbKey
+  , msgParams = [chans] <> toList mbKeys
   }
 
 -- | Construct a PART command.
 --
 -- @PART channel message@
 partCmd ::
-  ByteString {- ^ channel -} ->
+  Identifier {- ^ channel -} ->
   ByteString {- ^ message -} ->
   ByteString
 partCmd chan msg = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand  = "PART"
-  , msgParams = [chan,msg]
+  , msgParams = [idBytes chan,msg]
   }
 
 -- | Construct a TOPIC command. This is used to lookup
@@ -57,25 +57,25 @@ partCmd chan msg = renderRawIrcMsg RawIrcMsg
 --
 -- @TOPIC channel message@
 topicCmd ::
-  ByteString {- ^ channel -} ->
+  Identifier {- ^ channel -} ->
   ByteString {- ^ topic   -} ->
   ByteString
 topicCmd chan msg = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand  = "TOPIC"
-  , msgParams = [chan,msg]
+  , msgParams = [idBytes chan,msg]
   }
 
 -- | Construct a WHOIS command.
 --
 -- @WHOIS user@
 whoisCmd ::
-  ByteString {- ^ user -} ->
+  Identifier {- ^ user -} ->
   ByteString
 whoisCmd user = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand  = "WHOIS"
-  , msgParams = [user]
+  , msgParams = [idBytes user]
   }
 
 -- | Construct a NICK command. This is used to specify
@@ -83,12 +83,12 @@ whoisCmd user = renderRawIrcMsg RawIrcMsg
 --
 -- @NICK nickname@
 nickCmd ::
-  ByteString {- ^ nickname -} ->
+  Identifier {- ^ nickname -} ->
   ByteString
 nickCmd nick = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
-  , msgCommand    = "NICK"
-  , msgParams = [nick]
+  , msgCommand = "NICK"
+  , msgParams = [idBytes nick]
   }
 
 -- | Construct a USER command. This is used in the initial
@@ -170,13 +170,13 @@ capEndCmd = renderRawIrcMsg RawIrcMsg
 --
 -- @PRIVMSG target message@
 privMsgCmd ::
-  ByteString {- ^ target  -} ->
+  Identifier {- ^ target  -} ->
   ByteString {- ^ message -} ->
   ByteString
 privMsgCmd target msg = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand = "PRIVMSG"
-  , msgParams = [target,msg]
+  , msgParams = [idBytes target,msg]
   }
 
 -- | Construct a NOTICE command. This send notice chat messages
@@ -184,12 +184,12 @@ privMsgCmd target msg = renderRawIrcMsg RawIrcMsg
 --
 -- @NOTICE target message@
 noticeCmd ::
-  ByteString {- ^ target  -} ->
+  Identifier {- ^ target  -} ->
   ByteString {- ^ message -} ->
   ByteString
 noticeCmd target msg = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand = "NOTICE"
-  , msgParams = [target,msg]
+  , msgParams = [idBytes target,msg]
   }
 

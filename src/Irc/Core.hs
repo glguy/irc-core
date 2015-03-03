@@ -38,55 +38,55 @@ data MsgFromServer
   | RplGlobalUsers ByteString ByteString -- ^ 266 global max
 
   | RplUserHost [ByteString] -- ^ 302 *(user hosts)
-  | RplIsOn [ByteString] -- ^ 303 *(nick)
-  | RplWhoisUser ByteString ByteString ByteString ByteString -- ^ 311 nick user host realname
-  | RplWhoisServer ByteString ByteString ByteString -- ^ 312 nick server serverinfo
-  | RplWhoisOperator ByteString ByteString -- ^ 313 nick "is an IRC operator"
-  | RplWhoWasUser ByteString ByteString ByteString ByteString -- ^ 314 nick user host realname
-  | RplEndOfWho ByteString -- ^ 315 channel
-  | RplWhoisIdle ByteString ByteString UTCTime -- ^ 317 nick idle signon
-  | RplEndOfWhois ByteString -- ^ 318 nick
-  | RplWhoisChannels ByteString ByteString -- ^ 319 nick channels
+  | RplIsOn [Identifier] -- ^ 303 *(nick)
+  | RplWhoisUser Identifier ByteString ByteString ByteString -- ^ 311 nick user host realname
+  | RplWhoisServer Identifier ByteString ByteString -- ^ 312 nick server serverinfo
+  | RplWhoisOperator Identifier ByteString -- ^ 313 nick "is an IRC operator"
+  | RplWhoWasUser Identifier ByteString ByteString ByteString -- ^ 314 nick user host realname
+  | RplEndOfWho Identifier -- ^ 315 channel
+  | RplWhoisIdle Identifier ByteString UTCTime -- ^ 317 nick idle signon
+  | RplEndOfWhois Identifier -- ^ 318 nick
+  | RplWhoisChannels Identifier ByteString -- ^ 319 nick channels
   | RplListStart -- ^ 321
-  | RplList ByteString ByteString ByteString -- ^ 322 channel usercount topic
+  | RplList Identifier ByteString ByteString -- ^ 322 channel usercount topic
   | RplListEnd -- ^ 323
-  | RplChannelModeIs ByteString [ByteString] -- ^ 324 channel *(modes)
-  | RplNoTopicSet ByteString -- ^ 331 channel
-  | RplTopic ByteString ByteString -- ^ 332 channel topic
-  | RplChannelUrl ByteString ByteString -- ^ 328 channel url
-  | RplCreationTime ByteString UTCTime -- ^ 329 channel timestamp
-  | RplWhoisAccount ByteString ByteString -- ^ 330 nick account
-  | RplTopicWhoTime ByteString ByteString UTCTime -- ^ 333 channel nickname timestamp
-  | RplInviteList ByteString ByteString ByteString UTCTime -- ^ 346 channel mask who timestamp
-  | RplEndOfInviteList ByteString -- ^ 347 channel
-  | RplExceptionList ByteString ByteString ByteString UTCTime -- ^ 348 channel mask who timestamp
-  | RplEndOfExceptionList ByteString -- ^ 349 channel
-  | RplWhoReply ByteString ByteString ByteString ByteString ByteString ByteString ByteString -- ^ 352 channel user host server account flags txt
-  | RplNameReply ChannelType ByteString [ByteString] -- ^ 353 channeltype channel names
-  | RplEndOfNames ByteString -- ^ 366 channel
-  | RplBanList ByteString ByteString ByteString UTCTime -- ^ 367 channel banned banner timestamp
-  | RplEndOfBanList ByteString -- ^ 368 channel
-  | RplEndOfWhoWas ByteString -- ^ 369 nick
+  | RplChannelModeIs Identifier [ByteString] -- ^ 324 channel *(modes)
+  | RplNoTopicSet Identifier -- ^ 331 channel
+  | RplTopic Identifier ByteString -- ^ 332 channel topic
+  | RplChannelUrl Identifier ByteString -- ^ 328 channel url
+  | RplCreationTime Identifier UTCTime -- ^ 329 channel timestamp
+  | RplWhoisAccount Identifier ByteString -- ^ 330 nick account
+  | RplTopicWhoTime Identifier ByteString UTCTime -- ^ 333 channel nickname timestamp
+  | RplInviteList Identifier ByteString ByteString UTCTime -- ^ 346 channel mask who timestamp
+  | RplEndOfInviteList Identifier -- ^ 347 channel
+  | RplExceptionList Identifier ByteString ByteString UTCTime -- ^ 348 channel mask who timestamp
+  | RplEndOfExceptionList Identifier -- ^ 349 channel
+  | RplWhoReply Identifier ByteString ByteString ByteString Identifier ByteString ByteString -- ^ 352 channel user host server nick flags txt
+  | RplNameReply ChannelType Identifier [ByteString] -- ^ 353 channeltype channel names
+  | RplEndOfNames Identifier -- ^ 366 channel
+  | RplBanList Identifier ByteString ByteString UTCTime -- ^ 367 channel banned banner timestamp
+  | RplEndOfBanList Identifier -- ^ 368 channel
+  | RplEndOfWhoWas Identifier -- ^ 369 nick
   | RplMotd ByteString -- ^ 372 line-of-motd
   | RplMotdStart -- ^ 375
   | RplEndOfMotd -- ^ 376
   | RplTime ByteString ByteString -- ^ 391 server "\<string showing server's local time\>"
   | RplInfo ByteString -- ^ 371 info
   | RplEndOfInfo -- ^ 374
-  | RplWhoisHost ByteString ByteString -- ^ 378 nick host
-  | RplWhoisModes ByteString ByteString [ByteString] -- ^ 379 nick modes *(args)
+  | RplWhoisHost Identifier ByteString -- ^ 378 nick host
+  | RplWhoisModes Identifier ByteString [ByteString] -- ^ 379 nick modes *(args)
   | RplYoureOper ByteString -- ^ 381 text
   | RplHostHidden ByteString -- ^ 396 hostname
 
   -- 400-499 Errors
-  | ErrNoSuchNick ByteString -- ^ 401 nickname
+  | ErrNoSuchNick Identifier -- ^ 401 nickname
   | ErrNoSuchServer ByteString -- ^ 402 server
-  | ErrNoSuchChannel ByteString -- ^ 403 channel
-  | ErrCannotSendToChan ByteString -- ^ 404 channel
-  | ErrTooManyChannels ByteString -- ^ 405 channel
-  | ErrWasNoSuchNick ByteString -- ^ 406 nick
-  | ErrTooManyTargets ByteString ByteString -- ^ 407 target "\<error code\> recipients. \<abort message\>"
-  | ErrNoSuchService ByteString -- ^ 408 target
+  | ErrNoSuchChannel Identifier -- ^ 403 channel
+  | ErrCannotSendToChan Identifier -- ^ 404 channel
+  | ErrTooManyChannels Identifier -- ^ 405 channel
+  | ErrWasNoSuchNick Identifier -- ^ 406 nick
+  | ErrTooManyTargets Identifier ByteString -- ^ 407 target "\<error code\> recipients. \<abort message\>"
+  | ErrNoSuchService Identifier -- ^ 408 target
   | ErrNoRecipient ByteString -- ^ 411 "No recipient given (\<command\>)"
   | ErrNoTextToSend -- ^ 412
   | ErrUnknownCommand ByteString -- ^ 421 command
@@ -97,31 +97,31 @@ data MsgFromServer
   | ErrAlreadyRegistered -- ^ 462
   | ErrNoPermForHost -- ^ 463
   | ErrPasswordMismatch -- ^ 464
-  | ErrBadChannelKey ByteString -- ^ 475 channel
-  | ErrBadChannelMask ByteString -- ^ 476 channel
-  | ErrBanListFull ByteString ByteString -- ^ 476 channel mode
+  | ErrBadChannelKey Identifier -- ^ 475 channel
+  | ErrBadChannelMask Identifier -- ^ 476 channel
+  | ErrBanListFull Identifier ByteString -- ^ 476 channel mode
   | ErrNoPrivileges -- ^ 481
-  | ErrChanOpPrivsNeeded ByteString -- ^ 482 channel
+  | ErrChanOpPrivsNeeded Identifier -- ^ 482 channel
 
   -- Random high-numbered stuff
-  | RplWhoisSecure ByteString -- ^ 671 nick
-  | RplQuietList ByteString Char ByteString ByteString UTCTime -- ^ 728 channel mode mask who timestamp
-  | RplEndOfQuietList ByteString Char -- ^ 729 channel mode
+  | RplWhoisSecure Identifier -- ^ 671 nick
+  | RplQuietList Identifier Char ByteString ByteString UTCTime -- ^ 728 channel mode mask who timestamp
+  | RplEndOfQuietList Identifier Char -- ^ 729 channel mode
 
   | Away UserInfo ByteString
   | Ping ByteString
-  | Notice  UserInfo ByteString ByteString
-  | Topic UserInfo ByteString ByteString
-  | PrivMsg UserInfo ByteString ByteString
-  | ExtJoin UserInfo ByteString ByteString ByteString
-  | Join UserInfo ByteString
-  | Nick UserInfo ByteString
-  | Mode UserInfo ByteString [ByteString]
+  | Notice  UserInfo Identifier ByteString
+  | Topic UserInfo Identifier ByteString
+  | PrivMsg UserInfo Identifier ByteString
+  | ExtJoin UserInfo Identifier ByteString ByteString
+  | Join UserInfo Identifier
+  | Nick UserInfo Identifier
+  | Mode UserInfo Identifier [ByteString]
   | Quit UserInfo ByteString
   | Cap ByteString ByteString
-  | Kick UserInfo ByteString ByteString ByteString
-  | Part UserInfo ByteString ByteString
-  | Invite UserInfo ByteString
+  | Kick UserInfo Identifier Identifier ByteString
+  | Part UserInfo Identifier ByteString
+  | Invite UserInfo Identifier
   deriving (Read, Show)
 
 data ChannelType = SecretChannel | PrivateChannel | PublicChannel
@@ -180,76 +180,76 @@ ircMsgToServerMsg ircmsg =
        Just (RplUserHost (filter (not . B.null) (B.split 32 txt)))
 
     ("303",[_,txt]) ->
-       Just (RplIsOn (filter (not . B.null) (B.split 32 txt)))
+       Just (RplIsOn (map mkId (filter (not . B.null) (B.split 32 txt))))
 
     ("311",[_,nick,user,host,_star,txt]) ->
-       Just (RplWhoisUser nick user host txt)
+       Just (RplWhoisUser (mkId nick) user host txt)
 
     ("312",[_,nick,server,txt]) ->
-       Just (RplWhoisServer nick server txt)
+       Just (RplWhoisServer (mkId nick) server txt)
 
     ("314",[_,nick,user,host,_star,txt]) ->
-       Just (RplWhoWasUser nick user host txt)
+       Just (RplWhoWasUser (mkId nick) user host txt)
 
     ("319",[_,nick,txt]) ->
-       Just (RplWhoisChannels nick txt)
+       Just (RplWhoisChannels (mkId nick) txt)
 
     ("313",[_,nick,txt]) ->
-       Just (RplWhoisOperator nick txt)
+       Just (RplWhoisOperator (mkId nick) txt)
 
     ("315",[_,chan,_]) ->
-       Just (RplEndOfWho chan)
+       Just (RplEndOfWho (mkId chan))
 
     ("317",[_,nick,idle,signon,_txt]) ->
-       Just (RplWhoisIdle nick idle (asTimeStamp signon))
+       Just (RplWhoisIdle (mkId nick) idle (asTimeStamp signon))
 
     ("318",[_,nick,_txt]) ->
-       Just (RplEndOfWhois nick)
+       Just (RplEndOfWhois (mkId nick))
 
     ("321",[_]) ->
        Just RplListStart
 
     ("322",[_,chan,num,topic]) ->
-       Just (RplList chan num topic)
+       Just (RplList (mkId chan) num topic)
 
     ("323",[]) ->
        Just RplListEnd
 
     ("324",_:chan:modes) ->
-       Just (RplChannelModeIs chan modes)
+       Just (RplChannelModeIs (mkId chan) modes)
 
     ("328",[_,chan,url]) ->
-       Just (RplChannelUrl chan url)
+       Just (RplChannelUrl (mkId chan) url)
 
     ("329",[_,chan,time]) ->
-       Just (RplCreationTime chan (asTimeStamp time))
+       Just (RplCreationTime (mkId chan) (asTimeStamp time))
 
     ("330",[_,nick,account,_txt]) ->
-       Just (RplWhoisAccount nick account)
+       Just (RplWhoisAccount (mkId nick) account)
 
     ("331",[_,chan,_]) ->
-       Just (RplNoTopicSet chan)
+       Just (RplNoTopicSet (mkId chan))
 
     ("332",[_,chan,txt]) ->
-       Just (RplTopic chan txt)
+       Just (RplTopic (mkId chan) txt)
 
     ("333",[_,chan,who,time]) ->
-       Just (RplTopicWhoTime chan who (asTimeStamp time))
+       Just (RplTopicWhoTime (mkId chan) who (asTimeStamp time))
 
     ("346",[_,chan,mask,who,time]) ->
-       Just (RplInviteList chan mask who (asTimeStamp time))
+       Just (RplInviteList (mkId chan) mask who (asTimeStamp time))
 
     ("347",[_,chan,_txt]) ->
-       Just (RplEndOfInviteList chan)
+       Just (RplEndOfInviteList (mkId chan))
 
     ("348",[_,chan,mask,who,time]) ->
-       Just (RplExceptionList chan mask who (asTimeStamp time))
+       Just (RplExceptionList (mkId chan) mask who (asTimeStamp time))
 
     ("349",[_,chan,_txt]) ->
-       Just (RplEndOfExceptionList chan)
+       Just (RplEndOfExceptionList (mkId chan))
 
-    ("352",[_,chan,user,host,server,account,flags,txt]) ->
-       Just (RplWhoReply chan user host server account flags txt) -- trailing is: <hop> <realname>
+    ("352",[_,chan,user,host,server,nick,flags,txt]) ->
+       Just (RplWhoReply (mkId chan) user host server (mkId nick) flags txt) -- trailing is: <hop> <realname>
 
     ("353",[_,ty,chan,txt]) ->
       do ty' <- case ty of
@@ -257,18 +257,18 @@ ircMsgToServerMsg ircmsg =
                   "*" -> Just PrivateChannel
                   "@" -> Just SecretChannel
                   _   -> Nothing
-         Just (RplNameReply ty' chan (filter (not . B.null) (B.split 32 txt)))
+         Just (RplNameReply ty' (mkId chan) (filter (not . B.null) (B.split 32 txt)))
 
-    ("366",[_,chan,_]) -> Just (RplEndOfNames chan)
+    ("366",[_,chan,_]) -> Just (RplEndOfNames (mkId chan))
 
     ("367",[_,chan,banned,banner,time]) ->
-       Just (RplBanList chan banned banner (asTimeStamp time))
+       Just (RplBanList (mkId chan) banned banner (asTimeStamp time))
 
     ("368",[_,chan,_txt]) ->
-       Just (RplEndOfBanList chan)
+       Just (RplEndOfBanList (mkId chan))
 
     ("369",[_,nick]) ->
-       Just (RplEndOfWhoWas nick)
+       Just (RplEndOfWhoWas (mkId nick))
 
     ("371",[_,txt]) ->
        Just (RplInfo txt)
@@ -281,10 +281,10 @@ ircMsgToServerMsg ircmsg =
     ("376",[_,_]) -> Just RplEndOfMotd
 
     ("379",_:nick:modes:args) ->
-       Just (RplWhoisModes nick modes args)
+       Just (RplWhoisModes (mkId nick )modes args)
 
     ("378",[_,nick,txt]) ->
-       Just (RplWhoisHost nick txt)
+       Just (RplWhoisHost (mkId nick )txt)
 
     ("381",[_,txt]) ->
          Just (RplYoureOper txt)
@@ -296,28 +296,28 @@ ircMsgToServerMsg ircmsg =
          Just (RplHostHidden host)
 
     ("401",[_,nick,_]) ->
-         Just (ErrNoSuchNick nick)
+         Just (ErrNoSuchNick (mkId nick))
 
     ("402",[_,server,_]) ->
          Just (ErrNoSuchServer server)
 
     ("403",[_,channel,_]) ->
-         Just (ErrNoSuchChannel channel)
+         Just (ErrNoSuchChannel (mkId channel))
 
     ("404",[_,channel,_]) ->
-         Just (ErrCannotSendToChan channel)
+         Just (ErrCannotSendToChan (mkId channel))
 
     ("405",[_,channel,_]) ->
-         Just (ErrTooManyChannels channel)
+         Just (ErrTooManyChannels (mkId channel))
 
     ("406",[_,nick,_]) ->
-         Just (ErrWasNoSuchNick nick)
+         Just (ErrWasNoSuchNick (mkId nick))
 
     ("407",[_,target,txt]) ->
-         Just (ErrTooManyTargets target txt)
+         Just (ErrTooManyTargets (mkId target )txt)
 
     ("408",[_,target,_]) ->
-         Just (ErrNoSuchService target)
+         Just (ErrNoSuchService (mkId target))
 
     ("411",[_,txt]) ->
          Just (ErrNoRecipient txt)
@@ -349,62 +349,62 @@ ircMsgToServerMsg ircmsg =
          Just ErrPasswordMismatch
 
     ("475",[_,chan,_]) ->
-         Just (ErrBadChannelKey chan)
+         Just (ErrBadChannelKey (mkId chan))
 
     ("476",[_,chan,_]) ->
-         Just (ErrBadChannelMask chan)
+         Just (ErrBadChannelMask (mkId chan))
 
     ("478",[_,chan,mode,_]) ->
-         Just (ErrBanListFull chan mode)
+         Just (ErrBanListFull (mkId chan )mode)
 
     ("481",[_,_]) ->
          Just ErrNoPrivileges
 
     ("482",[_,chan,_]) ->
-         Just (ErrChanOpPrivsNeeded chan)
+         Just (ErrChanOpPrivsNeeded (mkId chan))
 
     ("671",[_,nick,_]) ->
-         Just (RplWhoisSecure nick)
+         Just (RplWhoisSecure (mkId nick))
 
     ("728",[_,chan,mode,banned,banner,time]) ->
-         Just (RplQuietList chan (B8.head mode) banned banner (asTimeStamp time))
+         Just (RplQuietList (mkId chan) (B8.head mode) banned banner (asTimeStamp time))
 
     ("729",[_,chan,mode,_]) ->
-         Just (RplEndOfQuietList chan (B8.head mode))
+         Just (RplEndOfQuietList (mkId chan) (B8.head mode))
 
     ("PING",[txt]) -> Just (Ping txt)
 
     ("PRIVMSG",[dst,txt]) ->
       do src <- msgPrefix ircmsg
-         Just (PrivMsg src dst txt)
+         Just (PrivMsg src (mkId dst) txt)
 
     ("NOTICE",[dst,txt]) ->
       do src <- msgPrefix ircmsg
-         Just (Notice src dst txt)
+         Just (Notice src (mkId dst) txt)
 
     ("TOPIC",[chan,txt]) ->
       do who <- msgPrefix ircmsg
-         Just (Topic who chan txt)
+         Just (Topic who (mkId chan) txt)
 
     ("JOIN",[chan,account,real]) ->
       do who <- msgPrefix ircmsg
-         Just (ExtJoin who chan account real)
+         Just (ExtJoin who (mkId chan) account real)
 
     ("JOIN",[chan]) ->
       do who <- msgPrefix ircmsg
-         Just (Join who chan)
+         Just (Join who (mkId chan))
 
     ("NICK",[newnick]) ->
       do who <- msgPrefix ircmsg
-         Just (Nick who newnick)
+         Just (Nick who (mkId newnick))
 
     ("MODE",tgt:modes) ->
       do who <- msgPrefix ircmsg
-         Just (Mode who tgt modes)
+         Just (Mode who (mkId tgt) modes)
 
     ("PART",[chan,txt]) ->
       do who <- msgPrefix ircmsg
-         Just (Part who chan txt)
+         Just (Part who (mkId chan) txt)
 
     ("AWAY",[txt]) ->
       do who <- msgPrefix ircmsg
@@ -416,12 +416,12 @@ ircMsgToServerMsg ircmsg =
 
     ("KICK",[chan,tgt,txt]) ->
       do who <- msgPrefix ircmsg
-         Just (Kick who chan tgt txt)
+         Just (Kick who (mkId chan) (mkId tgt) txt)
 
     ("INVITE",[_,chan]) ->
       do who <- msgPrefix ircmsg
          [_] <- Just (msgParams ircmsg)
-         Just (Invite who chan)
+         Just (Invite who (mkId chan))
 
     ("CAP",[_,cmd,txt]) ->
          Just (Cap cmd txt)

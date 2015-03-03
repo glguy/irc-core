@@ -4,9 +4,11 @@ import ClientState
 import Control.Lens
 import Data.ByteString (ByteString)
 import Graphics.Vty.Image
+
+import Irc.Format
 import Irc.Model
 
-banListImage :: Char -> ByteString -> ClientState -> Image
+banListImage :: Char -> Identifier -> ClientState -> Image
 banListImage mode chan st =
   case view (clientConnection . connChannelIx chan . chanMaskLists . at mode) st of
     Nothing -> string (withForeColor defAttr red) "Unknown list"

@@ -6,12 +6,14 @@ import Data.ByteString (ByteString)
 import Data.Monoid
 import Graphics.Vty.Image
 import ImageUtils
-import Irc.Model
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 
-channelInfoImage :: ByteString -> ClientState -> Image
+import Irc.Format
+import Irc.Model
+
+channelInfoImage :: Identifier -> ClientState -> Image
 channelInfoImage chan st =
   case view (clientConnection . connChannelAt chan) st of
     Nothing -> string (withForeColor defAttr red) "Unknown channel"
@@ -61,5 +63,5 @@ channelInfoImage chan st =
 
       usersLines =
         [ string (withForeColor defAttr green) "Users: " <|>
-          text' defAttr (Text.unwords (map (asUtf8 . CI.original) (Map.keys (view chanUsers channel))))
+          text' defAttr (Text.unwords (map (asUtf8 . idBytes) (Map.keys (view chanUsers channel))))
         ]

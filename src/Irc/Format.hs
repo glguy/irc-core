@@ -6,21 +6,28 @@ module Irc.Format
   , parseRawIrcMsg
   , renderRawIrcMsg
   , ircGetLine
+  , Identifier
+  , mkId
+  , idBytes
+  , idDenote
   ) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
+import Data.CaseInsensitive (CI)
 import Data.Monoid
+import Data.String
 import System.IO (Handle)
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
+import qualified Data.CaseInsensitive as CI
 
 -- | 'UserInfo' packages a nickname along with the username and hsotname
 -- if they are known in the current context.
 data UserInfo = UserInfo
-  { userNick :: ByteString
+  { userNick :: Identifier
   , userName :: Maybe ByteString
   , userHost :: Maybe ByteString
   }
@@ -37,6 +44,23 @@ data RawIrcMsg = RawIrcMsg
   , msgParams  :: [ByteString]
   }
   deriving (Read, Show)
+
+-- | Case insensitive identifier representing channels and nicknames
+newtype Identifier = Identifier (CI ByteString)
+  deriving (Read, Show, Eq, Ord)
+
+instance IsString Identifier where
+  fromString = Identifier . fromString
+
+-- | Construct an 'Identifier' from a 'ByteString'
+mkId :: ByteString -> Identifier
+mkId = Identifier . CI.mk
+
+idBytes :: Identifier -> ByteString
+idBytes (Identifier x) = CI.original x
+
+idDenote :: Identifier -> ByteString
+idDenote (Identifier x) = CI.foldedCase x
 
 -- | Attempt to split an IRC protocol message without its trailing newline
 -- information into a structured message.
@@ -70,7 +94,7 @@ tokens x =
 -- a @!@ and @@@ respectively.
 parsePrefix :: ByteString -> UserInfo
 parsePrefix x = UserInfo
-  { userNick = nick
+  { userNick = mkId nick
   , userName = if B.null user then Nothing else Just (B.drop 1 user)
   , userHost = if B.null host then Nothing else Just (B.drop 1 host)
   }

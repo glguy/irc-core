@@ -21,6 +21,7 @@ import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 
+import Irc.Format
 import Irc.Model
 import Irc.List (List)
 import qualified Irc.List as List
@@ -40,14 +41,14 @@ data ClientState = ClientState
   , _clientScrollPos :: Int
   , _clientHeight :: Int
   , _clientWidth :: Int
-  , _clientMessagesSeen :: !(Map (CI ByteString) SeenMetrics)
-  , _clientIgnores :: !(Set (CI ByteString))
+  , _clientMessagesSeen :: !(Map Identifier SeenMetrics)
+  , _clientIgnores :: !(Set Identifier)
   }
 
 data Focus
-  = ChannelFocus ByteString
-  | ChannelInfoFocus ByteString
-  | MaskListFocus Char ByteString
+  = ChannelFocus Identifier
+  | ChannelInfoFocus Identifier
+  | MaskListFocus Char Identifier
   | ServerFocus
   deriving (Eq, Ord, Read, Show)
 
@@ -78,9 +79,9 @@ focusMessages x f conn = case x of
   MaskListFocus _ _        -> ignored                          f conn
   ChannelInfoFocus _       -> ignored                          f conn
 
-isChannelName :: ByteString -> IrcConnection -> Bool
+isChannelName :: Identifier -> IrcConnection -> Bool
 isChannelName c conn =
-  case B.uncons c of
+  case B.uncons (idBytes c) of
     Just (x,_) -> x `elem` view connChanTypes conn
     _ -> False -- probably shouldn't happen
 
@@ -92,7 +93,7 @@ resetCurrentChannelMessages st =
     _              -> st
 
   where
-  clear c = over ( clientMessagesSeen . ix (CI.mk c))
+  clear c = over ( clientMessagesSeen . ix c)
                  ( set seenNewMessages 0
                  . set seenMentioned False
                  )
@@ -102,7 +103,7 @@ updateNewMessages st
   = resetCurrentChannelMessages
   $ over clientMessagesSeen aux st
   where
-  me = CI.foldCase (asUtf8 (view (clientConnection.connNick) st))
+  me = CI.foldCase (asUtf8 (views (clientConnection.connNick) idBytes st))
   combine = updateSeen me
 
   aux m0 =
@@ -205,7 +206,7 @@ clearTabPattern = set clientTabPattern Nothing
 clientSend :: ByteString -> ClientState -> IO ()
 clientSend x st = atomically (writeTChan (view clientSendChan st) x)
 
-focusedName :: ClientState -> Maybe ByteString
+focusedName :: ClientState -> Maybe Identifier
 focusedName st =
   case view clientFocus st of
     ServerFocus -> Nothing

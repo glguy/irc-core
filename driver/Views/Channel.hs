@@ -45,13 +45,13 @@ detailedImageForState st
     (ty, content) = case view mesgType x of
        JoinMsgType -> ("J", "")
        PartMsgType txt -> ("P", txt)
-       NickMsgType txt -> ("C", asUtf8 txt)
+       NickMsgType txt -> ("C", asUtf8 (idBytes txt))
        QuitMsgType txt -> ("Q", txt)
        PrivMsgType txt -> ("M", txt)
        TopicMsgType txt -> ("T", txt)
        ActionMsgType txt -> ("A", txt)
        NoticeMsgType txt -> ("N", txt)
-       KickMsgType who txt -> ("K", asUtf8 who <> " - " <> txt)
+       KickMsgType who txt -> ("K", asUtf8 (idBytes who) <> " - " <> txt)
        ErrorMsgType txt -> ("E", txt)
        ModeMsgType pol mode arg -> ("Z", (if pol then "+" else "-")
                                         <> Text.pack [mode, ' ']
@@ -73,8 +73,7 @@ activeMessages st =
   where
   conn = view clientConnection st
   nickFilter nick msg
-    = CI.foldCase (views mesgSender userNick msg)
-      == CI.foldCase nick
+    = views mesgSender userNick msg == mkId nick
 
 startFromBottom :: ClientState -> Image -> Image
 startFromBottom st img = pad 0 top 0 0 img
@@ -98,7 +97,7 @@ compressedImageForState st
 
   width = view clientWidth st
 
-  formatNick me = utf8Bytestring' (withForeColor defAttr color)
+  formatNick me = identImg (withForeColor defAttr color)
     where
     color
       | me        = green
@@ -112,20 +111,20 @@ compressedImageForState st
 
   renderOne (CompNotice modes who what) =
       modePrefix modes <|>
-      utf8Bytestring' (withForeColor defAttr red) who <|>
+      identImg (withForeColor defAttr red) who <|>
       string (withForeColor defAttr blue) (": ") <|>
       cleanText what
 
   renderOne (CompAction modes who what) =
       modePrefix modes <|>
-      utf8Bytestring' (withForeColor defAttr blue) who <|>
+      identImg (withForeColor defAttr blue) who <|>
       char defAttr ' ' <|>
       cleanText what
 
   renderOne (CompKick op who reason) =
-      utf8Bytestring' (withForeColor defAttr yellow) op <|>
+      identImg (withForeColor defAttr yellow) op <|>
       string (withForeColor defAttr red) " kicked " <|>
-      utf8Bytestring' (withForeColor defAttr yellow) who <|>
+      identImg (withForeColor defAttr yellow) who <|>
       string (withForeColor defAttr blue) (": ") <|>
       cleanText reason
 
@@ -134,7 +133,7 @@ compressedImageForState st
       cleanText err
 
   renderOne (CompMode who pol m arg) =
-      utf8Bytestring' (withForeColor defAttr yellow) who <|>
+      identImg (withForeColor defAttr yellow) who <|>
       string (withForeColor defAttr red) " set mode " <|>
       string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
       utf8Bytestring' (withForeColor defAttr yellow) arg
@@ -144,23 +143,23 @@ compressedImageForState st
 
   renderMeta (CompJoin who)
     =   char (withForeColor defAttr green) '+'
-    <|> utf8Bytestring' defAttr who
+    <|> identImg defAttr who
   renderMeta (CompPart who)
     =   char (withForeColor defAttr red) '-'
-    <|> utf8Bytestring' defAttr who
+    <|> identImg defAttr who
   renderMeta (CompQuit who)
     =   char (withForeColor defAttr red) 'x'
-    <|> utf8Bytestring' defAttr who
+    <|> identImg defAttr who
   renderMeta (CompNick who who')
-    =   utf8Bytestring' defAttr who
+    =   identImg defAttr who
     <|> char (withForeColor defAttr yellow) '-'
-    <|> utf8Bytestring' defAttr who'
+    <|> identImg defAttr who'
   renderMeta (CompTopic who)
     =   char (withForeColor defAttr yellow) 'T'
-    <|> utf8Bytestring' defAttr who
+    <|> identImg defAttr who
   renderMeta (CompIgnored who)
     =   char (withForeColor defAttr brightBlack) 'I'
-    <|> utf8Bytestring' defAttr who
+    <|> identImg defAttr who
 
 
   conn = view clientConnection st
@@ -171,7 +170,7 @@ compressedImageForState st
     string (withForeColor defAttr blue)
            (mapMaybe (`lookup` prefixes) modes)
 
-compressMessages :: Set (CI ByteString) -> [IrcMessage] -> [CompressedMessage]
+compressMessages :: Set Identifier -> [IrcMessage] -> [CompressedMessage]
 compressMessages _ [] = []
 compressMessages ignores (x:xs) =
   case view mesgType x of
@@ -194,9 +193,9 @@ compressMessages ignores (x:xs) =
 
   where
   nick = views mesgSender userNick x
-  visible = not (view (contains (CI.mk nick)) ignores)
+  visible = not (view (contains nick) ignores)
 
-meta :: Set (CI ByteString) -> [CompressedMeta] -> [IrcMessage] -> [CompressedMessage]
+meta :: Set Identifier -> [CompressedMeta] -> [IrcMessage] -> [CompressedMessage]
 meta _ acc [] = [CompMeta (reverse acc)]
 meta ignores acc (x:xs) =
     case view mesgType x of
@@ -212,21 +211,21 @@ meta ignores acc (x:xs) =
 
   where
   nick = views mesgSender userNick x
-  ignored = view (contains (CI.mk nick)) ignores
+  ignored = view (contains nick) ignores
 
 data CompressedMessage
-  = CompChat String Bool ByteString Text
-  | CompNotice String ByteString Text
-  | CompAction String ByteString Text
-  | CompKick ByteString ByteString Text
+  = CompChat String Bool Identifier Text
+  | CompNotice String Identifier Text
+  | CompAction String Identifier Text
+  | CompKick Identifier Identifier Text
   | CompError Text
-  | CompMode ByteString Bool Char ByteString
+  | CompMode Identifier Bool Char ByteString
   | CompMeta [CompressedMeta]
 
 data CompressedMeta
-  = CompJoin ByteString
-  | CompQuit ByteString
-  | CompPart ByteString
-  | CompNick ByteString ByteString
-  | CompTopic ByteString
-  | CompIgnored ByteString
+  = CompJoin Identifier
+  | CompQuit Identifier
+  | CompPart Identifier
+  | CompNick Identifier Identifier
+  | CompTopic Identifier
+  | CompIgnored Identifier

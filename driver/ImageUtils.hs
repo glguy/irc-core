@@ -29,7 +29,7 @@ cleanText = ircFormattedText
 
 renderFullUsermask :: UserInfo -> Image
 renderFullUsermask u
-   = utf8Bytestring' (withForeColor defAttr yellow) (userNick u)
+   = utf8Bytestring' (withForeColor defAttr yellow) (idBytes (userNick u))
   <|> userpart
   <|> hostpart
       where
@@ -128,3 +128,7 @@ formattingAttr fmt
 
   flag True  s x = withStyle x s
   flag False _ x = x
+
+identImg :: Attr -> Identifier -> Image
+identImg attr = utf8Bytestring' attr . idBytes
+

@@ -36,6 +36,7 @@ import Irc.Format
 import Irc.Model
 import Irc.RateLimit
 
+import ImageUtils
 import CommandArgs
 import HaskellHighlighter
 import ClientState
@@ -55,17 +56,20 @@ main = do
   hErr <- openFile "debug.txt" WriteMode
   hSetBuffering hErr NoBuffering
 
+  let toId = mkId . B8.pack
+      toUtf8 = Text.encodeUtf8 . Text.pack
+
   negotiateCaps h
-  traverse_ (B.hPut h . passCmd . B8.pack) (view cmdArgPassword args)
-  B.hPut h (nickCmd (B8.pack (view cmdArgNick args)))
-  B.hPut h (userCmd (B8.pack (view cmdArgUser args))
-                    (B8.pack (view cmdArgReal args)))
+  traverse_ (B.hPut h . passCmd . toUtf8) (view cmdArgPassword args)
+  B.hPut h (nickCmd (views cmdArgNick toId args))
+  B.hPut h (userCmd (views cmdArgUser toUtf8 args)
+                    (views cmdArgReal toUtf8 args))
 
   vtyEventChan <- atomically newTChan
   socketChan   <- atomically newTChan
   sendChan     <- atomically newTChan
 
-  let conn0 = defaultIrcConnection { _connNick = B8.pack (view cmdArgNick args) }
+  let conn0 = defaultIrcConnection { _connNick = views cmdArgNick toId args }
 
   cfg <- standardIOConfig
   bracket (mkVty cfg) shutdown $ \vty ->
@@ -195,7 +199,7 @@ doSendMessageCurrent sendType st =
 
 data SendType = SendPriv | SendNotice | SendAction
 
-doSendMessage :: SendType -> ByteString -> Text -> ClientState -> IO ClientState
+doSendMessage :: SendType -> Identifier -> Text -> ClientState -> IO ClientState
 doSendMessage sendType target message st =
   do let bs = case sendType of
                 SendPriv -> privMsgCmd target (Text.encodeUtf8 message)
@@ -245,10 +249,10 @@ commandEvent cmd st =
       return (set clientFocus ServerFocus st')
 
     "query"  :- user :- "" ->
-      return (set clientFocus (ChannelFocus (B8.pack user)) st')
+      return (set clientFocus (ChannelFocus (toId user)) st')
 
     "channel" :- chan :- "" ->
-      return (set clientFocus (ChannelFocus (B8.pack chan)) st')
+      return (set clientFocus (ChannelFocus (toId chan)) st')
 
     "channelinfo" :- "" | Just chan <- focusedName st ->
       return (set clientFocus (ChannelInfoFocus chan) st')
@@ -267,9 +271,9 @@ commandEvent cmd st =
         ChannelFocus c -> doSendMessage SendAction c (Text.pack msg) st'
         _ -> return st
     "notice" :- target :- msg ->
-      doSendMessage SendNotice (B8.pack target) (Text.pack msg) st'
+      doSendMessage SendNotice (toId target) (Text.pack msg) st'
     "msg" :- target :- msg ->
-      doSendMessage SendPriv (B8.pack target) (Text.pack msg) st'
+      doSendMessage SendPriv (toId target) (Text.pack msg) st'
 
     -- carefully preserve whitespace after the command
     'h':'s':' ':rest ->
@@ -289,11 +293,11 @@ commandEvent cmd st =
     "part" :- msg | Just chan <- focusedName st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
 
-    "whois" :- u :- ""     -> st' <$ clientSend (whoisCmd (toB u)) st'
+    "whois" :- u :- ""     -> st' <$ clientSend (whoisCmd (toId u)) st'
 
     "topic" :- rest        -> doTopicCmd (toB rest) st
 
-    "ignore" :- u :- "" -> return (over (clientIgnores . contains (CI.mk (toB u))) not st')
+    "ignore" :- u :- "" -> return (over (clientIgnores . contains (toId u)) not st')
 
     "clear" :- "" -> return (set (clientConnection . focusMessages (view clientFocus st)) mempty st')
 
@@ -302,6 +306,7 @@ commandEvent cmd st =
   where
   st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
+  toId = mkId . toB
 
 doTopicCmd :: ByteString -> ClientState -> IO ClientState
 doTopicCmd topic st =
@@ -314,8 +319,7 @@ doTopicCmd topic st =
 doJoinCmd :: ByteString -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
   do clientSend (joinCmd c mbKey) st
-     clientSend (modeCmd c []   ) st
-     let c0 = B.takeWhile (/=44) c -- , separates channels
+     let c0 = mkId (B8.takeWhile (/=',') c) -- , separates channels
      return (set clientFocus (ChannelFocus c0) st)
 
 doQuote :: String -> ClientState -> IO ClientState
@@ -360,11 +364,11 @@ picForState st = Picture
   titlebar =
     case view clientFocus st of
       ServerFocus    -> string defAttr "Server"
-      ChannelFocus c -> utf8Bytestring' defAttr c <|> topicbar c
+      ChannelFocus c -> identImg defAttr c <|> topicbar c
       ChannelInfoFocus c -> string defAttr "Channel Info: "
-                        <|> utf8Bytestring' defAttr c
+                        <|> identImg defAttr c
       MaskListFocus mode c -> string defAttr (maskListTitle mode ++ ": ")
-                          <|> utf8Bytestring' defAttr c
+                          <|> identImg defAttr c
 
   topicbar chan =
     case preview (clientConnection . connChannelIx chan . chanTopic . folded . folded . _1) st of
@@ -397,7 +401,7 @@ dividerImage st
   $ view clientMessagesSeen st
 
   where
-  drawOne :: CI ByteString -> SeenMetrics -> Image
+  drawOne :: Identifier -> SeenMetrics -> Image
   drawOne i seen
     | Just i == active
                  = string defAttr "─[" <|> txt <|> string defAttr "]"
@@ -415,9 +419,9 @@ dividerImage st
   extendToWidth img =
     img <|> string defAttr (replicate (view clientWidth st - imageWidth img) '─')
 
-  active = fmap CI.mk $
+  active =
     case view clientFocus st of
-      ServerFocus -> Just ""
+      ServerFocus -> Just (mkId "")
       focus -> focusedName st
 
 
@@ -481,11 +485,11 @@ currentWord st
   $ reverse
   $ take (view (clientEditBox . Edit.pos) st) (clientInput st)
 
-tabSearch :: String -> String -> Set (CI ByteString) -> String
+tabSearch :: String -> String -> Set Identifier -> String
 tabSearch pat cur users
   | not (Set.null b)
-  , B.isPrefixOf (CI.foldedCase pat') (CI.foldedCase (Set.findMin b))
-  = B8.unpack (CI.original (Set.findMin b))
+  , B.isPrefixOf (idDenote pat') (idDenote (Set.findMin b))
+  = B8.unpack (idBytes (Set.findMin b))
 
   -- wrap around when pat is a user
   | Set.member pat' users
@@ -493,13 +497,13 @@ tabSearch pat cur users
 
   -- wrap around when pat is not a user
   | not (Set.null a')
-  = B8.unpack (CI.original (Set.findMin a'))
+  = B8.unpack (idBytes (Set.findMin a'))
 
   -- if all else fails, do nothing
   | otherwise = cur
   where
-  pat' = CI.mk (B8.pack pat)
-  cur' = CI.mk (B8.pack cur)
+  pat' = mkId (B8.pack pat)
+  cur' = mkId (B8.pack cur)
 
   (a,b)  = Set.split cur' users
   (_,a') = Set.split pat' a

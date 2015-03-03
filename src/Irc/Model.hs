@@ -33,12 +33,12 @@ import Irc.List (List)
 import qualified Irc.List as List
 
 data IrcConnection = IrcConnection
-  { _connNick     :: ByteString
-  , _connChannels :: !(Map (CI ByteString) IrcChannel)
+  { _connNick     :: Identifier
+  , _connChannels :: !(Map Identifier IrcChannel)
   , _connMessages :: !(List IrcMessage)
   , _connId       :: Maybe ByteString
   , _connChanTypes :: [Word8]
-  , _connUsers    :: !(Map (CI ByteString) IrcUser)
+  , _connUsers    :: !(Map Identifier IrcUser)
   , _connChanModes :: IrcChanModes
   , _connMyInfo   :: Maybe (ByteString,ByteString)
   }
@@ -46,7 +46,7 @@ data IrcConnection = IrcConnection
 
 defaultIrcConnection :: IrcConnection
 defaultIrcConnection = IrcConnection
-  { _connNick      = ""
+  { _connNick      = mkId ""
   , _connChannels  = mempty
   , _connMessages  = mempty
   , _connId        = Nothing
@@ -76,7 +76,7 @@ defaultChanModes = IrcChanModes
 
 data IrcChannel = IrcChannel
   { _chanTopic :: Maybe (Maybe (Text, ByteString, UTCTime)) -- TODO: use UserInfo
-  , _chanUsers :: !(Map (CI ByteString) String) -- modes: ov
+  , _chanUsers :: !(Map Identifier String) -- modes: ov
   , _chanModes :: Maybe [ByteString]
   , _chanCreation :: Maybe UTCTime
   , _chanMessages :: List IrcMessage
@@ -117,10 +117,10 @@ data IrcMessageType
   | NoticeMsgType Text
   | ActionMsgType Text
   | JoinMsgType
-  | KickMsgType   ByteString Text
+  | KickMsgType   Identifier Text
   | PartMsgType   Text
   | QuitMsgType   Text
-  | NickMsgType   ByteString
+  | NickMsgType   Identifier
   | TopicMsgType  Text
   | ErrorMsgType  Text
   | ModeMsgType Bool Char ByteString
@@ -314,7 +314,7 @@ advanceModel stamp msg0 conn =
          where
          mesg = IrcMessage
            { _mesgType    = ErrorMsgType "Channel privileges needed"
-           , _mesgSender  = UserInfo "server" Nothing Nothing
+           , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
            , _mesgStamp   = stamp
            , _mesgMe      = False
            , _mesgModes   = ""
@@ -323,7 +323,7 @@ advanceModel stamp msg0 conn =
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map
        RplWhoisUser nick user host real ->
-         doServerMessage stamp "WHOIS" (B8.unwords [nick, user, host, real]) conn
+         doServerMessage stamp "WHOIS" (B8.unwords [idBytes nick, user, host, real]) conn
        RplWhoisChannels _nick channels ->
          doServerMessage stamp "WHOIS" channels conn
        RplWhoisServer _nick host txt ->
@@ -345,7 +345,7 @@ advanceModel stamp msg0 conn =
 
 -- | Mark all the given nicks as active (not-away).
 doIsOn ::
-  [ByteString] {- ^ active nicks -} ->
+  [Identifier] {- ^ active nicks -} ->
   IrcConnection -> IrcConnection
 doIsOn nicks conn = foldl' setIsOn conn nicks
   where
@@ -354,7 +354,7 @@ doIsOn nicks conn = foldl' setIsOn conn nicks
 doModeChange ::
   UserInfo     {- ^ who           -} ->
   UTCTime      {- ^ when          -} ->
-  ByteString   {- ^ target        -} ->
+  Identifier   {- ^ target        -} ->
   ByteString   {- ^ modes changed -} ->
   [ByteString] {- ^ arguments     -} ->
   IrcConnection -> IrcConnection
@@ -393,7 +393,7 @@ doModeChange who now target modes0 args0 conn0
               case args of
                 a:args' -> aux polarity ms args'
                          $ recordMessage (modeMsg polarity m a) target
-                         $ over (connChannelIx target . chanUserIx a)
+                         $ over (connChannelIx target . chanUserIx (mkId a))
                                 toggle
                                 conn
                 _  -> conn -- error state
@@ -415,10 +415,10 @@ doModeChange who now target modes0 args0 conn0
          }
 
 doMaskList ::
-  (MsgFromServer -> Maybe (ByteString,ByteString,ByteString,UTCTime)) ->
+  (MsgFromServer -> Maybe (Identifier,ByteString,ByteString,UTCTime)) ->
   (MsgFromServer -> Bool) ->
   Char ->
-  ByteString ->
+  Identifier ->
   [IrcMaskEntry] ->
   IrcConnection -> Logic IrcConnection
 doMaskList matchEntry matchEnd mode chan acc conn =
@@ -447,7 +447,7 @@ doMaskList matchEntry matchEnd mode chan acc conn =
 doNick ::
   UTCTime    {- ^ timestamp           -} ->
   UserInfo   {- ^ old user infomation -} ->
-  ByteString {- ^ new nickname        -} ->
+  Identifier {- ^ new nickname        -} ->
   IrcConnection -> Logic IrcConnection
 doNick stamp who newnick = return
                    . over connUsers updateUsers
@@ -455,11 +455,11 @@ doNick stamp who newnick = return
   where
   oldnick = userNick who
 
-  updateUsers :: Map (CI ByteString) IrcUser -> Map (CI ByteString) IrcUser
+  updateUsers :: Map Identifier IrcUser -> Map Identifier IrcUser
   updateUsers users
-     = set (at (CI.mk oldnick)) Nothing
-     $ set (at (CI.mk newnick))
-           (view (at (CI.mk oldnick)) users) users
+     = set (at oldnick) Nothing
+     $ set (at newnick)
+           (view (at oldnick) users) users
 
   updateChannel :: IrcChannel -> IrcChannel
   updateChannel chan
@@ -482,7 +482,7 @@ doNick stamp who newnick = return
 doPart ::
   UTCTime    {- ^ timestamp        -} ->
   UserInfo   {- ^ user information -} ->
-  ByteString {- ^ channel          -} ->
+  Identifier {- ^ channel          -} ->
   ByteString {- ^ part reason      -} ->
   IrcConnection -> Logic IrcConnection
 doPart stamp who chan reason conn =
@@ -503,8 +503,8 @@ doPart stamp who chan reason conn =
 doKick ::
   UTCTime    {- ^ timestamp   -} ->
   UserInfo   {- ^ kicker      -} ->
-  ByteString {- ^ channel     -} ->
-  ByteString {- ^ kicked      -} ->
+  Identifier {- ^ channel     -} ->
+  Identifier {- ^ kicked      -} ->
   ByteString {- ^ kick reason -} ->
   IrcConnection -> Logic IrcConnection
 doKick stamp who chan tgt reason conn =
@@ -519,7 +519,7 @@ doKick stamp who chan tgt reason conn =
          }
 
 
-doWhoReply :: ByteString -> ByteString -> IrcConnection -> Logic IrcConnection
+doWhoReply :: Identifier -> ByteString -> IrcConnection -> Logic IrcConnection
 doWhoReply nickname flags conn =
   return (set (connUserAt nickname) (Just $! u) conn)
   where
@@ -568,7 +568,7 @@ doWho conn =
        RplEndOfWho {} -> return conn
        _ -> fail ("Expected who reply: " ++ show msg)
 
-doAddChannel :: ByteString -> IrcConnection -> Logic IrcConnection
+doAddChannel :: Identifier -> IrcConnection -> Logic IrcConnection
 doAddChannel chan conn
   = return
   $ set (connChannelAt chan) (Just channel)
@@ -577,7 +577,7 @@ doAddChannel chan conn
   channel =
     set (chanUserAt (view connNick conn)) (Just "") defaultChannel
 
-doJoinChannel :: UTCTime -> UserInfo -> ByteString -> IrcConnection -> Logic IrcConnection
+doJoinChannel :: UTCTime -> UserInfo -> Identifier -> IrcConnection -> Logic IrcConnection
 doJoinChannel stamp who chan conn =
   return $ recordMessage m chan
          $ set (connChannelIx chan . chanUserAt (userNick who)) (Just "")
@@ -594,7 +594,7 @@ doJoinChannel stamp who chan conn =
 doNotifyChannel ::
   UTCTime ->
   UserInfo ->
-  ByteString ->
+  Identifier ->
   ByteString ->
   IrcConnection ->
   Logic IrcConnection
@@ -617,13 +617,13 @@ doServerMessage stamp who txt conn = return (over connMessages (cons m) conn)
   where
   m = IrcMessage
         { _mesgType    = PrivMsgType (asUtf8 txt)
-        , _mesgSender  = UserInfo who Nothing Nothing
+        , _mesgSender  = UserInfo (mkId who) Nothing Nothing
         , _mesgStamp   = stamp
         , _mesgMe      = False
         , _mesgModes   = ""
         }
 
-doNameReply :: ByteString -> [ByteString] -> IrcConnection -> Logic IrcConnection
+doNameReply :: Identifier -> [ByteString] -> IrcConnection -> Logic IrcConnection
 doNameReply chan xs conn =
   do msg <- getMessage
      case msg of
@@ -636,7 +636,6 @@ doNameReply chan xs conn =
        where
        modeMap = view (connChanModes . modesPrefixModes) conn
        users = Map.fromList
-             $ over (mapped._1) CI.mk
              $ map (splitNamesReplyName modeMap) xs
 
 -- | Compute the nickname and channel modes from an entry in
@@ -645,7 +644,7 @@ doNameReply chan xs conn =
 splitNamesReplyName ::
   [(Char,Char)]        {- ^ [(mode,prefix)]   -} ->
   ByteString           {- ^ names entry       -} ->
-  (ByteString, String) {- ^ (nickname, modes) -}
+  (Identifier, String) {- ^ (nickname, modes) -}
 splitNamesReplyName modeMap = aux []
   where
   aux modes n =
@@ -654,7 +653,7 @@ splitNamesReplyName modeMap = aux []
         | Just (mode,_) <- find (\(_mode,symbol) -> x == symbol) modeMap
         -> aux (mode:modes) xs
 
-      _                 -> (n,modes)
+      _                 -> (mkId n,modes)
 
 ------------------------------------------------------------------------
 -- Type describing computations that will require zero or more messages
@@ -699,34 +698,35 @@ asUtf8 :: ByteString -> Text
 asUtf8 = Text.decodeUtf8With Text.lenientDecode
 
 userInfoBytestring :: UserInfo -> ByteString
-userInfoBytestring u = userNick u <> maybe B.empty ("!" <>) (userName u)
-                                  <> maybe B.empty ("@" <>) (userHost u)
+userInfoBytestring u = idBytes (userNick u)
+                    <> maybe B.empty ("!" <>) (userName u)
+                    <> maybe B.empty ("@" <>) (userHost u)
 
-activeChannelNames :: IrcConnection -> [ByteString]
-activeChannelNames = map CI.original . Map.keys . view connChannels
+activeChannelNames :: IrcConnection -> [Identifier]
+activeChannelNames = Map.keys . view connChannels
 
-activeUserNames :: IrcConnection -> [ByteString]
-activeUserNames = map CI.original . Map.keys . Map.filter isActive . view connUsers
+activeUserNames :: IrcConnection -> [Identifier]
+activeUserNames = Map.keys . Map.filter isActive . view connUsers
   where
   isActive x = views usrMessages List.length x > 0
 
-connChannelAt :: Functor f => ByteString -> LensLike' f IrcConnection (Maybe IrcChannel)
-connChannelAt k = connChannels . at (CI.mk k)
+connChannelAt :: Functor f => Identifier -> LensLike' f IrcConnection (Maybe IrcChannel)
+connChannelAt k = connChannels . at k
 
-connChannelIx :: Applicative f => ByteString -> LensLike' f IrcConnection IrcChannel
-connChannelIx k = connChannels . ix (CI.mk k)
+connChannelIx :: Applicative f => Identifier -> LensLike' f IrcConnection IrcChannel
+connChannelIx k = connChannels . ix k
 
-connUserAt :: Applicative f => ByteString -> LensLike' f IrcConnection (Maybe IrcUser)
-connUserAt k = connUsers . at (CI.mk k)
+connUserAt :: Applicative f => Identifier -> LensLike' f IrcConnection (Maybe IrcUser)
+connUserAt k = connUsers . at k
 
-connUserIx :: Applicative f => ByteString -> LensLike' f IrcConnection IrcUser
-connUserIx k = connUsers . ix (CI.mk k)
+connUserIx :: Applicative f => Identifier -> LensLike' f IrcConnection IrcUser
+connUserIx k = connUsers . ix k
 
-chanUserAt :: Applicative f => ByteString -> LensLike' f IrcChannel (Maybe String)
-chanUserAt k = chanUsers . at (CI.mk k)
+chanUserAt :: Applicative f => Identifier -> LensLike' f IrcChannel (Maybe String)
+chanUserAt k = chanUsers . at k
 
-chanUserIx :: Applicative f => ByteString -> LensLike' f IrcChannel String
-chanUserIx k = chanUsers . ix (CI.mk k)
+chanUserIx :: Applicative f => Identifier -> LensLike' f IrcChannel String
+chanUserIx k = chanUsers . ix k
 
 
 
@@ -736,11 +736,11 @@ chanUserIx k = chanUsers . ix (CI.mk k)
 -- exist.
 recordMessage ::
   IrcMessage ->
-  ByteString {- ^ target -} ->
+  Identifier {- ^ target -} ->
   IrcConnection ->
   IrcConnection
 recordMessage mesg target conn =
-  case B.uncons target of
+  case B.uncons (idBytes target) of
     Nothing -> error "recordMessage: empty target"
     Just (t,_)
       | t `elem` view connChanTypes conn -> recordChannelMsg conn
@@ -775,5 +775,5 @@ recordMessage mesg target conn =
             }
         Just usr -> Just (over usrMessages (cons mesg1) usr)
 
-isMyNick :: ByteString -> IrcConnection -> Bool
-isMyNick nick conn = CI.foldCase nick == CI.foldCase (view connNick conn)
+isMyNick :: Identifier -> IrcConnection -> Bool
+isMyNick nick conn = nick == view connNick conn
