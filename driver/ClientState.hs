@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module ClientState where
 
@@ -48,7 +49,7 @@ data Focus
   | ChannelInfoFocus ByteString
   | MaskListFocus Char ByteString
   | ServerFocus
-  deriving (Read, Show)
+  deriving (Eq, Ord, Read, Show)
 
 data SeenMetrics = SeenMetrics
   { _seenNewMessages :: !Int
@@ -86,7 +87,8 @@ isChannelName c conn =
 resetCurrentChannelMessages :: ClientState -> ClientState
 resetCurrentChannelMessages st =
   case view clientFocus st of
-    ChannelFocus c -> clear c st
+    ChannelFocus c -> clear c  st
+    ServerFocus    -> clear "" st
     _              -> st
 
   where
@@ -109,7 +111,10 @@ updateNewMessages st
       (const mempty) -- drop the counts that aren't relevant
       (fmap (combine defaultSeenMetrics)) -- default value of none seen
       m0
-      (channelCounts <> userCounts)
+      (serverCounts <> channelCounts <> userCounts)
+
+  serverCounts
+    = Map.singleton "" (view (clientConnection . connMessages) st)
 
   channelCounts
     = fmap (view chanMessages)
@@ -152,34 +157,47 @@ clearInput
   = clearTabPattern
   . over clientEditBox Edit.success
 
+-- | Advance the focus element forward. See 'incrementFocus' for
+-- details.
 nextFocus :: ClientState -> ClientState
 nextFocus = incrementFocus (+1)
 
+-- | Advance the focus element backward. See 'incrementFocus' for
+-- details.
 prevFocus :: ClientState -> ClientState
 prevFocus = incrementFocus (subtract 1)
 
+-- | 'incrementFocus' allows moving forward and backward through
+-- a sorted list of channel names and query windows. Information
+-- windows like mask lists and info lists will always transition
+-- back to the associated message view before moving forward
+-- and backward. The server message window is placed at the
+-- beginning of this rotation. In the case of overflow the focus
+-- wraps around to the other side of the list.
 incrementFocus :: (Int -> Int) -> ClientState -> ClientState
 incrementFocus f st
-  = set clientScrollPos 0
+  = clearTabPattern
+  $ set clientScrollPos 0
   $ set clientFocus focus' st
   where
   focus' =
-    case view clientFocus st of
-      ServerFocus ->
-        case channels of
-          []  -> ServerFocus
-          c:_ -> ChannelFocus c
+    case currentFocus of
       ChannelInfoFocus c -> ChannelFocus c
       MaskListFocus _  c -> ChannelFocus c
-      ChannelFocus     c -> ChannelFocus (nextChannel c)
-  channels = views clientConnection activeChannelNames st
-          ++ views clientConnection activeUserNames st
-  nextChannel c
-    | null channels = c
-    | otherwise =
-      case elemIndex c channels of
-        Nothing -> head channels
-        Just i  -> channels !! mod (f i) (length channels)
+      _                  -> nextChannel
+
+  focuses = ServerFocus
+          : map ChannelFocus
+          ( views clientConnection activeChannelNames st
+         ++ views clientConnection activeUserNames st )
+
+  currentFocus = view clientFocus st
+
+  -- TODO: fix this for case insensitivity
+  nextChannel =
+    case elemIndex currentFocus focuses of
+      Just i  -> focuses !! mod (f i) (length focuses)
+      Nothing -> ServerFocus
 
 clearTabPattern :: ClientState -> ClientState
 clearTabPattern = set clientTabPattern Nothing

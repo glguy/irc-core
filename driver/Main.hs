@@ -399,8 +399,9 @@ dividerImage st
   where
   drawOne :: CI ByteString -> SeenMetrics -> Image
   drawOne i seen
-    | Just i == active = string defAttr "─[" <|> txt <|> string defAttr "]"
-    | otherwise        = string defAttr "─<" <|> txt <|> string defAttr ">"
+    | Just i == active
+                 = string defAttr "─[" <|> txt <|> string defAttr "]"
+    | otherwise  = string defAttr "─<" <|> txt <|> string defAttr ">"
     where
     txt = string (withForeColor defAttr (seenColor seen))
                  (show (view seenNewMessages seen))
@@ -414,10 +415,10 @@ dividerImage st
   extendToWidth img =
     img <|> string defAttr (replicate (view clientWidth st - imageWidth img) '─')
 
-  active =
+  active = fmap CI.mk $
     case view clientFocus st of
-      ChannelFocus c -> Just (CI.mk c)
-      _              -> Nothing
+      ServerFocus -> Just ""
+      focus -> focusedName st
 
 
 ------------------------------------------------------------------------
