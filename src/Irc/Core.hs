@@ -402,6 +402,10 @@ ircMsgToServerMsg ircmsg =
       do who <- msgPrefix ircmsg
          Just (Mode who (mkId tgt) modes)
 
+    ("PART",[chan]) ->
+      do who <- msgPrefix ircmsg
+         Just (Part who (mkId chan) "")
+
     ("PART",[chan,txt]) ->
       do who <- msgPrefix ircmsg
          Just (Part who (mkId chan) txt)
