@@ -626,6 +626,11 @@ userInfoBytestring u = userNick u <> maybe B.empty ("!" <>) (userName u)
 activeChannelNames :: IrcConnection -> [ByteString]
 activeChannelNames = map CI.original . Map.keys . view connChannels
 
+activeUserNames :: IrcConnection -> [ByteString]
+activeUserNames = map CI.original . Map.keys . Map.filter isActive . view connUsers
+  where
+  isActive x = views usrMessages List.length x > 0
+
 connChannelAt :: Functor f => ByteString -> LensLike' f IrcConnection (Maybe IrcChannel)
 connChannelAt k = connChannels . at (CI.mk k)
 

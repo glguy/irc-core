@@ -46,7 +46,6 @@ data ClientState = ClientState
 data Focus
   = ChannelFocus ByteString
   | ChannelInfoFocus ByteString
-  | UserFocus ByteString
   | BanListFocus ByteString
   | ServerFocus
   deriving (Read, Show)
@@ -70,22 +69,28 @@ makePrisms ''Focus
 makeLenses ''SeenMetrics
 
 focusMessages :: Applicative f => Focus -> LensLike' f IrcConnection (List IrcMessage)
-focusMessages x = case x of
-  ChannelFocus c     -> connChannelIx c . chanMessages
-  UserFocus    u     -> connUserIx u . usrMessages
-  BanListFocus _     -> ignored
-  ChannelInfoFocus _ -> ignored
-  ServerFocus        -> ignored
+focusMessages x f conn = case x of
+  ChannelFocus c
+    | isChannelName c conn -> (connChannelIx c . chanMessages) f conn
+    | otherwise            -> (connUserIx    c . usrMessages ) f conn
+  BanListFocus _           -> ignored                          f conn
+  ChannelInfoFocus _       -> ignored                          f conn
+  ServerFocus              -> ignored                          f conn
+
+isChannelName :: ByteString -> IrcConnection -> Bool
+isChannelName c conn =
+  case B.uncons c of
+    Just (x,_) -> x `elem` view connChanTypes conn
+    _ -> False -- probably shouldn't happen
 
 resetCurrentChannelMessages :: ClientState -> ClientState
 resetCurrentChannelMessages st =
   case view clientFocus st of
     ChannelFocus c -> clear c st
-    UserFocus    u -> clear u st
     _              -> st
 
   where
-  clear c = over (clientMessagesSeen . ix (CI.mk c))
+  clear c = over ( clientMessagesSeen . ix (CI.mk c))
                  ( set seenNewMessages 0
                  . set seenMentioned False
                  )
@@ -164,11 +169,11 @@ incrementFocus f st
         case channels of
           []  -> ServerFocus
           c:_ -> ChannelFocus c
-      UserFocus        u -> UserFocus u -- TODO
       ChannelInfoFocus c -> ChannelInfoFocus (nextChannel c)
       BanListFocus     c -> BanListFocus     (nextChannel c)
       ChannelFocus     c -> ChannelFocus     (nextChannel c)
   channels = views clientConnection activeChannelNames st
+          ++ views clientConnection activeUserNames st
   nextChannel c
     | null channels = c
     | otherwise =

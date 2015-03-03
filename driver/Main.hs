@@ -42,7 +42,6 @@ import ClientState
 import Views.Channel
 import Views.ChannelInfo
 import Views.BanList
-import Views.User
 import Views.Server
 import qualified EditBox as Edit
 
@@ -187,10 +186,12 @@ scrollDown st = over clientScrollPos (\x -> max 0 (x - scrollOffset st)) st
 doSendMessageCurrent :: SendType -> ClientState -> IO ClientState
 doSendMessageCurrent sendType st =
   case view clientFocus st of
-    ChannelFocus c -> doSendMessage sendType c (Text.pack (clientInput st))
-                                               (clearInput st)
-    UserFocus u    -> doSendMessage sendType u (Text.pack (clientInput st))
-                                               (clearInput st)
+    ChannelFocus c ->
+      doSendMessage
+        sendType
+        c
+        (Text.pack (clientInput st))
+        (clearInput st)
     _ -> return st
 
 data SendType = SendPriv | SendNotice | SendAction
@@ -245,7 +246,7 @@ commandEvent cmd st =
       return (set clientFocus ServerFocus st')
 
     "query"  :- user :- "" ->
-      return (set clientFocus (UserFocus        (B8.pack user)) st')
+      return (set clientFocus (ChannelFocus     (B8.pack user)) st')
 
     "channel" :- chan :- "" ->
       return (set clientFocus (ChannelFocus     (B8.pack chan)) st')
@@ -260,7 +261,6 @@ commandEvent cmd st =
     "me" :- msg ->
       case view clientFocus st of
         ChannelFocus c -> doSendMessage SendAction c (Text.pack msg) st'
-        UserFocus u    -> doSendMessage SendAction u (Text.pack msg) st'
         _ -> return st
     "notice" :- target :- msg ->
       doSendMessage SendNotice (B8.pack target) (Text.pack msg) st'
@@ -271,7 +271,6 @@ commandEvent cmd st =
     'h':'s':' ':rest ->
       case view clientFocus st of
         ChannelFocus c -> doSendMessage SendPriv c msg st'
-        UserFocus u    -> doSendMessage SendPriv u msg st'
         _ -> return st
        where
        msg = Text.pack (highlightHaskell rest)
@@ -289,6 +288,8 @@ commandEvent cmd st =
     "topic" :- rest        -> doTopicCmd (toB rest) st
 
     "ignore" :- u :- "" -> return (over (clientIgnores . contains (CI.mk (toB u))) not st')
+
+    "clear" :- "" -> return (set (clientConnection . focusMessages (view clientFocus st)) mempty st')
 
     _ -> return st
 
@@ -348,7 +349,6 @@ picForState st = Picture
       ChannelFocus{}
         | view clientDetailView st -> detailedImageForState st
         | otherwise                -> compressedImageForState st
-      UserFocus u                  -> queryImage st u
       BanListFocus chan -> banListImage chan st
       ChannelInfoFocus chan -> channelInfoImage chan st
       ServerFocus           -> serverInfoImage st
@@ -357,7 +357,6 @@ picForState st = Picture
     case view clientFocus st of
       ServerFocus    -> string defAttr "Server"
       ChannelFocus c -> utf8Bytestring' defAttr c <|> topicbar c
-      UserFocus    u -> utf8Bytestring' defAttr u
       BanListFocus c -> string defAttr "Bans: "
                     <|> utf8Bytestring' defAttr c
       ChannelInfoFocus c -> string defAttr "Channel Info: "
@@ -407,7 +406,6 @@ dividerImage st
   active =
     case view clientFocus st of
       ChannelFocus c -> Just (CI.mk c)
-      UserFocus    u -> Just (CI.mk u)
       _              -> Nothing
 
 

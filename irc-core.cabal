@@ -38,7 +38,6 @@ executable glirc
                  Views.Channel
                  Views.ChannelInfo
                  Views.BanList
-                 Views.User
                  ImageUtils
                  CommandArgs
                  EditBox
