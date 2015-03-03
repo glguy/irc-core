@@ -309,6 +309,19 @@ advanceModel stamp msg0 conn =
        Mode who target (modes:args) ->
          return (doModeChange who stamp target modes args conn)
 
+       ErrNoSuchNick nick ->
+         doServerError stamp ("No such nickname: " <> asUtf8 (idBytes nick)) conn
+       ErrNoSuchChannel chan ->
+         doServerError stamp ("No such channel: " <> asUtf8 (idBytes chan)) conn
+       ErrNoSuchService serv ->
+         doServerError stamp ("No such service: " <> asUtf8 (idBytes serv)) conn
+       ErrNoSuchServer server ->
+         doServerError stamp ("No such server: " <> asUtf8 server) conn
+       ErrBannedFromChan chan ->
+         doServerError stamp ("Cannot join " <> asUtf8 (idBytes chan) <> ", you are banned.") conn
+       ErrBadChannelKey chan ->
+         doServerError stamp ("Cannot join " <> asUtf8 (idBytes chan) <> ", incorrect key.") conn
+
        ErrChanOpPrivsNeeded chan ->
          return (recordMessage mesg chan conn)
          where
@@ -342,6 +355,17 @@ advanceModel stamp msg0 conn =
          doServerMessage stamp "WHOIS" "--END--" conn
 
        _ -> fail ("Unsupported: " ++ show msg0)
+
+doServerError :: UTCTime -> Text -> IrcConnection -> Logic IrcConnection
+doServerError stamp err conn = return (over connMessages (cons mesg) conn)
+  where
+  mesg = IrcMessage
+    { _mesgType    = ErrorMsgType err
+    , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
+    , _mesgStamp   = stamp
+    , _mesgMe      = False
+    , _mesgModes   = ""
+    }
 
 -- | Mark all the given nicks as active (not-away).
 doIsOn ::

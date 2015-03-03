@@ -97,6 +97,7 @@ data MsgFromServer
   | ErrAlreadyRegistered -- ^ 462
   | ErrNoPermForHost -- ^ 463
   | ErrPasswordMismatch -- ^ 464
+  | ErrBannedFromChan Identifier -- ^ 475 channel
   | ErrBadChannelKey Identifier -- ^ 475 channel
   | ErrBadChannelMask Identifier -- ^ 476 channel
   | ErrBanListFull Identifier ByteString -- ^ 476 channel mode
@@ -347,6 +348,9 @@ ircMsgToServerMsg ircmsg =
 
     ("464",[_,_]) ->
          Just ErrPasswordMismatch
+
+    ("474",[_,chan,_]) ->
+         Just (ErrBannedFromChan (mkId chan))
 
     ("475",[_,chan,_]) ->
          Just (ErrBadChannelKey (mkId chan))
