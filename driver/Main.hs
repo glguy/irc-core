@@ -288,6 +288,13 @@ commandEvent cmd st =
     "join" :- c :-      "" -> doJoinCmd (toB c) Nothing st'
     "join" :- c :- k :- "" -> doJoinCmd (toB c) (Just (toB k)) st'
 
+    "umode" :- modes :- args ->
+         st' <$ clientSend (modeCmd (view (clientConnection . connNick) st)
+                                    (toB modes) (map toB (words args))) st'
+
+    "mode" :- modes :- args | Just chan <- focusedName st ->
+         st' <$ clientSend (modeCmd chan (toB modes) (map toB (words args))) st'
+
     "part" :- msg | Just chan <- focusedName st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
 

@@ -452,10 +452,10 @@ installModeChange settings now who chan polarity mode arg
   | mode `elem` views modesPrefixModes (map fst) settings =
       if polarity
          then over (chanUserIx (mkId arg))
-                   (delete mode)
+                   (nub . cons mode)
 
          else over (chanUserIx (mkId arg))
-                   (nub . cons mode)
+                   (delete mode)
 
   | otherwise =
       if polarity

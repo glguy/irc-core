@@ -18,13 +18,14 @@ import Irc.Format
 --
 -- @MODE target *(mode) *(modeparams)@
 modeCmd ::
-  Identifier   {- ^ target           -} ->
-  [ByteString] {- ^ modes and params -} ->
+  Identifier   {- ^ target -} ->
+  ByteString   {- ^ modes  -} ->
+  [ByteString] {- ^ params -} ->
   ByteString
-modeCmd c modes = renderRawIrcMsg RawIrcMsg
+modeCmd c modes params = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand  = "MODE"
-  , msgParams = idBytes c : modes
+  , msgParams = idBytes c : modes : params
   }
 
 -- | Construct a JOIN command. A join command

@@ -37,6 +37,8 @@ Commands
 * `/channelinfo` - Show information for the current channel
 * `/bans` - Show known bans for current channel. Note: Request bans list with `/quote mode <channel> +b`
 * `/masks <mode>` - Show the bans (b), quiets (q), invex (I), or ban exemptions (e) for a channel. The list must be requested as above.
+* `/mode <mode> <arguments>` - Set modes on the current channel
+* `/umode <mode>` - Set modes on yourself
 * `/hs <haskell source code>` - Send syntax highlighted source code as a message to the current channel
 * `/whois <nick>` - Query the server for information about a user
 * `/topic <topic>` - Change the topic for the current channel
