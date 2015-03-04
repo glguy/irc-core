@@ -379,7 +379,7 @@ picForState st = Picture
   titlebar =
     case view clientFocus st of
       ServerFocus    -> string defAttr "Server"
-      ChannelFocus c -> identImg defAttr c <|> topicbar c
+      ChannelFocus c -> topicbar c
       ChannelInfoFocus c -> string defAttr "Channel Info: "
                         <|> identImg defAttr c
       MaskListFocus mode c -> string defAttr (maskListTitle mode ++ ": ")
@@ -387,7 +387,7 @@ picForState st = Picture
 
   topicbar chan =
     case preview (clientConnection . connChannelIx chan . chanTopic . folded . folded . _1) st of
-      Just topic -> string defAttr " - " <|> text' (withForeColor defAttr green) topic
+      Just topic -> text' (withForeColor defAttr green) topic
       Nothing    -> emptyImage
 
 maskListTitle :: Char -> String
@@ -418,12 +418,19 @@ dividerImage st
   where
   drawOne :: Identifier -> SeenMetrics -> Image
   drawOne i seen
-    | Just i == active
-                 = string defAttr "─[" <|> txt <|> string defAttr "]"
-    | otherwise  = string defAttr "─<" <|> txt <|> string defAttr ">"
-    where
-    txt = string (withForeColor defAttr (seenColor seen))
-                 (show (view seenNewMessages seen))
+    | active == Just i =
+        string defAttr "─(" <|>
+        identImg (withForeColor defAttr green) i <|>
+        string defAttr ")"
+    | views seenNewMessages (>0) seen =
+        string defAttr "─[" <|>
+        identImg (withForeColor defAttr brightBlue) i <|>
+        string defAttr ":" <|>
+        string (withForeColor defAttr (seenColor seen))
+               (show (view seenNewMessages seen)) <|>
+        string defAttr "]"
+    | otherwise =
+        string defAttr "─o"
 
   seenColor :: SeenMetrics -> Color
   seenColor seen
@@ -438,7 +445,6 @@ dividerImage st
     case view clientFocus st of
       ServerFocus -> Just (mkId "")
       focus -> focusedName st
-
 
 ------------------------------------------------------------------------
 -- Event loops

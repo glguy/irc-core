@@ -25,20 +25,28 @@ glirc <options> SERVER
 Commands
 ========
 
-* `/quote`
-* `/msg`
-* `/me`
-* `/join`
-* `/quote`
-* `/channel`
-* `/channelinfo`
-* `/query`
-* `/server`
-* `/bans`
+* `/server` - switch to the server message window
+* `/quote <nick>` - switch to a user message window
+* `/channel <channel>` - switch to a user message window
+* `/msg <nick> <message>` - send a private message
+* `/notice <nick> <message>` - send a notice message
+* `/me <message>` - send an action to the current channel
+* `/join <channel>` - join a new channel (optional key argument)
+* `/part <message>` - part the current channel with the given message
+* `/quote <raw client command>` - send a client command verbatim
+* `/channelinfo` - Show information for the current channel
+* `/bans` - Show known bans for current channel. Note: Request bans list with `/quote mode <channel> +b`
+* `/masks <mode>` - Show the bans (b), quiets (q), invex (I), or ban exemptions (e) for a channel. The list must be requested as above.
+* `/hs <haskell source code>` - Send syntax highlighted source code as a message to the current channel
+* `/whois <nick>` - Query the server for information about a user
+* `/topic <topic>` - Change the topic for the current channel
+* `/ignore <nick>` - Toggle ignoring a user by nickname.
+* `/clear` - Clear all messages for the current channel
 
 Keyboard Shortcuts
 ==================
 
+* `ESC` quit
 * `^N` next channel
 * `^P` previous channel
 * `^A` beginning of line
