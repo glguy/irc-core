@@ -295,6 +295,12 @@ commandEvent cmd st =
     "mode" :- modes :- args | Just chan <- focusedName st ->
          st' <$ clientSend (modeCmd chan (toB modes) (map toB (words args))) st'
 
+    "kick" :- nick :- msg | Just chan <- focusedName st ->
+         st' <$ clientSend (kickCmd chan (toId nick) (toB msg)) st'
+
+    "remove" :- nick :- msg | Just chan <- focusedName st ->
+         st' <$ clientSend (removeCmd chan (toId nick) (toB msg)) st'
+
     "part" :- msg | Just chan <- focusedName st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
 

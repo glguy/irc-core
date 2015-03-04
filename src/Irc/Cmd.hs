@@ -28,6 +28,34 @@ modeCmd c modes params = renderRawIrcMsg RawIrcMsg
   , msgParams = idBytes c : modes : params
   }
 
+-- | Construct a KICK command
+--
+-- @KICK channel nick msg
+kickCmd ::
+  Identifier {- ^ channel -} ->
+  Identifier {- ^ nick  -} ->
+  ByteString {- ^ msg -} ->
+  ByteString
+kickCmd c nick msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand  = "KICK"
+  , msgParams = [idBytes c, idBytes nick, msg]
+  }
+
+-- | Construct a REMOVE command
+--
+-- @REMOVE channel nick msg
+removeCmd ::
+  Identifier {- ^ channel -} ->
+  Identifier {- ^ nick  -} ->
+  ByteString {- ^ msg -} ->
+  ByteString
+removeCmd c nick msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand  = "REMOVE"
+  , msgParams = [idBytes c, idBytes nick, msg]
+  }
+
 -- | Construct a JOIN command. A join command
 -- can support multiple channels separated by
 -- commas, and takes an optional channel key.
