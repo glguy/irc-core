@@ -421,7 +421,7 @@ textbox str pos width
   where
   applyCrop
     | pos < width = cropRight width
-    | otherwise   = cropLeft  width
+    | otherwise   = cropLeft  width . cropRight (pos+2)
 
   beginning = char (withForeColor defAttr brightBlack) '^'
   ending    = char (withForeColor defAttr brightBlack) '$'
