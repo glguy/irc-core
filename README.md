@@ -59,6 +59,8 @@ Keyboard Shortcuts
 * `^U` delete to beginning
 * `^D` delete at cursor
 * `^W` delete word
+* `^F` forward
+* `^B` backward word
 * `M-F` forward word
 * `M-B` backward word
 * `TAB` nickname completion
