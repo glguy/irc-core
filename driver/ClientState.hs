@@ -78,12 +78,6 @@ focusMessages x f conn = case x of
   MaskListFocus _ _        -> ignored                          f conn
   ChannelInfoFocus _       -> ignored                          f conn
 
-isChannelName :: Identifier -> IrcConnection -> Bool
-isChannelName c conn =
-  case B.uncons (idBytes c) of
-    Just (x,_) -> x `elem` view connChanTypes conn
-    _ -> False -- probably shouldn't happen
-
 resetCurrentChannelMessages :: ClientState -> ClientState
 resetCurrentChannelMessages st =
   case view clientFocus st of

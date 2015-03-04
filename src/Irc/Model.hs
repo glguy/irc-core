@@ -77,7 +77,7 @@ defaultChanModes = IrcChanModes
 data IrcChannel = IrcChannel
   { _chanTopic :: Maybe (Maybe (Text, ByteString, UTCTime)) -- TODO: use UserInfo
   , _chanUsers :: !(Map Identifier String) -- modes: ov
-  , _chanModes :: Maybe [ByteString]
+  , _chanModes :: Maybe (Map Char ByteString)
   , _chanCreation :: Maybe UTCTime
   , _chanMessages :: List IrcMessage
   , _chanMaskLists :: Map Char [IrcMaskEntry]
@@ -247,8 +247,7 @@ advanceModel stamp msg0 conn =
 
        RplNameReply _ chan xs -> doNameReply chan xs conn
 
-       RplChannelModeIs chan modes ->
-         return (set (connChannelIx chan . chanModes) (Just modes) conn)
+       RplChannelModeIs chan modes -> doChannelModeIs chan modes conn
 
        RplCreationTime chan creation ->
          return (set (connChannelIx chan . chanCreation) (Just creation) conn)
@@ -356,6 +355,16 @@ advanceModel stamp msg0 conn =
 
        _ -> fail ("Unsupported: " ++ show msg0)
 
+doChannelModeIs :: Identifier -> [ByteString] -> IrcConnection -> Logic IrcConnection
+doChannelModeIs chan []           conn =
+  return (set (connChannelIx chan . chanModes) (Just mempty ) conn)
+doChannelModeIs chan (modes:args) conn =
+  case splitModes (view connChanModes conn) modes args of
+    Nothing -> fail "Bad modeis string"
+    Just xs -> return (set (connChannelIx chan . chanModes) (Just modeMap) conn)
+      where
+      modeMap = Map.fromList [ (mode,arg) | (True,mode,arg) <- xs ]
+
 doServerError :: UTCTime -> Text -> IrcConnection -> Logic IrcConnection
 doServerError stamp err conn = return (over connMessages (cons mesg) conn)
   where
@@ -382,61 +391,107 @@ doModeChange ::
   ByteString   {- ^ modes changed -} ->
   [ByteString] {- ^ arguments     -} ->
   IrcConnection -> IrcConnection
-doModeChange who now target modes0 args0 conn0
-  = aux True modes0 args0 conn0
+doModeChange who now target modes0 args0 conn
+  | isChannelName target conn =
+      case splitModes modeSettings modes0 args0 of
+        Nothing -> conn -- TODO: User modes
+        Just ms -> doChannelModeChanges ms now who target conn
+
+  -- TODO: Implement user modes
+  | otherwise = conn
+
   where
-  modeSettings = view connChanModes conn0
+  modeSettings = view connChanModes conn
 
-  aux polarity modes args conn =
-    case B8.uncons modes of
-      Nothing     -> conn
-      Just ('+',ms) -> aux True  ms args conn
-      Just ('-',ms) -> aux False ms args conn
-      Just (m,ms)
+doChannelModeChanges ::
+  [(Bool, Char, ByteString)] {- ^ [(+/-,mode,argument)] -} ->
+  UTCTime                    {- ^ timestamp             -} ->
+  UserInfo                   {- ^ changer               -} ->
+  Identifier                 {- ^ channel               -} ->
+  IrcConnection -> IrcConnection
+doChannelModeChanges ms now who chan conn0 = foldl aux conn0 ms
+  where
+  settings = view connChanModes conn0
 
-        | m `elem` view modesLists modeSettings ->
-             case args of
-               a:args' -> aux polarity ms (drop 1 args) -- TODO: Manage lists
-                        $ recordMessage (modeMsg polarity m a) target conn
-
-        | m `elem` view modesAlwaysArg modeSettings ->
-              case args of
-                a:args' -> aux polarity ms args'
-                         $ recordMessage (modeMsg polarity m a) target conn
-                _ -> conn -- error
-
-        | m `elem` view modesSetArg modeSettings ->
-              case args of
-                _ | not polarity -> aux polarity ms args
-                                  $ recordMessage (modeMsg polarity m "") target conn
-                a:args' -> aux polarity ms args'
-                         $ recordMessage (modeMsg polarity m a) target conn
-                _ -> conn -- error state
-
-        | m `elem` map fst (view modesPrefixModes modeSettings) ->
-              case args of
-                a:args' -> aux polarity ms args'
-                         $ recordMessage (modeMsg polarity m a) target
-                         $ over (connChannelIx target . chanUserIx (mkId a))
-                                toggle
-                                conn
-                _  -> conn -- error state
-
-        | otherwise ->
-                aux polarity ms args
-              $ recordMessage (modeMsg polarity m "") target conn
-          where
-          toggle
-            | polarity = nub . cons m
-            | otherwise = delete m
+  aux conn (polarity,m,a)
+    = over (connChannelIx chan)
+           (installModeChange settings now who chan polarity m a)
+    $ recordMessage (modeMsg polarity m a) chan conn
 
   modeMsg polarity m arg = IrcMessage
-         { _mesgType = ModeMsgType polarity m arg
+         { _mesgType   = ModeMsgType polarity m arg
          , _mesgSender = who
-         , _mesgStamp = now
-         , _mesgModes = ""
-         , _mesgMe = False
+         , _mesgStamp  = now
+         , _mesgModes  = ""
+         , _mesgMe     = False
          }
+
+installModeChange ::
+  IrcChanModes {- ^ settings -} ->
+  UTCTime    {- ^ timestamp -} ->
+  UserInfo   {- ^ changer -} ->
+  Identifier {- ^ channel -} ->
+  Bool       {- ^ +/-     -} ->
+  Char       {- ^ mode    -} ->
+  ByteString {- ^ argument -} ->
+  IrcChannel -> IrcChannel
+installModeChange settings now who chan polarity mode arg
+
+
+  -- Handle bans, exceptions, invex, quiets
+  | mode `elem` view modesLists settings =
+      if polarity
+         then over (chanMaskLists . ix mode)
+                   (cons (IrcMaskEntry arg (userInfoBytestring who) now))
+
+         else over (chanMaskLists . ix mode)
+                   (filter (\x -> CI.foldCase (view maskEntryMask x)
+                               /= CI.foldCase arg))
+
+  -- Handle ops and voices
+  | mode `elem` views modesPrefixModes (map fst) settings =
+      if polarity
+         then over (chanUserIx (mkId arg))
+                   (delete mode)
+
+         else over (chanUserIx (mkId arg))
+                   (nub . cons mode)
+
+  | otherwise =
+      if polarity
+         then set (chanModes . mapped . at mode)
+                  (Just arg)
+
+         else set (chanModes . mapped . at mode)
+                  Nothing
+
+-- | Split up a mode change command and arguments into individual changes
+-- given a configuration.
+splitModes ::
+  IrcChanModes {- ^ mode interpretation -} ->
+  ByteString   {- ^ modes               -} ->
+  [ByteString] {- ^ arguments           -} ->
+  Maybe [(Bool,Char,ByteString)]
+splitModes icm modes0 =
+  foldr aux (\_ _ -> Just []) (B8.unpack modes0) True
+  where
+  aux m rec polarity args =
+    case m of
+      '+' -> rec True  args
+      '-' -> rec False args
+
+      _ |             m `elem` view modesAlwaysArg icm
+       || polarity && m `elem` view modesSetArg icm
+       ||             m `elem` views modesPrefixModes (map fst) icm
+       ||             m `elem` view modesLists icm ->
+           do x:xs <- Just args
+              fmap (cons (polarity,m,x)) (rec polarity xs)
+
+      _ | not polarity && m `elem` view modesSetArg icm
+       ||                 m `elem` view modesNeverArg icm ->
+              fmap (cons (polarity,m,"")) (rec polarity args)
+
+        | otherwise -> Nothing
 
 doMaskList ::
   (MsgFromServer -> Maybe (Identifier,ByteString,ByteString,UTCTime)) ->
@@ -801,3 +856,10 @@ recordMessage mesg target conn =
 
 isMyNick :: Identifier -> IrcConnection -> Bool
 isMyNick nick conn = nick == view connNick conn
+
+isChannelName :: Identifier -> IrcConnection -> Bool
+isChannelName c conn =
+  case B.uncons (idBytes c) of
+    Just (x,_) -> x `elem` view connChanTypes conn
+    _ -> False -- probably shouldn't happen
+

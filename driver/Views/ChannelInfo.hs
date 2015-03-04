@@ -3,9 +3,11 @@ module Views.ChannelInfo where
 import ClientState
 import Control.Lens
 import Data.ByteString (ByteString)
+import Data.Map (Map)
 import Data.Monoid
 import Graphics.Vty.Image
 import ImageUtils
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -48,7 +50,7 @@ channelInfoImage chan st =
         case view chanModes channel of
           Nothing -> [string (withForeColor defAttr red) "Unknown mode"]
           Just modes -> [ string (withForeColor defAttr green) "Mode: " <|>
-                          string defAttr (show modes)
+                          utf8Bytestring' defAttr (renderModes modes)
                         ]
 
       urlLines =
@@ -62,3 +64,11 @@ channelInfoImage chan st =
         [ string (withForeColor defAttr green) "Users: " <|>
           text' defAttr (Text.unwords (map (asUtf8 . idBytes) (Map.keys (view chanUsers channel))))
         ]
+
+renderModes :: Map Char ByteString -> ByteString
+renderModes modes = B8.pack ('+':modeLetters)
+                 <> B8.concat (map (B8.cons ' ')
+                                   (filter (not . B8.null)
+                                           modeArgs))
+  where
+  (modeLetters,modeArgs) = unzip (Map.toList modes)
