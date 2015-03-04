@@ -12,6 +12,8 @@ module EditBox
   , killWord
   , left
   , right
+  , leftWord
+  , rightWord
   , insert
   , insertString
   , empty
@@ -136,3 +138,28 @@ left e
 right :: EditBox -> EditBox
 right e
   = over pos (min (views content length e) . (+1)) e
+
+leftWord :: EditBox -> EditBox
+leftWord e =
+  case search of
+    [] -> set pos 0 e
+    (i,_):_ -> set pos (i+1) e
+  where
+  search = dropWhile (not . isSpace . snd)
+         $ dropWhile (isSpace . snd)
+         $ reverse
+         $ take (view pos e)
+         $ zip [0..]
+         $ view content e
+
+rightWord :: EditBox -> EditBox
+rightWord e =
+  case search of
+    [] -> set pos (views content length e) e
+    (i,_):_ -> set pos i e
+  where
+  search = dropWhile (not . isSpace . snd)
+         $ dropWhile (isSpace . snd)
+         $ drop (view pos e)
+         $ zip [0..]
+         $ view content e

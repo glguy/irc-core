@@ -59,6 +59,8 @@ Keyboard Shortcuts
 * `^U` delete to beginning
 * `^D` delete at cursor
 * `^W` delete word
+* `M-F` forward word
+* `M-B` backward word
 * `TAB` nickname completion
 * `F2` toggle detailed view
 * `Page Up` scroll up
