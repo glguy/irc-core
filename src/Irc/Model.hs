@@ -22,6 +22,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 
@@ -320,6 +321,14 @@ advanceModel stamp msg0 conn =
          doServerError stamp ("Cannot join " <> asUtf8 (idBytes chan) <> ", you are banned.") conn
        ErrBadChannelKey chan ->
          doServerError stamp ("Cannot join " <> asUtf8 (idBytes chan) <> ", incorrect key.") conn
+       ErrUnknownUmodeFlag ->
+         doServerError stamp "Unknown user mode" conn
+       ErrUnknownMode mode ->
+         doServerError stamp ("Unknown mode: " <> Text.pack [mode]) conn
+       ErrChannelFull chan ->
+         doServerError stamp ("Channel is full: " <> asUtf8 (idBytes chan)) conn
+       ErrInviteOnlyChan chan ->
+         doServerError stamp ("Invite only channel: " <> asUtf8 (idBytes chan)) conn
 
        ErrChanOpPrivsNeeded chan ->
          return (recordMessage mesg chan conn)

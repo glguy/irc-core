@@ -400,8 +400,8 @@ picForState st = Picture
 
   topicbar chan =
     case preview (clientConnection . connChannelIx chan . chanTopic . folded . folded . _1) st of
-      Just topic -> text' (withForeColor defAttr green) topic
-      Nothing    -> emptyImage
+      Just topic | not (Text.null topic) -> text' (withForeColor defAttr green) topic
+      _ -> char defAttr ' '
 
 maskListTitle :: Char -> String
 maskListTitle 'b' = "Bans"

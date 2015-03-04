@@ -97,12 +97,16 @@ data MsgFromServer
   | ErrAlreadyRegistered -- ^ 462
   | ErrNoPermForHost -- ^ 463
   | ErrPasswordMismatch -- ^ 464
-  | ErrBannedFromChan Identifier -- ^ 475 channel
+  | ErrChannelFull Identifier -- ^ 471 channel
+  | ErrUnknownMode Char -- ^ 472 mode
+  | ErrInviteOnlyChan Identifier -- ^ 473 channel
+  | ErrBannedFromChan Identifier -- ^ 474 channel
   | ErrBadChannelKey Identifier -- ^ 475 channel
   | ErrBadChannelMask Identifier -- ^ 476 channel
   | ErrBanListFull Identifier ByteString -- ^ 476 channel mode
   | ErrNoPrivileges -- ^ 481
   | ErrChanOpPrivsNeeded Identifier -- ^ 482 channel
+  | ErrUnknownUmodeFlag -- ^ 501
 
   -- Random high-numbered stuff
   | RplWhoisSecure Identifier -- ^ 671 nick
@@ -349,6 +353,15 @@ ircMsgToServerMsg ircmsg =
     ("464",[_,_]) ->
          Just ErrPasswordMismatch
 
+    ("471",[_,chan,_]) ->
+         Just (ErrChannelFull (mkId chan))
+
+    ("472",[_,mode,_]) ->
+         Just (ErrUnknownMode (B8.head mode))
+
+    ("473",[_,chan,_]) ->
+         Just (ErrInviteOnlyChan (mkId chan))
+
     ("474",[_,chan,_]) ->
          Just (ErrBannedFromChan (mkId chan))
 
@@ -366,6 +379,9 @@ ircMsgToServerMsg ircmsg =
 
     ("482",[_,chan,_]) ->
          Just (ErrChanOpPrivsNeeded (mkId chan))
+
+    ("501",[_,_]) ->
+         Just ErrUnknownUmodeFlag
 
     ("671",[_,nick,_]) ->
          Just (RplWhoisSecure (mkId nick))
