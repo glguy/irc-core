@@ -272,7 +272,7 @@ ircMsgToServerMsg ircmsg =
     ("368",[_,chan,_txt]) ->
        Just (RplEndOfBanList (mkId chan))
 
-    ("369",[_,nick]) ->
+    ("369",[_,nick,_]) ->
        Just (RplEndOfWhoWas (mkId nick))
 
     ("371",[_,txt]) ->

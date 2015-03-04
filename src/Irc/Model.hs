@@ -329,6 +329,8 @@ advanceModel stamp msg0 conn =
          doServerError stamp ("Channel is full: " <> asUtf8 (idBytes chan)) conn
        ErrInviteOnlyChan chan ->
          doServerError stamp ("Invite only channel: " <> asUtf8 (idBytes chan)) conn
+       ErrWasNoSuchNick nick ->
+         doServerError stamp ("Was no nick: " <> asUtf8 (idBytes nick)) conn
 
        ErrChanOpPrivsNeeded chan ->
          return (recordMessage mesg chan conn)
@@ -361,6 +363,11 @@ advanceModel stamp msg0 conn =
          doServerMessage stamp "WHOIS" ("Modes: " <> B8.unwords (modes:args)) conn
        RplEndOfWhois _nick ->
          doServerMessage stamp "WHOIS" "--END--" conn
+
+       RplWhoWasUser nick user host real ->
+         doServerMessage stamp "WHOWAS" (B8.unwords [idBytes nick, user, host, real]) conn
+       RplEndOfWhoWas _nick ->
+         doServerMessage stamp "WHOWAS" "--END--" conn
 
        _ -> fail ("Unsupported: " ++ show msg0)
 

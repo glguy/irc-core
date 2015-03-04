@@ -304,13 +304,17 @@ commandEvent cmd st =
     "part" :- msg | Just chan <- focusedName st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
 
-    "whois" :- u :- ""     -> st' <$ clientSend (whoisCmd (toId u)) st'
+    "whois"  :- u :- "" -> st' <$ clientSend (whoisCmd  (toId u)) st'
+    "whowas" :- u :- "" -> st' <$ clientSend (whowasCmd (toId u)) st'
 
     "topic" :- rest        -> doTopicCmd (toB rest) st
 
     "ignore" :- u :- "" -> return (over (clientIgnores . contains (toId u)) not st')
 
     "clear" :- "" -> return (set (clientConnection . focusMessages (view clientFocus st)) mempty st')
+
+    "op" :- "" | Just chan <- focusedName st ->
+         st' <$ clientSend (privMsgCmd (mkId "chanserv") ("op " <> idBytes chan)) st'
 
     _ -> return st
 

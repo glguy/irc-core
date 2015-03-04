@@ -107,6 +107,18 @@ whoisCmd user = renderRawIrcMsg RawIrcMsg
   , msgParams = [idBytes user]
   }
 
+-- | Construct a WHOWAS command.
+--
+-- @WHOWAS user@
+whowasCmd ::
+  Identifier {- ^ user -} ->
+  ByteString
+whowasCmd user = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand  = "WHOWAS"
+  , msgParams = [idBytes user]
+  }
+
 -- | Construct a NICK command. This is used to specify
 -- the initial nickname as well as to change it.
 --
