@@ -11,6 +11,7 @@ import Data.Char (chr)
 import Data.Text (Text)
 import Control.Applicative
 import Control.Lens
+import Control.Monad (foldM)
 import Control.Monad.Free
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
@@ -38,7 +39,6 @@ import qualified Irc.List as List
 data IrcConnection = IrcConnection
   { _connNick     :: Identifier
   , _connChannels :: !(Map Identifier IrcChannel)
-  , _connMessages :: !(List IrcMessage)
   , _connId       :: Maybe ByteString
   , _connChanTypes :: [Word8]
   , _connUsers    :: !(Map Identifier IrcUser)
@@ -52,7 +52,6 @@ defaultIrcConnection :: IrcConnection
 defaultIrcConnection = IrcConnection
   { _connNick      = mkId ""
   , _connChannels  = mempty
-  , _connMessages  = mempty
   , _connId        = Nothing
   , _connChanTypes = map (fromIntegral.ord) "#" -- TODO: Use ISupport
   , _connUsers     = mempty
@@ -84,7 +83,6 @@ data IrcChannel = IrcChannel
   , _chanUsers :: !(Map Identifier String) -- modes: ov
   , _chanModes :: Maybe (Map Char ByteString)
   , _chanCreation :: Maybe UTCTime
-  , _chanMessages :: List IrcMessage
   , _chanMaskLists :: Map Char [IrcMaskEntry]
   , _chanUrl :: Maybe ByteString
   }
@@ -96,7 +94,6 @@ defaultChannel = IrcChannel
   , _chanModes = Nothing
   , _chanCreation = Nothing
   , _chanUsers = mempty
-  , _chanMessages = mempty
   , _chanMaskLists = mempty
   , _chanUrl = Nothing
   }
@@ -213,7 +210,7 @@ advanceModel msg0 conn =
                         conn)
 
        Topic who chan topic ->
-         return $ recordMessage m chan
+         recordMessage m chan
                 $ over (connChannelIx chan) changeTopic
                 $ conn
          where
@@ -228,7 +225,7 @@ advanceModel msg0 conn =
                 , _mesgMe = False
                 }
 
-       PrivMsg who chan msg -> return (recordMessage mesg chan conn)
+       PrivMsg who chan msg -> recordMessage mesg chan conn
          where
          mesg = IrcMessage
                 { _mesgType    = ty
@@ -314,7 +311,7 @@ advanceModel msg0 conn =
          return (set (connChannelIx chan . chanMaskLists . at mode) (Just []) conn)
 
        Mode who target (modes:args) ->
-         return (doModeChange who stamp target modes args conn)
+         doModeChange who target modes args conn
 
        ErrNoSuchNick nick ->
          doServerError ("No such nickname: " <> asUtf8 (idBytes nick)) conn
@@ -340,7 +337,7 @@ advanceModel msg0 conn =
          doServerError ("Was no nick: " <> asUtf8 (idBytes nick)) conn
 
        ErrChanOpPrivsNeeded chan ->
-         return (recordMessage mesg chan conn)
+         recordMessage mesg chan conn
          where
          mesg = IrcMessage
            { _mesgType    = ErrorMsgType "Channel privileges needed"
@@ -451,7 +448,8 @@ doServerError err conn =
            , _mesgMe      = False
            , _mesgModes   = ""
            }
-     return (over connMessages (cons mesg) conn)
+     recordFor "" mesg
+     return conn
 
 -- | Mark all the given nicks as active (not-away).
 doIsOn ::
@@ -463,45 +461,45 @@ doIsOn nicks conn = foldl' setIsOn conn nicks
 
 doModeChange ::
   UserInfo     {- ^ who           -} ->
-  UTCTime      {- ^ when          -} ->
   Identifier   {- ^ target        -} ->
   ByteString   {- ^ modes changed -} ->
   [ByteString] {- ^ arguments     -} ->
-  IrcConnection -> IrcConnection
-doModeChange who now target modes0 args0 conn
+  IrcConnection -> Logic IrcConnection
+doModeChange who target modes0 args0 conn
   | isChannelName target conn =
       case splitModes modeSettings modes0 args0 of
-        Nothing -> conn -- TODO: User modes
-        Just ms -> doChannelModeChanges ms now who target conn
+        Nothing -> return conn -- TODO: User modes
+        Just ms -> doChannelModeChanges ms who target conn
 
   -- TODO: Implement user modes
-  | otherwise = conn
+  | otherwise = return conn
 
   where
   modeSettings = view connChanModes conn
 
 doChannelModeChanges ::
   [(Bool, Char, ByteString)] {- ^ [(+/-,mode,argument)] -} ->
-  UTCTime                    {- ^ timestamp             -} ->
   UserInfo                   {- ^ changer               -} ->
   Identifier                 {- ^ channel               -} ->
-  IrcConnection -> IrcConnection
-doChannelModeChanges ms now who chan conn0 = foldl aux conn0 ms
+  IrcConnection -> Logic IrcConnection
+doChannelModeChanges ms who chan conn0 =
+  do now <- getStamp
+     foldM (aux now) conn0 ms
   where
   settings = view connChanModes conn0
 
-  aux conn (polarity,m,a)
-    = over (connChannelIx chan)
-           (installModeChange settings now who chan polarity m a)
-    $ recordMessage (modeMsg polarity m a) chan conn
-
-  modeMsg polarity m arg = IrcMessage
-         { _mesgType   = ModeMsgType polarity m arg
-         , _mesgSender = who
-         , _mesgStamp  = now
-         , _mesgModes  = ""
-         , _mesgMe     = False
-         }
+  aux now conn (polarity,m,a)
+    = fmap (over (connChannelIx chan)
+                 (installModeChange settings now who chan polarity m a))
+           (recordMessage modeMsg chan conn)
+    where
+    modeMsg = IrcMessage
+           { _mesgType   = ModeMsgType polarity m a
+           , _mesgSender = who
+           , _mesgStamp  = now
+           , _mesgModes  = ""
+           , _mesgMe     = False
+           }
 
 installModeChange ::
   IrcChanModes {- ^ settings -} ->
@@ -613,8 +611,9 @@ doNick who newnick conn =
                 , _mesgModes = ""
                 , _mesgMe = False
                 }
-     return $ over connUsers updateUsers
-            $ over (connChannels . mapped) (updateChannel m) conn
+     conn' <- iforOf (connChannels . itraversed) conn (updateChannel m)
+
+     return $ over connUsers updateUsers conn'
   where
   oldnick = userNick who
 
@@ -624,14 +623,14 @@ doNick who newnick conn =
      $ set (at newnick)
            (view (at oldnick) users) users
 
-  updateChannel :: IrcMessage -> IrcChannel -> IrcChannel
-  updateChannel m chan
+  updateChannel :: IrcMessage -> Identifier -> IrcChannel -> Logic IrcChannel
+  updateChannel m tgt chan
     | has (chanUserIx oldnick) chan
-     = set (chanUserAt oldnick) Nothing
-     $ set (chanUserAt newnick) (view (chanUserAt oldnick) chan)
-     $ over chanMessages (cons m)
-     $ chan
-    | otherwise = chan
+     = do recordFor tgt m
+          pure $ set (chanUserAt oldnick) Nothing
+               $ set (chanUserAt newnick) (view (chanUserAt oldnick) chan)
+               $ chan
+    | otherwise = pure chan
 
 
 -- | Update the 'IrcConnection' when a user parts from a channel.
@@ -651,8 +650,8 @@ doPart who chan reason conn =
                 }
          removeUser = set (chanUserAt (userNick who)) Nothing
 
-     return $ over (connChannelIx chan) removeUser
-            $ recordMessage mesg chan conn
+     fmap (over (connChannelIx chan) removeUser)
+          (recordMessage mesg chan conn)
 
 -- | Update an 'IrcConnection' when a user is kicked from a channel.
 doKick ::
@@ -670,7 +669,7 @@ doKick who chan tgt reason conn =
                 , _mesgModes = ""
                 , _mesgMe = False
                 }
-     return (recordMessage mesg chan conn)
+     recordMessage mesg chan conn
 
 
 doWhoReply :: Identifier -> ByteString -> IrcConnection -> Logic IrcConnection
@@ -701,18 +700,15 @@ doQuit who reason conn =
                 , _mesgMe = False
                 , _mesgModes = ""
                 }
-     return $ over (connChannels . mapped) (upd mesg)
-            $ set (connUserAt (userNick who)) Nothing
-            $ conn
 
-  where
-  -- special case update because it affects all channels the user is in
-  upd mesg chan
-    | has (chanUserIx (userNick who)) chan
-          = over chanMessages (cons mesg)
-          . set (chanUserAt (userNick who)) Nothing
-          $ chan
-    | otherwise = chan
+     iforOf (connChannels . itraversed)
+           (set (connUserAt (userNick who)) Nothing conn)
+           $ \tgt chan ->
+       if has (chanUserIx (userNick who)) chan
+         then do recordFor tgt mesg
+                 pure (set (chanUserAt (userNick who)) Nothing chan)
+         else pure chan
+
 
 doWho :: IrcConnection -> Logic IrcConnection
 doWho conn =
@@ -741,8 +737,7 @@ doJoinChannel who chan conn =
                , _mesgMe = False
                , _mesgModes = ""
                }
-     return
-         $ recordMessage m chan
+     recordMessage m chan
          $ set (connChannelIx chan . chanUserAt (userNick who)) (Just "")
          $ conn
 
@@ -761,7 +756,7 @@ doNotifyChannel who chan msg conn =
                , _mesgMe = False
                , _mesgModes = ""
                }
-     return (recordMessage mesg chan conn)
+     recordMessage mesg chan conn
 
 doServerMessage ::
   ByteString {- ^ who -} ->
@@ -776,7 +771,8 @@ doServerMessage who txt conn =
                , _mesgMe      = False
                , _mesgModes   = ""
                }
-     return (over connMessages (cons m) conn)
+     recordFor "" m
+     return conn
 
 doNameReply :: Identifier -> [ByteString] -> IrcConnection -> Logic IrcConnection
 doNameReply chan xs conn =
@@ -817,22 +813,13 @@ splitNamesReplyName modeMap = aux []
 
 -- | Execute the 'Logic' value using a given operation for sending and
 -- recieving IRC messages.
-runLogic ::
-  Monad m =>
-  UTCTime ->
-  m MsgFromServer {- ^ operation for receiving message -} ->
-  (ByteString -> m ()) {- ^ operation for sending message -} ->
-  Logic a ->
-  m (Either String a)
-runLogic now getMsg sendMsg (Logic f) = iter interp (fmap (return . Right) (runReaderT f now))
-  where
-  interp (Expect k)  = k =<< getMsg
-  interp (Failure e) = return (Left e)
-  interp (Emit x m) = sendMsg x >> m
+runLogic :: UTCTime -> Logic a -> Free LogicOp a
+runLogic now (Logic f) = runReaderT f now
 
 data LogicOp r
   = Expect  (MsgFromServer -> r)
   | Emit ByteString r
+  | Record Identifier IrcMessage r
   | Failure String
   deriving (Functor)
 
@@ -846,6 +833,9 @@ instance Monad Logic where
 
 getStamp :: Logic UTCTime
 getStamp = Logic ask
+
+recordFor :: Identifier -> IrcMessage -> Logic ()
+recordFor target msg = Logic (wrap (Record target msg (return ())))
 
 getMessage :: Logic MsgFromServer
 getMessage = Logic (wrap (Expect return))
@@ -897,42 +887,14 @@ recordMessage ::
   IrcMessage ->
   Identifier {- ^ target -} ->
   IrcConnection ->
-  IrcConnection
+  Logic IrcConnection
 recordMessage mesg target conn =
-  case B.uncons (idBytes target) of
-    Nothing -> error "recordMessage: empty target"
-    Just (t,_)
-      | t `elem` view connChanTypes conn -> recordChannelMsg conn
-      | otherwise                        -> recordUserMsg conn
+  do let mesg1 = set mesgMe isMe mesg
+     recordFor target mesg1
+     return conn
 
   where
   isMe = isMyNick (views mesgSender userNick mesg) conn
-
-  mesg1 = set mesgMe isMe mesg
-
-  -- Messages aren't recorded if we aren't in the channel
-  recordChannelMsg =
-    over (connChannelIx target) $ \channel ->
-
-      let mesg' = set mesgModes
-                      (view (chanUserIx (views mesgSender userNick mesg)) channel)
-                      mesg1
-
-      in over chanMessages (cons mesg') channel
-
-  recordUserMsg
-    | isMe      = recordUserMsgFor target
-    | otherwise = recordUserMsgFor (userNick (view mesgSender mesg))
-
-  recordUserMsgFor u =
-    over (connUserAt u) $ \mbUser ->
-      case mbUser of
-        Nothing -> Just $
-          IrcUser
-            { _usrAway = False
-            , _usrMessages = List.fromList [mesg1]
-            }
-        Just usr -> Just (over usrMessages (cons mesg1) usr)
 
 isMyNick :: Identifier -> IrcConnection -> Bool
 isMyNick nick conn = nick == view connNick conn

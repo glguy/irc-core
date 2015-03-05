@@ -10,6 +10,8 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Lens
 import Control.Monad
+import Control.Monad.Free
+import Control.Monad.Trans.State
 import Data.ByteString (ByteString)
 import Data.CaseInsensitive (CI)
 import Data.Char
@@ -85,16 +87,16 @@ main = do
          { _clientSendChan        = sendChan
          , _clientErrors          = hErr
          , _clientConnection      = conn0
-         , _clientFocus           = ServerFocus
+         , _clientFocus           = ChannelFocus ""
          , _clientDetailView      = False
          , _clientEditBox         = Edit.empty
          , _clientTabPattern      = Nothing
          , _clientScrollPos       = 0
          , _clientHeight          = height
          , _clientWidth           = width
-         , _clientMessagesSeen    = mempty
          , _clientIgnores         = mempty
          , _clientHighlights      = mempty
+         , _clientMessages        = mempty
          }
 
 driver :: Vty -> TChan Event -> TChan MsgFromServer -> ClientState -> IO ()
@@ -107,7 +109,7 @@ driver vty vtyEventChan ircMsgChan st =
 
   where
   continue = driver vty vtyEventChan ircMsgChan
-           . updateNewMessages
+           . resetCurrentChannelMessages
 
   processVtyEvent event =
     case event of
@@ -129,16 +131,21 @@ driver vty vtyEventChan ircMsgChan st =
 
   processIrcMsg msg =
     do now <- getCurrentTime
-       r <- runLogic now
-                     (atomically (readTChan ircMsgChan))
-                     (`clientSend` st)
-                     (advanceModel msg (view clientConnection st))
-       case r of
-         Left e ->
-           do hPutStrLn (view clientErrors st) ("!!! " ++ e)
-              continue st
-         Right conn' ->
-           continue (set clientConnection conn' st)
+
+       let loop st' (Pure conn') = continue (set clientConnection conn' st')
+           loop st' (Free (Expect k)) =
+             do msg <- atomically (readTChan ircMsgChan)
+                loop st' (k msg)
+           loop st' (Free (Record target message r)) =
+              loop (addMessage target message st') r
+           loop st' (Free (Emit bytes r)) =
+             do clientSend bytes st'
+                loop st' r
+           loop st' (Free (Failure e)) =
+             do hPutStrLn (view clientErrors st) ("!!! " ++ e)
+                continue st'
+
+       loop st (runLogic now (advanceModel msg (view clientConnection st)))
 
 negotiateCaps :: Handle -> IO ()
 negotiateCaps h = B.hPut h capLsCmd
@@ -213,19 +220,19 @@ doSendMessage sendType target message st =
                 SendNotice -> noticeCmd target (Text.encodeUtf8 message)
      clientSend bs st
      now <- getCurrentTime
-     let addMessageToConnection =
-             over clientConnection (recordMessage (fakeMsg now) target)
-     return (addMessageToConnection st)
+     let myNick = view (clientConnection . connNick) st
+         myModes = view (clientConnection . connChannelIx target . chanUserIx myNick) st
+     return (addMessage target (fakeMsg now myModes) st)
 
   where
-  fakeMsg now = IrcMessage
+  fakeMsg now modes = IrcMessage
     { _mesgSender = who
     , _mesgType = case sendType of
                     SendPriv   -> PrivMsgType   message
                     SendNotice -> NoticeMsgType message
                     SendAction -> ActionMsgType message
     , _mesgStamp = now
-    , _mesgModes = ""
+    , _mesgModes = modes
     , _mesgMe = True
     }
 
@@ -251,7 +258,7 @@ commandEvent cmd st =
 
     -- focus setting
     "server" :- ""  ->
-      return (set clientFocus ServerFocus st')
+      return (set clientFocus (ChannelFocus "") st')
 
     "query"  :- user :- "" ->
       return (set clientFocus (ChannelFocus (toId user)) st')
@@ -259,15 +266,15 @@ commandEvent cmd st =
     "channel" :- chan :- "" ->
       return (set clientFocus (ChannelFocus (toId chan)) st')
 
-    "channelinfo" :- "" | Just chan <- focusedName st ->
+    "channelinfo" :- "" | Just chan <- focusedName' st ->
       return (set clientFocus (ChannelInfoFocus chan) st')
 
-    "bans" :- "" | Just chan <- focusedName st ->
+    "bans" :- "" | Just chan <- focusedName' st ->
       return (set clientFocus (MaskListFocus 'b' chan) st')
 
     "masks" :- [mode] :- ""
       | mode `elem` view (clientConnection . connChanModes . modesLists) st
-      , Just chan <- focusedName st ->
+      , Just chan <- focusedName' st ->
       return (set clientFocus (MaskListFocus mode chan) st')
 
     -- chat
@@ -299,16 +306,16 @@ commandEvent cmd st =
          st' <$ clientSend (modeCmd (view (clientConnection . connNick) st)
                                     (toB modes) (map toB (words args))) st'
 
-    "mode" :- modes :- args | Just chan <- focusedName st ->
+    "mode" :- modes :- args | Just chan <- focusedName' st ->
          st' <$ clientSend (modeCmd chan (toB modes) (map toB (words args))) st'
 
-    "kick" :- nick :- msg | Just chan <- focusedName st ->
+    "kick" :- nick :- msg | Just chan <- focusedName' st ->
          st' <$ clientSend (kickCmd chan (toId nick) (toB msg)) st'
 
-    "remove" :- nick :- msg | Just chan <- focusedName st ->
+    "remove" :- nick :- msg | Just chan <- focusedName' st ->
          st' <$ clientSend (removeCmd chan (toId nick) (toB msg)) st'
 
-    "part" :- msg | Just chan <- focusedName st ->
+    "part" :- msg | Just chan <- focusedName' st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
 
     "whois"  :- u :- "" -> st' <$ clientSend (whoisCmd  (toId u)) st'
@@ -320,11 +327,12 @@ commandEvent cmd st =
     "highlight" :- w :- "" ->
        return (over (clientHighlights . contains (CI.foldCase (Text.pack w))) not st')
 
-    "clear" :- "" -> return (set (clientConnection . focusMessages (view clientFocus st)) mempty st')
+    "clear" :- "" ->
+         return (set (clientMessages . at (focusedName st)) Nothing st')
 
     "nick" :- nick :- "" -> st' <$ clientSend (nickCmd (toId nick)) st'
 
-    "op" :- "" | Just chan <- focusedName st ->
+    "op" :- "" | Just chan <- focusedName' st ->
          st' <$ clientSend (privMsgCmd (mkId "chanserv") ("op " <> idBytes chan)) st'
 
     _ -> return st
@@ -406,7 +414,7 @@ picForState st = Picture
 
   titlebar =
     case view clientFocus st of
-      ServerFocus    -> string defAttr "Server"
+      ChannelFocus "" -> string defAttr "Server"
       ChannelFocus c -> topicbar c
       ChannelInfoFocus c -> string defAttr "Channel Info: "
                         <|> identImg defAttr c
@@ -441,30 +449,30 @@ dividerImage :: ClientState -> Image
 dividerImage st
   = extendToWidth
   $ ifoldr (\i x xs -> drawOne i x <|> xs) emptyImage
-  $ view clientMessagesSeen st
+  $ fullMessageLists st
  <> extraDefaults
 
   where
-  drawOne :: Identifier -> SeenMetrics -> Image
+  drawOne :: Identifier -> MessageList -> Image
   drawOne i seen
-    | active == Just i =
+    | focusedName st == i =
         string defAttr "─(" <|>
         utf8Bytestring'
           (withForeColor defAttr green)
           (identToBytes i) <|>
         string defAttr ")"
-    | active == Just i =
+    | focusedName st == i =
         string defAttr "─(" <|>
         identImg (withForeColor defAttr green) i <|>
         string defAttr ")"
-    | views seenNewMessages (>0) seen =
+    | views mlNewMessages (>0) seen =
         string defAttr "─[" <|>
         utf8Bytestring'
           (withForeColor defAttr brightBlue)
           (identToBytes i) <|>
         string defAttr ":" <|>
         string (withForeColor defAttr (seenColor seen))
-               (show (view seenNewMessages seen)) <|>
+               (show (view mlNewMessages seen)) <|>
         string defAttr "]"
     | otherwise =
         string defAttr "─o"
@@ -474,24 +482,17 @@ dividerImage st
     | x == "" = "server"
     | otherwise = idBytes x
 
-  seenColor :: SeenMetrics -> Color
+  seenColor :: MessageList -> Color
   seenColor seen
-    | view seenMentioned seen = red
-    | view seenNewMessages seen > 0 = green
+    | view mlMentioned seen = red
+    | view mlNewMessages seen > 0 = green
     | otherwise = brightBlack
 
   extendToWidth img =
     img <|> string defAttr (replicate (view clientWidth st - imageWidth img) '─')
 
-  active =
-    case view clientFocus st of
-      ServerFocus -> Just (mkId "")
-      focus -> focusedName st
-
   extraDefaults =
-    case active of
-      Nothing -> mempty
-      Just i  -> Map.singleton i defaultSeenMetrics
+    Map.singleton (focusedName st) defaultMessageList
 
 ------------------------------------------------------------------------
 -- Event loops

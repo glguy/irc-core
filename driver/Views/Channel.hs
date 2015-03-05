@@ -59,13 +59,11 @@ renderTimestamp
 
 activeMessages :: ClientState -> [IrcMessage]
 activeMessages st =
-    case preview (focusMessages (view clientFocus st)) conn of
-      Nothing -> mempty
-      Just xs ->
-        case stripPrefix "/filter " (clientInput st) of
-          Nothing -> toList xs
-          Just nick -> filter (nickFilter (BS8.pack nick)) (toList xs)
+  case stripPrefix "/filter " (clientInput st) of
+    Nothing -> toList msgs
+    Just nick -> filter (nickFilter (BS8.pack nick)) (toList msgs)
   where
+  msgs = view (clientMessages . ix (focusedName st) . mlMessages) st
   conn = view clientConnection st
   nickFilter nick msg
     = views mesgSender userNick msg == mkId nick

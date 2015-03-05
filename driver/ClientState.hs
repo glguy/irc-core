@@ -9,9 +9,10 @@ import Control.Lens
 import Data.ByteString (ByteString)
 import Data.CaseInsensitive (CI)
 import Data.Foldable (toList)
+import Data.Functor
 import Data.List (elemIndex)
 import Data.Map (Map)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe,fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
@@ -41,103 +42,41 @@ data ClientState = ClientState
   , _clientScrollPos :: Int
   , _clientHeight :: Int
   , _clientWidth :: Int
-  , _clientMessagesSeen :: !(Map Identifier SeenMetrics)
   , _clientIgnores :: !(Set Identifier)
   , _clientHighlights :: !(Set Text)
+  , _clientMessages :: !(Map Identifier MessageList)
+  }
+
+data MessageList = MessageList
+  { _mlNewMessages :: !Int
+  , _mlMentioned   :: !Bool
+  , _mlMessages    :: [IrcMessage]
+  }
+
+defaultMessageList :: MessageList
+defaultMessageList = MessageList
+  { _mlNewMessages = 0
+  , _mlMentioned   = False
+  , _mlMessages    = []
   }
 
 data Focus
   = ChannelFocus Identifier
   | ChannelInfoFocus Identifier
   | MaskListFocus Char Identifier
-  | ServerFocus
   deriving (Eq, Ord, Read, Show)
 
-data SeenMetrics = SeenMetrics
-  { _seenNewMessages :: !Int
-  , _seenTotalMessages :: !Int
-  , _seenMentioned :: !Bool
-  }
-  deriving (Read,Show)
-
-defaultSeenMetrics :: SeenMetrics
-defaultSeenMetrics = SeenMetrics
-  { _seenNewMessages = 0
-  , _seenTotalMessages = 0
-  , _seenMentioned = False
-  }
-
 makeLenses ''ClientState
+makeLenses ''MessageList
 makePrisms ''Focus
-makeLenses ''SeenMetrics
-
-focusMessages :: Applicative f => Focus -> LensLike' f IrcConnection (List IrcMessage)
-focusMessages x f conn = case x of
-  ChannelFocus c
-    | isChannelName c conn -> (connChannelIx c . chanMessages) f conn
-    | otherwise            -> (connUserIx    c . usrMessages ) f conn
-  ServerFocus              -> connMessages                     f conn
-  MaskListFocus _ _        -> ignored                          f conn
-  ChannelInfoFocus _       -> ignored                          f conn
 
 resetCurrentChannelMessages :: ClientState -> ClientState
 resetCurrentChannelMessages st =
-  case view clientFocus st of
-    ChannelFocus c -> clear c  st
-    ServerFocus    -> clear "" st
-    _              -> st
-
-  where
-  clear c = over ( clientMessagesSeen . ix c)
-                 ( set seenNewMessages 0
-                 . set seenMentioned False
-                 )
-
-updateNewMessages :: ClientState -> ClientState
-updateNewMessages st
-  = resetCurrentChannelMessages
-  $ over clientMessagesSeen aux st
-  where
-  me = CI.foldCase (asUtf8 (views (clientConnection.connNick) idBytes st))
-  combine = updateSeen (set (contains me) True (view clientHighlights st))
-
-  aux m0 =
-    Map.mergeWithKey
-      (\_ x y -> Just (combine x y))
-      (const mempty) -- drop the counts that aren't relevant
-      (fmap (combine defaultSeenMetrics)) -- default value of none seen
-      m0
-      (serverCounts <> channelCounts <> userCounts)
-
-  serverCounts
-    = Map.singleton "" (view (clientConnection . connMessages) st)
-
-  channelCounts
-    = fmap (view chanMessages)
-           (view (clientConnection . connChannels) st)
-
-  userCounts
-    = Map.filter ((>0) . List.length)
-    $ fmap (view usrMessages)
-           (view (clientConnection . connUsers) st)
-
-updateSeen :: Set Text -> SeenMetrics -> List IrcMessage -> SeenMetrics
-updateSeen highlights seen msgs
-    = over seenNewMessages (+ length additionalMessages)
-    $ over seenMentioned   (|| mention)
-    $ set  seenTotalMessages totalMessages seen
-    where
-    totalMessages = List.length msgs
-    additionalMessages
-      = mapMaybe (views mesgType isRelevant)
-      $ take (totalMessages - view seenTotalMessages seen)
-      $ toList msgs
-
-    mention = or [ Text.isInfixOf term msg
-                 | term <- Set.toList highlights
-                 , msg  <- map CI.foldCase additionalMessages
-                 ]
-
+  over (clientMessages . ix (focusedName st))
+       ( set mlNewMessages 0
+       . set mlMentioned False
+       )
+       st
 
 -- Return the message part of a message which counts
 -- toward unread message count.
@@ -184,20 +123,17 @@ incrementFocus f st
     case currentFocus of
       ChannelInfoFocus c -> ChannelFocus c
       MaskListFocus _  c -> ChannelFocus c
-      _                  -> nextChannel
+      ChannelFocus c     -> ChannelFocus (nextChannel c)
 
-  focuses = ServerFocus
-          : map ChannelFocus
-          ( views clientConnection activeChannelNames st
-         ++ views clientConnection activeUserNames st )
+  focuses = Map.keys (fullMessageLists st)
 
   currentFocus = view clientFocus st
 
   -- TODO: fix this for case insensitivity
-  nextChannel =
-    case elemIndex currentFocus focuses of
+  nextChannel c =
+    case elemIndex c focuses of
       Just i  -> focuses !! mod (f i) (length focuses)
-      Nothing -> ServerFocus
+      Nothing -> ""
 
 clearTabPattern :: ClientState -> ClientState
 clearTabPattern = set clientTabPattern Nothing
@@ -205,10 +141,48 @@ clearTabPattern = set clientTabPattern Nothing
 clientSend :: ByteString -> ClientState -> IO ()
 clientSend x st = atomically (writeTChan (view clientSendChan st) x)
 
-focusedName :: ClientState -> Maybe Identifier
+focusedName :: ClientState -> Identifier
 focusedName st =
   case view clientFocus st of
-    ServerFocus -> Nothing
+    ChannelInfoFocus c -> c
+    MaskListFocus _  c -> c
+    ChannelFocus     c -> c
+
+focusedName' :: ClientState -> Maybe Identifier
+focusedName' st =
+  case view clientFocus st of
     ChannelInfoFocus c -> Just c
     MaskListFocus _  c -> Just c
-    ChannelFocus     c -> Just c
+    ChannelFocus     c
+      | c == ""   -> Nothing
+      | otherwise -> Just c
+
+addMessage :: Identifier -> IrcMessage -> ClientState -> ClientState
+addMessage target message st =
+  over (clientMessages . at target)
+       (Just . aux . fromMaybe defaultMessageList)
+       st
+  where
+  aux = case views mesgType isRelevant message of
+          Nothing -> over mlMessages (cons message)
+          Just txt -> over mlNewMessages (+1)
+                    . over mlMentioned   (|| mention txt)
+                    . over mlMessages (cons message)
+
+  nickTxt = asUtf8 (idDenote (view (clientConnection . connNick) st))
+
+  highlights
+    = set (contains nickTxt) True
+    $ view clientHighlights st
+
+  mention txt =
+    or [ Text.isInfixOf term (CI.foldCase txt)
+       | term <- Set.toList highlights
+       ]
+
+fullMessageLists :: ClientState -> Map Identifier MessageList
+fullMessageLists st
+   = view clientMessages st
+  <> views (clientConnection . connChannels)
+           (defaultMessageList <$)
+           st
