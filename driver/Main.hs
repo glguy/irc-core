@@ -315,12 +315,12 @@ commandEvent cmd st =
     "join" :- c :-      "" -> doJoinCmd (toB c) Nothing st'
     "join" :- c :- k :- "" -> doJoinCmd (toB c) (Just (toB k)) st'
 
-    "umode" :- modes :- args ->
+    "umode" :- args ->
          st' <$ clientSend (modeCmd (view (clientConnection . connNick) st)
-                                    (toB modes) (map toB (words args))) st'
+                                    (map toB (words args))) st'
 
-    "mode" :- modes :- args | Just chan <- focusedName' st ->
-         st' <$ clientSend (modeCmd chan (toB modes) (map toB (words args))) st'
+    "mode" :- args | Just chan <- focusedName' st ->
+         st' <$ clientSend (modeCmd chan (map toB (words args))) st'
 
     "kick" :- nick :- msg | Just chan <- focusedName' st ->
          st' <$ clientSend (kickCmd chan (toId nick) (toB msg)) st'
@@ -334,7 +334,7 @@ commandEvent cmd st =
     "whois"  :- u :- "" -> st' <$ clientSend (whoisCmd  (toId u)) st'
     "whowas" :- u :- "" -> st' <$ clientSend (whowasCmd (toId u)) st'
 
-    "topic" :- rest        -> doTopicCmd (toB rest) st
+    "topic" :- rest | Just chan <- focusedName' st -> doTopicCmd chan (toB rest) st'
 
     "ignore" :- u :- "" -> return (over (clientIgnores . contains (toId u)) not st')
     "highlight" :- w :- "" ->
@@ -355,13 +355,9 @@ commandEvent cmd st =
   toB = Text.encodeUtf8 . Text.pack
   toId = mkId . toB
 
-doTopicCmd :: ByteString -> ClientState -> IO ClientState
-doTopicCmd topic st =
-  case view clientFocus st of
-    ChannelFocus c ->
-      do clientSend (topicCmd c topic) st
-         return (clearInput st)
-    _ -> return st
+doTopicCmd :: Identifier -> ByteString -> ClientState -> IO ClientState
+doTopicCmd chan topic st =
+ do st <$ clientSend (topicCmd chan topic) st
 
 doJoinCmd :: ByteString -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =

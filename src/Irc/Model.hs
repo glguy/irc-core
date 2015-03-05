@@ -210,38 +210,9 @@ advanceModel msg0 conn =
                         (Just (Just (asUtf8 topic,who,time)))
                         conn)
 
-       Topic who chan topic ->
-         recordMessage m chan
-                $ over (connChannelIx chan) changeTopic
-                $ conn
-         where
-         changeTopic = set chanTopic
-                           (Just (Just (topicText,userInfoBytestring who,stamp)))
-         topicText = asUtf8 topic
-         m = IrcMessage
-                { _mesgType = TopicMsgType topicText
-                , _mesgSender = who
-                , _mesgStamp = stamp
-                , _mesgModes = ""
-                , _mesgMe = False
-                }
+       Topic who chan topic -> doTopic who chan topic conn
 
-       PrivMsg who chan msg -> recordMessage mesg chan conn
-         where
-         mesg = IrcMessage
-                { _mesgType    = ty
-                , _mesgSender  = who
-                , _mesgStamp   = stamp
-                , _mesgMe      = False
-                , _mesgModes   = ""
-                }
-
-         ty
-           | B.length msg >= 9
-           , B.isPrefixOf "\SOHACTION " msg
-           , B.last msg == 1
-           = ActionMsgType (asUtf8 (B.init (B.drop 8 msg)))
-           | otherwise = PrivMsgType (asUtf8 msg)
+       PrivMsg who chan msg -> doPrivMsg who chan msg conn
 
        Notice who chan msg -> doNotifyChannel who chan msg conn
 
@@ -300,7 +271,8 @@ advanceModel msg0 conn =
 
        RplQuietList chan mode mask who when ->
          let fixup (a,_,c,d,e) = (a,c,d,e) in -- drop the matched mode field
-         doMaskList (preview (_RplQuietList . to fixup)) (has _RplEndOfQuietList)
+         doMaskList (previews _RplQuietList fixup)
+                    (has _RplEndOfQuietList)
                     mode chan
                     [IrcMaskEntry
                       { _maskEntryMask  = mask
@@ -380,6 +352,52 @@ advanceModel msg0 conn =
        RplSaslAborted -> return conn
 
        _ -> fail ("Unsupported: " ++ show msg0)
+
+-- | Event handler when receiving a new privmsg.
+-- The message will be passed along as an event.
+doPrivMsg ::
+  UserInfo   {- ^ sender         -} ->
+  Identifier {- ^ message target -} ->
+  ByteString {- ^ message        -} ->
+  IrcConnection -> Logic IrcConnection
+doPrivMsg who chan msg conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+                { _mesgType    = ty
+                , _mesgSender  = who
+                , _mesgStamp   = stamp
+                , _mesgMe      = False
+                , _mesgModes   = ""
+                }
+         ty
+           | B.length msg >= 9
+           , B.isPrefixOf "\SOHACTION " msg
+           , B.last msg == 1
+           = ActionMsgType (asUtf8 (B.init (B.drop 8 msg)))
+           | otherwise = PrivMsgType (asUtf8 msg)
+
+     recordMessage mesg chan conn
+
+-- | Record the new topic as set by the given user and
+-- emit a change event.
+doTopic ::
+  UserInfo  {- ^ changed by -} ->
+  Identifier {- ^ channel -} ->
+  ByteString {- ^ topic text -} ->
+  IrcConnection -> Logic IrcConnection
+doTopic who chan topic conn =
+  do stamp <- getStamp
+     let topicText = asUtf8 topic
+         m = IrcMessage
+                { _mesgType = TopicMsgType topicText
+                , _mesgSender = who
+                , _mesgStamp = stamp
+                , _mesgModes = ""
+                , _mesgMe = False
+                }
+         topicEntry = Just (topicText,userInfoBytestring who,stamp)
+         conn1 = set (connChannelIx chan . chanTopic) (Just topicEntry) conn
+     recordMessage m chan conn1
 
 doCapLs :: ByteString -> IrcConnection -> Logic IrcConnection
 doCapLs rawCaps conn =

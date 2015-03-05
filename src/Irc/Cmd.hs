@@ -19,13 +19,12 @@ import Irc.Format
 -- @MODE target *(mode) *(modeparams)@
 modeCmd ::
   Identifier   {- ^ target -} ->
-  ByteString   {- ^ modes  -} ->
-  [ByteString] {- ^ params -} ->
+  [ByteString] {- ^ modes and params -} ->
   ByteString
-modeCmd c modes params = renderRawIrcMsg RawIrcMsg
+modeCmd c modes = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand  = "MODE"
-  , msgParams = idBytes c : modes : params
+  , msgParams = idBytes c : modes
   }
 
 -- | Construct a KICK command
