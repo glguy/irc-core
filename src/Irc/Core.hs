@@ -127,6 +127,7 @@ data MsgFromServer
   | Kick UserInfo Identifier Identifier ByteString
   | Part UserInfo Identifier ByteString
   | Invite UserInfo Identifier
+  | Error ByteString
   deriving (Read, Show)
 
 data ChannelType = SecretChannel | PrivateChannel | PublicChannel
@@ -449,6 +450,9 @@ ircMsgToServerMsg ircmsg =
 
     ("CAP",[_,cmd,txt]) ->
          Just (Cap cmd txt)
+
+    ("ERROR",[txt]) ->
+         Just (Error txt)
 
     _ -> Nothing
 
