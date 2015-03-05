@@ -39,6 +39,7 @@ Commands
 * `/masks <mode>` - Show the bans (b), quiets (q), invex (I), or ban exemptions (e) for a channel. The list must be requested as above.
 * `/mode <mode> <arguments>` - Set modes on the current channel
 * `/umode <mode>` - Set modes on yourself
+* `/nick <nick>` - Change your nickname
 * `/kick <nick> <msg>` - Kick a user from the current channel
 * `/remove <nick> <msg>` - Force a user to part from the current channel
 * `/hs <haskell source code>` - Send syntax highlighted source code as a message to the current channel
@@ -46,6 +47,7 @@ Commands
 * `/topic <topic>` - Change the topic for the current channel
 * `/ignore <nick>` - Toggle ignoring a user by nickname.
 * `/clear` - Clear all messages for the current channel
+* `/op` - Request ops from chanserv on the current channel
 
 Keyboard Shortcuts
 ==================

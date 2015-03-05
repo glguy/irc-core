@@ -317,6 +317,8 @@ commandEvent cmd st =
 
     "clear" :- "" -> return (set (clientConnection . focusMessages (view clientFocus st)) mempty st')
 
+    "nick" :- nick :- "" -> st' <$ clientSend (nickCmd (toId nick)) st'
+
     "op" :- "" | Just chan <- focusedName st ->
          st' <$ clientSend (privMsgCmd (mkId "chanserv") ("op " <> idBytes chan)) st'
 

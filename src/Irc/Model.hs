@@ -185,8 +185,10 @@ advanceModel stamp msg0 conn =
          | otherwise -> doKick stamp who chan tgt reason conn
 
        Quit who reason -> doQuit stamp who reason conn
+
        Nick who newnick
-         | isMyNick (userNick who) conn -> return (set connNick newnick conn)
+         | isMyNick (userNick who) conn -> doNick stamp who newnick
+                                         $ set connNick newnick conn
          | otherwise -> doNick stamp who newnick conn
 
        RplChannelUrl chan url ->
