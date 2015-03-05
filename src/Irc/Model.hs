@@ -14,6 +14,7 @@ import Control.Lens
 import Control.Monad (foldM)
 import Control.Monad.Free
 import Control.Monad.Trans.Reader
+import Control.Monad.Trans.Error
 import Data.ByteString (ByteString)
 import Data.Char (ord)
 import Data.List (foldl',find,nub,delete,intersect)
@@ -813,23 +814,17 @@ splitNamesReplyName modeMap = aux []
 
 -- | Execute the 'Logic' value using a given operation for sending and
 -- recieving IRC messages.
-runLogic :: UTCTime -> Logic a -> Free LogicOp a
-runLogic now (Logic f) = runReaderT f now
+runLogic :: UTCTime -> Logic a -> Free LogicOp (Either String a)
+runLogic now (Logic f) = runErrorT (runReaderT f now)
 
 data LogicOp r
   = Expect  (MsgFromServer -> r)
   | Emit ByteString r
   | Record Identifier IrcMessage r
-  | Failure String
   deriving (Functor)
 
-newtype Logic a = Logic { unLogic :: ReaderT UTCTime (Free LogicOp) a }
-  deriving (Functor, Applicative)
-
-instance Monad Logic where
-  fail          = Logic . wrap . Failure
-  m >>= f       = Logic (unLogic . f =<< unLogic m)
-  return        = Logic . return
+newtype Logic a = Logic { unLogic :: ReaderT UTCTime (ErrorT String (Free LogicOp)) a }
+  deriving (Functor, Applicative, Monad)
 
 getStamp :: Logic UTCTime
 getStamp = Logic ask

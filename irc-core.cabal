@@ -60,5 +60,6 @@ executable glirc
                  text             >= 1.2.0.4  && < 1.3,
                  time             >= 1.4.2    && < 1.5,
                  vty              >= 5.2.7    && < 5.3,
-                 haskell-lexer    >= 1.0      && < 1.1
+                 haskell-lexer    >= 1.0      && < 1.1,
+                 transformers     >= 0.2      && < 0.5
   default-language:    Haskell2010

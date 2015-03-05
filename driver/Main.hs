@@ -12,6 +12,8 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Free
 import Control.Monad.Trans.State
+import Control.Monad.Trans.Class
+import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.CaseInsensitive (CI)
 import Data.Char
@@ -132,23 +134,34 @@ driver vty vtyEventChan ircMsgChan st =
   processIrcMsg msg =
     do now <- getCurrentTime
 
-       let loop st' (Pure conn') = continue (set clientConnection conn' st')
-           loop st' (Free (Expect k)) =
-             do msg <- atomically (readTChan ircMsgChan)
-                loop st' (k msg)
-           loop st' (Free (Record target message r)) =
-              loop (addMessage target message st') r
-           loop st' (Free (Emit bytes r)) =
-             do clientSend bytes st'
-                loop st' r
-           loop st' (Free (Failure e)) =
-             do hPutStrLn (view clientErrors st) ("!!! " ++ e)
-                continue st'
+       let m :: IO (Either String IrcConnection, ClientState)
+           m = flip runStateT st
+             $ retract
+             $ hoistFree (interpretLogicOp ircMsgChan)
+             $ runLogic now (advanceModel msg (view clientConnection st))
 
-       loop st (runLogic now (advanceModel msg (view clientConnection st)))
+       res <- m
+       case res of
+         (Left e,st') -> do hPutStrLn (view clientErrors st) ("!!! " ++ e)
+                            continue st'
+         (Right conn',st') -> continue (set clientConnection conn' st')
 
 negotiateCaps :: Handle -> IO ()
 negotiateCaps h = B.hPut h capLsCmd
+
+interpretLogicOp :: TChan MsgFromServer -> LogicOp a -> StateT ClientState IO a
+
+interpretLogicOp ircMsgChan (Expect k) =
+  do fmap k (liftIO (atomically (readTChan ircMsgChan)))
+
+interpretLogicOp _ (Emit bytes r) =
+  do st <- get
+     liftIO (clientSend bytes st)
+     return r
+
+interpretLogicOp _ (Record target message r) =
+  do modify (addMessage target message)
+     return r
 
 ------------------------------------------------------------------------
 -- Key Event Handlers!
