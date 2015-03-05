@@ -435,23 +435,37 @@ dividerImage st
   = extendToWidth
   $ ifoldr (\i x xs -> drawOne i x <|> xs) emptyImage
   $ view clientMessagesSeen st
+ <> extraDefaults
 
   where
   drawOne :: Identifier -> SeenMetrics -> Image
   drawOne i seen
     | active == Just i =
         string defAttr "─(" <|>
+        utf8Bytestring'
+          (withForeColor defAttr green)
+          (identToBytes i) <|>
+        string defAttr ")"
+    | active == Just i =
+        string defAttr "─(" <|>
         identImg (withForeColor defAttr green) i <|>
         string defAttr ")"
     | views seenNewMessages (>0) seen =
         string defAttr "─[" <|>
-        identImg (withForeColor defAttr brightBlue) i <|>
+        utf8Bytestring'
+          (withForeColor defAttr brightBlue)
+          (identToBytes i) <|>
         string defAttr ":" <|>
         string (withForeColor defAttr (seenColor seen))
                (show (view seenNewMessages seen)) <|>
         string defAttr "]"
     | otherwise =
         string defAttr "─o"
+
+  -- deal with the fact that the server window uses the "" identifier
+  identToBytes x
+    | x == "" = "server"
+    | otherwise = idBytes x
 
   seenColor :: SeenMetrics -> Color
   seenColor seen
@@ -466,6 +480,11 @@ dividerImage st
     case view clientFocus st of
       ServerFocus -> Just (mkId "")
       focus -> focusedName st
+
+  extraDefaults =
+    case active of
+      Nothing -> mempty
+      Just i  -> Map.singleton i defaultSeenMetrics
 
 ------------------------------------------------------------------------
 -- Event loops

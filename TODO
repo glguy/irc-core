@@ -1,6 +1,8 @@
-channel and my user modes
+my user modes
 chanserv automation
 name highlighting
-merged channel view
-whois window
-unify query and channel views
+history search ^R
+configuration file
+configurable watch terms
+automatic channel joins
+sasl support

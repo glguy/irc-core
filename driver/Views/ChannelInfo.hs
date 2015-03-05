@@ -4,6 +4,7 @@ import ClientState
 import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Map (Map)
+import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Graphics.Vty.Image
 import ImageUtils
@@ -60,10 +61,20 @@ channelInfoImage chan st =
                         cleanText (asUtf8 url)
                       ]
 
-      usersLines =
-        [ string (withForeColor defAttr green) "Users: " <|>
-          text' defAttr (Text.unwords (map (asUtf8 . idBytes) (Map.keys (view chanUsers channel))))
-        ]
+      prefixes = view (clientConnection . connChanModes . modesPrefixModes) st
+      modePrefix modes =
+        string (withForeColor defAttr blue)
+               (mapMaybe (`lookup` prefixes) modes)
+
+      usersLines
+        = return
+        $ horizCat
+        $ string (withForeColor defAttr green) "Users:"
+        : [ char defAttr ' ' <|>
+            modePrefix modes <|>
+            identImg defAttr nick
+          | (nick,modes) <- Map.toList (view chanUsers channel)
+          ]
 
 renderModes :: Map Char ByteString -> ByteString
 renderModes modes = B8.pack ('+':modeLetters)

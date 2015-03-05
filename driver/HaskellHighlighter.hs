@@ -48,12 +48,12 @@ colorize ((tok, (_,str)):rest) = aux str ++ colorize rest
       Qconsym    -> orange
       Special    -> id
       Whitespace -> id
-      NestedCommentStart -> gray
-      NestedComment -> gray
-      LiterateComment -> gray
-      Commentstart -> gray
-      Comment -> gray
-      ErrorToken -> gray
+      NestedCommentStart -> comment
+      NestedComment -> comment
+      LiterateComment -> comment
+      Commentstart -> comment
+      Comment -> comment
+      ErrorToken -> id
       GotEOF -> id
       ModuleName -> id
       ModuleAlias -> id
@@ -62,9 +62,13 @@ colorize ((tok, (_,str)):rest) = aux str ++ colorize rest
       Open _ -> id
       TheRest -> id
 
+comment :: String -> String
+comment = cyan
+
 green, orange, red, gray :: String -> String
 green  x = "\03\&03" ++ x ++ "\03\02\02"
 orange x = "\03\&07" ++ x ++ "\03\02\02"
 red    x = "\03\&04" ++ x ++ "\03\02\02"
 gray   x = "\03\&14" ++ x ++ "\03\02\02"
+cyan   x = "\03\&11" ++ x ++ "\03\02\02"
 pink   x = "\03\&13" ++ x ++ "\03\02\02"

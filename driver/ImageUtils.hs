@@ -71,38 +71,37 @@ ircFormattedText' fmt t = text' (formattingAttr fmt) a <|> rest
     Just (_,xs) -> ircFormattedText' fmt xs
 
 colorNumber :: Text -> Maybe (Color, Text)
-colorNumber t
-  | Just (f1,t1) <- Text.uncons t
-  , Just (f2,t2) <- Text.uncons t1
-  = case [f1,f2] of
-      "00" -> Just (white, t2)
-      "01" -> Just (black, t2)
-      "02" -> Just (blue, t2)
-      "03" -> Just (green, t2)
-      "04" -> Just (red, t2)
-      "05" -> Just (cyan, t2)
-      "06" -> Just (magenta, t2)
-      "07" -> Just (yellow, t2)
-      "08" -> Just (yellow, t2)
-      "09" -> Just (green, t2)
-      "10" -> Just (brightBlue, t2)
-      "11" -> Just (brightCyan, t2)
-      "12" -> Just (brightBlue, t2)
-      "13" -> Just (brightRed, t2)
-      "14" -> Just (brightBlack, t2)
-      "15" -> Just (brightWhite, t2)
-      _ -> Nothing
-  | otherwise = Nothing
+colorNumber t =
+  do (f1,t1) <- Text.uncons t
+     (f2,t2) <- Text.uncons t1
+     case [f1,f2] of
+       "00" -> Just (white, t2)
+       "01" -> Just (black, t2)
+       "02" -> Just (blue, t2)
+       "03" -> Just (green, t2)
+       "04" -> Just (red, t2)
+       "05" -> Just (cyan, t2)
+       "06" -> Just (magenta, t2)
+       "07" -> Just (yellow, t2)
+       "08" -> Just (yellow, t2)
+       "09" -> Just (green, t2)
+       "10" -> Just (brightBlue, t2)
+       "11" -> Just (brightCyan, t2)
+       "12" -> Just (brightBlue, t2)
+       "13" -> Just (brightRed, t2)
+       "14" -> Just (brightBlack, t2)
+       "15" -> Just (brightWhite, t2)
+       _    -> Nothing
 
 
 defaultFormatting :: Formatting
 defaultFormatting = Formatting
-  { _fmtFore = Nothing
-  , _fmtBack = Nothing
-  , _fmtBold = False
-  , _fmtItalic = False
+  { _fmtFore      = Nothing
+  , _fmtBack      = Nothing
+  , _fmtBold      = False
+  , _fmtItalic    = False
   , _fmtUnderline = False
-  , _fmtReverse = False
+  , _fmtReverse   = False
   }
 
 formattingAttr :: Formatting -> Attr
@@ -131,4 +130,3 @@ formattingAttr fmt
 
 identImg :: Attr -> Identifier -> Image
 identImg attr = utf8Bytestring' attr . idBytes
-
