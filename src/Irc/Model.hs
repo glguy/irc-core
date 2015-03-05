@@ -172,29 +172,29 @@ advanceModel msg0 conn =
 
        Join who chan
          | isMyNick (userNick who) conn -> doAddChannel chan conn
-         | otherwise -> doJoinChannel stamp who chan conn
+         | otherwise -> doJoinChannel who chan conn
 
 
        ExtJoin who chan _account _realname
          | isMyNick (userNick who) conn -> doAddChannel chan conn
-         | otherwise -> doJoinChannel stamp who chan conn
+         | otherwise -> doJoinChannel who chan conn
 
        Part who chan reason
          | isMyNick (userNick who) conn ->
             return (set (connChannelAt chan) Nothing conn)
-         | otherwise -> doPart stamp who chan reason conn
+         | otherwise -> doPart who chan reason conn
 
        Kick who chan tgt reason
          | isMyNick tgt conn ->
             return (set (connChannelAt chan) Nothing conn)
-         | otherwise -> doKick stamp who chan tgt reason conn
+         | otherwise -> doKick who chan tgt reason conn
 
-       Quit who reason -> doQuit stamp who reason conn
+       Quit who reason -> doQuit who reason conn
 
        Nick who newnick
-         | isMyNick (userNick who) conn -> doNick stamp who newnick
+         | isMyNick (userNick who) conn -> doNick who newnick
                                          $ set connNick newnick conn
-         | otherwise -> doNick stamp who newnick conn
+         | otherwise -> doNick who newnick conn
 
        RplChannelUrl chan url ->
             return (set (connChannelIx chan . chanUrl)
@@ -245,7 +245,7 @@ advanceModel msg0 conn =
            = ActionMsgType (asUtf8 (B.init (B.drop 8 msg)))
            | otherwise = PrivMsgType (asUtf8 msg)
 
-       Notice who chan msg -> doNotifyChannel stamp who chan msg conn
+       Notice who chan msg -> doNotifyChannel who chan msg conn
 
        RplYourId yourId -> return (set connId (Just yourId) conn)
 
@@ -601,13 +601,20 @@ doMaskList matchEntry matchEnd mode chan acc conn =
 
 -- | Update an 'IrcConnection' when a user changes nicknames.
 doNick ::
-  UTCTime    {- ^ timestamp           -} ->
   UserInfo   {- ^ old user infomation -} ->
   Identifier {- ^ new nickname        -} ->
   IrcConnection -> Logic IrcConnection
-doNick stamp who newnick = return
-                   . over connUsers updateUsers
-                   . over (connChannels . mapped) updateChannel
+doNick who newnick conn =
+  do stamp <- getStamp
+     let m = IrcMessage
+                { _mesgType = NickMsgType newnick
+                , _mesgSender = who
+                , _mesgStamp = stamp
+                , _mesgModes = ""
+                , _mesgMe = False
+                }
+     return $ over connUsers updateUsers
+            $ over (connChannels . mapped) (updateChannel m) conn
   where
   oldnick = userNick who
 
@@ -617,8 +624,8 @@ doNick stamp who newnick = return
      $ set (at newnick)
            (view (at oldnick) users) users
 
-  updateChannel :: IrcChannel -> IrcChannel
-  updateChannel chan
+  updateChannel :: IrcMessage -> IrcChannel -> IrcChannel
+  updateChannel m chan
     | has (chanUserIx oldnick) chan
      = set (chanUserAt oldnick) Nothing
      $ set (chanUserAt newnick) (view (chanUserAt oldnick) chan)
@@ -626,53 +633,44 @@ doNick stamp who newnick = return
      $ chan
     | otherwise = chan
 
-  m = IrcMessage
-         { _mesgType = NickMsgType newnick
-         , _mesgSender = who
-         , _mesgStamp = stamp
-         , _mesgModes = ""
-         , _mesgMe = False
-         }
 
 -- | Update the 'IrcConnection' when a user parts from a channel.
 doPart ::
-  UTCTime    {- ^ timestamp        -} ->
   UserInfo   {- ^ user information -} ->
   Identifier {- ^ channel          -} ->
   ByteString {- ^ part reason      -} ->
   IrcConnection -> Logic IrcConnection
-doPart stamp who chan reason conn =
-   return $ over (connChannelIx chan) removeUser
-          $ recordMessage mesg chan conn
-  where
-  mesg = IrcMessage
-         { _mesgType = PartMsgType (asUtf8 reason)
-         , _mesgSender = who
-         , _mesgStamp = stamp
-         , _mesgMe = False
-         , _mesgModes = ""
-         }
+doPart who chan reason conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+                { _mesgType = PartMsgType (asUtf8 reason)
+                , _mesgSender = who
+                , _mesgStamp = stamp
+                , _mesgMe = False
+                , _mesgModes = ""
+                }
+         removeUser = set (chanUserAt (userNick who)) Nothing
 
-  removeUser = set (chanUserAt (userNick who)) Nothing
+     return $ over (connChannelIx chan) removeUser
+            $ recordMessage mesg chan conn
 
 -- | Update an 'IrcConnection' when a user is kicked from a channel.
 doKick ::
-  UTCTime    {- ^ timestamp   -} ->
   UserInfo   {- ^ kicker      -} ->
   Identifier {- ^ channel     -} ->
   Identifier {- ^ kicked      -} ->
   ByteString {- ^ kick reason -} ->
   IrcConnection -> Logic IrcConnection
-doKick stamp who chan tgt reason conn =
-  return (recordMessage mesg chan conn)
-  where
-  mesg = IrcMessage
-         { _mesgType = KickMsgType tgt (asUtf8 reason)
-         , _mesgSender = who
-         , _mesgStamp = stamp
-         , _mesgModes = ""
-         , _mesgMe = False
-         }
+doKick who chan tgt reason conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+                { _mesgType = KickMsgType tgt (asUtf8 reason)
+                , _mesgSender = who
+                , _mesgStamp = stamp
+                , _mesgModes = ""
+                , _mesgMe = False
+                }
+     return (recordMessage mesg chan conn)
 
 
 doWhoReply :: Identifier -> ByteString -> IrcConnection -> Logic IrcConnection
@@ -691,25 +689,25 @@ doWhoReply nickname flags conn =
 
 -- | Update an 'IrcConnection' with the quitting of a user.
 doQuit ::
-  UTCTime    {- ^ timestamp   -} ->
   UserInfo   {- ^ user info   -} ->
   ByteString {- ^ quit reason -} ->
   IrcConnection -> Logic IrcConnection
-doQuit stamp who reason conn = return
-                       $ over (connChannels . mapped) upd
-                       $ set (connUserAt (userNick who)) Nothing
-                       $ conn
-  where
-  mesg = IrcMessage
-         { _mesgType = QuitMsgType (asUtf8 reason)
-         , _mesgSender = who
-         , _mesgStamp = stamp
-         , _mesgMe = False
-         , _mesgModes = ""
-         }
+doQuit who reason conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+                { _mesgType = QuitMsgType (asUtf8 reason)
+                , _mesgSender = who
+                , _mesgStamp = stamp
+                , _mesgMe = False
+                , _mesgModes = ""
+                }
+     return $ over (connChannels . mapped) (upd mesg)
+            $ set (connUserAt (userNick who)) Nothing
+            $ conn
 
+  where
   -- special case update because it affects all channels the user is in
-  upd chan
+  upd mesg chan
     | has (chanUserIx (userNick who)) chan
           = over chanMessages (cons mesg)
           . set (chanUserAt (userNick who)) Nothing
@@ -733,36 +731,37 @@ doAddChannel chan conn
   channel =
     set (chanUserAt (view connNick conn)) (Just "") defaultChannel
 
-doJoinChannel :: UTCTime -> UserInfo -> Identifier -> IrcConnection -> Logic IrcConnection
-doJoinChannel stamp who chan conn =
-  return $ recordMessage m chan
+doJoinChannel :: UserInfo -> Identifier -> IrcConnection -> Logic IrcConnection
+doJoinChannel who chan conn =
+  do stamp <- getStamp
+     let m = IrcMessage
+               { _mesgType = JoinMsgType
+               , _mesgSender = who
+               , _mesgStamp = stamp
+               , _mesgMe = False
+               , _mesgModes = ""
+               }
+     return
+         $ recordMessage m chan
          $ set (connChannelIx chan . chanUserAt (userNick who)) (Just "")
          $ conn
-  where
-  m = IrcMessage
-        { _mesgType = JoinMsgType
-        , _mesgSender = who
-        , _mesgStamp = stamp
-        , _mesgMe = False
-        , _mesgModes = ""
-        }
 
 doNotifyChannel ::
-  UTCTime ->
   UserInfo ->
   Identifier ->
   ByteString ->
   IrcConnection ->
   Logic IrcConnection
-doNotifyChannel stamp who chan msg conn = return (recordMessage mesg chan conn)
-  where
-  mesg = IrcMessage
-        { _mesgType = NoticeMsgType (asUtf8 msg)
-        , _mesgSender = who
-        , _mesgStamp = stamp
-        , _mesgMe = False
-        , _mesgModes = ""
-        }
+doNotifyChannel who chan msg conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+               { _mesgType = NoticeMsgType (asUtf8 msg)
+               , _mesgSender = who
+               , _mesgStamp = stamp
+               , _mesgMe = False
+               , _mesgModes = ""
+               }
+     return (recordMessage mesg chan conn)
 
 doServerMessage ::
   ByteString {- ^ who -} ->
