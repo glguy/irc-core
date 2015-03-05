@@ -69,7 +69,11 @@ main = do
   socketChan   <- atomically newTChan
   sendChan     <- atomically newTChan
 
-  let conn0 = defaultIrcConnection { _connNick = views cmdArgNick toId args }
+  let conn0 = defaultIrcConnection
+                { _connNick = views cmdArgNick toId args
+                , _connSasl = fmap (\p -> (views cmdArgSaslUser B8.pack args,B8.pack p))
+                                   (view cmdArgSaslPass args)
+                }
 
   cfg <- standardIOConfig
   bracket (mkVty cfg) shutdown $ \vty ->
@@ -125,9 +129,10 @@ driver vty vtyEventChan ircMsgChan st =
 
   processIrcMsg msg =
     do now <- getCurrentTime
-       r <- runLogic (atomically (readTChan ircMsgChan))
+       r <- runLogic now
+                     (atomically (readTChan ircMsgChan))
                      (`clientSend` st)
-                     (advanceModel now msg (view clientConnection st))
+                     (advanceModel msg (view clientConnection st))
        case r of
          Left e ->
            do hPutStrLn (view clientErrors st) ("!!! " ++ e)
@@ -136,10 +141,7 @@ driver vty vtyEventChan ircMsgChan st =
            continue (set clientConnection conn' st)
 
 negotiateCaps :: Handle -> IO ()
-negotiateCaps h = do
-  B.hPut h capLsCmd
-  B.hPut h (capReqCmd ["multi-prefix"])
-  B.hPut h capEndCmd
+negotiateCaps h = B.hPut h capLsCmd
 
 ------------------------------------------------------------------------
 -- Key Event Handlers!

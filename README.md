@@ -19,7 +19,12 @@ glirc <options> SERVER
   -n NICK  --nick=NICK  Nickname
   -u USER  --user=USER  Username
   -r REAL  --real=REAL  Real Name
+           --sasl-user=USER SASL Username
   -h       --help       Show help
+
+Environment variables
+IRCPASSWORD=<your irc password>
+SASLPASSWORD=<your sasl password>
 ```
 
 Commands

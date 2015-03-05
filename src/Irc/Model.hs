@@ -12,14 +12,16 @@ import Data.Text (Text)
 import Control.Applicative
 import Control.Lens
 import Control.Monad.Free
+import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import Data.Char (ord)
-import Data.List (foldl',find,nub,delete)
+import Data.List (foldl',find,nub,delete,intersect)
 import Data.Time
 import Data.Word
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -42,6 +44,7 @@ data IrcConnection = IrcConnection
   , _connUsers    :: !(Map Identifier IrcUser)
   , _connChanModes :: IrcChanModes
   , _connMyInfo   :: Maybe (ByteString,ByteString)
+  , _connSasl     :: Maybe (ByteString,ByteString)
   }
   deriving (Read, Show)
 
@@ -55,6 +58,7 @@ defaultIrcConnection = IrcConnection
   , _connUsers     = mempty
   , _connChanModes = defaultChanModes -- TODO: Use ISupport
   , _connMyInfo    = Nothing
+  , _connSasl      = Nothing
   }
 
 data IrcChanModes = IrcChanModes
@@ -144,15 +148,16 @@ makeLenses ''IrcChanModes
 -- | Primary state machine step function. Call this function with a timestamp
 -- and a server message to update the 'IrcConnection' state. If additional
 -- messages are required they will be requested via the 'Logic' type.
-advanceModel :: UTCTime -> MsgFromServer -> IrcConnection -> Logic IrcConnection
-advanceModel stamp msg0 conn =
-  case msg0 of
+advanceModel :: MsgFromServer -> IrcConnection -> Logic IrcConnection
+advanceModel msg0 conn =
+  do stamp <- getStamp
+     case msg0 of
 
        Ping x -> sendMessage (pongCmd x) >> return conn
 
-       RplWelcome  txt -> doServerMessage stamp "Welcome" txt conn
-       RplYourHost txt -> doServerMessage stamp "YourHost" txt conn
-       RplCreated  txt -> doServerMessage stamp "Created" txt conn
+       RplWelcome  txt -> doServerMessage "Welcome" txt conn
+       RplYourHost txt -> doServerMessage "YourHost" txt conn
+       RplCreated  txt -> doServerMessage "Created" txt conn
        RplMyInfo host version _ _ _ ->
          return (set connMyInfo (Just (host,version)) conn)
 
@@ -246,7 +251,7 @@ advanceModel stamp msg0 conn =
 
        RplMotdStart -> return conn
        RplEndOfMotd -> return conn
-       RplMotd x    -> doServerMessage stamp "MOTD" x conn
+       RplMotd x    -> doServerMessage "MOTD" x conn
 
        RplNameReply _ chan xs -> doNameReply chan xs conn
 
@@ -312,27 +317,27 @@ advanceModel stamp msg0 conn =
          return (doModeChange who stamp target modes args conn)
 
        ErrNoSuchNick nick ->
-         doServerError stamp ("No such nickname: " <> asUtf8 (idBytes nick)) conn
+         doServerError ("No such nickname: " <> asUtf8 (idBytes nick)) conn
        ErrNoSuchChannel chan ->
-         doServerError stamp ("No such channel: " <> asUtf8 (idBytes chan)) conn
+         doServerError ("No such channel: " <> asUtf8 (idBytes chan)) conn
        ErrNoSuchService serv ->
-         doServerError stamp ("No such service: " <> asUtf8 (idBytes serv)) conn
+         doServerError ("No such service: " <> asUtf8 (idBytes serv)) conn
        ErrNoSuchServer server ->
-         doServerError stamp ("No such server: " <> asUtf8 server) conn
+         doServerError ("No such server: " <> asUtf8 server) conn
        ErrBannedFromChan chan ->
-         doServerError stamp ("Cannot join " <> asUtf8 (idBytes chan) <> ", you are banned.") conn
+         doServerError ("Cannot join " <> asUtf8 (idBytes chan) <> ", you are banned.") conn
        ErrBadChannelKey chan ->
-         doServerError stamp ("Cannot join " <> asUtf8 (idBytes chan) <> ", incorrect key.") conn
+         doServerError ("Cannot join " <> asUtf8 (idBytes chan) <> ", incorrect key.") conn
        ErrUnknownUmodeFlag ->
-         doServerError stamp "Unknown user mode" conn
+         doServerError "Unknown user mode" conn
        ErrUnknownMode mode ->
-         doServerError stamp ("Unknown mode: " <> Text.pack [mode]) conn
+         doServerError ("Unknown mode: " <> Text.pack [mode]) conn
        ErrChannelFull chan ->
-         doServerError stamp ("Channel is full: " <> asUtf8 (idBytes chan)) conn
+         doServerError ("Channel is full: " <> asUtf8 (idBytes chan)) conn
        ErrInviteOnlyChan chan ->
-         doServerError stamp ("Invite only channel: " <> asUtf8 (idBytes chan)) conn
+         doServerError ("Invite only channel: " <> asUtf8 (idBytes chan)) conn
        ErrWasNoSuchNick nick ->
-         doServerError stamp ("Was no nick: " <> asUtf8 (idBytes nick)) conn
+         doServerError ("Was no nick: " <> asUtf8 (idBytes nick)) conn
 
        ErrChanOpPrivsNeeded chan ->
          return (recordMessage mesg chan conn)
@@ -348,30 +353,83 @@ advanceModel stamp msg0 conn =
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map
        RplWhoisUser nick user host real ->
-         doServerMessage stamp "WHOIS" (B8.unwords [idBytes nick, user, host, real]) conn
+         doServerMessage "WHOIS" (B8.unwords [idBytes nick, user, host, real]) conn
        RplWhoisChannels _nick channels ->
-         doServerMessage stamp "WHOIS" channels conn
+         doServerMessage "WHOIS" channels conn
        RplWhoisServer _nick host txt ->
-         doServerMessage stamp "WHOIS" (B8.unwords [host,txt]) conn
+         doServerMessage "WHOIS" (B8.unwords [host,txt]) conn
        RplWhoisSecure _nick ->
-         doServerMessage stamp "WHOIS" "secure connection" conn
+         doServerMessage "WHOIS" "secure connection" conn
        RplWhoisHost _nick txt ->
-         doServerMessage stamp "WHOIS" txt conn
+         doServerMessage "WHOIS" txt conn
        RplWhoisIdle _nick idle _signon ->
-         doServerMessage stamp "WHOIS" ("Idle seconds: " <> idle) conn
+         doServerMessage "WHOIS" ("Idle seconds: " <> idle) conn
        RplWhoisAccount _nick account ->
-         doServerMessage stamp "WHOIS" ("Logged in as: " <> account) conn
+         doServerMessage "WHOIS" ("Logged in as: " <> account) conn
        RplWhoisModes _nick modes args ->
-         doServerMessage stamp "WHOIS" ("Modes: " <> B8.unwords (modes:args)) conn
+         doServerMessage "WHOIS" ("Modes: " <> B8.unwords (modes:args)) conn
        RplEndOfWhois _nick ->
-         doServerMessage stamp "WHOIS" "--END--" conn
+         doServerMessage "WHOIS" "--END--" conn
 
        RplWhoWasUser nick user host real ->
-         doServerMessage stamp "WHOWAS" (B8.unwords [idBytes nick, user, host, real]) conn
+         doServerMessage "WHOWAS" (B8.unwords [idBytes nick, user, host, real]) conn
        RplEndOfWhoWas _nick ->
-         doServerMessage stamp "WHOWAS" "--END--" conn
+         doServerMessage "WHOWAS" "--END--" conn
+
+       Cap "LS" caps -> doCapLs caps conn
+       Cap "ACK" caps -> doCapAck caps conn
+       Cap "NACK" caps -> sendMessage capEndCmd >> return conn
+       RplSaslAborted -> return conn
 
        _ -> fail ("Unsupported: " ++ show msg0)
+
+doCapLs :: ByteString -> IrcConnection -> Logic IrcConnection
+doCapLs rawCaps conn =
+  do sendMessage (capReqCmd activeCaps)
+     return conn
+  where
+  activeCaps = intersect supportedCaps offeredCaps
+  offeredCaps = B8.words rawCaps
+  supportedCaps = ["multi-prefix"] ++ saslSupport
+  saslSupport =
+    case view connSasl conn of
+      Nothing -> []
+      Just{}  -> ["sasl"]
+
+doCapAck :: ByteString -> IrcConnection -> Logic IrcConnection
+doCapAck rawCaps conn =
+  do let ackCaps = B8.words rawCaps
+
+     conn' <- case view connSasl conn of
+                Just (user,pass) | "sasl" `elem` ackCaps -> doSasl user pass conn
+                _ -> return conn
+
+     sendMessage capEndCmd
+     return conn'
+
+doSasl :: ByteString -> ByteString -> IrcConnection -> Logic IrcConnection
+doSasl user pass conn =
+  do sendMessage (authenticateCmd "PLAIN")
+     Authenticate "+" <- getMessage
+
+     sendMessage (authenticateCmd (encodePlainAuthentication user pass))
+     resp1 <- getMessage
+     case resp1 of
+       RplLoggedIn _account ->
+         do RplSaslSuccess <- getMessage
+            doServerMessage "SASL" "Authentication successful" conn
+
+       RplSaslFail ->
+         do doServerMessage "SASL" "Authentication failed" conn
+
+
+encodePlainAuthentication ::
+  ByteString {- ^ username -} ->
+  ByteString {- ^ password -} ->
+  ByteString
+encodePlainAuthentication user pass
+  = Base64.encode
+  $ B8.intercalate "\0" [user,user,pass]
 
 doChannelModeIs :: Identifier -> [ByteString] -> IrcConnection -> Logic IrcConnection
 doChannelModeIs chan []           conn =
@@ -383,16 +441,17 @@ doChannelModeIs chan (modes:args) conn =
       where
       modeMap = Map.fromList [ (mode,arg) | (True,mode,arg) <- xs ]
 
-doServerError :: UTCTime -> Text -> IrcConnection -> Logic IrcConnection
-doServerError stamp err conn = return (over connMessages (cons mesg) conn)
-  where
-  mesg = IrcMessage
-    { _mesgType    = ErrorMsgType err
-    , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
-    , _mesgStamp   = stamp
-    , _mesgMe      = False
-    , _mesgModes   = ""
-    }
+doServerError :: Text -> IrcConnection -> Logic IrcConnection
+doServerError err conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+           { _mesgType    = ErrorMsgType err
+           , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
+           , _mesgStamp   = stamp
+           , _mesgMe      = False
+           , _mesgModes   = ""
+           }
+     return (over connMessages (cons mesg) conn)
 
 -- | Mark all the given nicks as active (not-away).
 doIsOn ::
@@ -706,19 +765,19 @@ doNotifyChannel stamp who chan msg conn = return (recordMessage mesg chan conn)
         }
 
 doServerMessage ::
-  UTCTime {- ^ when -} ->
   ByteString {- ^ who -} ->
   ByteString {- ^ message -} ->
   IrcConnection -> Logic IrcConnection
-doServerMessage stamp who txt conn = return (over connMessages (cons m) conn)
-  where
-  m = IrcMessage
-        { _mesgType    = PrivMsgType (asUtf8 txt)
-        , _mesgSender  = UserInfo (mkId who) Nothing Nothing
-        , _mesgStamp   = stamp
-        , _mesgMe      = False
-        , _mesgModes   = ""
-        }
+doServerMessage who txt conn =
+  do stamp <- getStamp
+     let m = IrcMessage
+               { _mesgType    = PrivMsgType (asUtf8 txt)
+               , _mesgSender  = UserInfo (mkId who) Nothing Nothing
+               , _mesgStamp   = stamp
+               , _mesgMe      = False
+               , _mesgModes   = ""
+               }
+     return (over connMessages (cons m) conn)
 
 doNameReply :: Identifier -> [ByteString] -> IrcConnection -> Logic IrcConnection
 doNameReply chan xs conn =
@@ -761,11 +820,12 @@ splitNamesReplyName modeMap = aux []
 -- recieving IRC messages.
 runLogic ::
   Monad m =>
+  UTCTime ->
   m MsgFromServer {- ^ operation for receiving message -} ->
   (ByteString -> m ()) {- ^ operation for sending message -} ->
   Logic a ->
   m (Either String a)
-runLogic getMsg sendMsg (Logic a) = iter interp (fmap (return . Right) a)
+runLogic now getMsg sendMsg (Logic f) = iter interp (fmap (return . Right) (runReaderT f now))
   where
   interp (Expect k)  = k =<< getMsg
   interp (Failure e) = return (Left e)
@@ -777,13 +837,16 @@ data LogicOp r
   | Failure String
   deriving (Functor)
 
-newtype Logic a = Logic { unLogic :: Free LogicOp a }
+newtype Logic a = Logic { unLogic :: ReaderT UTCTime (Free LogicOp) a }
   deriving (Functor, Applicative)
 
 instance Monad Logic where
   fail          = Logic . wrap . Failure
   m >>= f       = Logic (unLogic . f =<< unLogic m)
   return        = Logic . return
+
+getStamp :: Logic UTCTime
+getStamp = Logic ask
 
 getMessage :: Logic MsgFromServer
 getMessage = Logic (wrap (Expect return))

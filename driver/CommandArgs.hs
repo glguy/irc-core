@@ -17,6 +17,8 @@ data CommandArgs = CommandArgs
   , _cmdArgHelp     :: Bool
   , _cmdArgReal     :: String
   , _cmdArgUser     :: String
+  , _cmdArgSaslUser :: String
+  , _cmdArgSaslPass :: Maybe String
   }
 
 makeLenses ''CommandArgs
@@ -30,6 +32,8 @@ initialCommandArgs = CommandArgs
   , _cmdArgPort     = 6667
   , _cmdArgPassword = Nothing
   , _cmdArgHelp     = False
+  , _cmdArgSaslUser = ""
+  , _cmdArgSaslPass = Nothing
   }
 
 getCommandArgs :: IO CommandArgs
@@ -38,6 +42,7 @@ getCommandArgs =
      env  <- getEnvironment
      let username = fromMaybe "" (lookup "USER" env)
          password = lookup "IRCPASSWORD" env
+         saslpassword = lookup "SASLPASSWORD" env
 
      r <- case getOpt RequireOrder optDescrs args of
             (fs, [server], []) ->
@@ -47,6 +52,8 @@ getCommandArgs =
                            , _cmdArgReal     = username
                            , _cmdArgUser     = username
                            , _cmdArgNick     = username
+                           , _cmdArgSaslUser = username
+                           , _cmdArgSaslPass = saslpassword
                            }
                   return (foldl (\acc f -> f acc) r0 fs)
 
@@ -71,5 +78,6 @@ optDescrs =
   , Option "n" ["nick"] (ReqArg (set cmdArgNick) "NICK") "Nickname"
   , Option "u" ["user"] (ReqArg (set cmdArgUser) "USER") "Username"
   , Option "r" ["real"] (ReqArg (set cmdArgReal) "REAL") "Real Name"
+  , Option ""  ["sasl-user"] (ReqArg (set cmdArgSaslUser) "USER") "SASL username"
   , Option "h" ["help"] (NoArg  (set cmdArgHelp True))   "Show help"
   ]

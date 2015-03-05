@@ -234,3 +234,14 @@ noticeCmd target msg = renderRawIrcMsg RawIrcMsg
   , msgParams = [idBytes target,msg]
   }
 
+-- | Construct an AUTHENTICATE command.
+--
+-- @AUTHENTICATE message@
+authenticateCmd ::
+  ByteString {- ^ message -} ->
+  ByteString
+authenticateCmd msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "AUTHENTICATE"
+  , msgParams = [msg]
+  }

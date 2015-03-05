@@ -113,6 +113,17 @@ data MsgFromServer
   | RplQuietList Identifier Char ByteString ByteString UTCTime -- ^ 728 channel mode mask who timestamp
   | RplEndOfQuietList Identifier Char -- ^ 729 channel mode
 
+  -- SASL stuff
+  | RplLoggedIn ByteString -- ^ 900 account
+  | RplLoggedOut -- ^ 901
+  | RplNickLocked -- ^ 902
+  | RplSaslSuccess -- ^ 903
+  | RplSaslFail -- ^ 904
+  | RplSaslTooLong -- ^ 905
+  | RplSaslAborted -- ^ 906
+  | RplSaslAlready -- ^ 907
+  | RplSaslMechs ByteString -- ^ 908 comma-sep-mechs
+
   | Away UserInfo ByteString
   | Ping ByteString
   | Notice  UserInfo Identifier ByteString
@@ -128,6 +139,7 @@ data MsgFromServer
   | Part UserInfo Identifier ByteString
   | Invite UserInfo Identifier
   | Error ByteString
+  | Authenticate ByteString
   deriving (Read, Show)
 
 data ChannelType = SecretChannel | PrivateChannel | PublicChannel
@@ -393,6 +405,33 @@ ircMsgToServerMsg ircmsg =
     ("729",[_,chan,mode,_]) ->
          Just (RplEndOfQuietList (mkId chan) (B8.head mode))
 
+    ("900",[_,_,account,_]) ->
+         Just (RplLoggedIn account)
+
+    ("901",[_,_,_]) ->
+         Just RplLoggedOut
+
+    ("902",[_,_]) ->
+         Just RplNickLocked
+
+    ("903",[_,_]) ->
+         Just RplSaslSuccess
+
+    ("904",[_,_]) ->
+         Just RplSaslFail
+
+    ("905",[_,_]) ->
+         Just RplSaslTooLong
+
+    ("906",[_,_]) ->
+         Just RplSaslAborted
+
+    ("907",[_,_]) ->
+         Just RplSaslAlready
+
+    ("908",[_,mechs,_]) ->
+         Just (RplSaslMechs mechs)
+
     ("PING",[txt]) -> Just (Ping txt)
 
     ("PRIVMSG",[dst,txt]) ->
@@ -453,6 +492,9 @@ ircMsgToServerMsg ircmsg =
 
     ("ERROR",[txt]) ->
          Just (Error txt)
+
+    ("AUTHENTICATE",[txt]) ->
+         Just (Authenticate txt)
 
     _ -> Nothing
 
