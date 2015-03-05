@@ -19,6 +19,7 @@ import System.IO (Handle)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString as B
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 import Irc.Format
@@ -42,6 +43,7 @@ data ClientState = ClientState
   , _clientWidth :: Int
   , _clientMessagesSeen :: !(Map Identifier SeenMetrics)
   , _clientIgnores :: !(Set Identifier)
+  , _clientHighlights :: !(Set Text)
   }
 
 data Focus
@@ -97,7 +99,7 @@ updateNewMessages st
   $ over clientMessagesSeen aux st
   where
   me = CI.foldCase (asUtf8 (views (clientConnection.connNick) idBytes st))
-  combine = updateSeen me
+  combine = updateSeen (set (contains me) True (view clientHighlights st))
 
   aux m0 =
     Map.mergeWithKey
@@ -119,8 +121,8 @@ updateNewMessages st
     $ fmap (view usrMessages)
            (view (clientConnection . connUsers) st)
 
-updateSeen :: Text -> SeenMetrics -> List IrcMessage -> SeenMetrics
-updateSeen me seen msgs
+updateSeen :: Set Text -> SeenMetrics -> List IrcMessage -> SeenMetrics
+updateSeen highlights seen msgs
     = over seenNewMessages (+ length additionalMessages)
     $ over seenMentioned   (|| mention)
     $ set  seenTotalMessages totalMessages seen
@@ -131,7 +133,10 @@ updateSeen me seen msgs
       $ take (totalMessages - view seenTotalMessages seen)
       $ toList msgs
 
-    mention = any (Text.isInfixOf me) (map CI.foldCase additionalMessages)
+    mention = or [ Text.isInfixOf term msg
+                 | term <- Set.toList highlights
+                 , msg  <- map CI.foldCase additionalMessages
+                 ]
 
 
 -- Return the message part of a message which counts

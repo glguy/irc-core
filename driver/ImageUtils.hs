@@ -75,22 +75,22 @@ colorNumber t =
   do (f1,t1) <- Text.uncons t
      (f2,t2) <- Text.uncons t1
      case [f1,f2] of
-       "00" -> Just (white, t2)
-       "01" -> Just (black, t2)
-       "02" -> Just (blue, t2)
-       "03" -> Just (green, t2)
-       "04" -> Just (red, t2)
-       "05" -> Just (cyan, t2)
-       "06" -> Just (magenta, t2)
-       "07" -> Just (yellow, t2)
-       "08" -> Just (yellow, t2)
-       "09" -> Just (green, t2)
-       "10" -> Just (brightBlue, t2)
-       "11" -> Just (brightCyan, t2)
-       "12" -> Just (brightBlue, t2)
-       "13" -> Just (brightRed, t2)
-       "14" -> Just (brightBlack, t2)
-       "15" -> Just (brightWhite, t2)
+       "00" -> Just (white, t2) -- white
+       "01" -> Just (black, t2) -- black
+       "02" -> Just (blue, t2) -- blue
+       "03" -> Just (green, t2) -- green
+       "04" -> Just (red, t2) -- red
+       "05" -> Just (rgbColor 127 0 0, t2) -- brown
+       "06" -> Just (rgbColor 156 0 156, t2) -- purple
+       "07" -> Just (rgbColor 252 127 0, t2) -- yellow
+       "08" -> Just (yellow, t2) -- yellow
+       "09" -> Just (brightGreen, t2) -- green
+       "10" -> Just (cyan, t2) -- brightBlue
+       "11" -> Just (brightCyan, t2) -- brightCyan
+       "12" -> Just (brightBlue, t2) -- brightBlue
+       "13" -> Just (rgbColor 255 0 255, t2)  -- brightRed
+       "14" -> Just (rgbColor 127 127 127, t2)-- brightBlack
+       "15" -> Just (rgbColor 210 210 210, t2)-- brightWhite
        _    -> Nothing
 
 

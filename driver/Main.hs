@@ -90,6 +90,7 @@ main = do
          , _clientWidth           = width
          , _clientMessagesSeen    = mempty
          , _clientIgnores         = mempty
+         , _clientHighlights      = mempty
          }
 
 driver :: Vty -> TChan Event -> TChan MsgFromServer -> ClientState -> IO ()
@@ -314,6 +315,8 @@ commandEvent cmd st =
     "topic" :- rest        -> doTopicCmd (toB rest) st
 
     "ignore" :- u :- "" -> return (over (clientIgnores . contains (toId u)) not st')
+    "highlight" :- w :- "" ->
+       return (over (clientHighlights . contains (CI.foldCase (Text.pack w))) not st')
 
     "clear" :- "" -> return (set (clientConnection . focusMessages (view clientFocus st)) mempty st')
 
