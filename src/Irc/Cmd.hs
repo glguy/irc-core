@@ -244,3 +244,15 @@ authenticateCmd msg = renderRawIrcMsg RawIrcMsg
   , msgCommand = "AUTHENTICATE"
   , msgParams = [msg]
   }
+
+-- | Construct a HELP command.
+--
+-- @HELP topic@
+helpCmd ::
+  ByteString {- ^ topic -} ->
+  ByteString
+helpCmd msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "HELP"
+  , msgParams = [msg]
+  }

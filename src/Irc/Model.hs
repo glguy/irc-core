@@ -5,26 +5,27 @@
 {-# LANGUAGE PatternGuards #-}
 module Irc.Model where
 
-import Data.Map (Map)
-import Data.Monoid
-import Data.Char (chr)
-import Data.Text (Text)
 import Control.Applicative
 import Control.Lens
 import Control.Monad (foldM)
 import Control.Monad.Free
-import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Error
+import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
+import Data.CaseInsensitive (CI)
+import Data.Char (chr)
 import Data.Char (ord)
 import Data.List (foldl',find,nub,delete,intersect)
+import Data.Map (Map)
+import Data.Maybe (fromMaybe)
+import Data.Monoid
+import Data.Text (Text)
 import Data.Time
 import Data.Word
-import Data.CaseInsensitive (CI)
-import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -131,9 +132,15 @@ data IrcMessageType
 
 data IrcUser = IrcUser
   { _usrAway :: !Bool
-  , _usrMessages :: !(List IrcMessage)
+  , _usrAccount :: Maybe ByteString
   }
   deriving (Read,Show)
+
+defaultIrcUser :: IrcUser
+defaultIrcUser = IrcUser
+  { _usrAway    = False
+  , _usrAccount = Nothing
+  }
 
 makeLenses ''IrcConnection
 makeLenses ''IrcChannel
@@ -170,12 +177,12 @@ advanceModel msg0 conn =
 
        Join who chan
          | isMyNick (userNick who) conn -> doAddChannel chan conn
-         | otherwise -> doJoinChannel who chan conn
+         | otherwise -> doJoinChannel who Nothing chan conn
 
 
-       ExtJoin who chan _account _realname
+       ExtJoin who chan account _realname
          | isMyNick (userNick who) conn -> doAddChannel chan conn
-         | otherwise -> doJoinChannel who chan conn
+         | otherwise -> doJoinChannel who account chan conn
 
        Part who chan reason
          | isMyNick (userNick who) conn ->
@@ -215,6 +222,8 @@ advanceModel msg0 conn =
        PrivMsg who chan msg -> doPrivMsg who chan msg conn
 
        Notice who chan msg -> doNotifyChannel who chan msg conn
+
+       Account who acct -> return (set (connUserIx (userNick who) . usrAccount) acct conn)
 
        RplYourId yourId -> return (set connId (Just yourId) conn)
 
@@ -346,6 +355,10 @@ advanceModel msg0 conn =
        RplEndOfWhoWas _nick ->
          doServerMessage "WHOWAS" "--END--" conn
 
+       RplHelpStart topic txt -> doServerMessage topic txt conn
+       RplHelp      topic txt -> doServerMessage topic txt conn
+       RplEndOfHelp topic     -> doServerMessage topic "--END--" conn
+
        Cap "LS" caps -> doCapLs caps conn
        Cap "ACK" caps -> doCapAck caps conn
        Cap "NACK" caps -> sendMessage capEndCmd >> return conn
@@ -406,7 +419,7 @@ doCapLs rawCaps conn =
   where
   activeCaps = intersect supportedCaps offeredCaps
   offeredCaps = B8.words rawCaps
-  supportedCaps = ["multi-prefix"] ++ saslSupport
+  supportedCaps = ["account-notify","extended-join","multi-prefix"] ++ saslSupport
   saslSupport =
     case view connSasl conn of
       Nothing -> []
@@ -669,8 +682,13 @@ doPart who chan reason conn =
                 }
          removeUser = set (chanUserAt (userNick who)) Nothing
 
-     fmap (over (connChannelIx chan) removeUser)
-          (recordMessage mesg chan conn)
+     conn1 <- fmap (over (connChannelIx chan) removeUser)
+                   (recordMessage mesg chan conn)
+
+     let stillKnown = has (connChannels . folded . chanUserIx (userNick who)) conn1
+         conn2 | stillKnown = conn1
+               | otherwise  = set (connUserAt (userNick who)) Nothing conn1
+     return conn2
 
 -- | Update an 'IrcConnection' when a user is kicked from a channel.
 doKick ::
@@ -693,17 +711,11 @@ doKick who chan tgt reason conn =
 
 doWhoReply :: Identifier -> ByteString -> IrcConnection -> Logic IrcConnection
 doWhoReply nickname flags conn =
-  return (set (connUserAt nickname) (Just $! u) conn)
+  return (over (connUserIx nickname)
+               (set usrAway away)
+               conn)
   where
   away = not (B.null flags) && B.take 1 flags == "G"
-  u = IrcUser
-        { _usrAway     = away
-        , _usrMessages = oldMessages
-        }
-  oldMessages =
-    case preview (connUserIx nickname . usrMessages) conn of
-      Nothing -> mempty
-      Just xs -> xs
 
 -- | Update an 'IrcConnection' with the quitting of a user.
 doQuit ::
@@ -746,8 +758,12 @@ doAddChannel chan conn
   channel =
     set (chanUserAt (view connNick conn)) (Just "") defaultChannel
 
-doJoinChannel :: UserInfo -> Identifier -> IrcConnection -> Logic IrcConnection
-doJoinChannel who chan conn =
+doJoinChannel ::
+  UserInfo         {- ^ who joined   -} ->
+  Maybe ByteString {- ^ account name -} ->
+  Identifier       {- ^ channel      -} ->
+  IrcConnection -> Logic IrcConnection
+doJoinChannel who mbAcct chan conn =
   do stamp <- getStamp
      let m = IrcMessage
                { _mesgType = JoinMsgType
@@ -756,9 +772,13 @@ doJoinChannel who chan conn =
                , _mesgMe = False
                , _mesgModes = ""
                }
+     let conn1 = over (connUserAt (userNick who))
+                      (\x -> Just $! set usrAccount mbAcct (fromMaybe defaultIrcUser x))
+                      conn
+
      recordMessage m chan
          $ set (connChannelIx chan . chanUserAt (userNick who)) (Just "")
-         $ conn
+         $ conn1
 
 doNotifyChannel ::
   UserInfo ->
@@ -863,14 +883,6 @@ userInfoBytestring :: UserInfo -> ByteString
 userInfoBytestring u = idBytes (userNick u)
                     <> maybe B.empty ("!" <>) (userName u)
                     <> maybe B.empty ("@" <>) (userHost u)
-
-activeChannelNames :: IrcConnection -> [Identifier]
-activeChannelNames = Map.keys . view connChannels
-
-activeUserNames :: IrcConnection -> [Identifier]
-activeUserNames = Map.keys . Map.filter isActive . view connUsers
-  where
-  isActive x = views usrMessages List.length x > 0
 
 connChannelAt :: Functor f => Identifier -> LensLike' f IrcConnection (Maybe IrcChannel)
 connChannelAt k = connChannels . at k

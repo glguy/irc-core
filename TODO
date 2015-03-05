@@ -5,4 +5,4 @@ history search ^R
 configuration file
 configurable watch terms
 automatic channel joins
-sasl support
+context sensitive tab completion: e.g. /topic should complete current topic

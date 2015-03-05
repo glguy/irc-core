@@ -1,12 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Irc.Core where
 
-import Data.Attoparsec.ByteString
 import Data.ByteString (ByteString)
-import Data.Char
 import Data.Time
 import Data.Time.Clock.POSIX
-import System.IO
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 
@@ -110,6 +107,9 @@ data MsgFromServer
 
   -- Random high-numbered stuff
   | RplWhoisSecure Identifier -- ^ 671 nick
+  | RplHelpStart ByteString ByteString -- ^ 704 topic text
+  | RplHelp      ByteString ByteString -- ^ 705 topic text
+  | RplEndOfHelp ByteString -- ^ 706 topic text
   | RplQuietList Identifier Char ByteString ByteString UTCTime -- ^ 728 channel mode mask who timestamp
   | RplEndOfQuietList Identifier Char -- ^ 729 channel mode
 
@@ -129,7 +129,7 @@ data MsgFromServer
   | Notice  UserInfo Identifier ByteString
   | Topic UserInfo Identifier ByteString
   | PrivMsg UserInfo Identifier ByteString
-  | ExtJoin UserInfo Identifier ByteString ByteString
+  | ExtJoin UserInfo Identifier (Maybe ByteString) ByteString
   | Join UserInfo Identifier
   | Nick UserInfo Identifier
   | Mode UserInfo Identifier [ByteString]
@@ -140,6 +140,7 @@ data MsgFromServer
   | Invite UserInfo Identifier
   | Error ByteString
   | Authenticate ByteString
+  | Account UserInfo (Maybe ByteString)
   deriving (Read, Show)
 
 data ChannelType = SecretChannel | PrivateChannel | PublicChannel
@@ -291,7 +292,7 @@ ircMsgToServerMsg ircmsg =
     ("371",[_,txt]) ->
        Just (RplInfo txt)
 
-    ("374",[_,txt]) ->
+    ("374",[_,_]) ->
        Just RplEndOfInfo
 
     ("375",[_,_]) -> Just RplMotdStart
@@ -310,7 +311,7 @@ ircMsgToServerMsg ircmsg =
     ("391",[_,server,txt]) ->
          Just (RplTime server txt)
 
-    ("396",[_,host,txt]) ->
+    ("396",[_,host,_]) ->
          Just (RplHostHidden host)
 
     ("401",[_,nick,_]) ->
@@ -399,6 +400,15 @@ ircMsgToServerMsg ircmsg =
     ("671",[_,nick,_]) ->
          Just (RplWhoisSecure (mkId nick))
 
+    ("704",[_,topic,txt]) ->
+         Just (RplHelpStart topic txt)
+
+    ("705",[_,topic,txt]) ->
+         Just (RplHelp topic txt)
+
+    ("706",[_,topic,_]) ->
+         Just (RplEndOfHelp topic)
+
     ("728",[_,chan,mode,banned,banner,time]) ->
          Just (RplQuietList (mkId chan) (B8.head mode) banned banner (asTimeStamp time))
 
@@ -448,7 +458,7 @@ ircMsgToServerMsg ircmsg =
 
     ("JOIN",[chan,account,real]) ->
       do who <- msgPrefix ircmsg
-         Just (ExtJoin who (mkId chan) account real)
+         Just (ExtJoin who (mkId chan) (if account == "*" then Nothing else Just account) real)
 
     ("JOIN",[chan]) ->
       do who <- msgPrefix ircmsg
@@ -495,6 +505,10 @@ ircMsgToServerMsg ircmsg =
 
     ("AUTHENTICATE",[txt]) ->
          Just (Authenticate txt)
+
+    ("ACCOUNT",[acct]) ->
+      do who <- msgPrefix ircmsg
+         Just (Account who (if acct == "*" then Nothing else Just acct))
 
     _ -> Nothing
 

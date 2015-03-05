@@ -158,10 +158,15 @@ focusedName' st =
       | otherwise -> Just c
 
 addMessage :: Identifier -> IrcMessage -> ClientState -> ClientState
-addMessage target message st =
-  over (clientMessages . at target)
-       (Just . aux . fromMaybe defaultMessageList)
-       st
+addMessage target message st
+  | view (clientConnection . connNick) st == target =
+      over (clientMessages . at (views mesgSender userNick message))
+           (Just . aux . fromMaybe defaultMessageList)
+           st
+  | otherwise =
+      over (clientMessages . at target)
+           (Just . aux . fromMaybe defaultMessageList)
+           st
   where
   aux = case views mesgType isRelevant message of
           Nothing -> over mlMessages (cons message)

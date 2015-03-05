@@ -311,6 +311,8 @@ commandEvent cmd st =
     -- raw
     "quote" :- rest -> doQuote rest st'
 
+    "help" :- topic :- "" -> st' <$ clientSend (helpCmd (B8.pack topic)) st'
+
     -- channel commands
     "join" :- c :-      "" -> doJoinCmd (toB c) Nothing st'
     "join" :- c :- k :- "" -> doJoinCmd (toB c) (Just (toB k)) st'
