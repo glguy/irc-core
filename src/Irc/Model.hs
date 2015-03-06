@@ -44,9 +44,11 @@ data IrcConnection = IrcConnection
   , _connId       :: Maybe ByteString
   , _connChanTypes :: [Word8]
   , _connUsers    :: !(Map Identifier IrcUser)
-  , _connChanModes :: IrcChanModes
+  , _connChanModes :: ModeTypes
   , _connMyInfo   :: Maybe (ByteString,ByteString)
   , _connSasl     :: Maybe (ByteString,ByteString)
+  , _connUmode    :: ByteString
+  , _connSnoMask  :: ByteString
   }
   deriving (Read, Show)
 
@@ -60,9 +62,11 @@ defaultIrcConnection = IrcConnection
   , _connChanModes = defaultChanModes -- TODO: Use ISupport
   , _connMyInfo    = Nothing
   , _connSasl      = Nothing
+  , _connUmode     = ""
+  , _connSnoMask   = ""
   }
 
-data IrcChanModes = IrcChanModes
+data ModeTypes = ModeTypes
   { _modesLists :: String
   , _modesAlwaysArg :: String
   , _modesSetArg :: String
@@ -71,14 +75,24 @@ data IrcChanModes = IrcChanModes
   }
   deriving (Read, Show)
 
-defaultChanModes :: IrcChanModes
-defaultChanModes = IrcChanModes
+defaultChanModes :: ModeTypes
+defaultChanModes = ModeTypes
   { _modesLists     = "eIbq"
   , _modesAlwaysArg = "k"
   , _modesSetArg    = "flj"
   , _modesNeverArg  = "CFLMPQScgimnprstz"
   , _modesPrefixModes = [('o','@'),('v','+')]
   }
+
+defaultUmodeTypes :: ModeTypes
+defaultUmodeTypes = ModeTypes
+  { _modesLists     = ""
+  , _modesAlwaysArg = ""
+  , _modesSetArg    = "s"
+  , _modesNeverArg  = ""
+  , _modesPrefixModes = []
+  }
+
 
 data IrcChannel = IrcChannel
   { _chanTopic :: Maybe (Maybe (Text, ByteString, UTCTime)) -- TODO: use UserInfo
@@ -147,7 +161,7 @@ makeLenses ''IrcChannel
 makeLenses ''IrcMessage
 makeLenses ''IrcUser
 makeLenses ''IrcMaskEntry
-makeLenses ''IrcChanModes
+makeLenses ''ModeTypes
 
 
 -- | Primary state machine step function. Call this function with a timestamp
@@ -295,6 +309,12 @@ advanceModel msg0 conn =
        Mode who target (modes:args) ->
          doModeChange who target modes args conn
 
+       RplSnoMask snomask ->
+         return (set connSnoMask snomask conn)
+
+       RplUmodeIs mode _params -> -- TODO: params?
+         return (set connUmode (B.tail mode) conn)
+
        ErrNoSuchNick nick ->
          doServerError ("No such nickname: " <> asUtf8 (idBytes nick)) conn
        ErrNoSuchChannel chan ->
@@ -307,8 +327,6 @@ advanceModel msg0 conn =
          doServerError ("Cannot join " <> asUtf8 (idBytes chan) <> ", you are banned.") conn
        ErrBadChannelKey chan ->
          doServerError ("Cannot join " <> asUtf8 (idBytes chan) <> ", incorrect key.") conn
-       ErrUnknownUmodeFlag ->
-         doServerError "Unknown user mode" conn
        ErrUnknownMode mode ->
          doServerError ("Unknown mode: " <> Text.pack [mode]) conn
        ErrChannelFull chan ->
@@ -317,6 +335,10 @@ advanceModel msg0 conn =
          doServerError ("Invite only channel: " <> asUtf8 (idBytes chan)) conn
        ErrWasNoSuchNick nick ->
          doServerError ("Was no nick: " <> asUtf8 (idBytes nick)) conn
+       ErrNoPrivileges ->
+         doServerError "No privileges" conn
+       ErrUnknownUmodeFlag mode ->
+         doServerError ("Unknown UMODE: " <> Text.pack [mode]) conn
 
        ErrChanOpPrivsNeeded chan ->
          recordMessage mesg chan conn
@@ -354,6 +376,11 @@ advanceModel msg0 conn =
          doServerMessage "WHOWAS" (B8.unwords [idBytes nick, user, host, real]) conn
        RplEndOfWhoWas _nick ->
          doServerMessage "WHOWAS" "--END--" conn
+
+       RplHostHidden host ->
+         doServerMessage "HOST" ("Host hidden: " <> host) conn
+       RplYoureOper txt ->
+         doServerMessage "OPER" txt conn
 
        RplHelpStart topic txt -> doServerMessage topic txt conn
        RplHelp      topic txt -> doServerMessage topic txt conn
@@ -500,14 +527,29 @@ doModeChange ::
 doModeChange who target modes0 args0 conn
   | isChannelName target conn =
       case splitModes modeSettings modes0 args0 of
-        Nothing -> return conn -- TODO: User modes
+        Nothing -> return conn
         Just ms -> doChannelModeChanges ms who target conn
 
   -- TODO: Implement user modes
-  | otherwise = return conn
+  | otherwise =
+      case splitModes defaultUmodeTypes modes0 args0 of
+        Nothing -> return conn
+        Just ms -> return (doUserModeChanges ms conn)
 
   where
   modeSettings = view connChanModes conn
+
+doUserModeChanges ::
+  [(Bool, Char, ByteString)] {- ^ [(+/-,mode,argument)] -} ->
+  IrcConnection -> IrcConnection
+doUserModeChanges ms =
+  over connUmode addModes
+  where
+  addModes bs = B.sort (foldl' aux bs ms)
+  aux bs (polarity,m,_)
+    | polarity && B8.elem m bs = bs
+    | polarity                 = B8.cons m bs
+    | otherwise                = B8.filter (/= m) bs
 
 doChannelModeChanges ::
   [(Bool, Char, ByteString)] {- ^ [(+/-,mode,argument)] -} ->
@@ -534,7 +576,7 @@ doChannelModeChanges ms who chan conn0 =
            }
 
 installModeChange ::
-  IrcChanModes {- ^ settings -} ->
+  ModeTypes  {- ^ settings -} ->
   UTCTime    {- ^ timestamp -} ->
   UserInfo   {- ^ changer -} ->
   Identifier {- ^ channel -} ->
@@ -575,7 +617,7 @@ installModeChange settings now who chan polarity mode arg
 -- | Split up a mode change command and arguments into individual changes
 -- given a configuration.
 splitModes ::
-  IrcChanModes {- ^ mode interpretation -} ->
+  ModeTypes {- ^ mode interpretation -} ->
   ByteString   {- ^ modes               -} ->
   [ByteString] {- ^ arguments           -} ->
   Maybe [(Bool,Char,ByteString)]
@@ -594,11 +636,8 @@ splitModes icm modes0 =
            do x:xs <- Just args
               fmap (cons (polarity,m,x)) (rec polarity xs)
 
-      _ | not polarity && m `elem` view modesSetArg icm
-       ||                 m `elem` view modesNeverArg icm ->
+        | otherwise -> -- default to no arg
               fmap (cons (polarity,m,"")) (rec polarity args)
-
-        | otherwise -> Nothing
 
 doMaskList ::
   (MsgFromServer -> Maybe (Identifier,ByteString,ByteString,UTCTime)) ->

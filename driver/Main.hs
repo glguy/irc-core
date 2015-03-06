@@ -463,12 +463,19 @@ textbox str pos width
 
 dividerImage :: ClientState -> Image
 dividerImage st
-  = extendToWidth
-  $ ifoldr (\i x xs -> drawOne i x <|> xs) emptyImage
-  $ fullMessageLists st
- <> extraDefaults
-
+  = extendToWidth (nickPart <|> channelPart)
   where
+  channelPart =
+    ifoldr (\i x xs -> drawOne i x <|> xs)
+           emptyImage
+           (fullMessageLists st <> extraDefaults)
+
+  nickPart =
+    identImg defAttr (view (clientConnection . connNick) st) <|>
+    string defAttr "(+" <|>
+    utf8Bytestring' defAttr (view (clientConnection . connUmode) st) <|>
+    char defAttr ')'
+
   drawOne :: Identifier -> MessageList -> Image
   drawOne i seen
     | focusedName st == i =

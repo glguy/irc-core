@@ -16,6 +16,7 @@ data MsgFromServer
   | RplCreated  ByteString -- ^ 003 "This server was created \<date\>"
   | RplMyInfo   ByteString ByteString ByteString ByteString ByteString -- ^ 004 servername version available-user-modes available-channel-modes
   | RplISupport [ByteString] -- ^ 005 *(KEY=VALUE)
+  | RplSnoMask ByteString -- ^ 008 snomask
   | RplYourId ByteString -- ^ 042 unique-id
 
   -- 200-399 Command responses
@@ -103,7 +104,7 @@ data MsgFromServer
   | ErrBanListFull Identifier ByteString -- ^ 476 channel mode
   | ErrNoPrivileges -- ^ 481
   | ErrChanOpPrivsNeeded Identifier -- ^ 482 channel
-  | ErrUnknownUmodeFlag -- ^ 501
+  | ErrUnknownUmodeFlag Char -- ^ 501 mode
 
   -- Random high-numbered stuff
   | RplWhoisSecure Identifier -- ^ 671 nick
@@ -159,13 +160,16 @@ ircMsgToServerMsg ircmsg =
     ("005",_:params) ->
        Just (RplISupport params)
 
+    ("008",[_,snomask,_]) ->
+       Just (RplSnoMask (B.tail snomask))
+
     ("042",[_,yourid,_]) ->
        Just (RplYourId yourid)
 
     ("219",[_,mode,_]) ->
        Just (RplEndOfStats mode)
 
-    ("221",_:mode:params) ->
+    ("221", _:mode:params ) ->
        Just (RplUmodeIs mode params)
 
     ("250",[_,stats]) ->
@@ -394,8 +398,8 @@ ircMsgToServerMsg ircmsg =
     ("482",[_,chan,_]) ->
          Just (ErrChanOpPrivsNeeded (mkId chan))
 
-    ("501",[_,_]) ->
-         Just ErrUnknownUmodeFlag
+    ("501",[_,mode,_]) ->
+         Just (ErrUnknownUmodeFlag (B8.head mode))
 
     ("671",[_,nick,_]) ->
          Just (RplWhoisSecure (mkId nick))
