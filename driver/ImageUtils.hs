@@ -19,7 +19,7 @@ makeLenses ''Formatting
 
 lineWrap :: Int -> Image -> [Image]
 lineWrap width img
-  | w <= width = [img]
+  | w <= width = [img <|> char defAttr ' '] -- vty forgets to turn off formatting
   | otherwise = cropRight width img : lineWrap width (cropLeft (w-width) img)
   where
   w = imageWidth img
