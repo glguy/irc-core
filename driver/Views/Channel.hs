@@ -14,6 +14,7 @@ import Data.Text (Text)
 import Data.Time (UTCTime, formatTime)
 import Graphics.Vty.Image
 import System.Locale (defaultTimeLocale)
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text as Text
@@ -76,11 +77,12 @@ compressedImageForState st
   where
   width = view clientWidth st
 
-  formatNick me = identImg (withForeColor defAttr color)
+  ncolors = views clientNickColors length st
+  formatNick me nick = identImg (withForeColor defAttr color) nick
     where
-    color
-      | me        = green
-      | otherwise = yellow
+    color | me = red
+          | otherwise = view clientNickColors st
+                     !! mod (nickHash (idDenote nick)) ncolors
 
   renderOne (CompChat modes me who what) =
       modePrefix modes <|>
@@ -89,12 +91,14 @@ compressedImageForState st
       cleanText what
 
   renderOne (CompNotice modes who what) =
+      string (withForeColor defAttr red) "! " <|>
       modePrefix modes <|>
       identImg (withForeColor defAttr red) who <|>
       string (withForeColor defAttr blue) (": ") <|>
       cleanText what
 
   renderOne (CompAction modes who what) =
+      string (withForeColor defAttr blue) "* " <|>
       modePrefix modes <|>
       identImg (withForeColor defAttr blue) who <|>
       char defAttr ' ' <|>
@@ -211,3 +215,8 @@ data CompressedMeta
   | CompPart Identifier
   | CompNick Identifier Identifier
   | CompIgnored Identifier
+
+nickHash :: ByteString -> Int
+nickHash n =
+  let h1 = B.foldl' (\acc b -> fromIntegral b + 33 * acc) 0 n
+  in h1 + (h1 `quot` 32)

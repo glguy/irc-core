@@ -61,13 +61,8 @@ main = do
   hSetBuffering hErr NoBuffering
 
   let toId = mkId . B8.pack
-      toUtf8 = Text.encodeUtf8 . Text.pack
 
-  negotiateCaps h
-  traverse_ (B.hPut h . passCmd . toUtf8) (view cmdArgPassword args)
-  B.hPut h (nickCmd (views cmdArgNick toId args))
-  B.hPut h (userCmd (views cmdArgUser toUtf8 args)
-                    (views cmdArgReal toUtf8 args))
+  initializeConnection args h
 
   vtyEventChan <- atomically newTChan
   socketChan   <- atomically newTChan
@@ -99,7 +94,20 @@ main = do
          , _clientIgnores         = mempty
          , _clientHighlights      = mempty
          , _clientMessages        = mempty
+         , _clientNickColors      = defaultNickColors
          }
+
+initializeConnection :: CommandArgs -> Handle -> IO ()
+initializeConnection args h =
+  do B.hPut h capLsCmd
+     traverse_ (B.hPut h . passCmd . toUtf8) (view cmdArgPassword args)
+     B.hPut h (nickCmd (views cmdArgNick toId args))
+     B.hPut h (userCmd (views cmdArgUser toUtf8 args)
+                       (views cmdArgReal toUtf8 args))
+  where
+
+      toUtf8 = Text.encodeUtf8 . Text.pack
+      toId = mkId . B8.pack
 
 driver :: Vty -> TChan Event -> TChan MsgFromServer -> ClientState -> IO ()
 driver vty vtyEventChan ircMsgChan st =
@@ -145,9 +153,6 @@ driver vty vtyEventChan ircMsgChan st =
          (Left e,st') -> do hPutStrLn (view clientErrors st) ("!!! " ++ e)
                             continue st'
          (Right conn',st') -> continue (set clientConnection conn' st')
-
-negotiateCaps :: Handle -> IO ()
-negotiateCaps h = B.hPut h capLsCmd
 
 interpretLogicOp :: TChan MsgFromServer -> LogicOp a -> StateT ClientState IO a
 
@@ -587,3 +592,8 @@ tabSearch pat cur users
 
   (a,b)  = Set.split cur' users
   (_,a') = Set.split pat' a
+
+defaultNickColors :: [Color]
+defaultNickColors =
+  [cyan, magenta, green, yellow, blue,
+   brightCyan, brightMagenta, brightGreen, brightBlue]

@@ -16,6 +16,7 @@ import Data.Maybe (mapMaybe,fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
+import Graphics.Vty.Image
 import System.IO (Handle)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString as B
@@ -45,6 +46,7 @@ data ClientState = ClientState
   , _clientIgnores :: !(Set Identifier)
   , _clientHighlights :: !(Set Text)
   , _clientMessages :: !(Map Identifier MessageList)
+  , _clientNickColors :: [Color]
   }
 
 data MessageList = MessageList
