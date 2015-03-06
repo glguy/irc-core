@@ -3,31 +3,25 @@
 
 module ClientState where
 
-import Control.Applicative (Applicative)
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.Lens
 import Data.ByteString (ByteString)
-import Data.CaseInsensitive (CI)
-import Data.Foldable (toList)
 import Data.Functor
 import Data.List (elemIndex)
 import Data.Map (Map)
-import Data.Maybe (mapMaybe,fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
 import Graphics.Vty.Image
 import System.IO (Handle)
 import qualified Data.CaseInsensitive as CI
-import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 import Irc.Format
 import Irc.Model
-import Irc.List (List)
-import qualified Irc.List as List
 
 import EditBox (EditBox)
 import qualified EditBox as Edit

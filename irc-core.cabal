@@ -16,7 +16,6 @@ library
                        Irc.Core.Prisms
                        Irc.Cmd
                        Irc.Model
-                       Irc.List
                        Irc.Format
                        Irc.RateLimit
 

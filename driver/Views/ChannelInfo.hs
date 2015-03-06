@@ -9,9 +9,7 @@ import Data.Monoid
 import Graphics.Vty.Image
 import ImageUtils
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 
 import Irc.Format
 import Irc.Model
@@ -26,8 +24,6 @@ channelInfoImage chan st =
                  ++ urlLines
                  ++ usersLines
       where
-      width = view clientWidth st
-
       topicLines =
         case view chanTopic channel of
           Nothing -> [string (withForeColor defAttr red) "Unknown topic"]

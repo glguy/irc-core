@@ -12,8 +12,6 @@ import Control.Monad.Free
 import Control.Monad.Trans.Error
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
-import Data.CaseInsensitive (CI)
-import Data.Char (chr)
 import Data.Char (ord)
 import Data.List (foldl',find,nub,delete,intersect)
 import Data.Map (Map)
@@ -35,8 +33,6 @@ import Irc.Format
 import Irc.Cmd
 import Irc.Core
 import Irc.Core.Prisms
-import Irc.List (List)
-import qualified Irc.List as List
 
 data IrcConnection = IrcConnection
   { _connNick     :: Identifier
@@ -388,7 +384,7 @@ advanceModel msg0 conn =
 
        Cap "LS" caps -> doCapLs caps conn
        Cap "ACK" caps -> doCapAck caps conn
-       Cap "NACK" caps -> sendMessage capEndCmd >> return conn
+       Cap "NACK" _caps -> sendMessage capEndCmd >> return conn
        RplSaslAborted -> return conn
 
        _ -> fail ("Unsupported: " ++ show msg0)
@@ -478,6 +474,8 @@ doSasl user pass conn =
        RplSaslFail ->
          do doServerMessage "SASL" "Authentication failed" conn
 
+       _ -> fail "Bad SASL interaction"
+
 
 encodePlainAuthentication ::
   ByteString {- ^ username -} ->
@@ -564,7 +562,7 @@ doChannelModeChanges ms who chan conn0 =
 
   aux now conn (polarity,m,a)
     = fmap (over (connChannelIx chan)
-                 (installModeChange settings now who chan polarity m a))
+                 (installModeChange settings now who polarity m a))
            (recordMessage modeMsg chan conn)
     where
     modeMsg = IrcMessage
@@ -579,12 +577,11 @@ installModeChange ::
   ModeTypes  {- ^ settings -} ->
   UTCTime    {- ^ timestamp -} ->
   UserInfo   {- ^ changer -} ->
-  Identifier {- ^ channel -} ->
   Bool       {- ^ +/-     -} ->
   Char       {- ^ mode    -} ->
   ByteString {- ^ argument -} ->
   IrcChannel -> IrcChannel
-installModeChange settings now who chan polarity mode arg
+installModeChange settings now who polarity mode arg
 
 
   -- Handle bans, exceptions, invex, quiets

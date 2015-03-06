@@ -2,7 +2,6 @@ module Views.BanList where
 
 import ClientState
 import Control.Lens
-import Data.ByteString (ByteString)
 import Graphics.Vty.Image
 
 import Irc.Format
@@ -22,8 +21,3 @@ renderEntry entry =
   <|> utf8Bytestring' (withForeColor defAttr green) (view maskEntryWho entry)
   <|> string defAttr " - "
   <|> string (withForeColor defAttr yellow) (show (view maskEntryStamp entry))
-
-startFromBottom :: ClientState -> Image -> Image
-startFromBottom st img = pad 0 top 0 0 img
-  where
-  top = max 0 (view clientHeight st - 4 - imageHeight img)

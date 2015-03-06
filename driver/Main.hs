@@ -12,10 +12,8 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Free
 import Control.Monad.Trans.State
-import Control.Monad.Trans.Class
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
-import Data.CaseInsensitive (CI)
 import Data.Char
 import Data.Foldable (traverse_)
 import Data.Functor

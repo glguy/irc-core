@@ -4,8 +4,6 @@ module Views.Channel where
 import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Monoid
-import Data.CaseInsensitive (CI)
-import Data.Char (isControl)
 import Data.Foldable (toList)
 import Data.List (stripPrefix, intersperse)
 import Data.Maybe (mapMaybe)
@@ -16,7 +14,6 @@ import Graphics.Vty.Image
 import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BS8
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Text as Text
 
 import Irc.Format
@@ -30,7 +27,6 @@ detailedImageForState st
   = map renderOne
   $ activeMessages st
   where
-  width = view clientWidth st
   renderOne x =
       renderTimestamp (view mesgStamp x) <|>
       string (withForeColor defAttr blue) (ty ++ " ") <|>
@@ -65,7 +61,6 @@ activeMessages st =
     Just nick -> filter (nickFilter (BS8.pack nick)) (toList msgs)
   where
   msgs = view (clientMessages . ix (focusedName st) . mlMessages) st
-  conn = view clientConnection st
   nickFilter nick msg
     = views mesgSender userNick msg == mkId nick
 
@@ -104,8 +99,8 @@ compressedImageForState st
       char defAttr ' ' <|>
       cleanText what
 
-  renderOne (CompKick op who reason) =
-      identImg (withForeColor defAttr yellow) op <|>
+  renderOne (CompKick kicker who reason) =
+      identImg (withForeColor defAttr yellow) kicker <|>
       string (withForeColor defAttr red) " kicked " <|>
       identImg (withForeColor defAttr yellow) who <|>
       string (withForeColor defAttr blue) (": ") <|>
@@ -190,14 +185,14 @@ meta ignores acc (x:xs) =
       QuitMsgType{} -> meta ignores (CompQuit nick : acc) xs
       PartMsgType{} -> meta ignores (CompPart nick : acc) xs
       NickMsgType nick' -> meta ignores (CompNick nick nick' : acc) xs
-      PrivMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
-      ActionMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
-      NoticeMsgType{} | ignored -> meta ignores (CompIgnored nick : acc) xs
+      PrivMsgType{} | ignore -> meta ignores (CompIgnored nick : acc) xs
+      ActionMsgType{} | ignore -> meta ignores (CompIgnored nick : acc) xs
+      NoticeMsgType{} | ignore -> meta ignores (CompIgnored nick : acc) xs
       _ -> CompMeta (reverse acc) : compressMessages ignores (x:xs)
 
   where
   nick = views mesgSender userNick x
-  ignored = view (contains nick) ignores
+  ignore = view (contains nick) ignores
 
 data CompressedMessage
   = CompChat String Bool Identifier Text
