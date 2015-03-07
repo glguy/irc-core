@@ -289,12 +289,12 @@ commandEvent cmd st =
       return (set clientFocus (ChannelInfoFocus chan) st')
 
     "bans" :- "" | Just chan <- focusedName' st ->
-      return (set clientFocus (MaskListFocus 'b' chan) st')
+      doMasksCmd chan 'b' st'
 
     "masks" :- [mode] :- ""
       | mode `elem` view (clientConnection . connChanModes . modesLists) st
       , Just chan <- focusedName' st ->
-      return (set clientFocus (MaskListFocus mode chan) st')
+        doMasksCmd chan mode st'
 
     -- chat
     "me" :- msg ->
@@ -368,6 +368,21 @@ commandEvent cmd st =
   st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
   toId = mkId . toB
+
+doMasksCmd ::
+  Identifier {- ^ channel -} ->
+  Char       {- ^ mode    -} ->
+  ClientState -> IO ClientState
+doMasksCmd chan mode st =
+  do unless masksKnown $
+       clientSend (modeCmd chan [B8.pack ['+',mode]]) st
+     return (set clientFocus (MaskListFocus mode chan) st)
+  where
+  masksKnown = has ( clientConnection
+                   . connChannelIx chan
+                   . chanMaskLists
+                   . ix mode
+                   ) st
 
 doTopicCmd :: Identifier -> ByteString -> ClientState -> IO ClientState
 doTopicCmd chan topic st =
@@ -660,6 +675,7 @@ doAutoKickBan ::
   Text       {- ^ reason  -} ->
   ClientState -> IO ClientState
 doAutoKickBan chan nick reason st =
+  -- TODO: Look up account name or hostname!
   do clientSend (modeCmd chan ["+b",idDenote nick <> "!*@*"]) st
      clientSend (kickCmd chan nick (Text.encodeUtf8 reason)) st
      return st
