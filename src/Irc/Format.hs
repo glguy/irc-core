@@ -4,6 +4,7 @@ module Irc.Format
   ( UserInfo(..)
   , RawIrcMsg(..)
   , parseRawIrcMsg
+  , parseUserInfo
   , renderRawIrcMsg
   , ircGetLine
   , Identifier
@@ -70,7 +71,7 @@ parseRawIrcMsg x =
      if y == 58
        then case duplicate (tokens ys) of
               prefix : command : rest ->
-                return $! RawIrcMsg (Just (parsePrefix prefix))
+                return $! RawIrcMsg (Just (parseUserInfo prefix))
                                     command
                                     rest
               _ -> Nothing
@@ -89,11 +90,11 @@ tokens x =
     _            -> let (a,b) = B.break (==32) x
                     in a : tokens (B.drop 1 b)
 
--- | Split up a message prefix into a nickname, username, and hostname.
+-- | Split up a hostmask into a nickname, username, and hostname.
 -- The username and hostname might not be defined but are delimited by
--- a @!@ and @@@ respectively.
-parsePrefix :: ByteString -> UserInfo
-parsePrefix x = UserInfo
+-- a @!@ and @\@@ respectively.
+parseUserInfo :: ByteString -> UserInfo
+parseUserInfo x = UserInfo
   { userNick = mkId nick
   , userName = if B.null user then Nothing else Just (B.drop 1 user)
   , userHost = if B.null host then Nothing else Just (B.drop 1 host)

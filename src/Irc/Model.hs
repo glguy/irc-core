@@ -3,6 +3,11 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternGuards #-}
+
+
+-- | This module implements a high-level view of the state of
+-- the IRC connection. The library user calls 'advanceModel' to
+-- step the 'IrcConnection' as new messages arrive.
 module Irc.Model where
 
 import Control.Applicative
@@ -526,7 +531,7 @@ doCapLs rawCaps conn =
   activeCaps = intersect supportedCaps offeredCaps
   offeredCaps = B8.words rawCaps
   supportedCaps = saslSupport
-               ++ ["away-notify","account-notify",
+               ++ ["away-notify","account-notify","userhost-in-names",
                    "extended-join","multi-prefix"]
   saslSupport =
     case view connSasl conn of
@@ -986,7 +991,9 @@ doNameReply chan xs conn =
        where
        modeMap = view (connChanModes . modesPrefixModes) conn
        users = Map.fromList
+             $ map (over _1 userNick) -- drop hostname for now
              $ map (splitNamesReplyName modeMap) xs
+         -- TODO : Record userhost
 
 -- | Compute the nickname and channel modes from an entry in
 -- a NAMES reply. The leading channel prefixes are translated
@@ -994,7 +1001,7 @@ doNameReply chan xs conn =
 splitNamesReplyName ::
   [(Char,Char)]        {- ^ [(mode,prefix)]   -} ->
   ByteString           {- ^ names entry       -} ->
-  (Identifier, String) {- ^ (nickname, modes) -}
+  (UserInfo, String) {- ^ (nickname, modes) -}
 splitNamesReplyName modeMap = aux []
   where
   aux modes n =
@@ -1003,7 +1010,7 @@ splitNamesReplyName modeMap = aux []
         | Just (mode,_) <- find (\(_mode,symbol) -> x == symbol) modeMap
         -> aux (mode:modes) xs
 
-      _                 -> (mkId n,modes)
+      _ -> (parseUserInfo n,modes)
 
 ------------------------------------------------------------------------
 -- Type describing computations that will require zero or more messages
