@@ -286,7 +286,7 @@ commandEvent cmd st =
       return (set clientFocus (ChannelFocus (toId chan)) st')
 
     "channelinfo" :- "" | Just chan <- focusedName' st ->
-      return (set clientFocus (ChannelInfoFocus chan) st')
+      doChannelInfoCmd chan st'
 
     "bans" :- "" | Just chan <- focusedName' st ->
       doMasksCmd chan 'b' st'
@@ -368,6 +368,20 @@ commandEvent cmd st =
   st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
   toId = mkId . toB
+
+doChannelInfoCmd ::
+  Identifier {- ^ channel -} ->
+  ClientState -> IO ClientState
+doChannelInfoCmd chan st =
+  do unless modesKnown $
+       clientSend (modeCmd chan []) st
+     return (set clientFocus (ChannelInfoFocus chan) st)
+  where
+  modesKnown = has ( clientConnection
+                   . connChannelIx chan
+                   . chanModes
+                   . folded
+                   ) st
 
 doMasksCmd ::
   Identifier {- ^ channel -} ->
