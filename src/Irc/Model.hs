@@ -257,7 +257,7 @@ advanceModel msg0 conn =
        RplNameReply _ chan xs -> doNameReply chan xs conn
        RplEndOfNames _ -> return conn
 
-       RplChannelModeIs chan modes -> doChannelModeIs chan modes conn
+       RplChannelModeIs chan modes params -> doChannelModeIs chan modes params conn
 
        RplCreationTime chan creation ->
          return (set (connChannelIx chan . chanCreation) (Just creation) conn)
@@ -538,7 +538,9 @@ doCapLs rawCaps conn =
       Nothing -> []
       Just{}  -> ["sasl"]
 
-doCapAck :: ByteString -> IrcConnection -> Logic IrcConnection
+doCapAck ::
+  ByteString {- ^ raw, spaces delimited caps list -} ->
+  IrcConnection -> Logic IrcConnection
 doCapAck rawCaps conn =
   do let ackCaps = B8.words rawCaps
 
@@ -549,7 +551,11 @@ doCapAck rawCaps conn =
      sendMessage capEndCmd
      return conn'
 
-doSasl :: ByteString -> ByteString -> IrcConnection -> Logic IrcConnection
+-- | Complete SASL PLAIN authentication
+doSasl ::
+  ByteString {- ^ SASL authentication/authorization name -} ->
+  ByteString {- ^ SASL password -} ->
+  IrcConnection -> Logic IrcConnection
 doSasl user pass conn =
   do sendMessage (authenticateCmd "PLAIN")
      Authenticate "+" <- getMessage
@@ -575,12 +581,15 @@ encodePlainAuthentication user pass
   = Base64.encode
   $ B8.intercalate "\0" [user,user,pass]
 
-doChannelModeIs :: Identifier -> [ByteString] -> IrcConnection -> Logic IrcConnection
-doChannelModeIs chan []           conn =
-  return (set (connChannelIx chan . chanModes) (Just mempty ) conn)
-doChannelModeIs chan (modes:args) conn =
+
+doChannelModeIs ::
+  Identifier {- ^ Channel -} ->
+  ByteString {- ^ modes -} ->
+  [ByteString] {- ^ mode parameters -} ->
+  IrcConnection -> Logic IrcConnection
+doChannelModeIs chan modes args conn =
   case splitModes (view connChanModes conn) modes args of
-    Nothing -> fail "Bad modeis string"
+    Nothing -> fail "Bad mode string"
     Just xs -> return (set (connChannelIx chan . chanModes) (Just modeMap) conn)
       where
       modeMap = Map.fromList [ (mode,arg) | (True,mode,arg) <- xs ]

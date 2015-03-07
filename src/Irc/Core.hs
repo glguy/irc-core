@@ -48,7 +48,7 @@ data MsgFromServer
   | RplListStart -- ^ 321
   | RplList Identifier ByteString ByteString -- ^ 322 channel usercount topic
   | RplListEnd -- ^ 323
-  | RplChannelModeIs Identifier [ByteString] -- ^ 324 channel *(modes)
+  | RplChannelModeIs Identifier ByteString [ByteString] -- ^ 324 channel modes *(params)
   | RplNoTopicSet Identifier -- ^ 331 channel
   | RplTopic Identifier ByteString -- ^ 332 channel topic
   | RplChannelUrl Identifier ByteString -- ^ 328 channel url
@@ -240,8 +240,8 @@ ircMsgToServerMsg ircmsg =
     ("323",[]) ->
        Just RplListEnd
 
-    ("324",_:chan:modes) ->
-       Just (RplChannelModeIs (mkId chan) modes)
+    ("324",_:chan:modes:params) ->
+       Just (RplChannelModeIs (mkId chan) modes params)
 
     ("328",[_,chan,url]) ->
        Just (RplChannelUrl (mkId chan) url)
