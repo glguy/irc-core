@@ -184,32 +184,12 @@ advanceModel msg0 conn =
        RplGlobalUsers _ _   -> return conn
        RplStatsConn _       -> return conn
 
-
-       Join who chan
-         | isMyNick (userNick who) conn -> doAddChannel chan conn
-         | otherwise -> doJoinChannel who Nothing chan conn
-
-
-       ExtJoin who chan account _realname
-         | isMyNick (userNick who) conn -> doAddChannel chan conn
-         | otherwise -> doJoinChannel who account chan conn
-
-       Part who chan reason
-         | isMyNick (userNick who) conn ->
-            return (set (connChannelAt chan) Nothing conn)
-         | otherwise -> doPart who chan reason conn
-
-       Kick who chan tgt reason
-         | isMyNick tgt conn ->
-            return (set (connChannelAt chan) Nothing conn)
-         | otherwise -> doKick who chan tgt reason conn
-
+       Join who chan -> doJoinChannel who Nothing chan conn
+       ExtJoin who chan account _realname -> doJoinChannel who account chan conn
+       Part who chan reason -> doPart who chan reason conn
+       Kick who chan tgt reason -> doKick who chan tgt reason conn
        Quit who reason -> doQuit who reason conn
-
-       Nick who newnick
-         | isMyNick (userNick who) conn -> doNick who newnick
-                                         $ set connNick newnick conn
-         | otherwise -> doNick who newnick conn
+       Nick who newnick -> doNick who newnick conn
 
        RplChannelUrl chan url ->
             return (set (connChannelIx chan . chanUrl)
@@ -233,7 +213,8 @@ advanceModel msg0 conn =
 
        Notice who chan msg -> doNotifyChannel who chan msg conn
 
-       Account who acct -> return (set (connUserIx (userNick who) . usrAccount) acct conn)
+       Account who acct ->
+         return (set (connUserIx (userNick who) . usrAccount) acct conn)
 
        RplYourId yourId -> return (set connId (Just yourId) conn)
 
@@ -256,7 +237,9 @@ advanceModel msg0 conn =
        RplIsOn nicks -> return (doIsOn nicks conn)
 
        RplBanList chan mask who when ->
-         doMaskList (preview _RplBanList) (has _RplEndOfBanList) 'b' chan
+         doMaskList (preview _RplBanList)
+                    (has _RplEndOfBanList)
+                    'b' chan
                     [IrcMaskEntry
                       { _maskEntryMask  = mask
                       , _maskEntryWho   = who
@@ -267,7 +250,9 @@ advanceModel msg0 conn =
          return (set (connChannelIx chan . chanMaskLists . at 'b') (Just []) conn)
 
        RplInviteList chan mask who when ->
-         doMaskList (preview _RplInviteList) (has _RplEndOfInviteList) 'I' chan
+         doMaskList (preview _RplInviteList)
+                    (has _RplEndOfInviteList)
+                    'I' chan
                     [IrcMaskEntry
                       { _maskEntryMask  = mask
                       , _maskEntryWho   = who
@@ -278,7 +263,9 @@ advanceModel msg0 conn =
          return (set (connChannelIx chan . chanMaskLists . at 'I') (Just []) conn)
 
        RplExceptionList chan mask who when ->
-         doMaskList (preview _RplExceptionList) (has _RplEndOfExceptionList) 'e' chan
+         doMaskList (preview _RplExceptionList)
+                    (has _RplEndOfExceptionList)
+                    'e' chan
                     [IrcMaskEntry
                       { _maskEntryMask  = mask
                       , _maskEntryWho   = who
@@ -679,17 +666,21 @@ doNick who newnick conn =
                 , _mesgModes = ""
                 , _mesgMe = False
                 }
-     conn' <- iforOf (connChannels . itraversed) conn (updateChannel m)
 
-     return $ over connUsers updateUsers conn'
+     let conn1 | isMyNick (userNick who) conn =
+                        set connNick newnick conn
+               | otherwise = conn
+
+         conn2 = set (connUserAt newnick)
+                     (view (connUserAt (userNick who)) conn1)
+               $ set (connUserAt (userNick who))
+                     Nothing
+               $ conn1
+
+     iforOf (connChannels . itraversed) conn2 (updateChannel m)
+
   where
   oldnick = userNick who
-
-  updateUsers :: Map Identifier IrcUser -> Map Identifier IrcUser
-  updateUsers users
-     = set (at oldnick) Nothing
-     $ set (at newnick)
-           (view (at oldnick) users) users
 
   updateChannel :: IrcMessage -> Identifier -> IrcChannel -> Logic IrcChannel
   updateChannel m tgt chan
@@ -721,10 +712,17 @@ doPart who chan reason conn =
      conn1 <- fmap (over (connChannelIx chan) removeUser)
                    (recordMessage mesg chan conn)
 
-     let stillKnown = has (connChannels . folded . chanUserIx (userNick who)) conn1
+     let stillKnown = has (connChannels . folded . chanUserIx (userNick who))
+                          conn1
+
          conn2 | stillKnown = conn1
                | otherwise  = set (connUserAt (userNick who)) Nothing conn1
-     return conn2
+
+         conn3 | isMyNick (userNick who) conn =
+                    set (connChannelAt chan) Nothing conn2
+               | otherwise = conn2
+
+     return conn3
 
 -- | Update an 'IrcConnection' when a user is kicked from a channel.
 doKick ::
@@ -742,7 +740,19 @@ doKick who chan tgt reason conn =
                 , _mesgModes = ""
                 , _mesgMe = False
                 }
-     recordMessage mesg chan conn
+
+     let stillKnown = has (connChannels . folded . chanUserIx (userNick who))
+                          conn1
+
+         conn1 | stillKnown = conn
+               | otherwise  = set (connUserAt (userNick who)) Nothing conn
+
+         conn2
+           | isMyNick tgt conn =
+                set (connChannelAt chan) Nothing conn1
+           | otherwise = conn1
+
+     recordMessage mesg chan conn2
 
 
 doWhoReply :: Identifier -> ByteString -> IrcConnection -> Logic IrcConnection
@@ -801,20 +811,32 @@ doJoinChannel ::
   IrcConnection -> Logic IrcConnection
 doJoinChannel who mbAcct chan conn =
   do stamp <- getStamp
-     let m = IrcMessage
+
+     -- add channel if necessary
+     let conn1
+           | isMyNick (userNick who) conn =
+               set (connChannelAt chan) (Just defaultChannel) conn
+           | otherwise = conn
+
+     -- add user to channel
+         conn2 = set (connChannelIx chan . chanUserAt (userNick who))
+                     (Just "") -- empty modes
+                     conn1
+
+     -- update user record
+         conn3 = over (connUserAt (userNick who))
+                      (Just . set usrAccount mbAcct . fromMaybe defaultIrcUser)
+                      conn2
+
+     -- record join event
+         m = IrcMessage
                { _mesgType = JoinMsgType
                , _mesgSender = who
                , _mesgStamp = stamp
                , _mesgMe = False
                , _mesgModes = ""
                }
-     let conn1 = over (connUserAt (userNick who))
-                      (\x -> Just $! set usrAccount mbAcct (fromMaybe defaultIrcUser x))
-                      conn
-
-     recordMessage m chan
-         $ set (connChannelIx chan . chanUserAt (userNick who)) (Just "")
-         $ conn1
+     recordMessage m chan conn3
 
 doNotifyChannel ::
   UserInfo ->
@@ -926,13 +948,13 @@ connChannelAt k = connChannels . at k
 connChannelIx :: Applicative f => Identifier -> LensLike' f IrcConnection IrcChannel
 connChannelIx k = connChannels . ix k
 
-connUserAt :: Applicative f => Identifier -> LensLike' f IrcConnection (Maybe IrcUser)
+connUserAt :: Functor f => Identifier -> LensLike' f IrcConnection (Maybe IrcUser)
 connUserAt k = connUsers . at k
 
 connUserIx :: Applicative f => Identifier -> LensLike' f IrcConnection IrcUser
 connUserIx k = connUsers . ix k
 
-chanUserAt :: Applicative f => Identifier -> LensLike' f IrcChannel (Maybe String)
+chanUserAt :: Functor f => Identifier -> LensLike' f IrcChannel (Maybe String)
 chanUserAt k = chanUsers . at k
 
 chanUserIx :: Applicative f => Identifier -> LensLike' f IrcChannel String
