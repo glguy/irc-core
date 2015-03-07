@@ -356,8 +356,8 @@ commandEvent cmd st =
 
     "nick" :- nick :- "" -> st' <$ clientSend (nickCmd (toId nick)) st'
 
-    "op" :- "" | Just chan <- focusedName' st ->
-         st' <$ clientSend (privMsgCmd (mkId "chanserv") ("op " <> idBytes chan)) st'
+    "op" :- args | Just chan <- focusedName' st ->
+        doChanservOpCmd chan (map B8.pack (words args)) st'
 
     "akb" :- nick :- reason | Just chan <- focusedName' st ->
        doWithOps chan (doAutoKickBan chan (toId nick) (Text.pack reason)) st'
@@ -368,6 +368,15 @@ commandEvent cmd st =
   st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
   toId = mkId . toB
+
+doChanservOpCmd ::
+  Identifier   {- ^ channel -} ->
+  [ByteString] {- ^ optional arguments -} ->
+  ClientState -> IO ClientState
+doChanservOpCmd chan args st =
+  do clientSend (privMsgCmd (mkId "chanserv")
+                            (B8.unwords ("op":idBytes chan:args))) st
+     return st
 
 doChannelInfoCmd ::
   Identifier {- ^ channel -} ->
