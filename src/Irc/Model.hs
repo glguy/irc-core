@@ -429,7 +429,9 @@ doCapLs rawCaps conn =
   where
   activeCaps = intersect supportedCaps offeredCaps
   offeredCaps = B8.words rawCaps
-  supportedCaps = ["account-notify","extended-join","multi-prefix"] ++ saslSupport
+  supportedCaps = saslSupport
+               ++ ["away-notify","account-notify",
+                   "extended-join","multi-prefix"]
   saslSupport =
     case view connSasl conn of
       Nothing -> []
