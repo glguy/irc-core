@@ -10,6 +10,30 @@ Library
 
 This package is split into a generic IRC modeling library and a VTY-base text client using that library.
 
+Client Features
+===============
+
+* Subsequent joins and parts fold into one line and do not scroll chat messages off the screen
+* Ignore support that folds ignored messages into the joins and parts. Toggle it off to see previously hidden messages
+* Detailed view to see all the messages in a channel in full detail with hostmask and timestamp (F2)
+* Nick tab completion
+* SASL authentication
+* New message notification
+* Customizable mention filter (looks for your nick plus extra search terms)
+* View ban, quiet, invex, and exception lists
+* Support for rendering colors and formatting
+* Haskell source code highlighting (/hs)
+* Write your modifications in Haskell ^_^
+
+No SSL?
+=======
+
+I haven't implemented SSL support, but you can use a tool like socat(1) to get an SSL connection to your favorite IRC server
+
+```
+$ socat TCP-LISTEN:6697,fork,reuseaddr OPENSSL-CONNECT:chat.freenode.net:6697,verify=0
+```
+
 Startup
 =======
 
