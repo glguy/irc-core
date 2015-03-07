@@ -93,6 +93,7 @@ main = do
          , _clientHighlights      = mempty
          , _clientMessages        = mempty
          , _clientNickColors      = defaultNickColors
+         , _clientAutomation      = []
          }
 
 initializeConnection :: CommandArgs -> Handle -> IO ()
@@ -163,7 +164,9 @@ interpretLogicOp _ (Emit bytes r) =
      return r
 
 interpretLogicOp _ (Record target message r) =
-  do modify (addMessage target message)
+  do st <- get
+     st1 <- liftIO (runEventHandlers target message st)
+     put (addMessage target message st1)
      return r
 
 ------------------------------------------------------------------------
@@ -325,13 +328,16 @@ commandEvent cmd st =
                                     (map toB (words args))) st'
 
     "mode" :- args | Just chan <- focusedName' st ->
-         st' <$ clientSend (modeCmd chan (map toB (words args))) st'
+       doWithOps chan (\evSt ->
+         evSt <$ clientSend (modeCmd chan (map toB (words args))) evSt) st'
 
     "kick" :- nick :- msg | Just chan <- focusedName' st ->
-         st' <$ clientSend (kickCmd chan (toId nick) (toB msg)) st'
+       doWithOps chan (\evSt ->
+         evSt <$ clientSend (kickCmd chan (toId nick) (toB msg)) evSt) st'
 
     "remove" :- nick :- msg | Just chan <- focusedName' st ->
-         st' <$ clientSend (removeCmd chan (toId nick) (toB msg)) st'
+       doWithOps chan (\evSt ->
+         evSt <$ clientSend (removeCmd chan (toId nick) (toB msg)) evSt) st'
 
     "part" :- msg | Just chan <- focusedName' st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
@@ -352,6 +358,9 @@ commandEvent cmd st =
 
     "op" :- "" | Just chan <- focusedName' st ->
          st' <$ clientSend (privMsgCmd (mkId "chanserv") ("op " <> idBytes chan)) st'
+
+    "akb" :- nick :- reason | Just chan <- focusedName' st ->
+       doWithOps chan (doAutoKickBan chan (toId nick) (Text.pack reason)) st'
 
     _ -> return st
 
@@ -602,3 +611,55 @@ defaultNickColors :: [Color]
 defaultNickColors =
   [cyan, magenta, green, yellow, blue,
    brightCyan, brightMagenta, brightGreen, brightBlue]
+
+
+
+
+doWithOps ::
+  Identifier {- ^ channel -} ->
+  (ClientState -> IO ClientState) {- ^ privileged operation -} ->
+  ClientState -> IO ClientState
+doWithOps chan privop st
+    | alreadyOp = finishUp False st
+    | otherwise = getOpFirst
+
+  where
+  myNick = view (clientConnection . connNick) st
+
+  alreadyOp =
+    elemOf ( clientConnection
+           . connChannelIx chan
+           . chanUserIx myNick
+           . folded)
+           'o'
+           st
+
+  handler = EventHandler
+    { _evName = "Get op for privop"
+    , _evOnEvent = \evTgt evMsg evSt ->
+         case view mesgType evMsg of
+           ModeMsgType True 'o' modeNick
+             | mkId modeNick == myNick
+             , evTgt    == chan -> finishUp True evSt
+           _ -> return (over clientAutomation (cons handler) evSt)
+    }
+
+  finishUp deop st1 =
+    do st2 <- privop st1
+       when deop $
+         clientSend (modeCmd chan ["-o",idDenote myNick]) st2
+       return st2
+
+  getOpFirst =
+    do clientSend (privMsgCmd "chanserv" ("op " <> idDenote chan)) st
+       return (over clientAutomation (cons handler) st)
+
+doAutoKickBan ::
+  Identifier {- ^ channel -} ->
+  Identifier {- ^ nick    -} ->
+  Text       {- ^ reason  -} ->
+  ClientState -> IO ClientState
+doAutoKickBan chan nick reason st =
+  do clientSend (modeCmd chan ["+b",idDenote nick <> "!*@*"]) st
+     clientSend (kickCmd chan nick (Text.encodeUtf8 reason)) st
+     return st

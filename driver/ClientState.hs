@@ -5,6 +5,7 @@ module ClientState where
 
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.Lens
+import Control.Monad (foldM)
 import Data.ByteString (ByteString)
 import Data.Functor
 import Data.List (elemIndex)
@@ -41,6 +42,7 @@ data ClientState = ClientState
   , _clientHighlights :: !(Set Text)
   , _clientMessages :: !(Map Identifier MessageList)
   , _clientNickColors :: [Color]
+  , _clientAutomation :: [EventHandler]
   }
 
 data MessageList = MessageList
@@ -62,8 +64,14 @@ data Focus
   | MaskListFocus Char Identifier
   deriving (Eq, Ord, Read, Show)
 
+data EventHandler = EventHandler
+  { _evName :: String
+  , _evOnEvent :: Identifier -> IrcMessage -> ClientState -> IO ClientState
+  }
+
 makeLenses ''ClientState
 makeLenses ''MessageList
+makeLenses ''EventHandler
 makePrisms ''Focus
 
 resetCurrentChannelMessages :: ClientState -> ClientState
@@ -187,3 +195,12 @@ fullMessageLists st
   <> views (clientConnection . connChannels)
            (defaultMessageList <$)
            st
+  <> Map.singleton "" defaultMessageList
+
+runEventHandlers :: Identifier -> IrcMessage -> ClientState -> IO ClientState
+runEventHandlers tgt msg st0 = foldM aux st1 hs
+  where
+  st1 = set clientAutomation [] st0
+  hs  = view clientAutomation st0
+
+  aux st h = view evOnEvent h tgt msg st

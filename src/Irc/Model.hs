@@ -300,22 +300,12 @@ advanceModel msg0 conn =
 
        ErrNoSuchNick nick ->
          doServerError ("No such nickname: " <> asUtf8 (idBytes nick)) conn
-       ErrNoSuchChannel chan ->
-         doServerError ("No such channel: " <> asUtf8 (idBytes chan)) conn
        ErrNoSuchService serv ->
          doServerError ("No such service: " <> asUtf8 (idBytes serv)) conn
        ErrNoSuchServer server ->
          doServerError ("No such server: " <> asUtf8 server) conn
-       ErrBannedFromChan chan ->
-         doServerError ("Cannot join " <> asUtf8 (idBytes chan) <> ", you are banned.") conn
-       ErrBadChannelKey chan ->
-         doServerError ("Cannot join " <> asUtf8 (idBytes chan) <> ", incorrect key.") conn
        ErrUnknownMode mode ->
          doServerError ("Unknown mode: " <> Text.pack [mode]) conn
-       ErrChannelFull chan ->
-         doServerError ("Channel is full: " <> asUtf8 (idBytes chan)) conn
-       ErrInviteOnlyChan chan ->
-         doServerError ("Invite only channel: " <> asUtf8 (idBytes chan)) conn
        ErrWasNoSuchNick nick ->
          doServerError ("Was no nick: " <> asUtf8 (idBytes nick)) conn
        ErrNoPrivileges ->
@@ -323,16 +313,22 @@ advanceModel msg0 conn =
        ErrUnknownUmodeFlag mode ->
          doServerError ("Unknown UMODE: " <> Text.pack [mode]) conn
 
+       ErrUserNotInChannel nick chan ->
+         doChannelError chan ("Not in channel: " <> asUtf8 (idBytes nick)) conn
+       ErrNotOnChannel chan ->
+         doChannelError chan "Must join channel" conn
        ErrChanOpPrivsNeeded chan ->
-         recordMessage mesg chan conn
-         where
-         mesg = IrcMessage
-           { _mesgType    = ErrorMsgType "Channel privileges needed"
-           , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
-           , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
-           }
+         doChannelError chan "Channel privileges needed" conn
+       ErrBadChannelKey chan ->
+         doChannelError chan "Bad channel key" conn
+       ErrBannedFromChan chan ->
+         doChannelError chan "Unable to join due to ban" conn
+       ErrChannelFull chan ->
+         doChannelError chan "Channel is full" conn
+       ErrInviteOnlyChan chan ->
+         doChannelError chan "Invite only channel" conn
+       ErrNoSuchChannel chan ->
+         doChannelError chan "No such channel" conn
 
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map
@@ -375,6 +371,21 @@ advanceModel msg0 conn =
        RplSaslAborted -> return conn
 
        _ -> fail ("Unsupported: " ++ show msg0)
+
+doChannelError ::
+  Identifier {- ^ channel -} ->
+  Text       {- ^ error   -} ->
+  IrcConnection -> Logic IrcConnection
+doChannelError chan reason conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+           { _mesgType    = ErrorMsgType reason
+           , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
+           , _mesgStamp   = stamp
+           , _mesgMe      = False
+           , _mesgModes   = ""
+           }
+     recordMessage mesg chan conn
 
 -- | Event handler when receiving a new privmsg.
 -- The message will be passed along as an event.
@@ -743,18 +754,22 @@ doKick who chan tgt reason conn =
                 , _mesgMe = False
                 }
 
-     let stillKnown = has (connChannels . folded . chanUserIx (userNick who))
+     let conn1 = set (connChannelIx chan . chanUserAt tgt)
+                     Nothing
+                     conn
+
+         stillKnown = has (connChannels . folded . chanUserIx (userNick who))
                           conn1
 
-         conn1 | stillKnown = conn
-               | otherwise  = set (connUserAt (userNick who)) Nothing conn
+         conn2 | stillKnown = conn1
+               | otherwise  = set (connUserAt (userNick who)) Nothing conn1
 
-         conn2
-           | isMyNick tgt conn =
-                set (connChannelAt chan) Nothing conn1
-           | otherwise = conn1
+         conn3
+           | isMyNick tgt conn2 =
+                set (connChannelAt chan) Nothing conn2
+           | otherwise = conn2
 
-     recordMessage mesg chan conn2
+     recordMessage mesg chan conn3
 
 
 doWhoReply :: Identifier -> ByteString -> IrcConnection -> Logic IrcConnection
