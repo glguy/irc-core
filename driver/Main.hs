@@ -164,9 +164,9 @@ interpretLogicOp _ (Emit bytes r) =
      return r
 
 interpretLogicOp _ (Record target message r) =
-  do st <- get
-     st1 <- liftIO (runEventHandlers target message st)
-     put (addMessage target message st1)
+  do put =<< liftIO . runEventHandlers target message
+                    . addMessage target message
+         =<< get
      return r
 
 ------------------------------------------------------------------------

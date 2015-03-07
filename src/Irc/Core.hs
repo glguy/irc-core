@@ -83,13 +83,13 @@ data MsgFromServer
   | ErrCannotSendToChan Identifier -- ^ 404 channel
   | ErrTooManyChannels Identifier -- ^ 405 channel
   | ErrWasNoSuchNick Identifier -- ^ 406 nick
-  | ErrTooManyTargets Identifier ByteString -- ^ 407 target "\<error code\> recipients. \<abort message\>"
+  | ErrTooManyTargets Identifier -- ^ 407 target
   | ErrNoSuchService Identifier -- ^ 408 target
-  | ErrNoRecipient ByteString -- ^ 411 "No recipient given (\<command\>)"
+  | ErrNoRecipient -- ^ 411
   | ErrNoTextToSend -- ^ 412
   | ErrUnknownCommand ByteString -- ^ 421 command
   | ErrNoMotd -- ^ 422
-  | ErrNoAdminInfo ByteString -- ^ 423 server
+  | ErrNoAdminInfo -- ^ 423
   | ErrNickInUse -- ^ 433
   | ErrUserNotInChannel Identifier Identifier -- ^ 441 nick channel
   | ErrNotOnChannel Identifier -- ^ 442 channel
@@ -103,7 +103,7 @@ data MsgFromServer
   | ErrBannedFromChan Identifier -- ^ 474 channel
   | ErrBadChannelKey Identifier -- ^ 475 channel
   | ErrBadChannelMask Identifier -- ^ 476 channel
-  | ErrBanListFull Identifier ByteString -- ^ 476 channel mode
+  | ErrBanListFull Identifier Char -- ^ 476 channel mode
   | ErrNoPrivileges -- ^ 481
   | ErrChanOpPrivsNeeded Identifier -- ^ 482 channel
   | ErrUnknownUmodeFlag Char -- ^ 501 mode
@@ -338,14 +338,14 @@ ircMsgToServerMsg ircmsg =
     ("406",[_,nick,_]) ->
          Just (ErrWasNoSuchNick (mkId nick))
 
-    ("407",[_,target,txt]) ->
-         Just (ErrTooManyTargets (mkId target )txt)
+    ("407",[_,target,_]) ->
+         Just (ErrTooManyTargets (mkId target))
 
     ("408",[_,target,_]) ->
          Just (ErrNoSuchService (mkId target))
 
-    ("411",[_,txt]) ->
-         Just (ErrNoRecipient txt)
+    ("411",[_,_]) ->
+         Just ErrNoRecipient
 
     ("412",[_,_]) ->
          Just ErrNoTextToSend
@@ -356,8 +356,8 @@ ircMsgToServerMsg ircmsg =
     ("422",[_,_]) ->
          Just ErrNoMotd
 
-    ("423",[_,server,_]) ->
-         Just (ErrNoAdminInfo server)
+    ("423",[_,_,_]) ->
+         Just ErrNoAdminInfo
 
     ("433",[_,_]) -> Just ErrNickInUse
 
@@ -398,7 +398,7 @@ ircMsgToServerMsg ircmsg =
          Just (ErrBadChannelMask (mkId chan))
 
     ("478",[_,chan,mode,_]) ->
-         Just (ErrBanListFull (mkId chan )mode)
+         Just (ErrBanListFull (mkId chan) (B8.head mode))
 
     ("481",[_,_]) ->
          Just ErrNoPrivileges
@@ -506,7 +506,6 @@ ircMsgToServerMsg ircmsg =
 
     ("INVITE",[_,chan]) ->
       do who <- msgPrefix ircmsg
-         [_] <- Just (msgParams ircmsg)
          Just (Invite who (mkId chan))
 
     ("CAP",[_,cmd,txt]) ->

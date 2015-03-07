@@ -165,9 +165,7 @@ makeLenses ''ModeTypes
 -- messages are required they will be requested via the 'Logic' type.
 advanceModel :: MsgFromServer -> IrcConnection -> Logic IrcConnection
 advanceModel msg0 conn =
-  do stamp <- getStamp
-     case msg0 of
-
+  case msg0 of
        Ping x -> sendMessage (pongCmd x) >> return conn
 
        RplWelcome  txt -> doServerMessage "Welcome" txt conn
@@ -176,6 +174,7 @@ advanceModel msg0 conn =
        RplMyInfo host version _ _ _ ->
          return (set connMyInfo (Just (host,version)) conn)
 
+       -- Random uninteresting statistics
        RplLuserOp _         -> return conn
        RplLuserChannels _   -> return conn
        RplLuserMe _         -> return conn
@@ -183,6 +182,25 @@ advanceModel msg0 conn =
        RplLocalUsers _ _    -> return conn
        RplGlobalUsers _ _   -> return conn
        RplStatsConn _       -> return conn
+       RplEndOfStats _      -> return conn
+       RplLuserUnknown _    -> return conn
+       RplLuserAdminMe _    -> return conn
+       RplLuserAdminLoc1 _  -> return conn
+       RplLuserAdminLoc2 _  -> return conn
+       RplLuserAdminEmail _ -> return conn
+
+       -- Channel list not implemented
+       RplListStart     -> return conn
+       RplList _ _ _    -> return conn
+       RplListEnd       -> return conn
+
+       RplUserHost host ->
+         doServerMessage "USERHOST" (B8.unwords host) conn
+
+       RplTime _server time -> doServerMessage "TIME" time conn
+
+       RplInfo _ -> return conn
+       RplEndOfInfo -> return conn
 
        Join who chan -> doJoinChannel who Nothing chan conn
        ExtJoin who chan account _realname -> doJoinChannel who account chan conn
@@ -206,6 +224,8 @@ advanceModel msg0 conn =
             return (set (connChannelIx chan . chanTopic)
                         (Just (Just (asUtf8 topic,who,time)))
                         conn)
+       RplTopicWhoTime _ _ _ ->
+          fail "Unexpected RPL_TOPICWHOTIME"
 
        Topic who chan topic -> doTopic who chan topic conn
 
@@ -213,8 +233,15 @@ advanceModel msg0 conn =
 
        Notice who chan msg -> doNotifyChannel who chan msg conn
 
+       Invite who chan ->
+         doServerMessage "INVITE"
+           (userInfoBytestring who <> " " <> idBytes chan) conn
+
        Account who acct ->
          return (set (connUserIx (userNick who) . usrAccount) acct conn)
+
+       Away who _msg ->
+         return (set (connUserIx (userNick who) . usrAway) True conn)
 
        RplYourId yourId -> return (set connId (Just yourId) conn)
 
@@ -223,6 +250,7 @@ advanceModel msg0 conn =
        RplMotd x    -> doServerMessage "MOTD" x conn
 
        RplNameReply _ chan xs -> doNameReply chan xs conn
+       RplEndOfNames _ -> return conn
 
        RplChannelModeIs chan modes -> doChannelModeIs chan modes conn
 
@@ -289,6 +317,7 @@ advanceModel msg0 conn =
        RplEndOfQuietList chan mode ->
          return (set (connChannelIx chan . chanMaskLists . at mode) (Just []) conn)
 
+       Mode _ _ [] -> fail "Unexpected MODE"
        Mode who target (modes:args) ->
          doModeChange who target modes args conn
 
@@ -298,21 +327,44 @@ advanceModel msg0 conn =
        RplUmodeIs mode _params -> -- TODO: params?
          return (set connUmode (B.tail mode) conn)
 
-       ErrNoSuchNick nick ->
-         doServerError ("No such nickname: " <> asUtf8 (idBytes nick)) conn
        ErrNoSuchService serv ->
          doServerError ("No such service: " <> asUtf8 (idBytes serv)) conn
        ErrNoSuchServer server ->
          doServerError ("No such server: " <> asUtf8 server) conn
        ErrUnknownMode mode ->
          doServerError ("Unknown mode: " <> Text.pack [mode]) conn
-       ErrWasNoSuchNick nick ->
-         doServerError ("Was no nick: " <> asUtf8 (idBytes nick)) conn
        ErrNoPrivileges ->
          doServerError "No privileges" conn
        ErrUnknownUmodeFlag mode ->
          doServerError ("Unknown UMODE: " <> Text.pack [mode]) conn
+       ErrUnknownCommand cmd ->
+         doServerError ("Unknown command: " <> asUtf8 cmd) conn
+       ErrNoTextToSend ->
+         doServerError "No text to send" conn
+       ErrNoMotd ->
+         doServerError "No MOTD" conn
+       ErrNoRecipient ->
+         doServerError "No recipient" conn
+       ErrNoAdminInfo ->
+         doServerError "No admin info" conn
+       ErrNickInUse ->
+         doServerError "Nick in use" conn
+       ErrNeedMoreParams cmd ->
+         doServerError ("Need more parameters: " <> asUtf8 cmd) conn
+       ErrAlreadyRegistered ->
+         doServerError "Already registered" conn
+       ErrNoPermForHost ->
+         doServerError "No permission for host" conn
+       ErrPasswordMismatch ->
+         doServerError "Password mismatch" conn
 
+       ErrNoSuchNick nick ->
+         doChannelError nick "No such nick" conn
+       ErrWasNoSuchNick nick ->
+         doChannelError nick "Was no such nick" conn
+
+       ErrTooManyChannels chan ->
+         doChannelError chan "Too many channels joined" conn
        ErrUserNotInChannel nick chan ->
          doChannelError chan ("Not in channel: " <> asUtf8 (idBytes nick)) conn
        ErrNotOnChannel chan ->
@@ -321,6 +373,8 @@ advanceModel msg0 conn =
          doChannelError chan "Channel privileges needed" conn
        ErrBadChannelKey chan ->
          doChannelError chan "Bad channel key" conn
+       ErrBadChannelMask chan ->
+         doChannelError chan "Bad channel mask" conn
        ErrBannedFromChan chan ->
          doChannelError chan "Unable to join due to ban" conn
        ErrChannelFull chan ->
@@ -329,6 +383,12 @@ advanceModel msg0 conn =
          doChannelError chan "Invite only channel" conn
        ErrNoSuchChannel chan ->
          doChannelError chan "No such channel" conn
+       ErrCannotSendToChan chan ->
+         doChannelError chan "Cannot send to channel" conn
+       ErrTooManyTargets target ->
+         doChannelError target "Too many targets" conn
+       ErrBanListFull chan mode  ->
+         doChannelError chan ("Ban list full: " <> Text.singleton mode) conn
 
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map
@@ -348,6 +408,8 @@ advanceModel msg0 conn =
          doServerMessage "WHOIS" ("Logged in as: " <> account) conn
        RplWhoisModes _nick modes args ->
          doServerMessage "WHOIS" ("Modes: " <> B8.unwords (modes:args)) conn
+       RplWhoisOperator _nick txt  ->
+         doServerMessage "WHOIS" ("Operator: " <> txt) conn
        RplEndOfWhois _nick ->
          doServerMessage "WHOIS" "--END--" conn
 
@@ -368,9 +430,32 @@ advanceModel msg0 conn =
        Cap "LS" caps -> doCapLs caps conn
        Cap "ACK" caps -> doCapAck caps conn
        Cap "NACK" _caps -> sendMessage capEndCmd >> return conn
+       Cap _ _ -> fail "Unexpected CAP"
        RplSaslAborted -> return conn
 
-       _ -> fail ("Unsupported: " ++ show msg0)
+       RplNickLocked ->
+         doServerError "Nickname locked" conn
+       RplLoggedIn account ->
+         doServerMessage "LOGIN" account conn
+       RplLoggedOut ->
+         doServerMessage "LOGOUT" "" conn
+       RplSaslSuccess ->
+         doServerError "Unexpected SASL Success" conn
+       RplSaslFail ->
+         doServerError "Unexpected SASL Fail" conn
+       RplSaslTooLong ->
+         doServerError "Unexpected SASL Too Long" conn
+       RplSaslAlready ->
+         doServerError "Unexpected SASL Already" conn
+       RplSaslMechs _ ->
+         doServerError "Unexpected SASL Mechanism List" conn
+       Authenticate _ ->
+         doServerError "Unexpected Authenticate" conn
+
+       Error e ->
+         doServerError (asUtf8 e) conn
+
+       RplISupport _ -> fail "Unsupported isupport"
 
 doChannelError ::
   Identifier {- ^ channel -} ->
