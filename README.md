@@ -24,6 +24,7 @@ Client Features
 * Support for rendering colors and formatting
 * Haskell source code highlighting (/hs)
 * Write your modifications in Haskell ^_^
+* Chanserv automation (automatically requests op from chanserv for privileged commands)
 
 No SSL?
 =======
