@@ -5,6 +5,8 @@
 {-# LANGUAGE ViewPatterns #-}
 module Main where
 
+import qualified Control.Applicative as A
+import Control.Applicative hiding ((<|>))
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception
@@ -40,6 +42,7 @@ import Irc.RateLimit
 
 import ImageUtils
 import CommandArgs
+import CommandParser
 import HaskellHighlighter
 import ClientState
 import Views.Channel
@@ -175,36 +178,45 @@ interpretLogicOp _ (Record target message r) =
 -- Key Event Handlers!
 ------------------------------------------------------------------------
 
+changeInput :: (Edit.EditBox -> Edit.EditBox) -> ClientState -> ClientState
+changeInput f st = clearTabPattern (over clientEditBox f st)
+   
+inputLogic :: ClientState -> (Image, Maybe (IO ClientState))
+inputLogic st = runParser p (clientInput st)
+  where
+  p = pChar '/' *> commandEvent st
+      A.<|>
+      doSendMessageCurrent SendPriv st <$ pRemaining
+
 keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
 keyEvent (KFun 2)    []      st = return $ over clientDetailView not st
 keyEvent KPageUp     _       st = return $ scrollUp st
 keyEvent KPageDown   _       st = return $ scrollDown st
 keyEvent (KChar 'n') [MCtrl] st = return $ nextFocus st
 keyEvent (KChar 'p') [MCtrl] st = return $ prevFocus st
-keyEvent KBS         _       st = return $ clearTabPattern $ over clientEditBox Edit.backspace st
-keyEvent (KChar 'd') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.delete st
-keyEvent KDel        _       st = return $ clearTabPattern $ over clientEditBox Edit.delete st
+keyEvent KBS         _       st = return $ changeInput Edit.backspace st
+keyEvent (KChar 'd') [MCtrl] st = return $ changeInput Edit.delete st
+keyEvent KDel        _       st = return $ changeInput Edit.delete st
 keyEvent KUp         _       st = return $ maybe st clearTabPattern $ clientEditBox Edit.earlier st
 keyEvent KDown       _       st = return $ maybe st clearTabPattern $ clientEditBox Edit.later st
-keyEvent KLeft       _       st = return $ clearTabPattern $ over clientEditBox Edit.left st
-keyEvent KRight      _       st = return $ clearTabPattern $ over clientEditBox Edit.right st
-keyEvent KHome       _       st = return $ clearTabPattern $ over clientEditBox Edit.home st
-keyEvent KEnd        _       st = return $ clearTabPattern $ over clientEditBox Edit.end st
-keyEvent (KChar 'a') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.home st
-keyEvent (KChar 'e') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.end st
-keyEvent (KChar 'u') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.killHome st
-keyEvent (KChar 'k') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.killEnd st
-keyEvent (KChar 'w') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.killWord st
-keyEvent (KChar 'b') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.left st
-keyEvent (KChar 'f') [MCtrl] st = return $ clearTabPattern $ over clientEditBox Edit.right st
-keyEvent (KChar 'b') [MMeta] st = return $ clearTabPattern $ over clientEditBox Edit.leftWord st
-keyEvent (KChar 'f') [MMeta] st = return $ clearTabPattern $ over clientEditBox Edit.rightWord st
+keyEvent KLeft       _       st = return $ changeInput Edit.left st
+keyEvent KRight      _       st = return $ changeInput Edit.right st
+keyEvent KHome       _       st = return $ changeInput Edit.home st
+keyEvent KEnd        _       st = return $ changeInput Edit.end st
+keyEvent (KChar 'a') [MCtrl] st = return $ changeInput Edit.home st
+keyEvent (KChar 'e') [MCtrl] st = return $ changeInput Edit.end st
+keyEvent (KChar 'u') [MCtrl] st = return $ changeInput Edit.killHome st
+keyEvent (KChar 'k') [MCtrl] st = return $ changeInput Edit.killEnd st
+keyEvent (KChar 'w') [MCtrl] st = return $ changeInput Edit.killWord st
+keyEvent (KChar 'b') [MCtrl] st = return $ changeInput Edit.left st
+keyEvent (KChar 'f') [MCtrl] st = return $ changeInput Edit.right st
+keyEvent (KChar 'b') [MMeta] st = return $ changeInput Edit.leftWord st
+keyEvent (KChar 'f') [MMeta] st = return $ changeInput Edit.rightWord st
 keyEvent (KChar '\t') []     st = return $ tabComplete st
-keyEvent (KChar c)   []      st = return $ clearTabPattern $ over clientEditBox (Edit.insert c) st
-keyEvent KEnter      []      st = case clientInput st of
-                                    []          -> return st
-                                    '/':command -> commandEvent command st
-                                    _           -> doSendMessageCurrent SendPriv st
+keyEvent (KChar c)   []      st = return $ changeInput (Edit.insert c) st
+keyEvent KEnter      []      st = case snd (inputLogic st) of
+                                    Just m  -> m
+                                    Nothing -> return st
 keyEvent _           _       st = return st
 
 
@@ -222,7 +234,8 @@ scrollDown st = over clientScrollPos (\x -> max 0 (x - scrollOffset st)) st
 doSendMessageCurrent :: SendType -> ClientState -> IO ClientState
 doSendMessageCurrent sendType st =
   case view clientFocus st of
-    ChannelFocus c ->
+    ChannelFocus c
+      | not (null (dropWhile isSpace (clientInput st))) ->
       doSendMessage
         sendType
         c
@@ -273,23 +286,23 @@ splitArg xs
   (a,b) = break isSpace xs
 
 
-commandEvent :: String -> ClientState -> IO ClientState
-commandEvent cmd st =
-  case cmd of
+commandEvent :: ClientState -> Parser (IO ClientState)
+commandEvent st =
 
     -- focus setting
-    "server" :- ""  ->
-      return (set clientFocus (ChannelFocus "") st')
+    (return (set clientFocus (ChannelFocus "") st))
+    <$ pCommand "server"
+  A.<|>
+    (\user -> return (set clientFocus (ChannelFocus user) st))
+    <$> (pCommand "query" *> pNick st)
+  A.<|>
+    (\chan -> return (set clientFocus (ChannelFocus chan) st))
+    <$> (pCommand "channel" *> pChannel st)
+  A.<|>
+    (doChannelInfoCmd st)
+    <$ pCommand "channelinfo"
 
-    "query"  :- user :- "" ->
-      return (set clientFocus (ChannelFocus (toId user)) st')
-
-    "channel" :- chan :- "" ->
-      return (set clientFocus (ChannelFocus (toId chan)) st')
-
-    "channelinfo" :- "" | Just chan <- focusedChan st ->
-      doChannelInfoCmd chan st'
-
+{-
     "bans" :- "" | Just chan <- focusedChan st ->
       doMasksCmd chan 'b' st'
 
@@ -377,9 +390,8 @@ commandEvent cmd st =
        doWithOps chan (doAutoKickBan chan (toId nick) (Text.pack reason)) st'
 
     _ -> return st
-
+  -}
   where
-  st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
   toId = mkId . toB
 
@@ -419,18 +431,22 @@ doChanservOpCmd chan args st =
      return st
 
 doChannelInfoCmd ::
-  Identifier {- ^ channel -} ->
   ClientState -> IO ClientState
-doChannelInfoCmd chan st =
-  do unless modesKnown $
+doChannelInfoCmd st
+
+  | Just chan <- focusedChan st =
+
+  do let modesKnown
+           = has ( clientConnection
+           . connChannels . ix chan
+           . chanModes
+           . folded
+           ) st
+     unless modesKnown $
        clientSend (modeCmd chan []) st
-     return (set clientFocus (ChannelInfoFocus chan) st)
-  where
-  modesKnown = has ( clientConnection
-                   . connChannels . ix chan
-                   . chanModes
-                   . folded
-                   ) st
+     return (clearInput (set clientFocus (ChannelInfoFocus chan) st))
+
+  | otherwise = return st
 
 doMasksCmd ::
   Identifier {- ^ channel -} ->
@@ -482,10 +498,7 @@ picForState st = (scroll', pic)
                          (view clientHeight st - 1)
     , picLayers =
         [ translateY (view clientHeight st - 2)
-             (divider <->
-              textbox (clientInput st)
-                      (view (clientEditBox. Edit.pos) st)
-                      (view clientWidth st))
+             (divider <-> textbox st)
         , everythingBeforeInput
         ]
     , picBackground = ClearBackground
@@ -564,11 +577,15 @@ maskListTitle 'I' = "Invite exceptions"
 maskListTitle 'e' = "Ban exceptions"
 maskListTitle m   = "Unknown '" ++ [m] ++ "' masks"
 
-textbox :: String -> Int -> Int -> Image
-textbox str pos width
+textbox :: ClientState -> Image
+textbox st 
   = applyCrop
-  $ beginning <|> string defAttr str <|> ending
+  $ beginning <|> content <|> ending
   where
+  str = clientInput st
+  pos = view (clientEditBox. Edit.pos) st
+  width = view clientWidth st
+  (content,_) = inputLogic st
   applyCrop
     | pos < width = cropRight width
     | otherwise   = cropLeft  width . cropRight (pos+2)

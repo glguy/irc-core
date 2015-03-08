@@ -81,6 +81,7 @@ executable glirc
   main-is: Main.hs
   other-modules: ClientState
                  CommandArgs
+                 CommandParser
                  EditBox
                  HaskellHighlighter
                  ImageUtils

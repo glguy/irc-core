@@ -1204,6 +1204,7 @@ isMyNick nick conn = nick == view connNick conn
 isChannelName :: Identifier -> IrcConnection -> Bool
 isChannelName c conn =
   case B.uncons (idBytes c) of
-    Just (x,_) -> x `elem` view connChanTypes conn
+    Just (x,xs) -> not (B.null xs)
+                && x `elem` view connChanTypes conn
     _ -> False -- probably shouldn't happen
 
