@@ -14,6 +14,7 @@ module CommandParser
   , pChar
   , pSatisfy
   , pHaskell
+  , commandsParser
   ) where
 
 import Data.Char
@@ -46,31 +47,30 @@ import ImageUtils
 -- render to image
 
 
-newtype Parser a = Parser (String -> (String, Image, Bool, Maybe a))
+newtype Parser a = Parser (String -> (String, Image, Maybe a))
   deriving (Functor)
 
 runParser :: Parser a -> String -> (Image, Maybe a)
 runParser (Parser p) s
-  | all isSpace rest && commit = (img Vty.<|> string defAttr rest, res)
+  | all isSpace rest = (img Vty.<|> string defAttr rest, res)
   | otherwise = (img Vty.<|> string (withForeColor defAttr red) rest, Nothing)
   where
-  (rest,img,commit,res) = p s
+  (rest,img,res) = p s
 
 instance Applicative Parser where
-  pure x = Parser (\s -> (s,emptyImage,False,Just x))
+  pure x = Parser (\s -> (s,emptyImage,Just x))
   Parser f <*> Parser x = Parser (\s -> case f s of
-                                          (s1,i1,c1,r1) ->
+                                          (s1,i1,r1) ->
                                              case x s1 of
-                                               (s2,i2,c2,r2) ->
-                                                 let c3 = c1 || has _Just r1 && c2
-                                                 in (s2,i1 Vty.<|> i2,c3,r1<*>r2))
+                                               (s2,i2,r2) ->
+                                                 (s2,i1 Vty.<|> i2,r1<*>r2))
 
 instance Alternative Parser where
-  empty = Parser (\s -> (s,emptyImage,False,Nothing))
+  empty = Parser (\s -> (s,emptyImage,Nothing))
   Parser x <|> Parser y = Parser $ \s ->
     case (x s,y s) of
-      (rx@(_,_,True,_),_)-> rx
-      ((_,_,_,_),ry@(_,_,True,_)) -> ry
+      (rx@(_,_,Just{}),_) -> rx
+      (_,ry@(_,_,Just{})) -> ry
       (rx,_) -> rx
 
 pValidToken :: String -> (String -> Maybe a) -> Parser a
@@ -82,17 +82,16 @@ pValidToken name validate = Parser $ \s ->
        then ("", char defAttr ' ' Vty.<|>
                  string (withStyle defAttr reverseVideo) name Vty.<|>
                  string defAttr (drop (length name + 1) w)
-              , False
               , Nothing)
        else case validate t of
-              Just x -> (s2, img green, True, Just x)
-              Nothing -> (s2, img red, True, Nothing)
+              Just x -> (s2, img green, Just x)
+              Nothing -> (s2, img red, Nothing)
 
 pToken :: String -> Parser String
 pToken name = pValidToken name Just
 
 pRemaining :: Parser String
-pRemaining = Parser (\s -> ("", string defAttr s, True, Just s))
+pRemaining = Parser (\s -> ("", string defAttr s, Just s))
 
 pRemainingNoSp :: Parser String
 pRemainingNoSp = fmap (dropWhile isSpace) pRemaining
@@ -121,18 +120,35 @@ pChar c = pSatisfy [c] (== c)
 pSatisfy :: String -> (Char -> Bool) -> Parser Char
 pSatisfy name f = Parser (\s ->
           case s of
-            c1:s1 | f c1 -> (s1, char defAttr c1, True, Just c1)
-                  | otherwise -> (s1, emptyImage, False, Nothing)
-            [] -> (s, string (withStyle defAttr reverseVideo) (' ':name), False, Nothing))
+            c1:s1 | f c1 -> (s1, char defAttr c1, Just c1)
+                  | otherwise -> (s1, emptyImage, Nothing)
+            [] -> (s, string (withStyle defAttr reverseVideo) (' ':name), Nothing))
 
 pCommand :: String -> Parser ()
 pCommand cmd = Parser (\s ->
           let (t,s1) = break (==' ') s
           in if cmd == t
-                then (s1, string (withForeColor defAttr yellow) t, True, Just ())
-                else (s, emptyImage, False, Nothing))
+                then (s1, string (withForeColor defAttr yellow) t, Just ())
+                else (s, emptyImage, Nothing))
 
 pHaskell :: Parser String
 pHaskell = Parser (\s ->
-            ("", cleanText (Text.pack (highlightHaskell s)), True,
+            ("", cleanText (Text.pack (highlightHaskell s)),
                         Just (drop 1 (highlightHaskell s))))
+
+commandsParser ::
+  String ->
+  [(String, Parser a)] ->
+  (Image, Maybe a)
+commandsParser input cmds =
+  case lookup cmd cmds of
+    Just p -> over _1 (\img -> char defAttr '/' Vty.<|>
+                               string (withForeColor defAttr yellow) cmd Vty.<|>
+                               img)
+                      (runParser p rest)
+
+    Nothing -> ( char defAttr '/' Vty.<|>
+                 string (withForeColor defAttr red) (drop 1 input)
+               , Nothing)
+  where
+  (cmd,rest) = break (==' ') (drop 1 input)
