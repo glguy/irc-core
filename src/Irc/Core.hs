@@ -1,5 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Irc.Core where
+
+-- | This module provides a bridge between the low-level text protocol that
+-- IRC uses and the high-level events in the "Irc.Model" module.
+module Irc.Core
+  ( MsgFromServer(..)
+  , ircMsgToServerMsg
+  ) where
 
 import Data.ByteString (ByteString)
 import Data.Time
@@ -9,6 +15,10 @@ import qualified Data.ByteString.Char8 as B8
 
 import Irc.Format
 
+-- | 'MsgFromServer' provides a typed view of the various IRC protocol messages.
+-- There are more messages defined for IRC (and many of those overlap) than
+-- are in common use. Please report a bug if a common message is missing
+-- from this type.
 data MsgFromServer
   -- 001-099 Client-server connection messages
   = RplWelcome  ByteString -- ^ 001 "Welcome to the Internet Relay Network \<nick\>!\<user\>\@\<host\>"

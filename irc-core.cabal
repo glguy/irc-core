@@ -1,15 +1,58 @@
 name:                irc-core
 version:             0.1
-synopsis:            IRC client library and client
-homepage:            github.com/glguy/irc-core
+homepage:            https://github.com/glguy/irc-core
+bug-reports:         https://github.com/glguy/irc-core/issues
 license:             BSD3
 license-file:        LICENSE
 author:              Eric Mertens
-maintainer:          emertens@gmail.com
+maintainer:          Eric Mertens <emertens@gmail.com>
 copyright:           2015 Eric Mertens
 category:            Network
 build-type:          Simple
 cabal-version:       >=1.10
+synopsis:            An IRC client library and text client
+description:
+  This package provides an IRC connection library as well as a console-based IRC client
+  that uses the library.
+  .
+  /Library module breakdown/
+  .
+  * "Irc.Format" - Functions for parsing and rendering low-level IRC protocol messages
+  .
+  * "Irc.Cmd" - Functions for generating IRC protocol message for client-to-server
+  .
+  * "Irc.Core" - Functions for parsing low-level IRC messages into mid-level IRC messages
+  .
+  * "Irc.Core.Prisms" - Prisms for all of the mid-level IRC message constructors
+  .
+  * "Irc.Model" - Functions for interpreting mid-level IRC messages to generate high-level
+                  event messages and to maintain a consistent view of the connection
+  .
+  * "Irc.RateLimit" - Functions to assist with rate-limiting outgoing client messages
+  .
+  /Library module breakdown/
+  .
+  * "Main" - Main client module
+  .
+  * "ClientState" - Types and operations representing the full state of the client
+  .
+  * "CommandArgs" - Types and functions for interpreting the initial client configuration
+  .
+  * "EditBox" - Types and functions for managing the input box along the bottom of the client
+  .
+  * "HaskelHighlighter" - Haskell syntax highlighting support
+  .
+  * "ImageUtils" - Functions to support the various views
+  .
+  * "Views.BanList" - Functions to generate the ban list view
+  .
+  * "Views.Channel" - Functions to generate message list views
+  .
+  * "Views.ChannelInfo" - Functions to generate metadata views for channels
+  .
+  See the associated README file for help using the client.
+
+extra-source-files: README.md
 
 library
   exposed-modules:     Irc.Core
@@ -37,13 +80,13 @@ library
 executable glirc
   main-is: Main.hs
   other-modules: ClientState
-                 Views.Channel
-                 Views.ChannelInfo
-                 Views.BanList
-                 ImageUtils
                  CommandArgs
                  EditBox
                  HaskellHighlighter
+                 ImageUtils
+                 Views.BanList
+                 Views.Channel
+                 Views.ChannelInfo
   hs-source-dirs: driver
   ghc-options: -threaded
   build-depends: irc-core,
@@ -62,3 +105,7 @@ executable glirc
                  haskell-lexer    >= 1.0      && < 1.1,
                  transformers     >= 0.2      && < 0.5
   default-language:    Haskell2010
+
+source-repository head
+  type: git
+  location: git://github.com/glguy/irc-core.git
