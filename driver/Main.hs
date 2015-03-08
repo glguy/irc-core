@@ -109,18 +109,20 @@ initializeConnection args h =
       toId = mkId . B8.pack
 
 driver :: Vty -> TChan Event -> TChan MsgFromServer -> ClientState -> IO ()
-driver vty vtyEventChan ircMsgChan st =
-  do update vty (picForState st)
+driver vty vtyEventChan ircMsgChan st0 =
+  do let (scroll', pic) = picForState st0
+         st1 = set clientScrollPos scroll' st0
+     update vty pic
      e <- readEitherTChan vtyEventChan ircMsgChan
      case e of
-       Left vtyEvent -> processVtyEvent vtyEvent
-       Right msg     -> processIrcMsg   msg
+       Left vtyEvent -> processVtyEvent st1 vtyEvent
+       Right msg     -> processIrcMsg st1 msg
 
   where
   continue = driver vty vtyEventChan ircMsgChan
            . resetCurrentChannelMessages
 
-  processVtyEvent event =
+  processVtyEvent st event =
     case event of
       -- quit
       EvKey KEsc _ -> return ()
@@ -138,7 +140,7 @@ driver vty vtyEventChan ircMsgChan st =
 
       _ -> continue st
 
-  processIrcMsg msg =
+  processIrcMsg st msg =
     do now <- getCurrentTime
 
        let m :: IO (Either String IrcConnection, ClientState)
@@ -425,23 +427,24 @@ doQuote cmd st = st <$ clientSend (Text.encodeUtf8 (Text.pack (cmd ++ "\r\n"))) 
 -- Primary UI rendering
 ------------------------------------------------------------------------
 
-picForState :: ClientState -> Picture
-picForState st = Picture
-  { picCursor = Cursor (min (view clientWidth st - 1)
-                            (view (clientEditBox. Edit.pos) st+1))
-                       (view clientHeight st - 1)
-  , picLayers =
-      [ translateY (view clientHeight st - 2)
-           (divider <->
-            textbox (clientInput st)
-                    (view (clientEditBox. Edit.pos) st)
-                    (view clientWidth st))
-      , everythingBeforeInput
-      ]
-  , picBackground = ClearBackground
-  }
-
+picForState :: ClientState -> (Int,Picture)
+picForState st = (scroll', pic)
   where
+  pic = Picture
+    { picCursor = Cursor (min (view clientWidth st - 1)
+                              (view (clientEditBox. Edit.pos) st+1))
+                         (view clientHeight st - 1)
+    , picLayers =
+        [ translateY (view clientHeight st - 2)
+             (divider <->
+              textbox (clientInput st)
+                      (view (clientEditBox. Edit.pos) st)
+                      (view clientWidth st))
+        , everythingBeforeInput
+        ]
+    , picBackground = ClearBackground
+    }
+
   everythingBeforeInput = vertCat
     [ titlebar
     , string defAttr (replicate (view clientWidth st) '─')
@@ -461,10 +464,13 @@ picForState st = Picture
     = startFromBottom
     . vertCat
     . reverse
-    . take (view clientHeight st - 4)
-    . drop (view clientScrollPos st)
-    . concatMap (reverse . lineWrap (view clientWidth st))
-    $ mainFocusLines
+    $ scrolledLines
+
+  (scroll', scrolledLines) = scrollList (view clientHeight st - 4)
+                                        (view clientScrollPos st)
+                                        wrappedLines
+
+  wrappedLines = reverse . lineWrap (view clientWidth st) =<< mainFocusLines
 
   mainFocusLines =
     case view clientFocus st of
@@ -486,6 +492,24 @@ picForState st = Picture
     case preview (clientConnection . connChannels . ix chan . chanTopic . folded . folded . _1) st of
       Just topic | not (Text.null topic) -> text' (withForeColor defAttr green) topic
       _ -> char defAttr ' '
+
+-- | Try to drop the suggested number of elements and then
+-- take the requested number of elements. If the drop drops
+-- too many, drop fewer (when possible) in favor of taking
+-- the correct number of elements. Return the actual number
+-- of elements dropped along with the elements kept.
+scrollList ::
+  Int {- ^ take parameter -} ->
+  Int {- ^ suggested drop -} ->
+  [a] {- ^ all elements   -} ->
+  (Int,[a]) {- ^ (actual drop, selected elements) -}
+scrollList t d xs
+  | length xs' == t = (d,xs')
+  | otherwise       = (d',drop d' xs)
+  where
+  xs' = take t (drop d xs)
+  x'len = length xs'
+  d' = max 0 (d - (t - x'len))
 
 maskListTitle :: Char -> String
 maskListTitle 'b' = "Bans"
