@@ -5,7 +5,34 @@
 --
 -- Note: These functions add the required trailing newline
 -- characters.
-module Irc.Cmd where
+module Irc.Cmd
+  ( passCmd
+  , nickCmd
+  , userCmd
+  , operCmd
+  , modeCmd
+  , quitCmd
+  , joinCmd
+  , partCmd
+  , topicCmd
+  , namesCmd
+  , listCmd
+  , inviteCmd
+  , kickCmd
+  , privMsgCmd
+  , noticeCmd
+  , whoisCmd
+  , whowasCmd
+  , whoCmd
+  , pongCmd
+  , capLsCmd
+  , capReqCmd
+  , capEndCmd
+  , authenticateCmd
+  , awayCmd
+  , helpCmd
+  , removeCmd
+  ) where
 
 import Data.Monoid
 import Data.ByteString (ByteString)
@@ -255,4 +282,92 @@ helpCmd msg = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand = "HELP"
   , msgParams = [msg]
+  }
+
+-- | Construct an AWAY command.
+--
+-- @AWAY away_message@
+awayCmd ::
+  ByteString {- ^ message -} ->
+  ByteString
+awayCmd msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "AWAY"
+  , msgParams = [msg]
+  }
+
+-- | Construct a QUIT command.
+--
+-- @QUIT quit_message@
+quitCmd ::
+  ByteString {- ^ message -} ->
+  ByteString
+quitCmd msg = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "QUIT"
+  , msgParams = [msg]
+  }
+
+-- | Construct a LIST command.
+--
+-- @LIST <channel> *("," <channel>) @
+listCmd ::
+  [Identifier] {- ^ channels -} ->
+  ByteString
+listCmd chans = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "LIST"
+  , msgParams = [B8.intercalate "," (map idBytes chans)]
+  }
+
+-- | Construct a INVITE command.
+--
+-- @INVITE <nickanme> <channel>@
+inviteCmd ::
+  Identifier {- ^ nickname -} ->
+  Identifier {- ^ channel  -} ->
+  ByteString
+inviteCmd nick chan = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "INVITE"
+  , msgParams = [idBytes nick,idBytes chan]
+  }
+
+-- | Construct a NAMES command.
+--
+-- @NAMES [ <channel> *("," <channel>)@
+namesCmd ::
+  [Identifier] {- ^ channels -} ->
+  ByteString
+namesCmd chans = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "NAMES"
+  , msgParams = if null chans
+                  then []
+                  else [B8.intercalate "," (map idBytes chans)]
+  }
+
+-- | Construct an OPER command.
+--
+-- @OPER <name> <password>@
+operCmd ::
+  ByteString {- ^ name -} ->
+  ByteString {- ^ password -} ->
+  ByteString
+operCmd name pass = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "OPER"
+  , msgParams = [name,pass]
+  }
+
+-- | Construct a WHO command.
+--
+-- @WHO <mask>@
+whoCmd ::
+  ByteString {- ^ mask -} ->
+  ByteString
+whoCmd mask = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "WHO"
+  , msgParams = [mask]
   }
