@@ -144,7 +144,7 @@ compressedImageForState st
 
   conn = view clientConnection st
 
-  prefixes = view (connChanModes . modesPrefixModes) conn
+  prefixes = view (connChanModeTypes . modesPrefixModes) conn
 
   modePrefix modes =
     string (withForeColor defAttr blue)

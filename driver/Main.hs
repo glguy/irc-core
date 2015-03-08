@@ -240,7 +240,7 @@ doSendMessage sendType target message st =
      clientSend bs st
      now <- getCurrentTime
      let myNick = view (clientConnection . connNick) st
-         myModes = view (clientConnection . connChannelIx target . chanUserIx myNick) st
+         myModes = view (clientConnection . connChannels . ix target . chanUsers . ix myNick) st
      return (addMessage target (fakeMsg now myModes) st)
 
   where
@@ -292,7 +292,7 @@ commandEvent cmd st =
       doMasksCmd chan 'b' st'
 
     "masks" :- [mode] :- ""
-      | mode `elem` view (clientConnection . connChanModes . modesLists) st
+      | mode `elem` view (clientConnection . connChanModeTypes . modesLists) st
       , Just chan <- focusedName' st ->
         doMasksCmd chan mode st'
 
@@ -387,7 +387,7 @@ doChannelInfoCmd chan st =
      return (set clientFocus (ChannelInfoFocus chan) st)
   where
   modesKnown = has ( clientConnection
-                   . connChannelIx chan
+                   . connChannels . ix chan
                    . chanModes
                    . folded
                    ) st
@@ -402,7 +402,7 @@ doMasksCmd chan mode st =
      return (set clientFocus (MaskListFocus mode chan) st)
   where
   masksKnown = has ( clientConnection
-                   . connChannelIx chan
+                   . connChannels . ix chan
                    . chanMaskLists
                    . ix mode
                    ) st
@@ -483,7 +483,7 @@ picForState st = Picture
                           <|> identImg defAttr c
 
   topicbar chan =
-    case preview (clientConnection . connChannelIx chan . chanTopic . folded . folded . _1) st of
+    case preview (clientConnection . connChannels . ix chan . chanTopic . folded . folded . _1) st of
       Just topic | not (Text.null topic) -> text' (withForeColor defAttr green) topic
       _ -> char defAttr ' '
 
@@ -604,7 +604,7 @@ tabComplete st
   | otherwise =
       case view clientFocus st of
         ChannelFocus c ->
-          let users = Map.keysSet (view (clientConnection . connChannelIx c . chanUsers) st)
+          let users = Map.keysSet (view (clientConnection . connChannels . ix c . chanUsers) st)
           in
           case view clientTabPattern st of
             Just pat -> replaceWith (tabSearch pat current users) st
@@ -651,8 +651,10 @@ defaultNickColors =
    brightCyan, brightMagenta, brightGreen, brightBlue]
 
 
-
-
+-- | Perform a privileged operation. If the connection doesn't
+-- already have +o on the channel it will be requested from
+-- ChanServ and the privileged operation will be scheduled to
+-- run when the connection gets +o.
 doWithOps ::
   Identifier {- ^ channel -} ->
   (ClientState -> IO ClientState) {- ^ privileged operation -} ->
@@ -666,8 +668,8 @@ doWithOps chan privop st
 
   alreadyOp =
     elemOf ( clientConnection
-           . connChannelIx chan
-           . chanUserIx myNick
+           . connChannels . ix chan
+           . chanUsers . ix myNick
            . folded)
            'o'
            st

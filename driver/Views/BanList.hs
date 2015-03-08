@@ -9,7 +9,7 @@ import Irc.Model
 
 banListImage :: Char -> Identifier -> ClientState -> [Image]
 banListImage mode chan st =
-  case view (clientConnection . connChannelIx chan . chanMaskLists . at mode) st of
+  case view (clientConnection . connChannels . ix chan . chanMaskLists . at mode) st of
     Nothing -> [string (withForeColor defAttr red) "Unknown list"]
     Just [] -> [string (withForeColor defAttr green) "Empty list"]
     Just xs -> map renderEntry xs

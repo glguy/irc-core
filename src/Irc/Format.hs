@@ -1,16 +1,19 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- | This module provides a parser and printer for the low-level IRC
 -- message format.
 module Irc.Format
   ( UserInfo(..)
   , RawIrcMsg(..)
   , parseRawIrcMsg
-  , parseUserInfo
   , renderRawIrcMsg
+  , parseUserInfo
+  , renderUserInfo
   , ircGetLine
   , Identifier
   , mkId
   , idBytes
   , idDenote
+  , asUtf8
   ) where
 
 import Data.ByteString (ByteString)
@@ -18,12 +21,15 @@ import Data.ByteString.Builder (Builder)
 import Data.CaseInsensitive (CI)
 import Data.Monoid
 import Data.String
+import Data.Text (Text)
 import System.IO (Handle)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as Text
 
 -- | 'UserInfo' packages a nickname along with the username and hsotname
 -- if they are known in the current context.
@@ -80,6 +86,11 @@ parseRawIrcMsg x =
                 return $! RawIrcMsg Nothing command rest
               _ -> Nothing
 
+renderUserInfo :: UserInfo -> ByteString
+renderUserInfo u = idBytes (userNick u)
+                <> maybe B.empty ("!" <>) (userName u)
+                <> maybe B.empty ("@" <>) (userHost u)
+
 -- | Split up a bytestring into space delimited tokens. The last token
 -- in the bytestring is potentially indicated by a leading colon.
 tokens :: ByteString -> [ByteString]
@@ -134,3 +145,5 @@ ircGetLine h =
   do b <- B.hGetLine h
      return $! if not (B.null b) && B8.last b == '\r' then B.init b else b
 
+asUtf8 :: ByteString -> Text
+asUtf8 = Text.decodeUtf8With Text.lenientDecode
