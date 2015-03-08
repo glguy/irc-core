@@ -479,6 +479,8 @@ advanceModel msg0 conn =
          doChannelError target "Too many targets" conn
        ErrBanListFull chan mode  ->
          doChannelError chan ("Ban list full: " <> Text.singleton mode) conn
+       ErrUserOnChannel nick chan ->
+         doChannelError chan ("User already on channel: " <> asUtf8 (idBytes nick)) conn
 
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map

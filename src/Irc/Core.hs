@@ -106,6 +106,7 @@ data MsgFromServer
   | ErrNickInUse -- ^ 433
   | ErrUserNotInChannel Identifier Identifier -- ^ 441 nick channel
   | ErrNotOnChannel Identifier -- ^ 442 channel
+  | ErrUserOnChannel Identifier Identifier -- ^ 443 nick channel
   | ErrNeedMoreParams ByteString -- ^ 461 command
   | ErrAlreadyRegistered -- ^ 462
   | ErrNoPermForHost -- ^ 463
@@ -389,6 +390,9 @@ ircMsgToServerMsg ircmsg =
 
     ("442",[_,chan,_]) ->
          Just (ErrNotOnChannel (mkId chan))
+
+    ("443",[_,nick,chan,_]) ->
+         Just (ErrUserOnChannel (mkId nick) (mkId chan))
 
     ("461",[_,cmd,_]) ->
          Just (ErrNeedMoreParams cmd)

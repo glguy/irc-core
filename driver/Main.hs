@@ -342,8 +342,7 @@ commandEvent cmd st =
          evSt <$ clientSend (removeCmd chan (toId nick) (toB msg)) evSt) st'
 
     "invite" :- nick :- "" | Just chan <- focusedChan st ->
-       doWithOps chan (\evSt ->
-         evSt <$ clientSend (inviteCmd (toId nick) chan) evSt) st'
+       doInvite (toId nick) chan st'
 
     "part" :- msg | Just chan <- focusedChan st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
@@ -380,6 +379,22 @@ commandEvent cmd st =
   st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
   toId = mkId . toB
+
+doInvite ::
+  Identifier {- ^ nickname -} ->
+  Identifier {- ^ channel  -} ->
+  ClientState -> IO ClientState
+doInvite nick chan st
+
+  -- 'g' is the "FREEINVITE" mode, don't check for ops
+  | has (clientConnection . connChannels . ix chan . chanModes . folded . ix 'g') st = go st
+
+  -- it's an error to invite someone already in channel
+  | has (clientConnection . connChannels . ix chan . chanUsers . ix nick) st = return st
+
+  | otherwise = doWithOps chan go st
+  where
+  go st' = st' <$ clientSend (inviteCmd nick chan) st'
 
 doChanservOpCmd ::
   Identifier   {- ^ channel -} ->
@@ -419,9 +434,17 @@ doMasksCmd chan mode st =
                    . ix mode
                    ) st
 
-doTopicCmd :: Identifier -> ByteString -> ClientState -> IO ClientState
+doTopicCmd ::
+  Identifier {- ^ channel -} ->
+  ByteString {- ^ new topic -} ->
+  ClientState -> IO ClientState
 doTopicCmd chan topic st =
- do st <$ clientSend (topicCmd chan topic) st
+  case preview (clientConnection . connChannels . ix chan . chanModes . folded) st of
+    -- check if it's known that the mode isn't +t
+    Just modes | hasn't (ix 't') modes -> go st
+    _                                  -> doWithOps chan go st
+  where
+  go st' = st' <$ clientSend (topicCmd chan topic) st'
 
 doJoinCmd :: ByteString -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
