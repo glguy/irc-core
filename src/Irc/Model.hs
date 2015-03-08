@@ -447,6 +447,10 @@ advanceModel msg0 conn =
          doServerError "Password mismatch" conn
        ErrUsersDontMatch ->
          doServerError "Can't change modes for other users" conn
+       ErrHelpNotFound _ ->
+         doServerError "Help topic not found" conn
+       ErrBadChanName name ->
+         doServerError ("Illegal channel name: " <> asUtf8 name) conn
 
        ErrNoSuchNick nick ->
          doChannelError nick "No such nick" conn
@@ -481,6 +485,12 @@ advanceModel msg0 conn =
          doChannelError chan ("Ban list full: " <> Text.singleton mode) conn
        ErrUserOnChannel nick chan ->
          doChannelError chan ("User already on channel: " <> asUtf8 (idBytes nick)) conn
+       ErrLinkChannel chanFrom chanTo ->
+         doChannelError chanFrom ("Forwarded to: " <> asUtf8 (idBytes chanTo)) conn
+       ErrNeedReggedNick chan ->
+         doChannelError chan "Registered nick required" conn
+       ErrVoiceNeeded chan ->
+         doChannelError chan "Voice or operator status required" conn
 
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map

@@ -319,6 +319,7 @@ commandEvent cmd st =
     -- raw
     "quote" :- rest -> doQuote rest st'
 
+    "help" :-          "" -> st' <$ clientSend (helpCmd "") st'
     "help" :- topic :- "" -> st' <$ clientSend (helpCmd (B8.pack topic)) st'
 
     -- channel commands

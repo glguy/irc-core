@@ -111,17 +111,22 @@ data MsgFromServer
   | ErrAlreadyRegistered -- ^ 462
   | ErrNoPermForHost -- ^ 463
   | ErrPasswordMismatch -- ^ 464
+  | ErrLinkChannel Identifier Identifier -- ^ 470 channel channel
   | ErrChannelFull Identifier -- ^ 471 channel
   | ErrUnknownMode Char -- ^ 472 mode
   | ErrInviteOnlyChan Identifier -- ^ 473 channel
   | ErrBannedFromChan Identifier -- ^ 474 channel
   | ErrBadChannelKey Identifier -- ^ 475 channel
   | ErrBadChannelMask Identifier -- ^ 476 channel
-  | ErrBanListFull Identifier Char -- ^ 476 channel mode
+  | ErrNeedReggedNick Identifier -- ^ 477 channel
+  | ErrBanListFull Identifier Char -- ^ 478 channel mode
+  | ErrBadChanName ByteString -- ^ 479 name
   | ErrNoPrivileges -- ^ 481
   | ErrChanOpPrivsNeeded Identifier -- ^ 482 channel
+  | ErrVoiceNeeded Identifier -- ^ 489 channel
   | ErrUnknownUmodeFlag Char -- ^ 501 mode
   | ErrUsersDontMatch -- ^ 502
+  | ErrHelpNotFound ByteString -- ^ 524 topic
 
   -- Random high-numbered stuff
   | RplWhoisSecure Identifier -- ^ 671 nick
@@ -406,6 +411,9 @@ ircMsgToServerMsg ircmsg =
     ("464",[_,_]) ->
          Just ErrPasswordMismatch
 
+    ("470",[_,chan1,chan2,_]) ->
+         Just (ErrLinkChannel (mkId chan1) (mkId chan2))
+
     ("471",[_,chan,_]) ->
          Just (ErrChannelFull (mkId chan))
 
@@ -424,8 +432,14 @@ ircMsgToServerMsg ircmsg =
     ("476",[_,chan,_]) ->
          Just (ErrBadChannelMask (mkId chan))
 
+    ("477",[_,chan,_]) ->
+         Just (ErrNeedReggedNick (mkId chan))
+
     ("478",[_,chan,mode,_]) ->
          Just (ErrBanListFull (mkId chan) (B8.head mode))
+
+    ("479",[_,chan,_]) ->
+         Just (ErrBadChanName chan)
 
     ("481",[_,_]) ->
          Just ErrNoPrivileges
@@ -433,11 +447,17 @@ ircMsgToServerMsg ircmsg =
     ("482",[_,chan,_]) ->
          Just (ErrChanOpPrivsNeeded (mkId chan))
 
+    ("489",[_,chan,_]) ->
+         Just (ErrVoiceNeeded (mkId chan))
+
     ("501",[_,mode,_]) ->
          Just (ErrUnknownUmodeFlag (B8.head mode))
 
     ("502",[_,_]) ->
          Just ErrUsersDontMatch
+
+    ("524",[_,topic,_]) ->
+         Just (ErrHelpNotFound topic)
 
     ("671",[_,nick,_]) ->
          Just (RplWhoisSecure (mkId nick))
