@@ -48,7 +48,7 @@ tickRateLimit r = modifyMVar_ (rateDebt r) $ \debt ->
        then return (now:debt')
 
        else do let wait = ceiling
-                        $ 1000000 -- milliseconds
+                        $ (1000000 :: Double) -- milliseconds
                         * ( fromIntegral (rateDuration r)
                           - realToFrac (diffUTCTime now (last debt'))
                           )

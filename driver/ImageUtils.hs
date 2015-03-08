@@ -80,19 +80,21 @@ colorNumber t =
        "02" -> Just (blue, t2) -- blue
        "03" -> Just (green, t2) -- green
        "04" -> Just (red, t2) -- red
-       "05" -> Just (rgbColor 127 0 0, t2) -- brown
-       "06" -> Just (rgbColor 156 0 156, t2) -- purple
-       "07" -> Just (rgbColor 252 127 0, t2) -- yellow
+       "05" -> Just (rgbColor' 127 0 0, t2) -- brown
+       "06" -> Just (rgbColor' 156 0 156, t2) -- purple
+       "07" -> Just (rgbColor' 252 127 0, t2) -- yellow
        "08" -> Just (yellow, t2) -- yellow
        "09" -> Just (brightGreen, t2) -- green
        "10" -> Just (cyan, t2) -- brightBlue
        "11" -> Just (brightCyan, t2) -- brightCyan
        "12" -> Just (brightBlue, t2) -- brightBlue
-       "13" -> Just (rgbColor 255 0 255, t2)  -- brightRed
-       "14" -> Just (rgbColor 127 127 127, t2)-- brightBlack
-       "15" -> Just (rgbColor 210 210 210, t2)-- brightWhite
+       "13" -> Just (rgbColor' 255 0 255, t2)  -- brightRed
+       "14" -> Just (rgbColor' 127 127 127, t2)-- brightBlack
+       "15" -> Just (rgbColor' 210 210 210, t2)-- brightWhite
        _    -> Nothing
 
+rgbColor' :: Int -> Int -> Int -> Color
+rgbColor' = rgbColor -- fix the type to Int
 
 defaultFormatting :: Formatting
 defaultFormatting = Formatting
