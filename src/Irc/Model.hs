@@ -502,7 +502,7 @@ advanceModel msg0 conn =
        RplInviting nick chan ->
          doChannelError chan ("Inviting " <> asUtf8 (idBytes nick)) conn
        Invite who chan ->
-         doChannelError chan ("Invited by " <> renderUserInfo who <> " ") conn
+         doChannelError chan ("Invited by " <> asUtf8 (renderUserInfo who)) conn
 
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map
