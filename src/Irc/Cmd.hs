@@ -87,12 +87,12 @@ removeCmd c nick msg = renderRawIrcMsg RawIrcMsg
 -- can support multiple channels separated by
 -- commas, and takes an optional channel key.
 --
--- @JOIN channels (keys)@
-joinCmd :: ByteString -> Maybe ByteString -> ByteString
-joinCmd chans mbKeys = renderRawIrcMsg RawIrcMsg
+-- @JOIN channel [key]@
+joinCmd :: Identifier -> Maybe ByteString -> ByteString
+joinCmd chan mbKeys = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand  = "JOIN"
-  , msgParams = [chans] <> toList mbKeys
+  , msgParams = [idBytes chan] <> toList mbKeys
   }
 
 -- | Construct a PART command.

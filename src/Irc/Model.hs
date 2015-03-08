@@ -71,6 +71,7 @@ module Irc.Model
   -- * General functionality
   , advanceModel
   , isChannelName
+  , isNickName
   , isMyNick
   ) where
 
@@ -1206,5 +1207,13 @@ isChannelName c conn =
   case B.uncons (idBytes c) of
     Just (x,xs) -> not (B.null xs)
                 && x `elem` view connChanTypes conn
+    _ -> False -- probably shouldn't happen
+
+-- | Predicate for identifiers to identify which represent nicknames
+isNickName :: Identifier -> IrcConnection -> Bool
+isNickName c conn =
+  case B.uncons (idBytes c) of
+    Just (x,xs) -> not (B.null xs)
+                && not (x `elem` view connChanTypes conn)
     _ -> False -- probably shouldn't happen
 

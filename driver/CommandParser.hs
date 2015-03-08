@@ -6,11 +6,14 @@ module CommandParser
   , pChannel
   , pNick
   , pRemaining
+  , pRemainingNoSp
   , pToken
+  , pValidToken
   , pTarget
-  , pEnd
   , pCommand
   , pChar
+  , pSatisfy
+  , pHaskell
   ) where
 
 import Data.Char
@@ -25,6 +28,8 @@ import qualified Data.Text.Encoding as Text
 import ClientState
 import Irc.Model
 import Irc.Format
+import HaskellHighlighter
+import ImageUtils
 
 -- tokens
 --   single letter
@@ -46,11 +51,10 @@ newtype Parser a = Parser (String -> (String, Image, Bool, Maybe a))
 
 runParser :: Parser a -> String -> (Image, Maybe a)
 runParser (Parser p) s
-  | null rest = (img, res)
+  | all isSpace rest && commit = (img Vty.<|> string defAttr rest, res)
   | otherwise = (img Vty.<|> string (withForeColor defAttr red) rest, Nothing)
-    
   where
-  (rest,img,_,res) = p s
+  (rest,img,commit,res) = p s
 
 instance Applicative Parser where
   pure x = Parser (\s -> (s,emptyImage,False,Just x))
@@ -58,17 +62,16 @@ instance Applicative Parser where
                                           (s1,i1,c1,r1) ->
                                              case x s1 of
                                                (s2,i2,c2,r2) ->
-                                                 (s2,i1 Vty.<|> i2,c1||c2,r1<*>r2))
+                                                 let c3 = c1 || has _Just r1 && c2
+                                                 in (s2,i1 Vty.<|> i2,c3,r1<*>r2))
 
 instance Alternative Parser where
   empty = Parser (\s -> (s,emptyImage,False,Nothing))
   Parser x <|> Parser y = Parser $ \s ->
-    case x s of
-      rx@(_,_,True,_) -> rx
-      rx@(_,_,False,Just{}) -> rx
-      rx -> case y s of
-              ry@(_,_,_,Just{}) -> ry
-              _ -> rx -- prefer first failure
+    case (x s,y s) of
+      (rx@(_,_,True,_),_)-> rx
+      ((_,_,_,_),ry@(_,_,True,_)) -> ry
+      (rx,_) -> rx
 
 pValidToken :: String -> (String -> Maybe a) -> Parser a
 pValidToken name validate = Parser $ \s ->
@@ -76,9 +79,9 @@ pValidToken name validate = Parser $ \s ->
       (t,s2) = break (==' ') s1
       img c  = string (withForeColor defAttr c) (w ++ t)
   in if null t
-       then (s, char defAttr ' ' Vty.<|>
-                string (withStyle defAttr reverseVideo) name Vty.<|>
-                string defAttr (drop (length name + 1) w) 
+       then ("", char defAttr ' ' Vty.<|>
+                 string (withStyle defAttr reverseVideo) name Vty.<|>
+                 string defAttr (drop (length name + 1) w)
               , False
               , Nothing)
        else case validate t of
@@ -106,36 +109,30 @@ pTarget = pValidToken "target" (Just . asIdentifier)
 pNick :: ClientState -> Parser Identifier
 pNick st = pValidToken "nick" $ \nick ->
                 do let ident = asIdentifier nick
-                   guard (not (isChannelName ident (view clientConnection st)))
+                   guard (isNickName ident (view clientConnection st))
                    return ident
 
 asIdentifier :: String -> Identifier
 asIdentifier = mkId . Text.encodeUtf8 . Text.pack
 
-pOpt :: Parser a -> Parser (Maybe a)
-pOpt p = pure Nothing <|> fmap Just p
-  -- empty case goes first!
+pChar :: Char -> Parser Char
+pChar c = pSatisfy [c] (== c)
 
-pJoin st = (,) <$> pChannel st <*> optional (pToken "key")
-pKick st = (,) <$> pNick st <*> pRemainingNoSp
-pMode    = many (pToken "mode")
-
-pEnd :: Parser ()
-pEnd = Parser (\s ->
-         let happy = all isSpace s
-             c | happy = green
-               | otherwise = red
-         in ("", string (withForeColor defAttr c) s, not (null s), guard happy))
-
-pChar :: Char -> Parser ()
-pChar c = Parser (\s ->
+pSatisfy :: String -> (Char -> Bool) -> Parser Char
+pSatisfy name f = Parser (\s ->
           case s of
-            c1:s1 | c == c1 -> (s1, char defAttr c1, True, Just())
-            _  -> (s, emptyImage, False, Nothing))
+            c1:s1 | f c1 -> (s1, char defAttr c1, True, Just c1)
+                  | otherwise -> (s1, emptyImage, False, Nothing)
+            [] -> (s, string (withStyle defAttr reverseVideo) (' ':name), False, Nothing))
 
 pCommand :: String -> Parser ()
 pCommand cmd = Parser (\s ->
           let (t,s1) = break (==' ') s
           in if cmd == t
-                then (s1, string (withForeColor defAttr green) t, True, Just ())
+                then (s1, string (withForeColor defAttr yellow) t, True, Just ())
                 else (s, emptyImage, False, Nothing))
+
+pHaskell :: Parser String
+pHaskell = Parser (\s ->
+            ("", cleanText (Text.pack (highlightHaskell s)), True,
+                        Just (drop 1 (highlightHaskell s))))

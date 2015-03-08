@@ -43,7 +43,6 @@ import Irc.RateLimit
 import ImageUtils
 import CommandArgs
 import CommandParser
-import HaskellHighlighter
 import ClientState
 import Views.Channel
 import Views.ChannelInfo
@@ -184,9 +183,9 @@ changeInput f st = clearTabPattern (over clientEditBox f st)
 inputLogic :: ClientState -> (Image, Maybe (IO ClientState))
 inputLogic st = runParser p (clientInput st)
   where
-  p = pChar '/' *> commandEvent st
+  p = (pChar '/' *> commandEvent st)
       A.<|>
-      doSendMessageCurrent SendPriv st <$ pRemaining
+      (doSendMessageCurrent SendPriv st <$ pRemaining)
 
 keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
 keyEvent (KFun 2)    []      st = return $ over clientDetailView not st
@@ -246,6 +245,8 @@ doSendMessageCurrent sendType st =
 data SendType = SendPriv | SendNotice | SendAction
 
 doSendMessage :: SendType -> Identifier -> Text -> ClientState -> IO ClientState
+doSendMessage _ _ message st
+  | Text.null message = return st
 doSendMessage sendType target message st =
   do let bs = case sendType of
                 SendPriv -> privMsgCmd target (Text.encodeUtf8 message)
@@ -256,7 +257,7 @@ doSendMessage sendType target message st =
      now <- getCurrentTime
      let myNick = view (clientConnection . connNick) st
          myModes = view (clientConnection . connChannels . ix target . chanUsers . ix myNick) st
-     return (addMessage target (fakeMsg now myModes) st)
+     return (addMessage target (fakeMsg now myModes) (clearInput st))
 
   where
   fakeMsg now modes = IrcMessage
@@ -274,126 +275,227 @@ doSendMessage sendType target message st =
                  Nothing
                  Nothing
 
-
-pattern (:-) arg rest <- (splitArg -> Just (arg,rest))
-infixr 5 :-
-
-splitArg :: String -> Maybe (String,String)
-splitArg xs
-  | null a = Nothing
-  | otherwise = Just (a, dropWhile isSpace b)
-  where
-  (a,b) = break isSpace xs
-
-
 commandEvent :: ClientState -> Parser (IO ClientState)
 commandEvent st =
 
     -- focus setting
-    (return (set clientFocus (ChannelFocus "") st))
-    <$ pCommand "server"
+    pCommand "server" $>
+    return (set clientFocus (ChannelFocus "") st')
   A.<|>
-    (\user -> return (set clientFocus (ChannelFocus user) st))
-    <$> (pCommand "query" *> pNick st)
-  A.<|>
-    (\chan -> return (set clientFocus (ChannelFocus chan) st))
-    <$> (pCommand "channel" *> pChannel st)
-  A.<|>
-    (doChannelInfoCmd st)
-    <$ pCommand "channelinfo"
 
-{-
-    "bans" :- "" | Just chan <- focusedChan st ->
-      doMasksCmd chan 'b' st'
+    pCommand "channel" $>
+    (\chan -> return (set clientFocus (ChannelFocus chan) st'))
+    <*> pChannel st
+  A.<|>
 
-    "masks" :- [mode] :- ""
-      | mode `elem` view (clientConnection . connChanModeTypes . modesLists) st
-      , Just chan <- focusedChan st ->
-        doMasksCmd chan mode st'
+    pCommand "query" $>
+    (\user -> return (set clientFocus (ChannelFocus user) st'))
+    <*> pNick st
+  A.<|>
+
+
+    pCommand "channelinfo" $>
+    doChannelInfoCmd st'
+  A.<|>
+
+
+    pCommand "bans" $>
+      doMasksCmd 'b' st
+  A.<|>
+
+    pCommand "masks" $>
+    (\mode -> doMasksCmd mode st)
+    <*> pValidToken "mode" (\m ->
+            case m of
+              [x] | x `elem` view (clientConnection . connChanModeTypes . modesLists) st -> Just x
+              _ -> Nothing)
+  A.<|>
 
     -- chat
-    "me" :- msg ->
-      case view clientFocus st of
-        ChannelFocus c -> doSendMessage SendAction c (Text.pack msg) st'
-        _ -> return st
-    "notice" :- target :- msg ->
-      doSendMessage SendNotice (toId target) (Text.pack msg) st'
-    "msg" :- target :- msg ->
-      doSendMessage SendPriv (toId target) (Text.pack msg) st'
+    pCommand "me" $>
+    (\msg -> doAction msg st)
+    <*> pRemainingNoSp
+  A.<|>
+
+    pCommand "notice" $>
+    (\target msg -> doSendMessage SendNotice target (Text.pack msg) st)
+    <*> pTarget <*> pRemainingNoSp
+  A.<|>
+
+    pCommand "msg" $>
+    (\target msg -> doSendMessage SendPriv target (Text.pack msg) st)
+    <*> pTarget <*> pRemainingNoSp
+  A.<|>
 
     -- carefully preserve whitespace after the command
-    'h':'s':' ':rest ->
+    pCommand "hs" $>
+    (\src ->
+      let msg = Text.pack src in
       case view clientFocus st of
-        ChannelFocus c -> doSendMessage SendPriv c msg st'
-        _ -> return st
-       where
-       msg = Text.pack (highlightHaskell rest)
+        ChannelFocus c -> doSendMessage SendPriv c msg st
+        _ -> return st)
+    <*> pHaskell
+  A.<|>
 
     -- raw
-    "quote" :- rest -> doQuote rest st'
+    pCommand "quote" $>
+    (\rest -> doQuote rest st')
+    <*> pRemainingNoSp
+  A.<|>
 
-    "help" :-          "" -> st' <$ clientSend (helpCmd "") st'
-    "help" :- topic :- "" -> st' <$ clientSend (helpCmd (B8.pack topic)) st'
+    pCommand "help" $>
+    (\mbTopic -> st' <$ clientSend (helpCmd (maybe "" toB mbTopic)) st')
+    <*> optional (pToken "topic")
+  A.<|>
 
     -- channel commands
-    "join" :- c :-      "" -> doJoinCmd (toB c) Nothing st'
-    "join" :- c :- k :- "" -> doJoinCmd (toB c) (Just (toB k)) st'
+    pCommand "join" $>
+    (\c key -> doJoinCmd c (fmap toB key) st')
+    <*> pChannel st <*> (pure Nothing A.<|> Just <$> pToken "key")
+  A.<|>
 
-    "umode" :- args ->
+    pCommand "umode" $>
+    (\args ->
          st' <$ clientSend (modeCmd (view (clientConnection . connNick) st)
-                                    (map toB (words args))) st'
+                                    (map toB (words args))) st')
+    <*> pRemainingNoSp
+  A.<|>
 
-    "mode" :- args | Just chan <- focusedChan st ->
-       doWithOps chan (\evSt ->
-         evSt <$ clientSend (modeCmd chan (map toB (words args))) evSt) st'
+    pCommand "mode" $>
+    (\args ->
+       case focusedChan st of
+         Nothing -> return st
+         Just chan ->
+           doWithOps chan (\evSt ->
+             evSt <$ clientSend (modeCmd chan (map toB (words args))) evSt) st')
+    <*> pRemainingNoSp
+  A.<|>
 
-    "kick" :- nick :- msg | Just chan <- focusedChan st ->
-       doWithOps chan (\evSt ->
-         evSt <$ clientSend (kickCmd chan (toId nick) (toB msg)) evSt) st'
+    pCommand "kick" $>
+    (\nick msg ->
+       case focusedChan st of
+         Nothing -> return st
+         Just chan ->
+           doWithOps chan (\evSt ->
+             evSt <$ clientSend (kickCmd chan nick (toB msg)) evSt) st')
+    <*> pNick st <*> pRemainingNoSp
+  A.<|>
 
-    "remove" :- nick :- msg | Just chan <- focusedChan st ->
-       doWithOps chan (\evSt ->
-         evSt <$ clientSend (removeCmd chan (toId nick) (toB msg)) evSt) st'
+    pCommand "remove" $>
+    (\nick msg ->
+        case focusedChan st of
+          Nothing -> return st
+          Just chan ->
+            doWithOps chan (\evSt ->
+              evSt <$ clientSend (removeCmd chan nick (toB msg)) evSt) st')
+    <*> pNick st <*> pRemainingNoSp
+  A.<|>
 
-    "invite" :- nick :- "" | Just chan <- focusedChan st ->
-       doInvite (toId nick) chan st
+    pCommand "invite" $>
+    (\nick ->
+       case focusedChan st of
+         Nothing -> return st
+         Just chan ->
+           doInvite nick chan st)
+    <*> pNick st
+  A.<|>
 
-    "knock" :- chan :- "" -> doKnock (toId chan) st
+    pCommand "knock" $>
+    (\chan -> doKnock chan st)
+    <*> pChannel st
 
-    "part" :- msg | Just chan <- focusedChan st ->
-         st' <$ clientSend (partCmd chan (toB msg)) st'
+  A.<|>
 
-    "whois"  :- u :- "" -> st' <$ clientSend (whoisCmd  (toId u)) st'
-    "whowas" :- u :- "" -> st' <$ clientSend (whowasCmd (toId u)) st'
+    pCommand "part" $>
+    (\msg -> case focusedChan st of
+               Nothing -> return st
+               Just chan -> st' <$ clientSend (partCmd chan (toB msg)) st')
+    <*> pRemainingNoSp
+  A.<|>
 
-    "topic" :- rest | Just chan <- focusedChan st -> doTopicCmd chan (toB rest) st'
+    pCommand "whois" $>
+    (\u -> st' <$ clientSend (whoisCmd u) st')
+    <*> pNick st
+  A.<|>
 
-    "ignore" :- u :- "" -> return (over (clientIgnores . contains (toId u)) not st')
-    "highlight" :- w :- "" ->
-       return (over (clientHighlights . contains (CI.foldCase (Text.pack w))) not st')
+    pCommand "whowas" $>
+    (\u -> st' <$ clientSend (whowasCmd u) st')
+    <*> pNick st
+  A.<|>
 
-    "clear" :- "" ->
-         return (set (clientMessages . at (focusedName st)) Nothing st')
+    pCommand "topic" $>
+    (\rest ->
+        case focusedChan st of
+          Nothing -> return st
+          Just chan -> doTopicCmd chan (toB rest) st')
+    <*> pRemainingNoSp
+  A.<|>
 
-    "nick" :- nick :- "" -> st' <$ clientSend (nickCmd (toId nick)) st'
+    pCommand "ignore" $>
+    (\u -> return (over (clientIgnores . contains u) not st'))
+    <*> pNick st
+  A.<|>
 
-    "away" :- rest -> st' <$ clientSend (awayCmd (toB rest)) st'
-    "quit" :- rest -> st' <$ clientSend (quitCmd (toB rest)) st'
+    pCommand "highlight" $>
+    (\w ->
+       return (over (clientHighlights . contains (CI.foldCase (Text.pack w))) not st'))
+    <*> pRemainingNoSp
+  A.<|>
 
-    "list" :- rest -> st' <$ clientSend (listCmd (map toId (words rest))) st'
-    "who" :- whomask :- "" -> st' <$ clientSend (whoCmd (toB whomask)) st'
+    pCommand "clear" $>
+    return (set (clientMessages . at (focusedName st)) Nothing st')
+  A.<|>
 
-    "op" :- args | Just chan <- focusedChan st ->
-        doChanservOpCmd chan (map B8.pack (words args)) st'
+    pCommand "nick" $>
+    (\nick -> st' <$ clientSend (nickCmd nick) st')
+    <*> pNick st
+  A.<|>
 
-    "akb" :- nick :- reason | Just chan <- focusedChan st ->
-       doWithOps chan (doAutoKickBan chan (toId nick) (Text.pack reason)) st'
+    pCommand "away" $>
+    (\rest -> st' <$ clientSend (awayCmd (toB rest)) st')
+    <*> pRemainingNoSp
+  A.<|>
 
-    _ -> return st
-  -}
+    pCommand "quit" $>
+    (\rest -> st' <$ clientSend (quitCmd (toB rest)) st')
+    <*> pRemainingNoSp
+  A.<|>
+
+    pCommand "who" $>
+    (\whomask -> st' <$ clientSend (whoCmd (toB whomask)) st')
+    <*> pToken "mask"
+
+  A.<|>
+    pCommand "op" $>
+    (\args ->
+       case focusedChan st of
+        Nothing -> return st
+        Just chan ->
+          doChanservOpCmd chan (map B8.pack (words args)) st')
+    <*> pRemainingNoSp
+
+  A.<|>
+    pCommand "akb" $>
+    (\nick reason ->
+       case focusedChan st of
+         Nothing -> return st
+         Just chan -> doWithOps chan (doAutoKickBan chan nick (Text.pack reason)) st')
+    <*> pNick st <*> pRemainingNoSp
+  A.<|>
+
+  empty
+
   where
+  st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
-  toId = mkId . toB
+
+doAction ::
+  String {- ^ action text -} ->
+  ClientState -> IO ClientState
+doAction msg st =
+  case view clientFocus st of
+    ChannelFocus c -> doSendMessage SendAction c (Text.pack msg) (clearInput st)
+    _ -> return st
 
 doKnock ::
   Identifier {- ^ channel  -} ->
@@ -449,19 +551,21 @@ doChannelInfoCmd st
   | otherwise = return st
 
 doMasksCmd ::
-  Identifier {- ^ channel -} ->
   Char       {- ^ mode    -} ->
   ClientState -> IO ClientState
-doMasksCmd chan mode st =
-  do unless masksKnown $
+doMasksCmd mode st
+  | Just chan <- focusedChan st =
+  do let masksKnown =
+           has ( clientConnection
+               . connChannels . ix chan
+               . chanMaskLists
+               . ix mode
+               ) st
+     unless masksKnown $
        clientSend (modeCmd chan [B8.pack ['+',mode]]) st
-     return (set clientFocus (MaskListFocus mode chan) st)
-  where
-  masksKnown = has ( clientConnection
-                   . connChannels . ix chan
-                   . chanMaskLists
-                   . ix mode
-                   ) st
+     return (set clientFocus (MaskListFocus mode chan) (clearInput st))
+
+  | otherwise = return st
 
 doTopicCmd ::
   Identifier {- ^ channel -} ->
@@ -475,11 +579,10 @@ doTopicCmd chan topic st =
   where
   go st' = st' <$ clientSend (topicCmd chan topic) st'
 
-doJoinCmd :: ByteString -> Maybe ByteString -> ClientState -> IO ClientState
+doJoinCmd :: Identifier -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
   do clientSend (joinCmd c mbKey) st
-     let c0 = mkId (B8.takeWhile (/=',') c) -- , separates channels
-     return (set clientFocus (ChannelFocus c0) st)
+     return (set clientFocus (ChannelFocus c) st)
 
 doQuote :: String -> ClientState -> IO ClientState
 doQuote cmd st = st <$ clientSend (Text.encodeUtf8 (Text.pack (cmd ++ "\r\n"))) st
@@ -582,7 +685,6 @@ textbox st
   = applyCrop
   $ beginning <|> content <|> ending
   where
-  str = clientInput st
   pos = view (clientEditBox. Edit.pos) st
   width = view clientWidth st
   (content,_) = inputLogic st
