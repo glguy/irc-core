@@ -321,10 +321,6 @@ advanceModel msg0 conn =
 
        Notice who chan msg -> doNotifyChannel who chan msg conn
 
-       Invite who chan ->
-         doServerMessage "INVITE"
-           (renderUserInfo who <> " " <> idBytes chan) conn
-
        Account who acct ->
          return (set (connUsers . ix (userNick who) . usrAccount) acct conn)
 
@@ -491,6 +487,22 @@ advanceModel msg0 conn =
          doChannelError chan "Registered nick required" conn
        ErrVoiceNeeded chan ->
          doChannelError chan "Voice or operator status required" conn
+
+       -- TODO: Make a message for this
+       RplKnockDelivered chan ->
+         doChannelError chan "Knock delivered" conn
+       RplKnock chan user ->
+         doChannelError chan ("Invite request: " <> asUtf8 (renderUserInfo user)) conn
+       ErrKnockOnChan chan ->
+         doChannelError chan "Attempted to knock joined channel" conn
+       ErrTooManyKnocks chan ->
+         doChannelError chan "Too many knocks" conn
+       ErrChanOpen chan ->
+         doChannelError chan "Knock failed, channel is open" conn
+       RplInviting nick chan ->
+         doChannelError chan ("Inviting " <> asUtf8 (idBytes nick)) conn
+       Invite who chan ->
+         doChannelError chan ("Invited by " <> renderUserInfo who <> " ") conn
 
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map

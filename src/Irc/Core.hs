@@ -68,6 +68,7 @@ data MsgFromServer
   | RplCreationTime Identifier UTCTime -- ^ 329 channel timestamp
   | RplWhoisAccount Identifier ByteString -- ^ 330 nick account
   | RplTopicWhoTime Identifier ByteString UTCTime -- ^ 333 channel nickname timestamp
+  | RplInviting Identifier Identifier -- ^ 341 nick channel
   | RplInviteList Identifier ByteString ByteString UTCTime -- ^ 346 channel mask who timestamp
   | RplEndOfInviteList Identifier -- ^ 347 channel
   | RplExceptionList Identifier ByteString ByteString UTCTime -- ^ 348 channel mask who timestamp
@@ -133,6 +134,11 @@ data MsgFromServer
   | RplHelpStart ByteString ByteString -- ^ 704 topic text
   | RplHelp      ByteString ByteString -- ^ 705 topic text
   | RplEndOfHelp ByteString -- ^ 706 topic text
+  | RplKnock Identifier UserInfo -- ^ 710 channel
+  | RplKnockDelivered Identifier -- ^ 711 channel
+  | ErrTooManyKnocks Identifier -- ^ 713 channel
+  | ErrChanOpen Identifier -- ^ 713 channel
+  | ErrKnockOnChan Identifier -- ^ 714 channel
   | RplQuietList Identifier Char ByteString ByteString UTCTime -- ^ 728 channel mode mask who timestamp
   | RplEndOfQuietList Identifier Char -- ^ 729 channel mode
 
@@ -289,6 +295,9 @@ ircMsgToServerMsg ircmsg =
 
     ("333",[_,chan,who,time]) ->
        Just (RplTopicWhoTime (mkId chan) who (asTimeStamp time))
+
+    ("341",[_,nick,chan,_]) ->
+       Just (RplInviting (mkId nick) (mkId chan))
 
     ("346",[_,chan,mask,who,time]) ->
        Just (RplInviteList (mkId chan) mask who (asTimeStamp time))
@@ -470,6 +479,21 @@ ircMsgToServerMsg ircmsg =
 
     ("706",[_,topic,_]) ->
          Just (RplEndOfHelp topic)
+
+    ("710",[_,chan,who,_]) ->
+         Just (RplKnock (mkId chan) (parseUserInfo who))
+
+    ("711",[_,chan,_]) ->
+         Just (RplKnockDelivered (mkId chan))
+
+    ("712",[_,chan,_]) ->
+         Just (ErrTooManyKnocks (mkId chan))
+
+    ("713",[_,chan,_]) ->
+         Just (ErrChanOpen (mkId chan))
+
+    ("714",[_,chan,_]) ->
+         Just (ErrKnockOnChan (mkId chan))
 
     ("728",[_,chan,mode,banned,banner,time]) ->
          Just (RplQuietList (mkId chan) (B8.head mode) banned banner (asTimeStamp time))

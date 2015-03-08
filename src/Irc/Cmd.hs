@@ -32,6 +32,7 @@ module Irc.Cmd
   , awayCmd
   , helpCmd
   , removeCmd
+  , knockCmd
   ) where
 
 import Data.Monoid
@@ -370,4 +371,16 @@ whoCmd mask = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand = "WHO"
   , msgParams = [mask]
+  }
+
+-- | Construct a KNOCK command.
+--
+-- @KNOCK <channel>@
+knockCmd ::
+  Identifier {- ^ channel -} ->
+  ByteString
+knockCmd chan = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "KNOCK"
+  , msgParams = [idBytes chan]
   }

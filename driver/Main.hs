@@ -343,7 +343,9 @@ commandEvent cmd st =
          evSt <$ clientSend (removeCmd chan (toId nick) (toB msg)) evSt) st'
 
     "invite" :- nick :- "" | Just chan <- focusedChan st ->
-       doInvite (toId nick) chan st'
+       doInvite (toId nick) chan st
+
+    "knock" :- chan :- "" -> doKnock (toId chan) st
 
     "part" :- msg | Just chan <- focusedChan st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
@@ -381,6 +383,16 @@ commandEvent cmd st =
   toB = Text.encodeUtf8 . Text.pack
   toId = mkId . toB
 
+doKnock ::
+  Identifier {- ^ channel  -} ->
+  ClientState -> IO ClientState
+doKnock chan st
+  | has (clientConnection . connChannels . ix chan) st  -- don't knock channels you're in
+    || not (isChannelName chan (view clientConnection st)) -- only knock channels
+    = return st
+  | otherwise = do clientSend (knockCmd chan) st
+                   return (clearInput st)
+
 doInvite ::
   Identifier {- ^ nickname -} ->
   Identifier {- ^ channel  -} ->
@@ -388,12 +400,12 @@ doInvite ::
 doInvite nick chan st
 
   -- 'g' is the "FREEINVITE" mode, don't check for ops
-  | has (clientConnection . connChannels . ix chan . chanModes . folded . ix 'g') st = go st
+  | has (clientConnection . connChannels . ix chan . chanModes . folded . ix 'g') st = go (clearInput st)
 
   -- it's an error to invite someone already in channel
   | has (clientConnection . connChannels . ix chan . chanUsers . ix nick) st = return st
 
-  | otherwise = doWithOps chan go st
+  | otherwise = doWithOps chan go (clearInput st)
   where
   go st' = st' <$ clientSend (inviteCmd nick chan) st'
 
