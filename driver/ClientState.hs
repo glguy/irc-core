@@ -152,14 +152,14 @@ focusedName st =
     MaskListFocus _  c -> c
     ChannelFocus     c -> c
 
-focusedName' :: ClientState -> Maybe Identifier
-focusedName' st =
+focusedChan :: ClientState -> Maybe Identifier
+focusedChan st =
   case view clientFocus st of
     ChannelInfoFocus c -> Just c
     MaskListFocus _  c -> Just c
     ChannelFocus     c
-      | c == ""   -> Nothing
-      | otherwise -> Just c
+      | isChannelName c (view clientConnection st) -> Just c
+      | otherwise -> Nothing
 
 addMessage :: Identifier -> IrcMessage -> ClientState -> ClientState
 addMessage target message st

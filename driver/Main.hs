@@ -287,15 +287,15 @@ commandEvent cmd st =
     "channel" :- chan :- "" ->
       return (set clientFocus (ChannelFocus (toId chan)) st')
 
-    "channelinfo" :- "" | Just chan <- focusedName' st ->
+    "channelinfo" :- "" | Just chan <- focusedChan st ->
       doChannelInfoCmd chan st'
 
-    "bans" :- "" | Just chan <- focusedName' st ->
+    "bans" :- "" | Just chan <- focusedChan st ->
       doMasksCmd chan 'b' st'
 
     "masks" :- [mode] :- ""
       | mode `elem` view (clientConnection . connChanModeTypes . modesLists) st
-      , Just chan <- focusedName' st ->
+      , Just chan <- focusedChan st ->
         doMasksCmd chan mode st'
 
     -- chat
@@ -329,25 +329,29 @@ commandEvent cmd st =
          st' <$ clientSend (modeCmd (view (clientConnection . connNick) st)
                                     (map toB (words args))) st'
 
-    "mode" :- args | Just chan <- focusedName' st ->
+    "mode" :- args | Just chan <- focusedChan st ->
        doWithOps chan (\evSt ->
          evSt <$ clientSend (modeCmd chan (map toB (words args))) evSt) st'
 
-    "kick" :- nick :- msg | Just chan <- focusedName' st ->
+    "kick" :- nick :- msg | Just chan <- focusedChan st ->
        doWithOps chan (\evSt ->
          evSt <$ clientSend (kickCmd chan (toId nick) (toB msg)) evSt) st'
 
-    "remove" :- nick :- msg | Just chan <- focusedName' st ->
+    "remove" :- nick :- msg | Just chan <- focusedChan st ->
        doWithOps chan (\evSt ->
          evSt <$ clientSend (removeCmd chan (toId nick) (toB msg)) evSt) st'
 
-    "part" :- msg | Just chan <- focusedName' st ->
+    "invite" :- nick :- "" | Just chan <- focusedChan st ->
+       doWithOps chan (\evSt ->
+         evSt <$ clientSend (inviteCmd (toId nick) chan) evSt) st'
+
+    "part" :- msg | Just chan <- focusedChan st ->
          st' <$ clientSend (partCmd chan (toB msg)) st'
 
     "whois"  :- u :- "" -> st' <$ clientSend (whoisCmd  (toId u)) st'
     "whowas" :- u :- "" -> st' <$ clientSend (whowasCmd (toId u)) st'
 
-    "topic" :- rest | Just chan <- focusedName' st -> doTopicCmd chan (toB rest) st'
+    "topic" :- rest | Just chan <- focusedChan st -> doTopicCmd chan (toB rest) st'
 
     "ignore" :- u :- "" -> return (over (clientIgnores . contains (toId u)) not st')
     "highlight" :- w :- "" ->
@@ -358,10 +362,16 @@ commandEvent cmd st =
 
     "nick" :- nick :- "" -> st' <$ clientSend (nickCmd (toId nick)) st'
 
-    "op" :- args | Just chan <- focusedName' st ->
+    "away" :- rest -> st' <$ clientSend (awayCmd (toB rest)) st'
+    "quit" :- rest -> st' <$ clientSend (quitCmd (toB rest)) st'
+
+    "list" :- rest -> st' <$ clientSend (listCmd (map toId (words rest))) st'
+    "who" :- whomask :- "" -> st' <$ clientSend (whoCmd (toB whomask)) st'
+
+    "op" :- args | Just chan <- focusedChan st ->
         doChanservOpCmd chan (map B8.pack (words args)) st'
 
-    "akb" :- nick :- reason | Just chan <- focusedName' st ->
+    "akb" :- nick :- reason | Just chan <- focusedChan st ->
        doWithOps chan (doAutoKickBan chan (toId nick) (Text.pack reason)) st'
 
     _ -> return st

@@ -45,8 +45,11 @@ data MsgFromServer
   | RplLocalUsers ByteString ByteString -- ^ 265 local max
   | RplGlobalUsers ByteString ByteString -- ^ 266 global max
 
+  | RplAway Identifier ByteString -- ^ 301 nick away_message
   | RplUserHost [ByteString] -- ^ 302 *(user hosts)
   | RplIsOn [Identifier] -- ^ 303 *(nick)
+  | RplUnAway -- ^ 305
+  | RplNowAway -- ^ 306
   | RplWhoisUser Identifier ByteString ByteString ByteString -- ^ 311 nick user host realname
   | RplWhoisServer Identifier ByteString ByteString -- ^ 312 nick server serverinfo
   | RplWhoisOperator Identifier ByteString -- ^ 313 nick "is an IRC operator"
@@ -56,7 +59,7 @@ data MsgFromServer
   | RplEndOfWhois Identifier -- ^ 318 nick
   | RplWhoisChannels Identifier ByteString -- ^ 319 nick channels
   | RplListStart -- ^ 321
-  | RplList Identifier ByteString ByteString -- ^ 322 channel usercount topic
+  | RplList Identifier Integer ByteString -- ^ 322 channel usercount topic
   | RplListEnd -- ^ 323
   | RplChannelModeIs Identifier ByteString [ByteString] -- ^ 324 channel modes *(params)
   | RplNoTopicSet Identifier -- ^ 331 channel
@@ -117,6 +120,7 @@ data MsgFromServer
   | ErrNoPrivileges -- ^ 481
   | ErrChanOpPrivsNeeded Identifier -- ^ 482 channel
   | ErrUnknownUmodeFlag Char -- ^ 501 mode
+  | ErrUsersDontMatch -- ^ 502
 
   -- Random high-numbered stuff
   | RplWhoisSecure Identifier -- ^ 671 nick
@@ -211,11 +215,20 @@ ircMsgToServerMsg ircmsg =
     ("266",[_,globalusers,maxusers,_txt]) ->
        Just (RplGlobalUsers globalusers maxusers)
 
+    ("301",[_,nick,message]) ->
+       Just (RplAway (mkId nick) message)
+
     ("302",[_,txt]) ->
        Just (RplUserHost (filter (not . B.null) (B.split 32 txt)))
 
     ("303",[_,txt]) ->
        Just (RplIsOn (map mkId (filter (not . B.null) (B.split 32 txt))))
+
+    ("305",[_,_]) ->
+       Just RplUnAway
+
+    ("306",[_,_]) ->
+       Just RplNowAway
 
     ("311",[_,nick,user,host,_star,txt]) ->
        Just (RplWhoisUser (mkId nick) user host txt)
@@ -241,13 +254,13 @@ ircMsgToServerMsg ircmsg =
     ("318",[_,nick,_txt]) ->
        Just (RplEndOfWhois (mkId nick))
 
-    ("321",[_]) ->
+    ("321",[_,_,_]) ->
        Just RplListStart
 
     ("322",[_,chan,num,topic]) ->
-       Just (RplList (mkId chan) num topic)
+       Just (RplList (mkId chan) (asNumber num) topic)
 
-    ("323",[]) ->
+    ("323",[_,_]) ->
        Just RplListEnd
 
     ("324",_:chan:modes:params) ->
@@ -419,6 +432,9 @@ ircMsgToServerMsg ircmsg =
     ("501",[_,mode,_]) ->
          Just (ErrUnknownUmodeFlag (B8.head mode))
 
+    ("502",[_,_]) ->
+         Just ErrUsersDontMatch
+
     ("671",[_,nick,_]) ->
          Just (RplWhoisSecure (mkId nick))
 
@@ -534,7 +550,10 @@ ircMsgToServerMsg ircmsg =
     _ -> Nothing
 
 asTimeStamp :: ByteString -> UTCTime
-asTimeStamp b =
+asTimeStamp = posixSecondsToUTCTime . fromInteger . asNumber
+
+asNumber :: ByteString -> Integer
+asNumber b =
   case B8.readInteger b of
-    Just (n,_) -> posixSecondsToUTCTime (fromIntegral n)
-    Nothing    -> posixSecondsToUTCTime 0
+    Nothing    -> 0
+    Just (x,_) -> x

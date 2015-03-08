@@ -214,6 +214,7 @@ data IrcMessageType
   = PrivMsgType   Text
   | NoticeMsgType Text
   | ActionMsgType Text
+  | AwayMsgType   Text
   | JoinMsgType
   | KickMsgType   Identifier Text
   | PartMsgType   Text
@@ -278,7 +279,7 @@ advanceModel msg0 conn =
 
        -- Channel list not implemented
        RplListStart     -> return conn
-       RplList _ _ _    -> return conn
+       RplList chan count topic -> doList chan count topic conn
        RplListEnd       -> return conn
 
        RplUserHost host ->
@@ -444,6 +445,8 @@ advanceModel msg0 conn =
          doServerError "No permission for host" conn
        ErrPasswordMismatch ->
          doServerError "Password mismatch" conn
+       ErrUsersDontMatch ->
+         doServerError "Can't change modes for other users" conn
 
        ErrNoSuchNick nick ->
          doChannelError nick "No such nick" conn
@@ -500,6 +503,13 @@ advanceModel msg0 conn =
        RplEndOfWhois _nick ->
          doServerMessage "WHOIS" "--END--" conn
 
+       RplAway nick message ->
+         doAwayReply nick (asUtf8 message) conn
+       RplUnAway ->
+         doServerMessage "AWAY" "You are no longer marked away" conn
+       RplNowAway ->
+         doServerMessage "AWAY" "You are marked away" conn
+
        RplWhoWasUser nick user host real ->
          doServerMessage "WHOWAS" (B8.unwords [idBytes nick, user, host, real]) conn
        RplEndOfWhoWas _nick ->
@@ -543,6 +553,32 @@ advanceModel msg0 conn =
          doServerError (asUtf8 e) conn
 
        RplISupport _ -> fail "Unsupported isupport"
+
+doList ::
+  Identifier {- ^ channel -} ->
+  Integer    {- ^ members -} ->
+  ByteString {- ^ topic   -} ->
+  IrcConnection -> Logic IrcConnection
+doList chan num topic =
+  doServerMessage "LIST"
+    (B8.unwords [idBytes chan, " - ",
+                 B8.pack (show num), " - ",
+                 topic])
+
+doAwayReply ::
+  Identifier {- ^ nickname -} ->
+  Text       {- ^ away message -} ->
+  IrcConnection -> Logic IrcConnection
+doAwayReply nick message conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+           { _mesgType    = AwayMsgType message
+           , _mesgSender  = UserInfo nick Nothing Nothing
+           , _mesgStamp   = stamp
+           , _mesgMe      = False
+           , _mesgModes   = ""
+           }
+     recordMessage mesg nick conn
 
 doChannelError ::
   Identifier {- ^ channel -} ->

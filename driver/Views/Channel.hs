@@ -42,6 +42,7 @@ detailedImageForState st
        PrivMsgType txt -> ("M", txt)
        TopicMsgType txt -> ("T", txt)
        ActionMsgType txt -> ("A", txt)
+       AwayMsgType txt -> ("Y", txt)
        NoticeMsgType txt -> ("N", txt)
        KickMsgType who txt -> ("K", asUtf8 (idBytes who) <> " - " <> txt)
        ErrorMsgType txt -> ("E", txt)
@@ -121,6 +122,12 @@ compressedImageForState st
       string (withForeColor defAttr red) " set topic " <|>
       cleanText txt
 
+  renderOne (CompAway who txt)
+    = string (withForeColor defAttr red) "A " <|>
+      identImg (withForeColor defAttr yellow) who <|>
+      string (withForeColor defAttr red) " is away: " <|>
+      cleanText txt
+
   renderOne (CompMeta xs) =
       cropRight width (horizCat (intersperse (char defAttr ' ') (map renderMeta xs)))
 
@@ -171,6 +178,8 @@ compressMessages ignores (x:xs) =
                        : compressMessages ignores xs
     TopicMsgType txt  -> CompTopic nick txt
                        : compressMessages ignores xs
+    AwayMsgType txt  -> CompAway nick txt
+                       : compressMessages ignores xs
     _                 -> meta ignores [] (x:xs)
 
   where
@@ -185,7 +194,7 @@ meta ignores acc (x:xs) =
       QuitMsgType{} -> meta ignores (CompQuit nick : acc) xs
       PartMsgType{} -> meta ignores (CompPart nick : acc) xs
       NickMsgType nick' -> meta ignores (CompNick nick nick' : acc) xs
-      PrivMsgType{} | ignore -> meta ignores (CompIgnored nick : acc) xs
+      PrivMsgType{}   | ignore -> meta ignores (CompIgnored nick : acc) xs
       ActionMsgType{} | ignore -> meta ignores (CompIgnored nick : acc) xs
       NoticeMsgType{} | ignore -> meta ignores (CompIgnored nick : acc) xs
       _ -> CompMeta (reverse acc) : compressMessages ignores (x:xs)
@@ -202,6 +211,7 @@ data CompressedMessage
   | CompError Text
   | CompMode Identifier Bool Char ByteString
   | CompTopic Identifier Text
+  | CompAway Identifier Text
   | CompMeta [CompressedMeta]
 
 data CompressedMeta
