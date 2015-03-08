@@ -276,92 +276,76 @@ doSendMessage sendType target message st =
                  Nothing
 
 commandEvent :: ClientState -> Parser (IO ClientState)
-commandEvent st =
+commandEvent st = foldr (A.<|>) empty
 
     -- focus setting
-    pCommand "server" $>
+  [ pCommand "server" $>
     return (set clientFocus (ChannelFocus "") st')
-  A.<|>
 
-    pCommand "channel" $>
+  , pCommand "channel" $>
     (\chan -> return (set clientFocus (ChannelFocus chan) st'))
     <*> pChannel st
-  A.<|>
 
-    pCommand "query" $>
+  , pCommand "query" $>
     (\user -> return (set clientFocus (ChannelFocus user) st'))
     <*> pNick st
-  A.<|>
 
-
-    pCommand "channelinfo" $>
+  , pCommand "channelinfo" $>
     doChannelInfoCmd st'
-  A.<|>
 
-
-    pCommand "bans" $>
+  , pCommand "bans" $>
       doMasksCmd 'b' st
-  A.<|>
 
-    pCommand "masks" $>
+  , pCommand "masks" $>
     (\mode -> doMasksCmd mode st)
     <*> pValidToken "mode" (\m ->
             case m of
               [x] | x `elem` view (clientConnection . connChanModeTypes . modesLists) st -> Just x
               _ -> Nothing)
-  A.<|>
 
     -- chat
-    pCommand "me" $>
+  , pCommand "me" $>
     (\msg -> doAction msg st)
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "notice" $>
+  , pCommand "notice" $>
     (\target msg -> doSendMessage SendNotice target (Text.pack msg) st)
     <*> pTarget <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "msg" $>
+  , pCommand "msg" $>
     (\target msg -> doSendMessage SendPriv target (Text.pack msg) st)
     <*> pTarget <*> pRemainingNoSp
-  A.<|>
 
     -- carefully preserve whitespace after the command
-    pCommand "hs" $>
+  , pCommand "hs" $>
     (\src ->
       let msg = Text.pack src in
       case view clientFocus st of
         ChannelFocus c -> doSendMessage SendPriv c msg st
         _ -> return st)
     <*> pHaskell
-  A.<|>
 
     -- raw
-    pCommand "quote" $>
+  , pCommand "quote" $>
     (\rest -> doQuote rest st')
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "help" $>
+  , pCommand "help" $>
     (\mbTopic -> st' <$ clientSend (helpCmd (maybe "" toB mbTopic)) st')
     <*> optional (pToken "topic")
-  A.<|>
 
     -- channel commands
-    pCommand "join" $>
+  , pCommand "join" $>
     (\c key -> doJoinCmd c (fmap toB key) st')
     <*> pChannel st <*> (pure Nothing A.<|> Just <$> pToken "key")
-  A.<|>
 
-    pCommand "umode" $>
+  , pCommand "umode" $>
     (\args ->
          st' <$ clientSend (modeCmd (view (clientConnection . connNick) st)
                                     (map toB (words args))) st')
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "mode" $>
+  , pCommand "mode" $>
     (\args ->
        case focusedChan st of
          Nothing -> return st
@@ -369,9 +353,8 @@ commandEvent st =
            doWithOps chan (\evSt ->
              evSt <$ clientSend (modeCmd chan (map toB (words args))) evSt) st')
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "kick" $>
+  , pCommand "kick" $>
     (\nick msg ->
        case focusedChan st of
          Nothing -> return st
@@ -379,9 +362,8 @@ commandEvent st =
            doWithOps chan (\evSt ->
              evSt <$ clientSend (kickCmd chan nick (toB msg)) evSt) st')
     <*> pNick st <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "remove" $>
+  , pCommand "remove" $>
     (\nick msg ->
         case focusedChan st of
           Nothing -> return st
@@ -389,84 +371,69 @@ commandEvent st =
             doWithOps chan (\evSt ->
               evSt <$ clientSend (removeCmd chan nick (toB msg)) evSt) st')
     <*> pNick st <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "invite" $>
+  , pCommand "invite" $>
     (\nick ->
        case focusedChan st of
          Nothing -> return st
          Just chan ->
            doInvite nick chan st)
     <*> pNick st
-  A.<|>
 
-    pCommand "knock" $>
+  , pCommand "knock" $>
     (\chan -> doKnock chan st)
     <*> pChannel st
 
-  A.<|>
-
-    pCommand "part" $>
+  , pCommand "part" $>
     (\msg -> case focusedChan st of
                Nothing -> return st
                Just chan -> st' <$ clientSend (partCmd chan (toB msg)) st')
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "whois" $>
+  , pCommand "whois" $>
     (\u -> st' <$ clientSend (whoisCmd u) st')
     <*> pNick st
-  A.<|>
 
-    pCommand "whowas" $>
+  , pCommand "whowas" $>
     (\u -> st' <$ clientSend (whowasCmd u) st')
     <*> pNick st
-  A.<|>
 
-    pCommand "topic" $>
+  , pCommand "topic" $>
     (\rest ->
         case focusedChan st of
           Nothing -> return st
           Just chan -> doTopicCmd chan (toB rest) st')
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "ignore" $>
+  , pCommand "ignore" $>
     (\u -> return (over (clientIgnores . contains u) not st'))
     <*> pNick st
-  A.<|>
 
-    pCommand "highlight" $>
+  , pCommand "highlight" $>
     (\w ->
        return (over (clientHighlights . contains (CI.foldCase (Text.pack w))) not st'))
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "clear" $>
+  , pCommand "clear" $>
     return (set (clientMessages . at (focusedName st)) Nothing st')
-  A.<|>
 
-    pCommand "nick" $>
+  , pCommand "nick" $>
     (\nick -> st' <$ clientSend (nickCmd nick) st')
     <*> pNick st
-  A.<|>
 
-    pCommand "away" $>
+  , pCommand "away" $>
     (\rest -> st' <$ clientSend (awayCmd (toB rest)) st')
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "quit" $>
+  , pCommand "quit" $>
     (\rest -> st' <$ clientSend (quitCmd (toB rest)) st')
     <*> pRemainingNoSp
-  A.<|>
 
-    pCommand "who" $>
+  , pCommand "who" $>
     (\whomask -> st' <$ clientSend (whoCmd (toB whomask)) st')
     <*> pToken "mask"
 
-  A.<|>
-    pCommand "op" $>
+  , pCommand "op" $>
     (\args ->
        case focusedChan st of
         Nothing -> return st
@@ -474,16 +441,14 @@ commandEvent st =
           doChanservOpCmd chan (map B8.pack (words args)) st')
     <*> pRemainingNoSp
 
-  A.<|>
-    pCommand "akb" $>
+  , pCommand "akb" $>
     (\nick reason ->
        case focusedChan st of
          Nothing -> return st
          Just chan -> doWithOps chan (doAutoKickBan chan nick (Text.pack reason)) st')
     <*> pNick st <*> pRemainingNoSp
-  A.<|>
 
-  empty
+  ]
 
   where
   st' = clearInput st
