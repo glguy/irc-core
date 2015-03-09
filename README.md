@@ -25,6 +25,7 @@ Client Features
 * Haskell source code highlighting (/hs)
 * Write your modifications in Haskell ^_^
 * Chanserv automation (automatically requests op from chanserv for privileged commands)
+* Command syntax highlighting with hints.
 
 No SSL?
 =======
@@ -55,6 +56,7 @@ SASLPASSWORD=<your sasl password>
 Commands
 ========
 
+* `/akb <nick> <message>` - Auto-kickban: Request ops from chanserv if needed, ban by accountname if known, hostname otherwise, kick with message
 * `/bans` - Show known bans for current channel. Note: Request bans list with `/quote mode <channel> +b`
 * `/channel <channel>` - switch to a user message window
 * `/channelinfo` - Show information for the current channel

@@ -16,12 +16,13 @@ import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Char
-import Data.Foldable (traverse_)
+import Data.Foldable (for_, traverse_)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time
+import Data.Traversable (for)
 import Graphics.Vty
 import Network
 import System.IO
@@ -56,8 +57,10 @@ main = do
   hSetNewlineMode h NewlineMode { inputNL = CRLF, outputNL = CRLF }
   hSetEncoding h utf8
 
-  hErr <- openFile "debug.txt" WriteMode
-  hSetBuffering hErr NoBuffering
+  hErr <- for (view cmdArgDebug args) $ \fn ->
+            do hErr <- openFile fn WriteMode
+               hSetBuffering hErr NoBuffering
+               return hErr
 
   let toId = mkId . B8.pack
 
@@ -152,7 +155,7 @@ driver vty vtyEventChan ircMsgChan st0 =
 
        res <- m
        case res of
-         (Left e,st') -> do hPutStrLn (view clientErrors st) ("!!! " ++ e)
+         (Left e,st') -> do for_ (view clientErrors st) $ \h -> hPutStrLn h ("!!! " ++ e)
                             continue st'
          (Right conn',st') -> continue (set clientConnection conn' st')
 
@@ -724,7 +727,7 @@ sendLoop queue h =
           tickRateLimit r
           B.hPut h x
 
-socketLoop :: TChan MsgFromServer -> Handle -> Handle -> IO ()
+socketLoop :: TChan MsgFromServer -> Handle -> Maybe Handle -> IO ()
 socketLoop chan h hErr =
   forever (atomically . writeTChan chan =<< getOne h hErr)
   `catch` \(SomeException e) ->
@@ -733,15 +736,17 @@ socketLoop chan h hErr =
 vtyEventLoop :: TChan Event -> Vty -> IO a
 vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)
 
-getOne :: Handle -> Handle -> IO MsgFromServer
+getOne :: Handle -> Maybe Handle -> IO MsgFromServer
 getOne h hErr =
     do xs <- ircGetLine h
        case parseRawIrcMsg xs of
-         Nothing -> hPrint hErr xs >> getOne h hErr
+         Nothing -> debug xs >> getOne h hErr
          Just msg ->
            case ircMsgToServerMsg msg of
-             Just x -> hPrint hErr x >> return x
-             Nothing -> hPrint hErr msg >> getOne h hErr
+             Just x -> debug x >> return x
+             Nothing -> debug msg >> getOne h hErr
+  where
+  debug x = for_ hErr (`hPrint` x)
 
 readEitherTChan :: TChan a -> TChan b -> IO (Either a b)
 readEitherTChan a b =

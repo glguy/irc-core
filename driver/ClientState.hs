@@ -29,7 +29,7 @@ import qualified EditBox as Edit
 
 data ClientState = ClientState
   { _clientSendChan   :: TChan ByteString
-  , _clientErrors     :: Handle
+  , _clientErrors     :: Maybe Handle
   , _clientConnection :: IrcConnection
   , _clientFocus      :: Focus
   , _clientDetailView :: !Bool
