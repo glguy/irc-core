@@ -723,8 +723,11 @@ sendLoop queue h =
           tickRateLimit r
           B.hPut h x
 
-socketLoop :: TChan MsgFromServer -> Handle -> Handle -> IO a
-socketLoop chan h hErr = forever (atomically . writeTChan chan =<< getOne h hErr)
+socketLoop :: TChan MsgFromServer -> Handle -> Handle -> IO ()
+socketLoop chan h hErr =
+  forever (atomically . writeTChan chan =<< getOne h hErr)
+  `catch` \(SomeException e) ->
+  atomically (writeTChan chan (Error (Text.encodeUtf8 (Text.pack (show e)))))
 
 vtyEventLoop :: TChan Event -> Vty -> IO a
 vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)

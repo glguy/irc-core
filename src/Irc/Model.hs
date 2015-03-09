@@ -1213,7 +1213,6 @@ isChannelName c conn =
 isNickName :: Identifier -> IrcConnection -> Bool
 isNickName c conn =
   case B.uncons (idBytes c) of
-    Just (x,xs) -> not (B.null xs)
-                && not (x `elem` view connChanTypes conn)
+    Just (x,_) -> not (x `elem` view connChanTypes conn)
     _ -> False -- probably shouldn't happen
 
