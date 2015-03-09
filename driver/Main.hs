@@ -414,7 +414,8 @@ commandEvent st = commandsParser (clientInput st)
     <$> pRemainingNoSp)
 
   , ("clear",
-    pure (return (set (clientMessages . at (focusedName st)) Nothing st')))
+    (\chan -> return (set (clientMessages . at (fromMaybe (focusedName st) chan)) Nothing st'))
+    <$> optional pTarget)
 
   , ("nick",
     (\nick -> st' <$ clientSend (nickCmd nick) st')
