@@ -17,6 +17,7 @@ import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Char
 import Data.Foldable (traverse_)
+import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
@@ -853,6 +854,13 @@ doAutoKickBan ::
   ClientState -> IO ClientState
 doAutoKickBan chan nick reason st =
   -- TODO: Look up account name or hostname!
-  do clientSend (modeCmd chan ["+b",idDenote nick <> "!*@*"]) st
+  do clientSend (modeCmd chan ["+b",banMask]) st
      clientSend (kickCmd chan nick (Text.encodeUtf8 reason)) st
      return st
+
+  where
+  usr  = view (clientConnection . connUsers . at nick) st
+  nickMask = idDenote nick <> "!*@*"
+  banMask = fromMaybe nickMask
+          $ previews (folded . usrAccount . folded) ("$a:"<>) usr
+    `mplus` previews (folded . usrHost    . folded) ("*!*@"<>) usr

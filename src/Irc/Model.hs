@@ -3,6 +3,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFoldable #-}
 
 
 -- | This module implements a high-level view of the state of
@@ -61,6 +63,7 @@ module Irc.Model
   , IrcUser(..)
   , usrAway
   , usrAccount
+  , usrHost
   , defaultIrcUser
 
   -- * Model execution
@@ -83,6 +86,7 @@ import Control.Monad.Trans.Error
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import Data.Char (ord)
+import Data.Foldable (Foldable)
 import Data.List (foldl',find,nub,delete,intersect)
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
@@ -231,6 +235,7 @@ data IrcMessageType
 data IrcUser = IrcUser
   { _usrAway :: !Bool
   , _usrAccount :: Maybe ByteString
+  , _usrHost    :: Maybe ByteString
   }
   deriving (Read,Show)
 
@@ -239,7 +244,11 @@ defaultIrcUser :: IrcUser
 defaultIrcUser = IrcUser
   { _usrAway    = False
   , _usrAccount = Nothing
+  , _usrHost    = Nothing
   }
+
+data Fuzzy a = Known !a | Unknown | None
+  deriving (Read,Show,Functor,Foldable,Traversable)
 
 makeLenses ''IrcConnection
 makeLenses ''IrcChannel
@@ -291,8 +300,8 @@ advanceModel msg0 conn =
        RplInfo _ -> return conn
        RplEndOfInfo -> return conn
 
-       Join who chan -> doJoinChannel who Nothing chan conn
-       ExtJoin who chan account _realname -> doJoinChannel who account chan conn
+       Join who chan -> doJoinChannel who Unknown chan conn
+       ExtJoin who chan account _realname -> doJoinChannel who (maybe None Known account) chan conn
        Part who chan reason -> doPart who chan reason conn
        Kick who chan tgt reason -> doKick who chan tgt reason conn
        Quit who reason -> doQuit who reason conn
@@ -342,8 +351,8 @@ advanceModel msg0 conn =
        RplCreationTime chan creation ->
          return (set (connChannels . ix chan . chanCreation) (Just creation) conn)
 
-       RplWhoReply _chan _username _hostname _servername nickname flags _realname ->
-         doWhoReply nickname flags conn
+       RplWhoReply _chan _username hostname _servername nickname flags _realname ->
+         doWhoReply nickname hostname flags conn
 
        RplEndOfWho _chan -> return conn
 
@@ -508,7 +517,8 @@ advanceModel msg0 conn =
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map
        RplWhoisUser nick user host real ->
-         doServerMessage "WHOIS" (B8.unwords [idBytes nick, user, host, real]) conn
+         doServerMessage "WHOIS" (B8.unwords [idBytes nick, user, host, real])
+            (set (connUsers . ix nick . usrHost) (Just host) conn)
        RplWhoisChannels _nick channels ->
          doServerMessage "WHOIS" channels conn
        RplWhoisServer _nick host txt ->
@@ -519,8 +529,9 @@ advanceModel msg0 conn =
          doServerMessage "WHOIS" txt conn
        RplWhoisIdle _nick idle _signon ->
          doServerMessage "WHOIS" ("Idle seconds: " <> idle) conn
-       RplWhoisAccount _nick account ->
-         doServerMessage "WHOIS" ("Logged in as: " <> account) conn
+       RplWhoisAccount nick account ->
+         doServerMessage "WHOIS" ("Logged in as: " <> account)
+            (set (connUsers . ix nick . usrAccount) (Just account) conn)
        RplWhoisModes _nick modes args ->
          doServerMessage "WHOIS" ("Modes: " <> B8.unwords (modes:args)) conn
        RplWhoisOperator _nick txt  ->
@@ -1014,13 +1025,15 @@ doKick who chan tgt reason conn =
      recordMessage mesg chan conn3
 
 
-doWhoReply :: Identifier -> ByteString -> IrcConnection -> Logic IrcConnection
-doWhoReply nickname flags conn =
+doWhoReply :: Identifier -> ByteString -> ByteString -> IrcConnection -> Logic IrcConnection
+doWhoReply nickname hostname flags conn =
   return (over (connUsers . ix nickname)
-               (set usrAway away)
+               (set usrAway away . updateHost)
                conn)
   where
   away = not (B.null flags) && B.take 1 flags == "G"
+
+  updateHost = set usrHost (Just hostname)
 
 -- | Update an 'IrcConnection' with the quitting of a user.
 doQuit ::
@@ -1048,10 +1061,10 @@ doQuit who reason conn =
 
 doJoinChannel ::
   UserInfo         {- ^ who joined   -} ->
-  Maybe ByteString {- ^ account name -} ->
+  Fuzzy ByteString {- ^ account name -} ->
   Identifier       {- ^ channel      -} ->
   IrcConnection -> Logic IrcConnection
-doJoinChannel who mbAcct chan conn =
+doJoinChannel who acct chan conn =
   do stamp <- getStamp
 
      -- add channel if necessary
@@ -1065,10 +1078,22 @@ doJoinChannel who mbAcct chan conn =
                      (Just "") -- empty modes
                      conn1
 
+         conn3 = recordAccount (recordHost (ensureRecord conn2))
+
      -- update user record
-         conn3 = over (connUsers . at (userNick who))
-                      (Just . set usrAccount mbAcct . fromMaybe defaultIrcUser)
-                      conn2
+         ensureRecord = over (connUsers . at (userNick who)) (Just . fromMaybe defaultIrcUser)
+
+         recordAccount = case acct of
+                   None -> over (connUsers . ix (userNick who))
+                                (set usrAccount Nothing)
+                   Known a -> over (connUsers . ix (userNick who))
+                                (set usrAccount (Just a))
+                   Unknown -> id
+
+         recordHost = case userHost who of
+                        Nothing -> id
+                        Just host -> over (connUsers . ix (userNick who))
+                                          (set usrHost (Just host))
 
      -- record join event
          m = IrcMessage
@@ -1119,15 +1144,24 @@ doNameReply chan xs conn =
      case msg of
        RplNameReply _ _ x -> doNameReply chan (x++xs) conn
        RplEndOfNames _ -> return
+                     $ over connUsers (<> cusers)
                      $ set (connChannels . ix chan . chanUsers)
                            users
                            conn
        _ -> fail "Expected end of names"
        where
        modeMap = view (connChanModeTypes . modesPrefixModes) conn
-       users = Map.fromList
-             $ map (over _1 userNick) -- drop hostname for now
-             $ map (splitNamesReplyName modeMap) xs
+
+       splitNames :: [(UserInfo, String)]
+       splitNames = map (splitNamesReplyName modeMap) xs
+
+       users :: Map Identifier String
+       users = Map.fromList (map (over _1 userNick) splitNames)
+
+       cusers :: Map Identifier IrcUser
+       cusers = Map.fromList
+              [ (userNick u, defaultIrcUser { _usrHost = userHost u })
+              | (u,_) <- splitNames]
          -- TODO : Record userhost
 
 -- | Compute the nickname and channel modes from an entry in
