@@ -5,10 +5,8 @@ import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Monoid
 import Data.Foldable (toList)
-import Data.List (stripPrefix, intersperse)
+import Data.List (stripPrefix)
 import Data.Maybe (mapMaybe)
-import Data.Set (Set)
-import Data.Text (Text)
 import Data.Time (UTCTime, formatTime)
 import Graphics.Vty.Image
 import System.Locale (defaultTimeLocale)
@@ -66,10 +64,7 @@ activeMessages st =
     = views mesgSender userNick msg == mkId nick
 
 compressedImageForState :: ClientState -> [Image]
-compressedImageForState st
-  = map renderOne
-  $ compressMessages (view clientIgnores st)
-  $ activeMessages st
+compressedImageForState st = renderOne (activeMessages st)
   where
   width = view clientWidth st
 
@@ -80,73 +75,107 @@ compressedImageForState st
           | otherwise = view clientNickColors st
                      !! mod (nickHash (idDenote nick)) ncolors
 
-  renderOne (CompChat modes me who what) =
-      modePrefix modes <|>
-      formatNick me who <|>
-      string (withForeColor defAttr blue) (": ") <|>
-      cleanText what
+  ignores = view clientIgnores st
 
-  renderOne (CompNotice modes who what) =
-      string (withForeColor defAttr red) "! " <|>
-      modePrefix modes <|>
-      identImg (withForeColor defAttr red) who <|>
-      string (withForeColor defAttr blue) (": ") <|>
-      cleanText what
+  renderOne [] = []
+  renderOne (msg:msgs) =
+    let nick = views mesgSender userNick msg
+        visible = not (view (contains nick) ignores)
+    in case view mesgType msg of
+         PrivMsgType txt | visible ->
+            -- modes me who what) =
+            (views mesgModes modePrefix msg <|>
+             formatNick (view mesgMe msg) nick <|>
+             string (withForeColor defAttr blue) (": ") <|>
+             cleanText txt) : renderOne msgs
 
-  renderOne (CompAction modes who what) =
-      string (withForeColor defAttr blue) "* " <|>
-      modePrefix modes <|>
-      identImg (withForeColor defAttr blue) who <|>
-      char defAttr ' ' <|>
-      cleanText what
+         NoticeMsgType txt | visible ->
+            -- modes me who what) =
+            (string (withForeColor defAttr red) "! " <|>
+             views mesgModes modePrefix msg <|>
+             identImg (withForeColor defAttr red) nick <|>
+             string (withForeColor defAttr blue) (": ") <|>
+             cleanText txt) : renderOne msgs
 
-  renderOne (CompKick kicker who reason) =
-      identImg (withForeColor defAttr yellow) kicker <|>
-      string (withForeColor defAttr red) " kicked " <|>
-      identImg (withForeColor defAttr yellow) who <|>
-      string (withForeColor defAttr blue) (": ") <|>
-      cleanText reason
+         ActionMsgType txt | visible ->
+            -- modes me who what) =
+            (string (withForeColor defAttr blue) "* " <|>
+             views mesgModes modePrefix msg <|>
+             identImg (withForeColor defAttr blue) nick <|>
+             string (withForeColor defAttr blue) (": ") <|>
+             cleanText txt) : renderOne msgs
 
-  renderOne (CompError err) =
-      string (withForeColor defAttr red) "Error: " <|>
-      cleanText err
+         KickMsgType who reason ->
+            (views mesgModes modePrefix msg <|>
+             formatNick (view mesgMe msg) nick <|>
+             string (withForeColor defAttr red) " kicked " <|>
+             identImg (withForeColor defAttr yellow) who <|>
+             string (withForeColor defAttr blue) (": ") <|>
+             cleanText reason) : renderOne msgs
 
-  renderOne (CompMode who pol m arg) =
-      identImg (withForeColor defAttr yellow) who <|>
-      string (withForeColor defAttr red) " set mode " <|>
-      string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
-      utf8Bytestring' (withForeColor defAttr yellow) arg
+         ErrorMsgType err ->
+            (string (withForeColor defAttr red) "Error: " <|>
+             cleanText err) : renderOne msgs
 
-  renderOne (CompTopic who txt)
-    = identImg (withForeColor defAttr yellow) who <|>
-      string (withForeColor defAttr red) " set topic " <|>
-      cleanText txt
+         ModeMsgType pol m arg ->
+            (views mesgModes modePrefix msg <|>
+             formatNick (view mesgMe msg) nick <|>
+             string (withForeColor defAttr red) " set mode " <|>
+             string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
+             utf8Bytestring' (withForeColor defAttr yellow) arg) : renderOne msgs
 
-  renderOne (CompAway who txt)
-    = string (withForeColor defAttr red) "A " <|>
-      identImg (withForeColor defAttr yellow) who <|>
-      string (withForeColor defAttr red) " is away: " <|>
-      cleanText txt
+         TopicMsgType txt ->
+            (views mesgModes modePrefix msg <|>
+             formatNick (view mesgMe msg) nick <|>
+             string (withForeColor defAttr red) " set topic " <|>
+             cleanText txt) : renderOne msgs
 
-  renderOne (CompMeta xs) =
-      cropRight width (horizCat (intersperse (char defAttr ' ') (map renderMeta xs)))
+         AwayMsgType txt ->
+            (string (withForeColor defAttr red) "A " <|>
+             formatNick (view mesgMe msg) nick <|>
+             string (withForeColor defAttr red) " is away: " <|>
+             cleanText txt) : renderOne msgs
 
-  renderMeta (CompJoin who)
-    =   char (withForeColor defAttr green) '+'
-    <|> identImg defAttr who
-  renderMeta (CompPart who)
-    =   char (withForeColor defAttr red) '-'
-    <|> identImg defAttr who
-  renderMeta (CompQuit who)
-    =   char (withForeColor defAttr red) 'x'
-    <|> identImg defAttr who
-  renderMeta (CompNick who who')
-    =   identImg defAttr who
-    <|> char (withForeColor defAttr yellow) '-'
-    <|> identImg defAttr who'
-  renderMeta (CompIgnored who)
-    =   char (withForeColor defAttr brightBlack) 'I'
-    <|> identImg defAttr who
+         _ -> renderMeta emptyImage (msg:msgs)
+
+  renderMeta img [] = [cropRight width img]
+  renderMeta img (msg:msgs) =
+    let who = views mesgSender userNick msg
+        visible = not (view (contains who) ignores)
+    in case view mesgType msg of
+         JoinMsgType ->
+           renderMeta
+             (img <|>
+              char (withForeColor defAttr green) '+' <|>
+              identImg defAttr who <|>
+              char defAttr ' ') msgs
+         PartMsgType{} ->
+           renderMeta
+             (img <|>
+              char (withForeColor defAttr red) '-' <|>
+              identImg defAttr who <|>
+              char defAttr ' ') msgs
+         QuitMsgType{} ->
+           renderMeta
+             (img <|>
+              char (withForeColor defAttr red) 'x' <|>
+              identImg defAttr who <|>
+              char defAttr ' ') msgs
+         NickMsgType who' ->
+           renderMeta
+             (img <|>
+              identImg defAttr who <|>
+              char (withForeColor defAttr yellow) '-' <|>
+              identImg defAttr who' <|>
+              char defAttr ' ') msgs
+         _ | not visible ->
+           renderMeta
+             (img <|>
+              char (withForeColor defAttr brightBlack) 'I' <|>
+              identImg defAttr who <|>
+              char defAttr ' ') msgs
+           | otherwise ->
+             img : renderOne (msg:msgs)
 
 
   conn = view clientConnection st
@@ -157,69 +186,6 @@ compressedImageForState st
     string (withForeColor defAttr blue)
            (mapMaybe (`lookup` prefixes) modes)
 
-compressMessages :: Set Identifier -> [IrcMessage] -> [CompressedMessage]
-compressMessages _ [] = []
-compressMessages ignores (x:xs) =
-  case view mesgType x of
-    NoticeMsgType txt | visible ->
-        CompNotice (view mesgModes x) nick txt
-      : compressMessages ignores xs
-    PrivMsgType txt | visible ->
-        CompChat (view mesgModes x) (view mesgMe x) nick txt
-      : compressMessages ignores xs
-    ActionMsgType txt | visible ->
-        CompAction (view mesgModes x) nick txt
-      : compressMessages ignores xs
-    KickMsgType u reason -> CompKick nick u reason
-                       : compressMessages ignores xs
-    ErrorMsgType err  -> CompError err
-                       : compressMessages ignores xs
-    ModeMsgType pol mode arg -> CompMode nick pol mode arg
-                       : compressMessages ignores xs
-    TopicMsgType txt  -> CompTopic nick txt
-                       : compressMessages ignores xs
-    AwayMsgType txt  -> CompAway nick txt
-                       : compressMessages ignores xs
-    _                 -> meta ignores [] (x:xs)
-
-  where
-  nick = views mesgSender userNick x
-  visible = not (view (contains nick) ignores)
-
-meta :: Set Identifier -> [CompressedMeta] -> [IrcMessage] -> [CompressedMessage]
-meta _ acc [] = [CompMeta (reverse acc)]
-meta ignores acc (x:xs) =
-    case view mesgType x of
-      JoinMsgType -> meta ignores (CompJoin nick : acc) xs
-      QuitMsgType{} -> meta ignores (CompQuit nick : acc) xs
-      PartMsgType{} -> meta ignores (CompPart nick : acc) xs
-      NickMsgType nick' -> meta ignores (CompNick nick nick' : acc) xs
-      PrivMsgType{}   | ignore -> meta ignores (CompIgnored nick : acc) xs
-      ActionMsgType{} | ignore -> meta ignores (CompIgnored nick : acc) xs
-      NoticeMsgType{} | ignore -> meta ignores (CompIgnored nick : acc) xs
-      _ -> CompMeta (reverse acc) : compressMessages ignores (x:xs)
-
-  where
-  nick = views mesgSender userNick x
-  ignore = view (contains nick) ignores
-
-data CompressedMessage
-  = CompChat String Bool Identifier Text
-  | CompNotice String Identifier Text
-  | CompAction String Identifier Text
-  | CompKick Identifier Identifier Text
-  | CompError Text
-  | CompMode Identifier Bool Char ByteString
-  | CompTopic Identifier Text
-  | CompAway Identifier Text
-  | CompMeta [CompressedMeta]
-
-data CompressedMeta
-  = CompJoin Identifier
-  | CompQuit Identifier
-  | CompPart Identifier
-  | CompNick Identifier Identifier
-  | CompIgnored Identifier
 
 nickHash :: ByteString -> Int
 nickHash n =

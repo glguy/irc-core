@@ -588,7 +588,9 @@ advanceModel msg0 conn =
        Error e ->
          doServerError (asUtf8 e) conn
 
-       RplISupport _ -> fail "Unsupported isupport"
+       RplISupport _ -> return conn -- TODO
+       RplVersion version server comments ->
+         doServerMessage "VERSION" (B8.unwords [version,server,comments]) conn
 
 doList ::
   Identifier {- ^ channel -} ->
@@ -822,7 +824,9 @@ doChannelModeChanges ms who chan conn0 =
            { _mesgType   = ModeMsgType polarity m a
            , _mesgSender = who
            , _mesgStamp  = now
-           , _mesgModes  = ""
+           , _mesgModes  = view ( connChannels . ix chan
+                                . chanUsers . ix (userNick who)
+                                ) conn
            , _mesgMe     = False
            }
 
