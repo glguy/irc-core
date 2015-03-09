@@ -763,16 +763,17 @@ tabComplete st
   | otherwise =
       case view clientFocus st of
         ChannelFocus c ->
-          let users = Map.keysSet (view (clientConnection . connChannels . ix c . chanUsers) st)
-          in
+          let vals = userSet c <> channelSet in
           case view clientTabPattern st of
-            Just pat -> replaceWith (tabSearch pat current users) st
+            Just pat -> replaceWith (tabSearch pat current vals) st
             Nothing  -> set clientTabPattern (Just current)
-                      $ replaceWith (tabSearch current current users) st
+                      $ replaceWith (tabSearch current current vals) st
         _ -> st
   where
   current = currentWord st
   replaceWith str = over clientEditBox (Edit.insertString str . Edit.killWord)
+  userSet c  = views (clientConnection . connChannels . ix c . chanUsers) Map.keysSet st
+  channelSet = views (clientConnection . connChannels)                    Map.keysSet st
 
 currentWord :: ClientState -> String
 currentWord st
@@ -782,27 +783,20 @@ currentWord st
   $ take (view (clientEditBox . Edit.pos) st) (clientInput st)
 
 tabSearch :: String -> String -> Set Identifier -> String
-tabSearch pat cur users
-  | not (Set.null b)
-  , B.isPrefixOf (idDenote pat') (idDenote (Set.findMin b))
-  = B8.unpack (idBytes (Set.findMin b))
+tabSearch pat cur vals
+  | Just next <- Set.lookupGT cur' vals
+  , B.isPrefixOf (idDenote pat') (idDenote next)
+  = B8.unpack (idBytes next)
 
   -- wrap around when pat is a user
-  | Set.member pat' users
-  = pat -- TODO: Use original case
-
-  -- wrap around when pat is not a user
-  | not (Set.null a')
-  = B8.unpack (idBytes (Set.findMin a'))
+  | Just next <- Set.lookupGE pat' vals
+  = B8.unpack (idBytes next) -- TODO: Use original case
 
   -- if all else fails, do nothing
   | otherwise = cur
   where
   pat' = mkId (B8.pack pat)
   cur' = mkId (B8.pack cur)
-
-  (a,b)  = Set.split cur' users
-  (_,a') = Set.split pat' a
 
 defaultNickColors :: [Color]
 defaultNickColors =
