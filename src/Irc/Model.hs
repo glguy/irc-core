@@ -1082,7 +1082,7 @@ doJoinChannel who acct chan conn =
                      (Just "") -- empty modes
                      conn1
 
-         conn3 = recordAccount (recordHost (ensureRecord conn2))
+         conn3 = recordAccount (learnUserInfo who (ensureRecord conn2))
 
      -- update user record
          ensureRecord = over (connUsers . at (userNick who)) (Just . fromMaybe defaultIrcUser)
@@ -1094,11 +1094,6 @@ doJoinChannel who acct chan conn =
                                 (set usrAccount (Just a))
                    Unknown -> id
 
-         recordHost = case userHost who of
-                        Nothing -> id
-                        Just host -> over (connUsers . ix (userNick who))
-                                          (set usrHost (Just host))
-
      -- record join event
          m = IrcMessage
                { _mesgType = JoinMsgType
@@ -1108,6 +1103,16 @@ doJoinChannel who acct chan conn =
                , _mesgModes = ""
                }
      recordMessage m chan conn3
+
+learnUserInfo :: UserInfo -> IrcConnection -> IrcConnection
+learnUserInfo ui conn =
+  case userHost ui of
+    Nothing -> conn
+    Just host ->
+      let update Nothing = Just defaultIrcUser { _usrHost = Just host }
+          update (Just u) = Just $! set usrHost (Just host) u
+      in over (connUsers . at (userNick ui)) update conn
+
 
 doNotifyChannel ::
   UserInfo ->
@@ -1148,7 +1153,7 @@ doNameReply chan xs conn =
      case msg of
        RplNameReply _ _ x -> doNameReply chan (x++xs) conn
        RplEndOfNames _ -> return
-                     $ over connUsers (<> cusers)
+                     $ learnAllHosts
                      $ set (connChannels . ix chan . chanUsers)
                            users
                            conn
@@ -1162,11 +1167,7 @@ doNameReply chan xs conn =
        users :: Map Identifier String
        users = Map.fromList (map (over _1 userNick) splitNames)
 
-       cusers :: Map Identifier IrcUser
-       cusers = Map.fromList
-              [ (userNick u, defaultIrcUser { _usrHost = userHost u })
-              | (u,_) <- splitNames]
-         -- TODO : Record userhost
+       learnAllHosts x = foldl' (flip learnUserInfo) x (map fst splitNames)
 
 -- | Compute the nickname and channel modes from an entry in
 -- a NAMES reply. The leading channel prefixes are translated

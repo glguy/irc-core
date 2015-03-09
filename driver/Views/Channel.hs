@@ -175,7 +175,7 @@ compressedImageForState st = renderOne (activeMessages st)
               identImg defAttr who <|>
               char defAttr ' ') msgs
            | otherwise ->
-             img : renderOne (msg:msgs)
+             cropRight width img : renderOne (msg:msgs)
 
 
   conn = view clientConnection st
