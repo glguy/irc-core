@@ -225,9 +225,11 @@ data IrcMessageType
   | QuitMsgType   Text
   | NickMsgType   Identifier
   | TopicMsgType  Text
-  | ErrorMsgType  Text -- Actually ERROR, connection closing
+  | ErrorMsgType  Text
   | ErrMsgType  IrcError -- Family of various responses
   | ModeMsgType Bool Char ByteString
+  | InviteMsgType
+  | KnockMsgType
   deriving (Read, Show)
 
 -- | 'IrcUser' is the type of user-level metadata tracked for
@@ -432,16 +434,31 @@ advanceModel msg0 conn =
                   }
             recordMessage mesg target conn
 
-       -- TODO: Make a message for this
        RplKnockDelivered chan ->
          doChannelError chan "Knock delivered" conn
-       RplKnock chan user ->
-         doChannelError chan ("Invite request: " <> asUtf8 (renderUserInfo user)) conn
+       RplKnock chan who ->
+         do now <- getStamp
+            let mesg = IrcMessage
+                  { _mesgType    = KnockMsgType
+                  , _mesgSender  = who
+                  , _mesgStamp   = now
+                  , _mesgMe      = False
+                  , _mesgModes   = ""
+                  }
+            recordMessage mesg chan conn
 
        RplInviting nick chan ->
          doChannelError chan ("Inviting " <> asUtf8 (idBytes nick)) conn
        Invite who chan ->
-         doChannelError chan ("Invited by " <> asUtf8 (renderUserInfo who)) conn
+         do now <- getStamp
+            let mesg = IrcMessage
+                  { _mesgType    = InviteMsgType
+                  , _mesgSender  = who
+                  , _mesgStamp   = now
+                  , _mesgMe      = False
+                  , _mesgModes   = ""
+                  }
+            recordMessage mesg chan conn
 
        -- TODO: Structure this more nicely than as simple message,
        -- perhaps store it in the user map

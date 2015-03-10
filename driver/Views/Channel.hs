@@ -47,6 +47,8 @@ detailedImageForState st
        KickMsgType who txt -> ("K", asUtf8 (idBytes who) <> " - " <> txt)
        ErrorMsgType txt -> ("E", txt)
        ErrMsgType err -> ("E", Text.pack (show err))
+       InviteMsgType -> ("I", "")
+       KnockMsgType -> ("J", "")
        ModeMsgType pol mode arg -> ("Z", (if pol then "+" else "-")
                                         <> Text.pack [mode, ' ']
                                         <> asUtf8 arg)
@@ -124,6 +126,11 @@ compressedImageForState st = renderOne (activeMessages st)
             (string (withForeColor defAttr red) "Error: " <|>
              text' defAttr (errorMessage err)) : renderOne msgs
 
+         InviteMsgType ->
+            (string (withForeColor defAttr red) "? " <|>
+             formatNick (view mesgMe msg) nick <|>
+             text' defAttr " has invited you") : renderOne msgs
+
          ModeMsgType pol m arg ->
             (views mesgModes modePrefix msg <|>
              formatNick (view mesgMe msg) nick <|>
@@ -174,6 +181,12 @@ compressedImageForState st = renderOne (activeMessages st)
               identImg defAttr who <|>
               char (withForeColor defAttr yellow) '-' <|>
               identImg defAttr who' <|>
+              char defAttr ' ') msgs
+         KnockMsgType ->
+           renderMeta
+             (img <|>
+              char (withForeColor defAttr yellow) 'K' <|>
+              identImg defAttr who <|>
               char defAttr ' ') msgs
          _ | not visible ->
            renderMeta
