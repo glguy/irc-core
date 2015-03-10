@@ -773,7 +773,12 @@ tabComplete st
         _ -> st
   where
   current = currentWord st
-  replaceWith str = over clientEditBox (Edit.insertString str . Edit.killWord)
+  replaceWith str = over clientEditBox $ \box ->
+    let box1 = Edit.killWord box
+        str1 | view Edit.pos box1 == 0 = str ++ ": "
+             | otherwise               = str
+    in Edit.insertString str1 box1
+
   userSet c  = views (clientConnection . connChannels . ix c . chanUsers) Map.keysSet st
   channelSet = views (clientConnection . connChannels)                    Map.keysSet st
 
@@ -781,6 +786,7 @@ currentWord :: ClientState -> String
 currentWord st
   = reverse
   $ takeWhile (not . isSpace)
+  $ dropWhile (\x -> x==' ' || x==':')
   $ reverse
   $ take (view (clientEditBox . Edit.pos) st) (clientInput st)
 
