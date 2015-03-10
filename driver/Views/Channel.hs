@@ -7,6 +7,7 @@ import Data.Monoid
 import Data.Foldable (toList)
 import Data.List (stripPrefix)
 import Data.Maybe (mapMaybe)
+import Data.Text (Text)
 import Data.Time (UTCTime, formatTime)
 import Graphics.Vty.Image
 import System.Locale (defaultTimeLocale)
@@ -16,6 +17,7 @@ import qualified Data.Text as Text
 
 import Irc.Format
 import Irc.Model
+import Irc.Core
 
 import ClientState
 import ImageUtils
@@ -44,6 +46,7 @@ detailedImageForState st
        NoticeMsgType txt -> ("N", txt)
        KickMsgType who txt -> ("K", asUtf8 (idBytes who) <> " - " <> txt)
        ErrorMsgType txt -> ("E", txt)
+       ErrMsgType err -> ("E", Text.pack (show err))
        ModeMsgType pol mode arg -> ("Z", (if pol then "+" else "-")
                                         <> Text.pack [mode, ' ']
                                         <> asUtf8 arg)
@@ -116,6 +119,10 @@ compressedImageForState st = renderOne (activeMessages st)
          ErrorMsgType err ->
             (string (withForeColor defAttr red) "Error: " <|>
              cleanText err) : renderOne msgs
+
+         ErrMsgType err ->
+            (string (withForeColor defAttr red) "Error: " <|>
+             text' defAttr (errorMessage err)) : renderOne msgs
 
          ModeMsgType pol m arg ->
             (views mesgModes modePrefix msg <|>
@@ -191,3 +198,61 @@ nickHash :: ByteString -> Int
 nickHash n =
   let h1 = B.foldl' (\acc b -> fromIntegral b + 33 * acc) 0 n
   in h1 + (h1 `quot` 32)
+
+
+
+errorMessage :: IrcError -> Text
+errorMessage e =
+  case e of
+    ErrCantKillServer         -> "Can't kill server"
+    ErrYoureBannedCreep       -> "Banned from server"
+    ErrNoOrigin               -> "No origin on PING or PONG"
+    ErrErroneousNickname nick -> "Erroneous nickname: " <> asUtf8 nick
+    ErrNoNicknameGiven        -> "No nickname given"
+    ErrNicknameInUse nick     -> "Nickname in use: " <> asUtf8 (idBytes nick)
+    ErrNotRegistered          -> "Not registered"
+    ErrNoSuchServer server    -> "No such server: " <> asUtf8 server
+    ErrUnknownMode mode       -> "Unknown mode: " <> Text.pack [mode]
+    ErrNoPrivileges           -> "No privileges"
+    ErrUnknownUmodeFlag mode  -> "Unknown UMODE: " <> Text.pack [mode]
+    ErrUnknownCommand cmd     -> "Unknown command: " <> asUtf8 cmd
+    ErrNoTextToSend           -> "No text to send"
+    ErrNoMotd                 -> "No MOTD"
+    ErrNoRecipient            -> "No recipient"
+    ErrNoAdminInfo server     -> "No admin info for server: "<> asUtf8 server
+    ErrNeedMoreParams cmd     -> "Need more parameters: " <> asUtf8 cmd
+    ErrAlreadyRegistered      -> "Already registered"
+    ErrNoPermForHost          -> "No permission for host"
+    ErrPasswordMismatch       -> "Password mismatch"
+    ErrUsersDontMatch         -> "Can't change modes for other users"
+    ErrHelpNotFound _         -> "Help topic not found"
+    ErrBadChanName name       -> "Illegal channel name: " <> asUtf8 name
+    ErrNoOperHost             -> "No OPER line for this host"
+
+    ErrNoSuchNick             -> "No such nick"
+    ErrWasNoSuchNick          -> "Was no such nick"
+    ErrOwnMode                -> "Can't send while +g is set"
+    ErrNoNonReg               -> "Messages blocked from unregistered users"
+    ErrIsChanService nick     -> "Protected service: " <> asUtf8 (idBytes nick)
+    ErrUnavailResource        -> "Resource unavailable"
+    ErrThrottle               -> "Unable to join due to throttle"
+    ErrTooManyChannels        -> "Too many channels joined"
+    ErrUserNotInChannel nick  -> "Not in channel: " <> asUtf8 (idBytes nick)
+    ErrNotOnChannel           -> "Must join channel"
+    ErrChanOpPrivsNeeded      -> "Channel privileges needed"
+    ErrBadChannelKey          -> "Bad channel key"
+    ErrBannedFromChan         -> "Unable to join due to ban"
+    ErrChannelFull            -> "Channel is full"
+    ErrInviteOnlyChan         -> "Invite only channel"
+    ErrNoSuchChannel          -> "No such channel"
+    ErrCannotSendToChan       -> "Cannot send to channel"
+    ErrTooManyTargets         -> "Too many targets"
+    ErrBanListFull mode       -> "Ban list full: " <> Text.singleton mode
+    ErrUserOnChannel nick     -> "User already on channel: " <> asUtf8 (idBytes nick)
+    ErrLinkChannel chan       -> "Forwarded to: " <> asUtf8 (idBytes chan)
+    ErrNeedReggedNick         -> "Registered nick required"
+    ErrVoiceNeeded            -> "Voice or operator status required"
+
+    ErrKnockOnChan            -> "Attempted to knock joined channel"
+    ErrTooManyKnocks          -> "Too many knocks"
+    ErrChanOpen               -> "Knock unnecessary"

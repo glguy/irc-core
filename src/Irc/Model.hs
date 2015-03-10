@@ -99,7 +99,6 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 
 import Irc.Format
 import Irc.Cmd
@@ -226,7 +225,8 @@ data IrcMessageType
   | QuitMsgType   Text
   | NickMsgType   Identifier
   | TopicMsgType  Text
-  | ErrorMsgType  Text
+  | ErrorMsgType  Text -- Actually ERROR, connection closing
+  | ErrMsgType  IrcError -- Family of various responses
   | ModeMsgType Bool Char ByteString
   deriving (Read, Show)
 
@@ -421,118 +421,23 @@ advanceModel msg0 conn =
        RplUmodeIs mode _params -> -- TODO: params?
          return (set connUmode (B.tail mode) conn)
 
-       ErrCantKillServer ->
-         doServerError "Can't kill server" conn
-       ErrYoureBannedCreep ->
-         doServerError "Banned from server" conn
-       ErrNoOrigin ->
-         doServerError "No origin on PING or PONG" conn
-       ErrErroneousNickname _nick ->
-         doServerError "Erroneous nickname" conn
-       ErrNoNicknameGiven ->
-         doServerError "No nickname given" conn
-       ErrNicknameInUse _nick ->
-         doServerError "Nickname in use" conn
-       ErrNotRegistered ->
-         doServerError "Not registered" conn
-       ErrNoSuchService serv ->
-         doServerError ("No such service: " <> asUtf8 (idBytes serv)) conn
-       ErrNoSuchServer server ->
-         doServerError ("No such server: " <> asUtf8 server) conn
-       ErrUnknownMode mode ->
-         doServerError ("Unknown mode: " <> Text.pack [mode]) conn
-       ErrNoPrivileges ->
-         doServerError "No privileges" conn
-       ErrUnknownUmodeFlag mode ->
-         doServerError ("Unknown UMODE: " <> Text.pack [mode]) conn
-       ErrUnknownCommand cmd ->
-         doServerError ("Unknown command: " <> asUtf8 cmd) conn
-       ErrNoTextToSend ->
-         doServerError "No text to send" conn
-       ErrNoMotd ->
-         doServerError "No MOTD" conn
-       ErrNoRecipient ->
-         doServerError "No recipient" conn
-       ErrNoAdminInfo server ->
-         doServerError ("No admin info for server: "<> asUtf8 server) conn
-       ErrNeedMoreParams cmd ->
-         doServerError ("Need more parameters: " <> asUtf8 cmd) conn
-       ErrAlreadyRegistered ->
-         doServerError "Already registered" conn
-       ErrNoPermForHost ->
-         doServerError "No permission for host" conn
-       ErrPasswordMismatch ->
-         doServerError "Password mismatch" conn
-       ErrUsersDontMatch ->
-         doServerError "Can't change modes for other users" conn
-       ErrHelpNotFound _ ->
-         doServerError "Help topic not found" conn
-       ErrBadChanName name ->
-         doServerError ("Illegal channel name: " <> asUtf8 name) conn
-       ErrNoOperHost ->
-         doServerError "No OPER line for this host" conn
-
-       ErrNoSuchNick nick ->
-         doChannelError nick "No such nick" conn
-       ErrWasNoSuchNick nick ->
-         doChannelError nick "Was no such nick" conn
-
-       ErrOwnMode nick ->
-         doChannelError nick "Can't send while +g is set" conn
-       ErrNoNonReg nick ->
-         doChannelError nick "Messages blocked from unregistered users" conn
-       ErrIsChanService nick chan ->
-         doChannelError chan ("Protected service: " <> asUtf8 (idBytes nick)) conn
-       ErrUnavailResource chan ->
-         doChannelError chan "Resource unavailable" conn
-       ErrThrottle chan ->
-         doChannelError chan "Unable to join due to throttle" conn
-       ErrTooManyChannels chan ->
-         doChannelError chan "Too many channels joined" conn
-       ErrUserNotInChannel nick chan ->
-         doChannelError chan ("Not in channel: " <> asUtf8 (idBytes nick)) conn
-       ErrNotOnChannel chan ->
-         doChannelError chan "Must join channel" conn
-       ErrChanOpPrivsNeeded chan ->
-         doChannelError chan "Channel privileges needed" conn
-       ErrBadChannelKey chan ->
-         doChannelError chan "Bad channel key" conn
-       ErrBadChannelMask chan ->
-         doChannelError chan "Bad channel mask" conn
-       ErrBannedFromChan chan ->
-         doChannelError chan "Unable to join due to ban" conn
-       ErrChannelFull chan ->
-         doChannelError chan "Channel is full" conn
-       ErrInviteOnlyChan chan ->
-         doChannelError chan "Invite only channel" conn
-       ErrNoSuchChannel chan ->
-         doChannelError chan "No such channel" conn
-       ErrCannotSendToChan chan ->
-         doChannelError chan "Cannot send to channel" conn
-       ErrTooManyTargets target ->
-         doChannelError target "Too many targets" conn
-       ErrBanListFull chan mode  ->
-         doChannelError chan ("Ban list full: " <> Text.singleton mode) conn
-       ErrUserOnChannel nick chan ->
-         doChannelError chan ("User already on channel: " <> asUtf8 (idBytes nick)) conn
-       ErrLinkChannel chanFrom chanTo ->
-         doChannelError chanFrom ("Forwarded to: " <> asUtf8 (idBytes chanTo)) conn
-       ErrNeedReggedNick chan ->
-         doChannelError chan "Registered nick required" conn
-       ErrVoiceNeeded chan ->
-         doChannelError chan "Voice or operator status required" conn
+       Err target err ->
+         do now <- getStamp
+            let mesg = IrcMessage
+                  { _mesgType    = ErrMsgType err
+                  , _mesgSender  = UserInfo "" Nothing Nothing
+                  , _mesgStamp   = now
+                  , _mesgMe      = False
+                  , _mesgModes   = ""
+                  }
+            recordMessage mesg target conn
 
        -- TODO: Make a message for this
        RplKnockDelivered chan ->
          doChannelError chan "Knock delivered" conn
        RplKnock chan user ->
          doChannelError chan ("Invite request: " <> asUtf8 (renderUserInfo user)) conn
-       ErrKnockOnChan chan ->
-         doChannelError chan "Attempted to knock joined channel" conn
-       ErrTooManyKnocks chan ->
-         doChannelError chan "Too many knocks" conn
-       ErrChanOpen chan ->
-         doChannelError chan "Knock failed, channel is open" conn
+
        RplInviting nick chan ->
          doChannelError chan ("Inviting " <> asUtf8 (idBytes nick)) conn
        Invite who chan ->

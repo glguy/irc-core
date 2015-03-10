@@ -4,6 +4,7 @@
 -- IRC uses and the high-level events in the "Irc.Model" module.
 module Irc.Core
   ( MsgFromServer(..)
+  , IrcError(..)
   , ircMsgToServerMsg
   ) where
 
@@ -91,56 +92,7 @@ data MsgFromServer
   | RplYoureOper ByteString -- ^ 381 text
   | RplHostHidden ByteString -- ^ 396 hostname
 
-  -- 400-499 Errors
-  | ErrNoSuchNick Identifier -- ^ 401 nickname
-  | ErrNoSuchServer ByteString -- ^ 402 server
-  | ErrNoSuchChannel Identifier -- ^ 403 channel
-  | ErrCannotSendToChan Identifier -- ^ 404 channel
-  | ErrTooManyChannels Identifier -- ^ 405 channel
-  | ErrWasNoSuchNick Identifier -- ^ 406 nick
-  | ErrTooManyTargets Identifier -- ^ 407 target
-  | ErrNoSuchService Identifier -- ^ 408 target
-  | ErrNoOrigin -- ^ 409
-  | ErrNoRecipient -- ^ 411
-  | ErrNoTextToSend -- ^ 412
-  | ErrUnknownCommand ByteString -- ^ 421 command
-  | ErrNoMotd -- ^ 422
-  | ErrNoAdminInfo ByteString -- ^ 423 server
-  | ErrNoNicknameGiven -- ^ 431
-  | ErrErroneousNickname ByteString -- ^ 432 badnick
-  | ErrNicknameInUse Identifier -- ^ 433 nick
-  | ErrUnavailResource Identifier -- ^ 437 nick/chan
-  | ErrUserNotInChannel Identifier Identifier -- ^ 441 nick channel
-  | ErrNotOnChannel Identifier -- ^ 442 channel
-  | ErrUserOnChannel Identifier Identifier -- ^ 443 nick channel
-  | ErrNotRegistered -- ^ 451
-  | ErrNeedMoreParams ByteString -- ^ 461 command
-  | ErrAlreadyRegistered -- ^ 462
-  | ErrNoPermForHost -- ^ 463
-  | ErrPasswordMismatch -- ^ 464
-  | ErrYoureBannedCreep -- ^ 465
-  | ErrLinkChannel Identifier Identifier -- ^ 470 channel channel
-  | ErrChannelFull Identifier -- ^ 471 channel
-  | ErrUnknownMode Char -- ^ 472 mode
-  | ErrInviteOnlyChan Identifier -- ^ 473 channel
-  | ErrBannedFromChan Identifier -- ^ 474 channel
-  | ErrBadChannelKey Identifier -- ^ 475 channel
-  | ErrBadChannelMask Identifier -- ^ 476 channel
-  | ErrNeedReggedNick Identifier -- ^ 477 channel
-  | ErrBanListFull Identifier Char -- ^ 478 channel mode
-  | ErrBadChanName ByteString -- ^ 479 name
-  | ErrThrottle Identifier -- ^ 480 channel
-  | ErrNoPrivileges -- ^ 481
-  | ErrChanOpPrivsNeeded Identifier -- ^ 482 channel
-  | ErrCantKillServer -- ^ 483
-  | ErrIsChanService Identifier Identifier -- ^ 484 nick channel
-  | ErrNoNonReg Identifier -- ^ 486 nick
-  | ErrVoiceNeeded Identifier -- ^ 489 channel
-  | ErrNoOperHost -- ^ 491
-  | ErrOwnMode Identifier -- ^ 494 nickname
-  | ErrUnknownUmodeFlag Char -- ^ 501 mode
-  | ErrUsersDontMatch -- ^ 502
-  | ErrHelpNotFound ByteString -- ^ 524 topic
+  | Err Identifier IrcError
 
   -- Random high-numbered stuff
   | RplWhoisSecure Identifier -- ^ 671 nick
@@ -149,9 +101,6 @@ data MsgFromServer
   | RplEndOfHelp ByteString -- ^ 706 topic text
   | RplKnock Identifier UserInfo -- ^ 710 channel
   | RplKnockDelivered Identifier -- ^ 711 channel
-  | ErrTooManyKnocks Identifier -- ^ 713 channel
-  | ErrChanOpen Identifier -- ^ 713 channel
-  | ErrKnockOnChan Identifier -- ^ 714 channel
   | RplQuietList Identifier Char ByteString ByteString UTCTime -- ^ 728 channel mode mask who timestamp
   | RplEndOfQuietList Identifier Char -- ^ 729 channel mode
 
@@ -183,6 +132,60 @@ data MsgFromServer
   | Error ByteString
   | Authenticate ByteString
   | Account UserInfo (Maybe ByteString)
+  deriving (Read, Show)
+
+data IrcError
+  -- 400-499 Errors
+  = ErrNoSuchNick -- ^ 401
+  | ErrNoSuchServer ByteString -- ^ 402 server
+  | ErrNoSuchChannel -- ^ 403
+  | ErrCannotSendToChan -- ^ 404
+  | ErrTooManyChannels -- ^ 405
+  | ErrWasNoSuchNick -- ^ 406
+  | ErrTooManyTargets -- ^ 407
+  | ErrNoOrigin -- ^ 409
+  | ErrNoRecipient -- ^ 411
+  | ErrNoTextToSend -- ^ 412
+  | ErrUnknownCommand ByteString -- ^ 421 command
+  | ErrNoMotd -- ^ 422
+  | ErrNoAdminInfo ByteString -- ^ 423 server
+  | ErrNoNicknameGiven -- ^ 431
+  | ErrErroneousNickname ByteString -- ^ 432 badnick
+  | ErrNicknameInUse Identifier -- ^ 433 nick
+  | ErrUnavailResource -- ^ 437
+  | ErrUserNotInChannel Identifier -- ^ 441 nick
+  | ErrNotOnChannel -- ^ 442 channel
+  | ErrUserOnChannel Identifier -- ^ 443 nick
+  | ErrNotRegistered -- ^ 451
+  | ErrNeedMoreParams ByteString -- ^ 461 command
+  | ErrAlreadyRegistered -- ^ 462
+  | ErrNoPermForHost -- ^ 463
+  | ErrPasswordMismatch -- ^ 464
+  | ErrYoureBannedCreep -- ^ 465
+  | ErrLinkChannel Identifier -- ^ 470 dstchannel
+  | ErrChannelFull -- ^ 471 channel
+  | ErrUnknownMode Char -- ^ 472 mode
+  | ErrInviteOnlyChan -- ^ 473
+  | ErrBannedFromChan -- ^ 474
+  | ErrBadChannelKey -- ^ 475
+  | ErrNeedReggedNick -- ^ 477
+  | ErrBanListFull Char -- ^ 478 mode
+  | ErrBadChanName ByteString -- ^ 479 name
+  | ErrThrottle -- ^ 480
+  | ErrNoPrivileges -- ^ 481
+  | ErrChanOpPrivsNeeded -- ^ 482
+  | ErrCantKillServer -- ^ 483
+  | ErrIsChanService Identifier -- ^ 484 nick
+  | ErrNoNonReg -- ^ 486
+  | ErrVoiceNeeded -- ^ 489
+  | ErrNoOperHost -- ^ 491
+  | ErrOwnMode -- ^ 494
+  | ErrUnknownUmodeFlag Char -- ^ 501 mode
+  | ErrUsersDontMatch -- ^ 502
+  | ErrHelpNotFound ByteString -- ^ 524 topic
+  | ErrTooManyKnocks -- ^ 713
+  | ErrChanOpen -- ^ 713
+  | ErrKnockOnChan -- ^ 714
   deriving (Read, Show)
 
 data ChannelType = SecretChannel | PrivateChannel | PublicChannel
@@ -375,147 +378,141 @@ ircMsgToServerMsg ircmsg =
          Just (RplHostHidden host)
 
     ("401",[_,nick,_]) ->
-         Just (ErrNoSuchNick (mkId nick))
+         Just (Err (mkId nick) ErrNoSuchNick)
 
     ("402",[_,server,_]) ->
-         Just (ErrNoSuchServer server)
+         Just (Err "" (ErrNoSuchServer server))
 
     ("403",[_,channel,_]) ->
-         Just (ErrNoSuchChannel (mkId channel))
+         Just (Err (mkId channel) ErrNoSuchChannel)
 
     ("404",[_,channel,_]) ->
-         Just (ErrCannotSendToChan (mkId channel))
+         Just (Err (mkId channel) ErrCannotSendToChan)
 
     ("405",[_,channel,_]) ->
-         Just (ErrTooManyChannels (mkId channel))
+         Just (Err (mkId channel) ErrTooManyChannels)
 
     ("406",[_,nick,_]) ->
-         Just (ErrWasNoSuchNick (mkId nick))
+         Just (Err (mkId nick) ErrWasNoSuchNick)
 
     ("407",[_,target,_]) ->
-         Just (ErrTooManyTargets (mkId target))
-
-    ("408",[_,target,_]) ->
-         Just (ErrNoSuchService (mkId target))
+         Just (Err (mkId target) ErrTooManyTargets)
 
     ("409",[_,_]) ->
-         Just ErrNoOrigin
+         Just (Err "" ErrNoOrigin)
 
     ("411",[_,_]) ->
-         Just ErrNoRecipient
+         Just (Err "" ErrNoRecipient)
 
     ("412",[_,_]) ->
-         Just ErrNoTextToSend
+         Just (Err "" ErrNoTextToSend)
 
     ("421",[_,cmd,_]) ->
-         Just (ErrUnknownCommand cmd)
+         Just (Err "" (ErrUnknownCommand cmd))
 
     ("422",[_,_]) ->
-         Just ErrNoMotd
+         Just (Err "" ErrNoMotd)
 
     ("423",[_,server,_]) ->
-         Just (ErrNoAdminInfo server)
+         Just (Err "" (ErrNoAdminInfo server))
 
-    ("431",[_,_]) -> Just ErrNoNicknameGiven
+    ("431",[_,_]) -> Just (Err "" ErrNoNicknameGiven)
 
-    ("432",[_,nick,_]) -> Just (ErrErroneousNickname nick)
+    ("432",[_,nick,_]) -> Just (Err "" (ErrErroneousNickname nick))
 
-    ("433",[_,nick,_]) -> Just (ErrNicknameInUse (mkId nick))
+    ("433",[_,nick,_]) -> Just (Err "" (ErrNicknameInUse (mkId nick)))
 
-    ("437",[_,ident,_]) -> Just (ErrUnavailResource (mkId ident))
+    ("437",[_,ident,_]) -> Just (Err (mkId ident) ErrUnavailResource)
 
     ("441",[_,nick,chan,_]) ->
-         Just (ErrUserNotInChannel (mkId nick) (mkId chan))
+         Just (Err (mkId chan) (ErrUserNotInChannel (mkId nick)))
 
     ("442",[_,chan,_]) ->
-         Just (ErrNotOnChannel (mkId chan))
+         Just (Err (mkId chan) ErrNotOnChannel)
 
     ("443",[_,nick,chan,_]) ->
-         Just (ErrUserOnChannel (mkId nick) (mkId chan))
+         Just (Err (mkId chan) (ErrUserOnChannel (mkId nick)))
 
     ("451",[_,_]) ->
-         Just ErrNotRegistered
+         Just (Err "" ErrNotRegistered)
 
     ("461",[_,cmd,_]) ->
-         Just (ErrNeedMoreParams cmd)
+         Just (Err "" (ErrNeedMoreParams cmd))
 
     ("462",[_,_]) ->
-         Just ErrAlreadyRegistered
+         Just (Err "" ErrAlreadyRegistered)
 
     ("463",[_,_]) ->
-         Just ErrNoPermForHost
+         Just (Err "" ErrNoPermForHost)
 
     ("464",[_,_]) ->
-         Just ErrPasswordMismatch
+         Just (Err "" ErrPasswordMismatch)
 
     ("465",[_,_]) ->
-         Just ErrYoureBannedCreep
+         Just (Err "" ErrYoureBannedCreep)
 
     ("470",[_,chan1,chan2,_]) ->
-         Just (ErrLinkChannel (mkId chan1) (mkId chan2))
+         Just (Err (mkId chan1) (ErrLinkChannel (mkId chan2)))
 
     ("471",[_,chan,_]) ->
-         Just (ErrChannelFull (mkId chan))
+         Just (Err (mkId chan) ErrChannelFull)
 
     ("472",[_,mode,_]) ->
-         Just (ErrUnknownMode (B8.head mode))
+         Just (Err "" (ErrUnknownMode (B8.head mode)))
 
     ("473",[_,chan,_]) ->
-         Just (ErrInviteOnlyChan (mkId chan))
+         Just (Err (mkId chan) ErrInviteOnlyChan)
 
     ("474",[_,chan,_]) ->
-         Just (ErrBannedFromChan (mkId chan))
+         Just (Err (mkId chan) ErrBannedFromChan)
 
     ("475",[_,chan,_]) ->
-         Just (ErrBadChannelKey (mkId chan))
-
-    ("476",[_,chan,_]) ->
-         Just (ErrBadChannelMask (mkId chan))
+         Just (Err (mkId chan) ErrBadChannelKey)
 
     ("477",[_,chan,_]) ->
-         Just (ErrNeedReggedNick (mkId chan))
+         Just (Err (mkId chan) ErrNeedReggedNick)
 
     ("478",[_,chan,mode,_]) ->
-         Just (ErrBanListFull (mkId chan) (B8.head mode))
+         Just (Err (mkId chan) (ErrBanListFull (B8.head mode)))
 
     ("479",[_,chan,_]) ->
-         Just (ErrBadChanName chan)
+         Just (Err "" (ErrBadChanName chan))
 
     ("480",[_,chan,_]) ->
-         Just (ErrThrottle (mkId chan))
+         Just (Err (mkId chan) ErrThrottle)
 
     ("481",[_,_]) ->
-         Just ErrNoPrivileges
+         Just (Err "" ErrNoPrivileges)
 
     ("482",[_,chan,_]) ->
-         Just (ErrChanOpPrivsNeeded (mkId chan))
+         Just (Err (mkId chan) ErrChanOpPrivsNeeded)
 
     ("483",[_,_]) ->
-         Just ErrCantKillServer
+         Just (Err "" ErrCantKillServer)
 
     ("484",[_,nick,chan,_]) ->
-         Just (ErrIsChanService (mkId nick) (mkId chan))
+         Just (Err (mkId chan) (ErrIsChanService (mkId nick)))
 
     ("486",[_,nick,_]) ->
-         Just (ErrNoNonReg (mkId nick))
+         Just (Err (mkId nick) ErrNoNonReg)
 
     ("489",[_,chan,_]) ->
-         Just (ErrVoiceNeeded (mkId chan))
+         Just (Err (mkId chan) ErrVoiceNeeded)
 
     ("491",[_,_]) ->
-         Just ErrNoOperHost
+         Just (Err "" ErrNoOperHost)
 
     ("494",[_,nick,_]) ->
-         Just (ErrOwnMode (mkId nick))
+         Just (Err (mkId nick) ErrOwnMode)
 
     ("501",[_,mode,_]) ->
-         Just (ErrUnknownUmodeFlag (B8.head mode))
+         Just (Err "" (ErrUnknownUmodeFlag (B8.head mode)))
 
     ("502",[_,_]) ->
-         Just ErrUsersDontMatch
+         Just (Err "" ErrUsersDontMatch)
 
     ("524",[_,topic,_]) ->
-         Just (ErrHelpNotFound topic)
+         Just (Err "" (ErrHelpNotFound topic))
 
     ("671",[_,nick,_]) ->
          Just (RplWhoisSecure (mkId nick))
@@ -536,13 +533,13 @@ ircMsgToServerMsg ircmsg =
          Just (RplKnockDelivered (mkId chan))
 
     ("712",[_,chan,_]) ->
-         Just (ErrTooManyKnocks (mkId chan))
+         Just (Err (mkId chan) ErrTooManyKnocks)
 
     ("713",[_,chan,_]) ->
-         Just (ErrChanOpen (mkId chan))
+         Just (Err (mkId chan) ErrChanOpen)
 
     ("714",[_,chan,_]) ->
-         Just (ErrKnockOnChan (mkId chan))
+         Just (Err (mkId chan) ErrKnockOnChan)
 
     ("728",[_,chan,mode,banned,banner,time]) ->
          Just (RplQuietList (mkId chan) (B8.head mode) banned banner (asTimeStamp time))

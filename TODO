@@ -1,7 +1,6 @@
 name highlighting
 history search ^R
 configuration file
-configurable watch terms
 automatic channel joins
 context sensitive tab completion: e.g. /topic should complete current topic
 disconnect/reconnect
