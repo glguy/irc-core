@@ -417,6 +417,8 @@ commandEvent st = commandsParser (clientInput st)
     (\chan -> return (set (clientMessages . at (fromMaybe (focusedName st) chan)) Nothing st'))
     <$> optional pTarget)
 
+  , ("gc", length (show (view clientConnection st)) `seq` pure (return st'))
+
   , ("nick",
     (\nick -> st' <$ clientSend (nickCmd nick) st')
     <$> pNick st)

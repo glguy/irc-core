@@ -236,8 +236,8 @@ data IrcMessageType
 -- the users visible on the current IRC connection.
 data IrcUser = IrcUser
   { _usrAway :: !Bool
-  , _usrAccount :: Maybe ByteString
-  , _usrHost    :: Maybe ByteString
+  , _usrAccount :: !(Maybe ByteString)
+  , _usrHost    :: !(Maybe ByteString)
   }
   deriving (Read,Show)
 
@@ -337,7 +337,7 @@ advanceModel msg0 conn =
          return (set (connUsers . ix (userNick who) . usrAccount) acct conn)
 
        Away who _msg ->
-         return (set (connUsers . ix (userNick who) . usrAway) True conn)
+         return (updateUserRecord (userNick who) (set usrAway True) conn)
 
        RplYourId yourId -> return (set connId (Just yourId) conn)
 
@@ -464,7 +464,7 @@ advanceModel msg0 conn =
        -- perhaps store it in the user map
        RplWhoisUser nick user host real ->
          doServerMessage "WHOIS" (B8.unwords [idBytes nick, user, host, real])
-            (set (connUsers . ix nick . usrHost) (Just host) conn)
+            (updateUserRecord nick (set usrHost (Just host)) conn)
        RplWhoisChannels _nick channels ->
          doServerMessage "WHOIS" channels conn
        RplWhoisServer _nick host txt ->
@@ -715,7 +715,7 @@ doIsOn ::
   IrcConnection -> IrcConnection
 doIsOn nicks conn = foldl' setIsOn conn nicks
   where
-  setIsOn connAcc nick = set (connUsers . ix nick.usrAway) False connAcc
+  setIsOn connAcc nick = updateUserRecord nick (set usrAway False) connAcc
 
 doModeChange ::
   UserInfo     {- ^ who           -} ->
@@ -974,12 +974,18 @@ doKick who chan tgt reason conn =
 
      recordMessage mesg chan conn3
 
+updateUserRecord :: Identifier -> (IrcUser -> IrcUser) -> IrcConnection -> IrcConnection
+updateUserRecord nick f conn =
+  case view (connUsers . at nick) conn of
+    Nothing -> conn
+    Just old -> (set (connUsers . ix nick) $! f old) conn
 
 doWhoReply :: Identifier -> ByteString -> ByteString -> IrcConnection -> Logic IrcConnection
 doWhoReply nickname hostname flags conn =
-  return (over (connUsers . ix nickname)
-               (set usrAway away . updateHost)
-               conn)
+  return $! updateUserRecord
+              nickname
+              (set usrAway away . updateHost)
+              conn
   where
   away = not (B.null flags) && B.take 1 flags == "G"
 
