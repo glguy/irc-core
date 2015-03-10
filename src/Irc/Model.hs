@@ -421,6 +421,14 @@ advanceModel msg0 conn =
        RplUmodeIs mode _params -> -- TODO: params?
          return (set connUmode (B.tail mode) conn)
 
+       ErrErroneousNickname ->
+         doServerError "Erroneous nickname" conn
+       ErrNoNicknameGiven ->
+         doServerError "No nickname given" conn
+       ErrNickInUse ->
+         doServerError "Nickname in use" conn
+       ErrNotRegistered ->
+         doServerError "Not registered" conn
        ErrNoSuchService serv ->
          doServerError ("No such service: " <> asUtf8 (idBytes serv)) conn
        ErrNoSuchServer server ->
@@ -441,8 +449,6 @@ advanceModel msg0 conn =
          doServerError "No recipient" conn
        ErrNoAdminInfo ->
          doServerError "No admin info" conn
-       ErrNickInUse ->
-         doServerError "Nick in use" conn
        ErrNeedMoreParams cmd ->
          doServerError ("Need more parameters: " <> asUtf8 cmd) conn
        ErrAlreadyRegistered ->

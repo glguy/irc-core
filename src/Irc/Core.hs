@@ -105,10 +105,13 @@ data MsgFromServer
   | ErrUnknownCommand ByteString -- ^ 421 command
   | ErrNoMotd -- ^ 422
   | ErrNoAdminInfo -- ^ 423
-  | ErrNickInUse -- ^ 433
+  | ErrNoNicknameGiven -- ^ 431
+  | ErrErroneousNickname -- ^ 432
+  | ErrNicknameInUse -- ^ 433
   | ErrUserNotInChannel Identifier Identifier -- ^ 441 nick channel
   | ErrNotOnChannel Identifier -- ^ 442 channel
   | ErrUserOnChannel Identifier Identifier -- ^ 443 nick channel
+  | ErrNotRegistered -- ^ 451
   | ErrNeedMoreParams ByteString -- ^ 461 command
   | ErrAlreadyRegistered -- ^ 462
   | ErrNoPermForHost -- ^ 463
@@ -401,7 +404,9 @@ ircMsgToServerMsg ircmsg =
     ("423",[_,_,_]) ->
          Just ErrNoAdminInfo
 
-    ("433",[_,_]) -> Just ErrNickInUse
+    ("431",[_,_]) -> Just ErrNoNicknameGiven
+
+    ("433",[_,_,_]) -> Just ErrNicknameInUse
 
     ("441",[_,nick,chan,_]) ->
          Just (ErrUserNotInChannel (mkId nick) (mkId chan))
@@ -411,6 +416,9 @@ ircMsgToServerMsg ircmsg =
 
     ("443",[_,nick,chan,_]) ->
          Just (ErrUserOnChannel (mkId nick) (mkId chan))
+
+    ("451",[_,_]) ->
+         Just ErrNotRegistered
 
     ("461",[_,cmd,_]) ->
          Just (ErrNeedMoreParams cmd)
