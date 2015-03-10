@@ -103,12 +103,12 @@ clearInput
 -- | Advance the focus element forward. See 'incrementFocus' for
 -- details.
 nextFocus :: ClientState -> ClientState
-nextFocus = incrementFocus (+1)
+nextFocus = incrementFocus nextInSorted
 
 -- | Advance the focus element backward. See 'incrementFocus' for
 -- details.
 prevFocus :: ClientState -> ClientState
-prevFocus = incrementFocus (subtract 1)
+prevFocus = incrementFocus prevInSorted
 
 -- | 'incrementFocus' allows moving forward and backward through
 -- a sorted list of channel names and query windows. Information
@@ -117,27 +117,21 @@ prevFocus = incrementFocus (subtract 1)
 -- and backward. The server message window is placed at the
 -- beginning of this rotation. In the case of overflow the focus
 -- wraps around to the other side of the list.
-incrementFocus :: (Int -> Int) -> ClientState -> ClientState
+incrementFocus ::
+  (Identifier -> Set Identifier -> Identifier) ->
+  ClientState -> ClientState
 incrementFocus f st
   = clearTabPattern
   $ set clientScrollPos 0
   $ set clientFocus focus' st
   where
   focus' =
-    case currentFocus of
+    case view clientFocus st of
       ChannelInfoFocus c -> ChannelFocus c
       MaskListFocus _  c -> ChannelFocus c
-      ChannelFocus c     -> ChannelFocus (nextChannel c)
+      ChannelFocus c     -> ChannelFocus (f c focuses)
 
-  focuses = Map.keys (fullMessageLists st)
-
-  currentFocus = view clientFocus st
-
-  -- TODO: fix this for case insensitivity
-  nextChannel c =
-    case elemIndex c focuses of
-      Just i  -> focuses !! mod (f i) (length focuses)
-      Nothing -> ""
+  focuses = Map.keysSet (fullMessageLists st)
 
 clearTabPattern :: ClientState -> ClientState
 clearTabPattern = set clientTabPattern Nothing
@@ -204,3 +198,21 @@ runEventHandlers tgt msg st0 = foldM aux st1 hs
   hs  = view clientAutomation st0
 
   aux st h = view evOnEvent h tgt msg st
+
+nextInSorted :: Ord a => a -> Set a -> a
+nextInSorted x ys =
+  case Set.lookupGT x ys of
+    Just y  -> y
+    Nothing ->
+     case Set.minView ys of
+       Just (y,_) -> y
+       Nothing    -> x
+
+prevInSorted :: Ord a => a -> Set a -> a
+prevInSorted x ys =
+  case Set.lookupLT x ys of
+    Just y  -> y
+    Nothing ->
+     case Set.maxView ys of
+       Just (y,_) -> y
+       Nothing    -> x
