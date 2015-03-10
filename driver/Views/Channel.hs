@@ -247,6 +247,8 @@ errorMessage e =
     ErrOwnMode                -> "Can't send while +g is set"
     ErrNoNonReg               -> "Messages blocked from unregistered users"
     ErrIsChanService nick     -> "Protected service: " <> asUtf8 (idBytes nick)
+    ErrBanNickChange          -> "Can't change kick when banned"
+    ErrNickTooFast            -> "Changed nickname too fast"
     ErrUnavailResource        -> "Resource unavailable"
     ErrThrottle               -> "Unable to join due to throttle"
     ErrTooManyChannels        -> "Too many channels joined"
