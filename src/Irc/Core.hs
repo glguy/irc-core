@@ -100,14 +100,16 @@ data MsgFromServer
   | ErrWasNoSuchNick Identifier -- ^ 406 nick
   | ErrTooManyTargets Identifier -- ^ 407 target
   | ErrNoSuchService Identifier -- ^ 408 target
+  | ErrNoOrigin -- ^ 409
   | ErrNoRecipient -- ^ 411
   | ErrNoTextToSend -- ^ 412
   | ErrUnknownCommand ByteString -- ^ 421 command
   | ErrNoMotd -- ^ 422
-  | ErrNoAdminInfo -- ^ 423
+  | ErrNoAdminInfo ByteString -- ^ 423 server
   | ErrNoNicknameGiven -- ^ 431
-  | ErrErroneousNickname -- ^ 432
-  | ErrNicknameInUse -- ^ 433
+  | ErrErroneousNickname ByteString -- ^ 432 badnick
+  | ErrNicknameInUse Identifier -- ^ 433 nick
+  | ErrUnavailResource Identifier -- ^ 437 nick/chan
   | ErrUserNotInChannel Identifier Identifier -- ^ 441 nick channel
   | ErrNotOnChannel Identifier -- ^ 442 channel
   | ErrUserOnChannel Identifier Identifier -- ^ 443 nick channel
@@ -116,6 +118,7 @@ data MsgFromServer
   | ErrAlreadyRegistered -- ^ 462
   | ErrNoPermForHost -- ^ 463
   | ErrPasswordMismatch -- ^ 464
+  | ErrYoureBannedCreep -- ^ 465
   | ErrLinkChannel Identifier Identifier -- ^ 470 channel channel
   | ErrChannelFull Identifier -- ^ 471 channel
   | ErrUnknownMode Char -- ^ 472 mode
@@ -126,9 +129,15 @@ data MsgFromServer
   | ErrNeedReggedNick Identifier -- ^ 477 channel
   | ErrBanListFull Identifier Char -- ^ 478 channel mode
   | ErrBadChanName ByteString -- ^ 479 name
+  | ErrThrottle Identifier -- ^ 480 channel
   | ErrNoPrivileges -- ^ 481
   | ErrChanOpPrivsNeeded Identifier -- ^ 482 channel
+  | ErrCantKillServer -- ^ 483
+  | ErrIsChanService Identifier Identifier -- ^ 484 nick channel
+  | ErrNoNonReg Identifier -- ^ 486 nick
   | ErrVoiceNeeded Identifier -- ^ 489 channel
+  | ErrNoOperHost -- ^ 491
+  | ErrOwnMode Identifier -- ^ 494 nickname
   | ErrUnknownUmodeFlag Char -- ^ 501 mode
   | ErrUsersDontMatch -- ^ 502
   | ErrHelpNotFound ByteString -- ^ 524 topic
@@ -389,6 +398,9 @@ ircMsgToServerMsg ircmsg =
     ("408",[_,target,_]) ->
          Just (ErrNoSuchService (mkId target))
 
+    ("409",[_,_]) ->
+         Just ErrNoOrigin
+
     ("411",[_,_]) ->
          Just ErrNoRecipient
 
@@ -401,12 +413,16 @@ ircMsgToServerMsg ircmsg =
     ("422",[_,_]) ->
          Just ErrNoMotd
 
-    ("423",[_,_,_]) ->
-         Just ErrNoAdminInfo
+    ("423",[_,server,_]) ->
+         Just (ErrNoAdminInfo server)
 
     ("431",[_,_]) -> Just ErrNoNicknameGiven
 
-    ("433",[_,_,_]) -> Just ErrNicknameInUse
+    ("432",[_,nick,_]) -> Just (ErrErroneousNickname nick)
+
+    ("433",[_,nick,_]) -> Just (ErrNicknameInUse (mkId nick))
+
+    ("437",[_,ident,_]) -> Just (ErrUnavailResource (mkId ident))
 
     ("441",[_,nick,chan,_]) ->
          Just (ErrUserNotInChannel (mkId nick) (mkId chan))
@@ -431,6 +447,9 @@ ircMsgToServerMsg ircmsg =
 
     ("464",[_,_]) ->
          Just ErrPasswordMismatch
+
+    ("465",[_,_]) ->
+         Just ErrYoureBannedCreep
 
     ("470",[_,chan1,chan2,_]) ->
          Just (ErrLinkChannel (mkId chan1) (mkId chan2))
@@ -462,14 +481,32 @@ ircMsgToServerMsg ircmsg =
     ("479",[_,chan,_]) ->
          Just (ErrBadChanName chan)
 
+    ("480",[_,chan,_]) ->
+         Just (ErrThrottle (mkId chan))
+
     ("481",[_,_]) ->
          Just ErrNoPrivileges
 
     ("482",[_,chan,_]) ->
          Just (ErrChanOpPrivsNeeded (mkId chan))
 
+    ("483",[_,_]) ->
+         Just ErrCantKillServer
+
+    ("484",[_,nick,chan,_]) ->
+         Just (ErrIsChanService (mkId nick) (mkId chan))
+
+    ("486",[_,nick,_]) ->
+         Just (ErrNoNonReg (mkId nick))
+
     ("489",[_,chan,_]) ->
          Just (ErrVoiceNeeded (mkId chan))
+
+    ("491",[_,_]) ->
+         Just ErrNoOperHost
+
+    ("494",[_,nick,_]) ->
+         Just (ErrOwnMode (mkId nick))
 
     ("501",[_,mode,_]) ->
          Just (ErrUnknownUmodeFlag (B8.head mode))

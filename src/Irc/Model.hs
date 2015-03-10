@@ -421,11 +421,17 @@ advanceModel msg0 conn =
        RplUmodeIs mode _params -> -- TODO: params?
          return (set connUmode (B.tail mode) conn)
 
-       ErrErroneousNickname ->
+       ErrCantKillServer ->
+         doServerError "Can't kill server" conn
+       ErrYoureBannedCreep ->
+         doServerError "Banned from server" conn
+       ErrNoOrigin ->
+         doServerError "No origin on PING or PONG" conn
+       ErrErroneousNickname _nick ->
          doServerError "Erroneous nickname" conn
        ErrNoNicknameGiven ->
          doServerError "No nickname given" conn
-       ErrNickInUse ->
+       ErrNicknameInUse _nick ->
          doServerError "Nickname in use" conn
        ErrNotRegistered ->
          doServerError "Not registered" conn
@@ -447,8 +453,8 @@ advanceModel msg0 conn =
          doServerError "No MOTD" conn
        ErrNoRecipient ->
          doServerError "No recipient" conn
-       ErrNoAdminInfo ->
-         doServerError "No admin info" conn
+       ErrNoAdminInfo server ->
+         doServerError ("No admin info for server: "<> asUtf8 server) conn
        ErrNeedMoreParams cmd ->
          doServerError ("Need more parameters: " <> asUtf8 cmd) conn
        ErrAlreadyRegistered ->
@@ -463,12 +469,24 @@ advanceModel msg0 conn =
          doServerError "Help topic not found" conn
        ErrBadChanName name ->
          doServerError ("Illegal channel name: " <> asUtf8 name) conn
+       ErrNoOperHost ->
+         doServerError "No OPER line for this host" conn
 
        ErrNoSuchNick nick ->
          doChannelError nick "No such nick" conn
        ErrWasNoSuchNick nick ->
          doChannelError nick "Was no such nick" conn
 
+       ErrOwnMode nick ->
+         doChannelError nick "Can't send while +g is set" conn
+       ErrNoNonReg nick ->
+         doChannelError nick "Messages blocked from unregistered users" conn
+       ErrIsChanService nick chan ->
+         doChannelError chan ("Protected service: " <> asUtf8 (idBytes nick)) conn
+       ErrUnavailResource chan ->
+         doChannelError chan "Resource unavailable" conn
+       ErrThrottle chan ->
+         doChannelError chan "Unable to join due to throttle" conn
        ErrTooManyChannels chan ->
          doChannelError chan "Too many channels joined" conn
        ErrUserNotInChannel nick chan ->
