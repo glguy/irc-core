@@ -35,6 +35,7 @@ data ClientState = ClientState
   , _clientConnection :: IrcConnection
   , _clientFocus      :: Focus
   , _clientDetailView :: !Bool
+  , _clientTimeView   :: !Bool
   , _clientEditBox    :: EditBox
   , _clientTabPattern :: Maybe String
   , _clientScrollPos :: Int
@@ -46,6 +47,7 @@ data ClientState = ClientState
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
   }
+  -- TODO: split this record into logical pieces
 
 data MessageList = MessageList
   { _mlNewMessages :: !Int

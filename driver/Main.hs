@@ -88,6 +88,7 @@ main = do
          , _clientConnection      = conn0
          , _clientFocus           = ChannelFocus ""
          , _clientDetailView      = False
+         , _clientTimeView        = True
          , _clientEditBox         = Edit.empty
          , _clientTabPattern      = Nothing
          , _clientScrollPos       = 0
@@ -190,6 +191,7 @@ inputLogic st =
 
 keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
 keyEvent (KFun 2)    []      st = return $ over clientDetailView not st
+keyEvent (KFun 3)    []      st = return $ over clientTimeView   not st
 keyEvent KPageUp     _       st = return $ scrollUp st
 keyEvent KPageDown   _       st = return $ scrollDown st
 keyEvent (KChar 'n') [MCtrl] st = return $ nextFocus st
@@ -604,8 +606,7 @@ picForState st = (scroll', pic)
     case view clientFocus st of
       MaskListFocus mode chan -> banListImage mode chan st
       ChannelInfoFocus chan -> channelInfoImage chan st
-      _ | view clientDetailView st -> detailedImageForState st
-        | otherwise                -> compressedImageForState st
+      _ -> channelImage st
 
   titlebar =
     case view clientFocus st of

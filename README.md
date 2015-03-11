@@ -99,6 +99,7 @@ Keyboard Shortcuts
 * `M-B` backward word
 * `TAB` nickname completion
 * `F2` toggle detailed view
+* `F3` toggle timestamps
 * `Page Up` scroll up
 * `Page Down` scroll down
 * `^B` bold

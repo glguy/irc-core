@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Views.Channel where
+{-# LANGUAGE BangPatterns #-}
+module Views.Channel (channelImage) where
 
 import Control.Lens
 import Data.Monoid
@@ -20,19 +21,28 @@ import Irc.Core
 import ClientState
 import ImageUtils
 
+channelImage :: ClientState -> [Image]
+channelImage st
+  | view clientDetailView st = detailedImageForState st
+  | otherwise                = compressedImageForState st
+
 detailedImageForState :: ClientState -> [Image]
-detailedImageForState st
+detailedImageForState !st
   = map renderOne
   $ map fst
   $ activeMessages st
   where
   renderOne x =
-      renderTimestamp (view mesgStamp x) <|>
+      timestamp <|>
       string (withForeColor defAttr blue) (ty ++ " ") <|>
       renderFullUsermask (view mesgSender x) <|>
       string (withForeColor defAttr blue) (": ") <|>
       cleanText content
     where
+    timestamp
+      | view clientTimeView st = renderTimestamp (view mesgStamp x)
+      | otherwise              = emptyImage
+
     (ty, content) = case view mesgType x of
        JoinMsgType -> ("J", "")
        PartMsgType txt -> ("P", txt)
@@ -57,6 +67,11 @@ renderTimestamp
   = string (withForeColor defAttr brightBlack)
   . formatTime defaultTimeLocale "%H:%M:%S "
 
+renderCompressedTimestamp :: UTCTime -> Image
+renderCompressedTimestamp
+  = string (withForeColor defAttr brightBlack)
+  . formatTime defaultTimeLocale "[%H:%M] "
+
 activeMessages :: ClientState -> [(IrcMessage,Image)]
 activeMessages st =
   case stripPrefix "/filter " (clientInput st) of
@@ -68,7 +83,7 @@ activeMessages st =
     = views mesgSender userNick msg == mkId nick
 
 compressedImageForState :: ClientState -> [Image]
-compressedImageForState st = renderOne (activeMessages st)
+compressedImageForState !st = renderOne (activeMessages st)
   where
   width = view clientWidth st
 
@@ -83,73 +98,82 @@ compressedImageForState st = renderOne (activeMessages st)
 
   renderOne [] = []
   renderOne ((msg,colored):msgs) =
-    let nick = views mesgSender userNick msg
-        visible = not (view (contains nick) ignores)
-    in case view mesgType msg of
-         PrivMsgType _ | visible ->
-            -- modes me who what) =
-            (views mesgModes modePrefix msg <|>
-             formatNick (view mesgMe msg) nick <|>
-             string (withForeColor defAttr blue) (": ") <|>
-             colored) : renderOne msgs
+    case mbImg of
+      Just img -> (timestamp <|> img) : renderOne msgs
+      Nothing  -> renderMeta emptyImage ((msg,colored):msgs)
 
-         NoticeMsgType _ | visible ->
-            -- modes me who what) =
-            (string (withForeColor defAttr red) "! " <|>
-             views mesgModes modePrefix msg <|>
-             identImg (withForeColor defAttr red) nick <|>
-             string (withForeColor defAttr blue) (": ") <|>
-             colored) : renderOne msgs
+    where
+    timestamp
+      | view clientTimeView st = renderCompressedTimestamp (view mesgStamp msg)
+      | otherwise              = emptyImage
 
-         ActionMsgType _ | visible ->
-            -- modes me who what) =
-            (string (withForeColor defAttr blue) "* " <|>
-             views mesgModes modePrefix msg <|>
-             identImg (withForeColor defAttr blue) nick <|>
-             string (withForeColor defAttr blue) (": ") <|>
-             colored) : renderOne msgs
+    nick = views mesgSender userNick msg
 
-         KickMsgType who reason ->
-            (views mesgModes modePrefix msg <|>
-             formatNick (view mesgMe msg) nick <|>
-             string (withForeColor defAttr red) " kicked " <|>
-             identImg (withForeColor defAttr yellow) who <|>
-             string (withForeColor defAttr blue) (": ") <|>
-             cleanText reason) : renderOne msgs
+    visible = not (view (contains nick) ignores)
 
-         ErrorMsgType err ->
-            (string (withForeColor defAttr red) "Error: " <|>
-             cleanText err) : renderOne msgs
+    mbImg =
+       case view mesgType msg of
+         PrivMsgType _ | visible -> Just $
+           views mesgModes modePrefix msg <|>
+           formatNick (view mesgMe msg) nick <|>
+           string (withForeColor defAttr blue) (": ") <|>
+           colored
 
-         ErrMsgType err ->
-            (string (withForeColor defAttr red) "Error: " <|>
-             text' defAttr (errorMessage err)) : renderOne msgs
+         NoticeMsgType _ | visible -> Just $
+           string (withForeColor defAttr red) "! " <|>
+           views mesgModes modePrefix msg <|>
+           identImg (withForeColor defAttr red) nick <|>
+           string (withForeColor defAttr blue) (": ") <|>
+           colored
 
-         InviteMsgType ->
-            (string (withForeColor defAttr red) "? " <|>
-             formatNick (view mesgMe msg) nick <|>
-             text' defAttr " has invited you") : renderOne msgs
+         ActionMsgType _ | visible -> Just $
+           string (withForeColor defAttr blue) "* " <|>
+           views mesgModes modePrefix msg <|>
+           identImg (withForeColor defAttr blue) nick <|>
+           string (withForeColor defAttr blue) (": ") <|>
+           colored
 
-         ModeMsgType pol m arg ->
-            (views mesgModes modePrefix msg <|>
-             formatNick (view mesgMe msg) nick <|>
-             string (withForeColor defAttr red) " set mode " <|>
-             string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
-             utf8Bytestring' (withForeColor defAttr yellow) arg) : renderOne msgs
+         KickMsgType who reason -> Just $
+           views mesgModes modePrefix msg <|>
+           formatNick (view mesgMe msg) nick <|>
+           string (withForeColor defAttr red) " kicked " <|>
+           identImg (withForeColor defAttr yellow) who <|>
+           string (withForeColor defAttr blue) (": ") <|>
+           cleanText reason
 
-         TopicMsgType txt ->
-            (views mesgModes modePrefix msg <|>
-             formatNick (view mesgMe msg) nick <|>
-             string (withForeColor defAttr red) " set topic " <|>
-             cleanText txt) : renderOne msgs
+         ErrorMsgType err -> Just $
+           string (withForeColor defAttr red) "Error: " <|>
+           cleanText err
 
-         AwayMsgType txt ->
-            (string (withForeColor defAttr red) "A " <|>
-             formatNick (view mesgMe msg) nick <|>
-             string (withForeColor defAttr red) " is away: " <|>
-             cleanText txt) : renderOne msgs
+         ErrMsgType err -> Just $
+           string (withForeColor defAttr red) "Error: " <|>
+           text' defAttr (errorMessage err)
 
-         _ -> renderMeta emptyImage ((msg,colored):msgs)
+         InviteMsgType -> Just $
+           string (withForeColor defAttr red) "? " <|>
+           formatNick (view mesgMe msg) nick <|>
+           text' defAttr " has invited you"
+
+         ModeMsgType pol m arg -> Just $
+           views mesgModes modePrefix msg <|>
+           formatNick (view mesgMe msg) nick <|>
+           string (withForeColor defAttr red) " set mode " <|>
+           string (withForeColor defAttr white) ((if pol then '+' else '-'):[m,' ']) <|>
+           utf8Bytestring' (withForeColor defAttr yellow) arg
+
+         TopicMsgType txt -> Just $
+           views mesgModes modePrefix msg <|>
+           formatNick (view mesgMe msg) nick <|>
+           string (withForeColor defAttr red) " set topic " <|>
+           cleanText txt
+
+         AwayMsgType txt -> Just $
+           string (withForeColor defAttr red) "A " <|>
+           formatNick (view mesgMe msg) nick <|>
+           string (withForeColor defAttr red) " is away: " <|>
+           cleanText txt
+
+         _ -> Nothing
 
   renderMeta img [] = [cropRight width img]
   renderMeta img ((msg,colored):msgs) =
