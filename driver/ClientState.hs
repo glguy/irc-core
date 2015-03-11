@@ -8,7 +8,6 @@ import Control.Lens
 import Control.Monad (foldM)
 import Data.ByteString (ByteString)
 import Data.Functor
-import Data.List (elemIndex)
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
