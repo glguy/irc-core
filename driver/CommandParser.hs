@@ -10,7 +10,6 @@ module CommandParser
   , pToken
   , pValidToken
   , pTarget
-  , pCommand
   , pChar
   , pSatisfy
   , pHaskell
@@ -32,28 +31,14 @@ import Irc.Format
 import HaskellHighlighter
 import ImageUtils
 
--- tokens
---   single letter
---   free-form
---   identifiers
---     users
---     channels
---       active
---       inactive
---   mask
---
--- free-form words
---
--- render to image
-
 
 newtype Parser a = Parser (String -> (String, Image, Maybe a))
   deriving (Functor)
 
 runParser :: Parser a -> String -> (Image, Maybe a)
 runParser (Parser p) s
-  | all isSpace rest = (img Vty.<|> string defAttr rest, res)
-  | otherwise = (img Vty.<|> string (withForeColor defAttr red) rest, Nothing)
+  | all isSpace rest = (img Vty.<|> stringWithControls defAttr rest, res)
+  | otherwise = (img Vty.<|> stringWithControls (withForeColor defAttr red) rest, Nothing)
   where
   (rest,img,res) = p s
 
@@ -77,11 +62,11 @@ pValidToken :: String -> (String -> Maybe a) -> Parser a
 pValidToken name validate = Parser $ \s ->
   let (w,s1) = span (==' ') s
       (t,s2) = break (==' ') s1
-      img c  = string (withForeColor defAttr c) (w ++ t)
+      img c  = stringWithControls (withForeColor defAttr c) (w ++ t)
   in if null t
        then ("", char defAttr ' ' Vty.<|>
-                 string (withStyle defAttr reverseVideo) name Vty.<|>
-                 string defAttr (drop (length name + 1) w)
+                 stringWithControls (withStyle defAttr reverseVideo) name Vty.<|>
+                 stringWithControls defAttr (drop (length name + 1) w)
               , Nothing)
        else case validate t of
               Just x -> (s2, img green, Just x)
@@ -91,7 +76,7 @@ pToken :: String -> Parser String
 pToken name = pValidToken name Just
 
 pRemaining :: Parser String
-pRemaining = Parser (\s -> ("", string defAttr s, Just s))
+pRemaining = Parser (\s -> ("", stringWithControls defAttr s, Just s))
 
 pRemainingNoSp :: Parser String
 pRemainingNoSp = fmap (dropWhile isSpace) pRemaining
@@ -124,13 +109,6 @@ pSatisfy name f = Parser (\s ->
                   | otherwise -> (s1, emptyImage, Nothing)
             [] -> (s, string (withStyle defAttr reverseVideo) (' ':name), Nothing))
 
-pCommand :: String -> Parser ()
-pCommand cmd = Parser (\s ->
-          let (t,s1) = break (==' ') s
-          in if cmd == t
-                then (s1, string (withForeColor defAttr yellow) t, Just ())
-                else (s, emptyImage, Nothing))
-
 pHaskell :: Parser String
 pHaskell = Parser (\s ->
             ("", cleanText (Text.pack (highlightHaskell s)),
@@ -143,12 +121,12 @@ commandsParser ::
 commandsParser input cmds =
   case lookup cmd cmds of
     Just p -> over _1 (\img -> char defAttr '/' Vty.<|>
-                               string (withForeColor defAttr yellow) cmd Vty.<|>
+                               stringWithControls (withForeColor defAttr yellow) cmd Vty.<|>
                                img)
                       (runParser p rest)
 
     Nothing -> ( char defAttr '/' Vty.<|>
-                 string (withForeColor defAttr red) (drop 1 input)
+                 stringWithControls (withForeColor defAttr red) (drop 1 input)
                , Nothing)
   where
   (cmd,rest) = break (==' ') (drop 1 input)

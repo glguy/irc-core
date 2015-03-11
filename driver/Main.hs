@@ -186,7 +186,7 @@ inputLogic :: ClientState -> (Image, Maybe (IO ClientState))
 inputLogic st =
   case clientInput st of
     '/':_ -> commandEvent st
-    txt -> (stringWithControls txt, Just (doSendMessageCurrent SendPriv st))
+    txt -> (stringWithControls defAttr txt, Just (doSendMessageCurrent SendPriv st))
 
 keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
 keyEvent (KFun 2)    []      st = return $ over clientDetailView not st

@@ -136,15 +136,15 @@ identImg attr = utf8Bytestring' attr . idBytes
 
 -- | Render a string and replace the control characters with
 -- reversed video of the associated control key.
-stringWithControls :: String -> Image
-stringWithControls [] = emptyImage
-stringWithControls xs =
+stringWithControls :: Attr -> String -> Image
+stringWithControls _ [] = emptyImage
+stringWithControls attr xs =
   case break isControl xs of
-    (a,[]) -> string defAttr a
-    (a,b:bs) -> string defAttr a
-            <|> char (withStyle defAttr reverseVideo)
+    (a,[]) -> string attr a
+    (a,b:bs) -> string attr a
+            <|> char (withStyle attr reverseVideo)
                      (controls ! fromEnum b)
-            <|> stringWithControls bs
+            <|> stringWithControls attr bs
 
   where
   controls = listArray (0,0x1f) ('@':['A'..'Z']++"[\\]^_")
