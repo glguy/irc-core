@@ -179,43 +179,44 @@ compressedImageForState !st = renderOne (activeMessages st)
   renderMeta img ((msg,colored):msgs) =
     let who = views mesgSender userNick msg
         visible = not (view (contains who) ignores)
+        metaAttr = withForeColor defAttr (rgbColor' 58 58 58)
     in case view mesgType msg of
          JoinMsgType ->
            renderMeta
              (img <|>
               char (withForeColor defAttr green) '+' <|>
-              identImg defAttr who <|>
+              identImg metaAttr who <|>
               char defAttr ' ') msgs
          PartMsgType{} ->
            renderMeta
              (img <|>
               char (withForeColor defAttr red) '-' <|>
-              identImg defAttr who <|>
+              identImg metaAttr who <|>
               char defAttr ' ') msgs
          QuitMsgType{} ->
            renderMeta
              (img <|>
               char (withForeColor defAttr red) 'x' <|>
-              identImg defAttr who <|>
+              identImg metaAttr who <|>
               char defAttr ' ') msgs
          NickMsgType who' ->
            renderMeta
              (img <|>
-              identImg defAttr who <|>
+              identImg metaAttr who <|>
               char (withForeColor defAttr yellow) '-' <|>
-              identImg defAttr who' <|>
+              identImg metaAttr who' <|>
               char defAttr ' ') msgs
          KnockMsgType ->
            renderMeta
              (img <|>
               char (withForeColor defAttr yellow) 'K' <|>
-              identImg defAttr who <|>
+              identImg metaAttr who <|>
               char defAttr ' ') msgs
          _ | not visible ->
            renderMeta
              (img <|>
               char (withForeColor defAttr brightBlack) 'I' <|>
-              identImg defAttr who <|>
+              identImg metaAttr who <|>
               char defAttr ' ') msgs
            | otherwise ->
              cropRight width img : renderOne ((msg,colored):msgs)
