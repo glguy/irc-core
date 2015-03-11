@@ -21,11 +21,12 @@ Client Features
 * New message notification
 * Customizable mention filter (looks for your nick plus extra search terms)
 * View ban, quiet, invex, and exception lists
-* Support for rendering colors and formatting
+* Support for rendering/inputing colors and formatting
 * Haskell source code highlighting (/hs)
-* Write your modifications in Haskell ^_^
+* Write your modifications in Haskell!
 * Chanserv automation (automatically requests op from chanserv for privileged commands)
 * Command syntax highlighting with hints.
+* Each user's nick is assigned a consistent color, when a user's nick is rendered in a chat message it uses that same color.
 
 No SSL?
 =======
