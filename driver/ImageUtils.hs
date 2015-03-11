@@ -170,9 +170,11 @@ nameHighlighter msg users me colors = aux 0 0
           Nothing -> aux lo (advance hi)
           Just hit -> utf8Bytestring' defAttr
                         (B8.take (hi-lo) (B8.drop lo msg))
-                      <|> utf8Bytestring' (withForeColor defAttr color) (idBytes hit)
+                      <|> utf8Bytestring' (withForeColor defAttr color) matchRegion
                       <|> aux hi' hi'
             where
+            -- use the original match region to preserve original case
+            matchRegion = B8.take (B8.length (idBytes hit)) (B8.drop hi msg)
             hi' = hi + B8.length (idDenote hit)
             color | me == hit = red
                   | otherwise = colors
