@@ -2,7 +2,6 @@
 module Views.Channel where
 
 import Control.Lens
-import Data.ByteString (ByteString)
 import Data.Monoid
 import Data.Foldable (toList)
 import Data.List (stripPrefix)
@@ -11,7 +10,6 @@ import Data.Text (Text)
 import Data.Time (UTCTime, formatTime)
 import Graphics.Vty.Image
 import System.Locale (defaultTimeLocale)
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Text as Text
 
@@ -25,6 +23,7 @@ import ImageUtils
 detailedImageForState :: ClientState -> [Image]
 detailedImageForState st
   = map renderOne
+  $ map fst
   $ activeMessages st
   where
   renderOne x =
@@ -58,11 +57,11 @@ renderTimestamp
   = string (withForeColor defAttr brightBlack)
   . formatTime defaultTimeLocale "%H:%M:%S "
 
-activeMessages :: ClientState -> [IrcMessage]
+activeMessages :: ClientState -> [(IrcMessage,Image)]
 activeMessages st =
   case stripPrefix "/filter " (clientInput st) of
     Nothing -> toList msgs
-    Just nick -> filter (nickFilter (BS8.pack nick)) (toList msgs)
+    Just nick -> filter (nickFilter (BS8.pack nick) . fst) (toList msgs)
   where
   msgs = view (clientMessages . ix (focusedName st) . mlMessages) st
   nickFilter nick msg
@@ -83,32 +82,32 @@ compressedImageForState st = renderOne (activeMessages st)
   ignores = view clientIgnores st
 
   renderOne [] = []
-  renderOne (msg:msgs) =
+  renderOne ((msg,colored):msgs) =
     let nick = views mesgSender userNick msg
         visible = not (view (contains nick) ignores)
     in case view mesgType msg of
-         PrivMsgType txt | visible ->
+         PrivMsgType _ | visible ->
             -- modes me who what) =
             (views mesgModes modePrefix msg <|>
              formatNick (view mesgMe msg) nick <|>
              string (withForeColor defAttr blue) (": ") <|>
-             cleanText txt) : renderOne msgs
+             colored) : renderOne msgs
 
-         NoticeMsgType txt | visible ->
+         NoticeMsgType _ | visible ->
             -- modes me who what) =
             (string (withForeColor defAttr red) "! " <|>
              views mesgModes modePrefix msg <|>
              identImg (withForeColor defAttr red) nick <|>
              string (withForeColor defAttr blue) (": ") <|>
-             cleanText txt) : renderOne msgs
+             colored) : renderOne msgs
 
-         ActionMsgType txt | visible ->
+         ActionMsgType _ | visible ->
             -- modes me who what) =
             (string (withForeColor defAttr blue) "* " <|>
              views mesgModes modePrefix msg <|>
              identImg (withForeColor defAttr blue) nick <|>
              string (withForeColor defAttr blue) (": ") <|>
-             cleanText txt) : renderOne msgs
+             colored) : renderOne msgs
 
          KickMsgType who reason ->
             (views mesgModes modePrefix msg <|>
@@ -150,10 +149,10 @@ compressedImageForState st = renderOne (activeMessages st)
              string (withForeColor defAttr red) " is away: " <|>
              cleanText txt) : renderOne msgs
 
-         _ -> renderMeta emptyImage (msg:msgs)
+         _ -> renderMeta emptyImage ((msg,colored):msgs)
 
   renderMeta img [] = [cropRight width img]
-  renderMeta img (msg:msgs) =
+  renderMeta img ((msg,colored):msgs) =
     let who = views mesgSender userNick msg
         visible = not (view (contains who) ignores)
     in case view mesgType msg of
@@ -195,7 +194,7 @@ compressedImageForState st = renderOne (activeMessages st)
               identImg defAttr who <|>
               char defAttr ' ') msgs
            | otherwise ->
-             cropRight width img : renderOne (msg:msgs)
+             cropRight width img : renderOne ((msg,colored):msgs)
 
 
   conn = view clientConnection st
@@ -205,12 +204,6 @@ compressedImageForState st = renderOne (activeMessages st)
   modePrefix modes =
     string (withForeColor defAttr blue)
            (mapMaybe (`lookup` prefixes) modes)
-
-
-nickHash :: ByteString -> Int
-nickHash n =
-  let h1 = B.foldl' (\acc b -> fromIntegral b + 33 * acc) 0 n
-  in h1 + (h1 `quot` 32)
 
 
 

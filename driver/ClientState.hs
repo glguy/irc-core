@@ -7,6 +7,7 @@ import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.Lens
 import Control.Monad (foldM)
 import Data.ByteString (ByteString)
+import Data.Char (isControl)
 import Data.Functor
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
@@ -19,12 +20,14 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 
 import Irc.Format
 import Irc.Model
 
 import EditBox (EditBox)
 import qualified EditBox as Edit
+import ImageUtils (cleanText, nameHighlighter)
 
 data ClientState = ClientState
   { _clientSendChan   :: TChan ByteString
@@ -47,7 +50,7 @@ data ClientState = ClientState
 data MessageList = MessageList
   { _mlNewMessages :: !Int
   , _mlMentioned   :: !Bool
-  , _mlMessages    :: [IrcMessage]
+  , _mlMessages    :: [(IrcMessage,Image)]
   }
 
 defaultMessageList :: MessageList
@@ -166,10 +169,18 @@ addMessage target message st
            st
   where
   aux = case views mesgType isRelevant message of
-          Nothing -> over mlMessages (cons message)
+          Nothing -> over mlMessages (cons (message,error "unused colored message"))
           Just txt -> over mlNewMessages (+1)
                     . over mlMentioned   (|| mention txt)
-                    . over mlMessages (cons message)
+                    . over mlMessages (cons (message,coloredImage))
+            where
+            coloredImage
+              | Text.any isControl txt = cleanText txt
+              | otherwise = nameHighlighter
+                                (Text.encodeUtf8 txt)
+                                (views (clientConnection . connChannels . ix target . chanUsers) Map.keysSet st)
+                                (view (clientConnection . connNick) st)
+                                (view clientNickColors st)
 
   nickTxt = asUtf8 (idDenote (view (clientConnection . connNick) st))
 

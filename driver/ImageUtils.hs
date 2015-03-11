@@ -1,12 +1,18 @@
 {-# LANGUAGE TemplateHaskell #-}
 module ImageUtils where
 
-import Data.Array
-import Data.Text (Text)
-import Data.Char (isControl)
-import qualified Data.Text as Text
-import Graphics.Vty.Image
 import Control.Lens
+import Data.Array
+import Data.ByteString (ByteString)
+import Data.Char (isControl, isAlpha)
+import Data.Set (Set)
+import Data.Text (Text)
+import Graphics.Vty.Image
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.CaseInsensitive as CI
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 import Irc.Format
 
@@ -148,3 +154,54 @@ stringWithControls attr xs =
 
   where
   controls = listArray (0,0x1f) ('@':['A'..'Z']++"[\\]^_")
+
+nameHighlighter ::
+  ByteString -> Set Identifier -> Identifier -> [Color] -> Image
+nameHighlighter msg users me colors = aux 0 0
+  where
+  lowmsg = CI.foldCase msg
+  n = B8.length lowmsg
+  ncolors = length colors
+
+  aux lo hi
+    | hi == n = utf8Bytestring' defAttr (B8.drop lo msg)
+    | otherwise =
+        case nameLookup identFromHi users of
+          Nothing -> aux lo (advance hi)
+          Just hit -> utf8Bytestring' defAttr
+                        (B8.take (hi-lo) (B8.drop lo msg))
+                      <|> utf8Bytestring' (withForeColor defAttr color) (idBytes hit)
+                      <|> aux hi' hi'
+            where
+            hi' = hi + B8.length (idDenote hit)
+            color | me == hit = red
+                  | otherwise = colors
+                             !! mod (nickHash (idDenote hit)) ncolors
+
+    where
+    identFromHi = mkId (B8.drop hi lowmsg)
+
+    advance curHi
+      | curHi + 1 == n = curHi + 1
+      | isAlpha (B8.index lowmsg curHi)
+      , isAlpha (B8.index lowmsg (curHi+1)) = advance (curHi+1)
+      | otherwise = curHi+1
+
+
+nameLookup :: Identifier -> Set Identifier -> Maybe Identifier
+nameLookup haystack s =
+  case Set.lookupLE haystack s of
+    Just x | idDenote x `B8.isPrefixOf` idDenote haystack
+           , boundaryCheck (idDenote x) -> Just x
+    _               -> Nothing
+  where
+  boundaryCheck needle =
+    B8.length needle == B8.length (idDenote haystack) ||
+    not (isAlpha (B8.index (idDenote haystack) (B8.length needle)))
+
+nickHash :: ByteString -> Int
+nickHash n =
+  let h1 = B.foldl' (\acc b -> fromIntegral b + 33 * acc) 0 n
+  in h1 + (h1 `quot` 32)
+
+
