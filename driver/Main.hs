@@ -89,6 +89,7 @@ main = do
          , _clientFocus           = ChannelFocus ""
          , _clientDetailView      = False
          , _clientTimeView        = True
+         , _clientMetaView        = True
          , _clientEditBox         = Edit.empty
          , _clientTabPattern      = Nothing
          , _clientScrollPos       = 0
@@ -192,6 +193,7 @@ inputLogic st =
 keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
 keyEvent (KFun 2)    []      st = return $ over clientDetailView not st
 keyEvent (KFun 3)    []      st = return $ over clientTimeView   not st
+keyEvent (KFun 4)    []      st = return $ over clientMetaView   not st
 keyEvent KPageUp     _       st = return $ scrollUp st
 keyEvent KPageDown   _       st = return $ scrollDown st
 keyEvent (KChar 'n') [MCtrl] st = return $ nextFocus st

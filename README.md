@@ -100,6 +100,7 @@ Keyboard Shortcuts
 * `TAB` nickname completion
 * `F2` toggle detailed view
 * `F3` toggle timestamps
+* `F4` toggle compressed metadata
 * `Page Up` scroll up
 * `Page Down` scroll down
 * `^B` bold

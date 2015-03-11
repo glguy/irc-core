@@ -175,7 +175,11 @@ compressedImageForState !st = renderOne (activeMessages st)
 
          _ -> Nothing
 
-  renderMeta img [] = [cropRight width img]
+  filterMeta x
+    | view clientMetaView st = [x]
+    | otherwise              = []
+
+  renderMeta img [] = filterMeta (cropRight width img)
   renderMeta img ((msg,colored):msgs) =
     let who = views mesgSender userNick msg
         visible = not (view (contains who) ignores)
@@ -219,7 +223,8 @@ compressedImageForState !st = renderOne (activeMessages st)
               identImg metaAttr who <|>
               char defAttr ' ') msgs
            | otherwise ->
-             cropRight width img : renderOne ((msg,colored):msgs)
+             filterMeta (cropRight width img)
+             ++ renderOne ((msg,colored):msgs)
 
 
   conn = view clientConnection st
