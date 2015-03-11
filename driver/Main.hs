@@ -239,11 +239,7 @@ doSendMessageCurrent sendType st =
   case view clientFocus st of
     ChannelFocus c
       | not (null (dropWhile isSpace (clientInput st))) ->
-      doSendMessage
-        sendType
-        c
-        (Text.pack (clientInput st))
-        (clearInput st)
+      doSendMessage sendType c (Text.pack (clientInput st)) st
     _ -> return st
 
 data SendType = SendPriv | SendNotice | SendAction
@@ -651,11 +647,11 @@ maskListTitle 'e' = "Ban exceptions"
 maskListTitle m   = "Unknown '" ++ [m] ++ "' masks"
 
 textbox :: ClientState -> Image
-textbox st 
+textbox st
   = applyCrop
   $ beginning <|> content <|> ending
   where
-  pos = view (clientEditBox. Edit.pos) st
+  pos = view (clientEditBox . Edit.pos) st
   width = view clientWidth st
   (content,_) = inputLogic st
   applyCrop
