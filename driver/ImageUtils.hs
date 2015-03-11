@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module ImageUtils where
 
+import Data.Array
 import Data.Text (Text)
 import Data.Char (isControl)
 import qualified Data.Text as Text
@@ -132,3 +133,18 @@ formattingAttr fmt
 
 identImg :: Attr -> Identifier -> Image
 identImg attr = utf8Bytestring' attr . idBytes
+
+-- | Render a string and replace the control characters with
+-- reversed video of the associated control key.
+stringWithControls :: String -> Image
+stringWithControls [] = emptyImage
+stringWithControls xs =
+  case break isControl xs of
+    (a,[]) -> string defAttr a
+    (a,b:bs) -> string defAttr a
+            <|> char (withStyle defAttr reverseVideo)
+                     (controls ! fromEnum b)
+            <|> stringWithControls bs
+
+  where
+  controls = listArray (0,0x1f) ('@':['A'..'Z']++"[\\]^_")

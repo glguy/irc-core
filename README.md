@@ -94,11 +94,14 @@ Keyboard Shortcuts
 * `^U` delete to beginning
 * `^D` delete at cursor
 * `^W` delete word
-* `^F` forward
-* `^B` backward word
 * `M-F` forward word
 * `M-B` backward word
 * `TAB` nickname completion
 * `F2` toggle detailed view
 * `Page Up` scroll up
 * `Page Down` scroll down
+* `^B` bold
+* `^C` color
+* `^V` reverse video
+* `^_` underline
+* `^]` italic

@@ -186,7 +186,7 @@ inputLogic :: ClientState -> (Image, Maybe (IO ClientState))
 inputLogic st =
   case clientInput st of
     '/':_ -> commandEvent st
-    txt -> (string defAttr txt, Just (doSendMessageCurrent SendPriv st))
+    txt -> (stringWithControls txt, Just (doSendMessageCurrent SendPriv st))
 
 keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
 keyEvent (KFun 2)    []      st = return $ over clientDetailView not st
@@ -208,11 +208,14 @@ keyEvent (KChar 'e') [MCtrl] st = return $ changeInput Edit.end st
 keyEvent (KChar 'u') [MCtrl] st = return $ changeInput Edit.killHome st
 keyEvent (KChar 'k') [MCtrl] st = return $ changeInput Edit.killEnd st
 keyEvent (KChar 'w') [MCtrl] st = return $ changeInput Edit.killWord st
-keyEvent (KChar 'b') [MCtrl] st = return $ changeInput Edit.left st
-keyEvent (KChar 'f') [MCtrl] st = return $ changeInput Edit.right st
 keyEvent (KChar 'b') [MMeta] st = return $ changeInput Edit.leftWord st
 keyEvent (KChar 'f') [MMeta] st = return $ changeInput Edit.rightWord st
 keyEvent (KChar '\t') []     st = return $ tabComplete st
+keyEvent (KChar 'b') [MCtrl] st = return $ changeInput (Edit.insert '\^B') st
+keyEvent (KChar 'c') [MCtrl] st = return $ changeInput (Edit.insert '\^C') st
+keyEvent (KChar ']') [MCtrl] st = return $ changeInput (Edit.insert '\^]') st
+keyEvent (KChar '_') [MCtrl] st = return $ changeInput (Edit.insert '\^_') st
+keyEvent (KChar 'v') [MCtrl] st = return $ changeInput (Edit.insert '\^V') st
 keyEvent (KChar c)   []      st = return $ changeInput (Edit.insert c) st
 keyEvent KEnter      []      st = case snd (inputLogic st) of
                                     Just m  -> m
