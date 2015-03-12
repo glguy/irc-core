@@ -130,8 +130,6 @@ driver vty vtyEventChan ircMsgChan st0 =
 
   processVtyEvent st event =
     case event of
-      -- quit
-      EvKey KEsc _ -> return ()
       EvResize width height -> continue
                              $ set clientWidth  width
                              $ set clientHeight height st
@@ -142,7 +140,10 @@ driver vty vtyEventChan ircMsgChan st0 =
            continue $ set clientHeight height
                     $ set clientWidth  width st
 
-      EvKey key mods -> continue =<< keyEvent key mods st
+      EvKey key mods -> do r <- keyEvent key mods st
+                           case r of
+                             KeepGoing st' -> continue st'
+                             Exit -> return ()
 
       _ -> continue st
 
@@ -181,50 +182,57 @@ interpretLogicOp _ (Record target message r) =
 -- Key Event Handlers!
 ------------------------------------------------------------------------
 
+data EventResult
+  = KeepGoing ClientState
+  | Exit
+
 changeInput :: (Edit.EditBox -> Edit.EditBox) -> ClientState -> ClientState
 changeInput f st = clearTabPattern (over clientEditBox f st)
 
-inputLogic :: ClientState -> (Image, Maybe (IO ClientState))
+inputLogic :: ClientState -> (Image, IO EventResult)
 inputLogic st =
   case clientInput st of
-    '/':_ -> commandEvent st
-    txt -> (stringWithControls defAttr txt, Just (doSendMessageCurrent SendPriv st))
+    '/':_ -> case commandEvent st of
+               (img, Nothing) -> (img, return (KeepGoing st))
+               (img, Just m ) -> (img, m)
+    txt -> (stringWithControls defAttr txt, fmap KeepGoing (doSendMessageCurrent SendPriv st))
 
-keyEvent :: Key -> [Modifier] -> ClientState -> IO ClientState
-keyEvent (KFun 2)    []      st = return $ over clientDetailView not st
-keyEvent (KFun 3)    []      st = return $ over clientTimeView   not st
-keyEvent (KFun 4)    []      st = return $ over clientMetaView   not st
-keyEvent KPageUp     _       st = return $ scrollUp st
-keyEvent KPageDown   _       st = return $ scrollDown st
-keyEvent (KChar 'n') [MCtrl] st = return $ nextFocus st
-keyEvent (KChar 'p') [MCtrl] st = return $ prevFocus st
-keyEvent KBS         _       st = return $ changeInput Edit.backspace st
-keyEvent (KChar 'd') [MCtrl] st = return $ changeInput Edit.delete st
-keyEvent KDel        _       st = return $ changeInput Edit.delete st
-keyEvent KUp         _       st = return $ maybe st clearTabPattern $ clientEditBox Edit.earlier st
-keyEvent KDown       _       st = return $ maybe st clearTabPattern $ clientEditBox Edit.later st
-keyEvent KLeft       _       st = return $ changeInput Edit.left st
-keyEvent KRight      _       st = return $ changeInput Edit.right st
-keyEvent KHome       _       st = return $ changeInput Edit.home st
-keyEvent KEnd        _       st = return $ changeInput Edit.end st
-keyEvent (KChar 'a') [MCtrl] st = return $ changeInput Edit.home st
-keyEvent (KChar 'e') [MCtrl] st = return $ changeInput Edit.end st
-keyEvent (KChar 'u') [MCtrl] st = return $ changeInput Edit.killHome st
-keyEvent (KChar 'k') [MCtrl] st = return $ changeInput Edit.killEnd st
-keyEvent (KChar 'w') [MCtrl] st = return $ changeInput Edit.killWord st
-keyEvent (KChar 'b') [MMeta] st = return $ changeInput Edit.leftWord st
-keyEvent (KChar 'f') [MMeta] st = return $ changeInput Edit.rightWord st
-keyEvent (KChar '\t') []     st = return $ tabComplete st
-keyEvent (KChar 'b') [MCtrl] st = return $ changeInput (Edit.insert '\^B') st
-keyEvent (KChar 'c') [MCtrl] st = return $ changeInput (Edit.insert '\^C') st
-keyEvent (KChar ']') [MCtrl] st = return $ changeInput (Edit.insert '\^]') st
-keyEvent (KChar '_') [MCtrl] st = return $ changeInput (Edit.insert '\^_') st
-keyEvent (KChar 'v') [MCtrl] st = return $ changeInput (Edit.insert '\^V') st
-keyEvent (KChar c)   []      st = return $ changeInput (Edit.insert c) st
-keyEvent KEnter      []      st = case snd (inputLogic st) of
-                                    Just m  -> m
-                                    Nothing -> return st
-keyEvent _           _       st = return st
+keyEvent :: Key -> [Modifier] -> ClientState -> IO EventResult
+keyEvent k ms st =
+  let more = return . KeepGoing in
+  case (k,ms) of
+    (KFun 2   , []     ) -> more $ over clientDetailView not st
+    (KFun 3   , []     ) -> more $ over clientTimeView   not st
+    (KFun 4   , []     ) -> more $ over clientMetaView   not st
+    (KPageUp  , _      ) -> more $ scrollUp st
+    (KPageDown, _      ) -> more $ scrollDown st
+    (KChar 'n', [MCtrl]) -> more $ nextFocus st
+    (KChar 'p', [MCtrl]) -> more $ prevFocus st
+    (KBS      , _      ) -> more $ changeInput Edit.backspace st
+    (KChar 'd', [MCtrl]) -> more $ changeInput Edit.delete st
+    (KDel     , _      ) -> more $ changeInput Edit.delete st
+    (KUp      , _      ) -> more $ maybe st clearTabPattern $ clientEditBox Edit.earlier st
+    (KDown    , _      ) -> more $ maybe st clearTabPattern $ clientEditBox Edit.later st
+    (KLeft    , _      ) -> more $ changeInput Edit.left st
+    (KRight   , _      ) -> more $ changeInput Edit.right st
+    (KHome    , _      ) -> more $ changeInput Edit.home st
+    (KEnd     , _      ) -> more $ changeInput Edit.end st
+    (KChar 'a', [MCtrl]) -> more $ changeInput Edit.home st
+    (KChar 'e', [MCtrl]) -> more $ changeInput Edit.end st
+    (KChar 'u', [MCtrl]) -> more $ changeInput Edit.killHome st
+    (KChar 'k', [MCtrl]) -> more $ changeInput Edit.killEnd st
+    (KChar 'w', [MCtrl]) -> more $ changeInput Edit.killWord st
+    (KChar 'b', [MMeta]) -> more $ changeInput Edit.leftWord st
+    (KChar 'f', [MMeta]) -> more $ changeInput Edit.rightWord st
+    (KChar '\t', []    ) -> more $ tabComplete st
+    (KChar 'b', [MCtrl]) -> more $ changeInput (Edit.insert '\^B') st
+    (KChar 'c', [MCtrl]) -> more $ changeInput (Edit.insert '\^C') st
+    (KChar ']', [MCtrl]) -> more $ changeInput (Edit.insert '\^]') st
+    (KChar '_', [MCtrl]) -> more $ changeInput (Edit.insert '\^_') st
+    (KChar 'v', [MCtrl]) -> more $ changeInput (Edit.insert '\^V') st
+    (KChar c  , []     ) -> more $ changeInput (Edit.insert c) st
+    (KEnter   , []     ) -> snd (inputLogic st)
+    _                    -> more st
 
 
 -- TODO: Don't scroll off the end of the channel
@@ -279,9 +287,17 @@ doSendMessage sendType target message st =
                  Nothing
                  Nothing
 
-commandEvent :: ClientState -> (Image, Maybe (IO ClientState))
+commandEvent :: ClientState -> (Image, Maybe (IO EventResult))
 commandEvent st = commandsParser (clientInput st)
+                        (exitCommand : normalCommands)
+ where
+ st' = clearInput st
+ toB = Text.encodeUtf8 . Text.pack
 
+ exitCommand =
+  ("exit", pure (return Exit))
+
+ normalCommands = over (mapped . _2 . mapped . mapped) KeepGoing $
     -- focus setting
   [ ("server",
     pure (return (set clientFocus (ChannelFocus "") st')))
@@ -464,10 +480,6 @@ commandEvent st = commandsParser (clientInput st)
     <$> pNick st <*> pRemainingNoSp)
 
   ]
-
-  where
-  st' = clearInput st
-  toB = Text.encodeUtf8 . Text.pack
 
 doAccept ::
   Bool {- ^ add to list -} ->

@@ -57,6 +57,8 @@ SASLPASSWORD=<your sasl password>
 Commands
 ========
 
+* `/exit` - *Exit!*
+
 * `/akb <nick> <message>` - Auto-kickban: Request ops from chanserv if needed, ban by accountname if known, hostname otherwise, kick with message
 * `/bans` - Show known bans for current channel. Note: Request bans list with `/quote mode <channel> +b`
 * `/channel <channel>` - switch to a user message window
