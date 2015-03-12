@@ -195,7 +195,7 @@ compressedImageForState !st = renderOne (activeMessages st)
         visible = not (view (contains who) ignores)
         metaAttr = withForeColor defAttr (rgbColor' 58 58 58)
     in case view mesgType msg of
-         CtcpMsgType cmd args ->
+         CtcpMsgType{} ->
            renderMeta
              (img <|>
               char (withForeColor defAttr brightBlue) 'C' <|>

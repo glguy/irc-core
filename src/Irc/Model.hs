@@ -84,7 +84,7 @@ import Control.Monad.Free
 import Control.Monad.Trans.Error
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
-import Data.Char (ord,toUpper)
+import Data.Char (toUpper)
 import Data.Foldable (Foldable)
 import Data.List (foldl',find,nub,delete,intersect)
 import Data.Map (Map)
@@ -92,7 +92,6 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Text (Text)
 import Data.Time
-import Data.Word
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
