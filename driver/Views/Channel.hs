@@ -193,7 +193,7 @@ compressedImageForState !st = renderOne (activeMessages st)
   renderMeta img ((msg,colored):msgs) =
     let who = views mesgSender userNick msg
         visible = not (view (contains who) ignores)
-        metaAttr = withForeColor defAttr (rgbColor' 58 58 58)
+        metaAttr = withForeColor defAttr brightBlack
     in case view mesgType msg of
          CtcpMsgType{} ->
            renderMeta
