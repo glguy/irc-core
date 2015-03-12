@@ -51,6 +51,7 @@ detailedImageForState !st
        PrivMsgType txt -> ("M", txt)
        TopicMsgType txt -> ("T", txt)
        ActionMsgType txt -> ("A", txt)
+       CtcpMsgType cmd txt -> ("C", asUtf8 (cmd <> " " <> txt))
        AwayMsgType txt -> ("Y", txt)
        NoticeMsgType txt -> ("N", txt)
        KickMsgType who txt -> ("K", asUtf8 (idBytes who) <> " - " <> txt)
@@ -58,6 +59,8 @@ detailedImageForState !st
        ErrMsgType err -> ("E", Text.pack (show err))
        InviteMsgType -> ("I", "")
        KnockMsgType -> ("J", "")
+       CallerIdDeliveredMsgType -> ("D", "")
+       CallerIdMsgType -> ("G", "")
        ModeMsgType pol mode arg -> ("Z", (if pol then "+" else "-")
                                         <> Text.pack [mode, ' ']
                                         <> asUtf8 arg)
@@ -150,9 +153,16 @@ compressedImageForState !st = renderOne (activeMessages st)
            text' defAttr (errorMessage err)
 
          InviteMsgType -> Just $
-           string (withForeColor defAttr red) "? " <|>
-           formatNick (view mesgMe msg) nick <|>
-           text' defAttr " has invited you"
+           identImg (withForeColor defAttr green) nick <|>
+           text' defAttr " has invited you to join"
+
+         CallerIdDeliveredMsgType -> Just $
+           identImg (withForeColor defAttr green) nick <|>
+           text' defAttr " has been notified of your message"
+
+         CallerIdMsgType -> Just $
+           identImg (withForeColor defAttr green) nick <|>
+           text' defAttr " has sent you a message, use /ACCEPT to accept"
 
          ModeMsgType pol m arg -> Just $
            views mesgModes modePrefix msg <|>
@@ -185,6 +195,12 @@ compressedImageForState !st = renderOne (activeMessages st)
         visible = not (view (contains who) ignores)
         metaAttr = withForeColor defAttr (rgbColor' 58 58 58)
     in case view mesgType msg of
+         CtcpMsgType cmd args ->
+           renderMeta
+             (img <|>
+              char (withForeColor defAttr brightBlue) 'C' <|>
+              identImg metaAttr who <|>
+              char defAttr ' ') msgs
          JoinMsgType ->
            renderMeta
              (img <|>
@@ -256,6 +272,9 @@ errorMessage e =
     ErrNoMotd                 -> "No MOTD"
     ErrNoRecipient            -> "No recipient"
     ErrNoAdminInfo server     -> "No admin info for server: "<> asUtf8 server
+    ErrAcceptFull             -> "ACCEPT list is full"
+    ErrAcceptExist            -> "Already on ACCEPT list"
+    ErrAcceptNot              -> "Not on ACCEPT list"
     ErrNeedMoreParams cmd     -> "Need more parameters: " <> asUtf8 cmd
     ErrAlreadyRegistered      -> "Already registered"
     ErrNoPermForHost          -> "No permission for host"
@@ -294,3 +313,5 @@ errorMessage e =
     ErrKnockOnChan            -> "Attempted to knock joined channel"
     ErrTooManyKnocks          -> "Too many knocks"
     ErrChanOpen               -> "Knock unnecessary"
+    ErrTargUmodeG             -> "Message ignored by +g mode"
+    ErrMlockRestricted m ms   -> "Mode '" <> Text.singleton m <> "' in locked set \"" <> asUtf8 ms <> "\""

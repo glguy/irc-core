@@ -420,6 +420,16 @@ commandEvent st = commandsParser (clientInput st)
     (\chan -> return (set (clientMessages . at (fromMaybe (focusedName st) chan)) Nothing st'))
     <$> optional pTarget)
 
+  , ("accept",
+    (\mbNick -> doAccept True mbNick st)
+    <$> optional (pNick st))
+
+  , ("unaccept",
+    (\mbNick -> doAccept False mbNick st)
+    <$> optional (pNick st))
+
+  , ("acceptlist", pure (doAccept True (Just "*") st))
+
   , ("gc", length (show (view clientConnection st)) `seq` pure (return st'))
 
   , ("nick",
@@ -458,6 +468,24 @@ commandEvent st = commandsParser (clientInput st)
   where
   st' = clearInput st
   toB = Text.encodeUtf8 . Text.pack
+
+doAccept ::
+  Bool {- ^ add to list -} ->
+  Maybe Identifier {- ^ optional nick -} ->
+  ClientState -> IO ClientState
+doAccept add mbNick st =
+  case mbNick of
+    Just n -> go n
+    Nothing
+      | isNickName (focusedName st) (view clientConnection st) -> go (focusedName st)
+      | otherwise -> return st
+  where
+  go nick =
+    do let nickBytes
+             | add = idBytes nick
+             | otherwise = "-" <> idBytes nick
+       clientSend (acceptCmd nickBytes) st
+       return (clearInput st)
 
 doAction ::
   String {- ^ action text -} ->

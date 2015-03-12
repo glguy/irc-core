@@ -33,6 +33,7 @@ module Irc.Cmd
   , helpCmd
   , removeCmd
   , knockCmd
+  , acceptCmd
   ) where
 
 import Data.Monoid
@@ -383,4 +384,16 @@ knockCmd chan = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand = "KNOCK"
   , msgParams = [idBytes chan]
+  }
+
+-- | Construct an ACCEPT command.
+--
+-- @ACCEPT <nick>@
+acceptCmd ::
+  ByteString {- ^ nick, -nick, * -} ->
+  ByteString
+acceptCmd nick = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "ACCEPT"
+  , msgParams = [nick]
   }

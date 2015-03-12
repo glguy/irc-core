@@ -45,6 +45,8 @@ data MsgFromServer
   | RplLuserAdminEmail ByteString -- ^ 259 admin-email
   | RplLocalUsers ByteString ByteString -- ^ 265 local max
   | RplGlobalUsers ByteString ByteString -- ^ 266 global max
+  | RplAcceptList Identifier -- ^ 281
+  | RplEndOfAccept -- ^ 282
 
   | RplAway Identifier ByteString -- ^ 301 nick away_message
   | RplUserHost [ByteString] -- ^ 302 *(user hosts)
@@ -101,6 +103,8 @@ data MsgFromServer
   | RplEndOfHelp ByteString -- ^ 706 topic text
   | RplKnock Identifier UserInfo -- ^ 710 channel
   | RplKnockDelivered Identifier -- ^ 711 channel
+  | RplTargNotify Identifier -- ^ 717 nick
+  | RplUmodeGMsg Identifier ByteString -- ^ 718 nick mask
   | RplQuietList Identifier Char ByteString ByteString UTCTime -- ^ 728 channel mode mask who timestamp
   | RplEndOfQuietList Identifier Char -- ^ 729 channel mode
 
@@ -117,6 +121,7 @@ data MsgFromServer
 
   | Away UserInfo ByteString
   | Ping ByteString
+  | Pong ByteString (Maybe ByteString)
   | Notice  UserInfo Identifier ByteString
   | Topic UserInfo Identifier ByteString
   | PrivMsg UserInfo Identifier ByteString
@@ -159,6 +164,9 @@ data IrcError
   | ErrNotOnChannel -- ^ 442 channel
   | ErrUserOnChannel Identifier -- ^ 443 nick
   | ErrNotRegistered -- ^ 451
+  | ErrAcceptFull -- ^ 456
+  | ErrAcceptExist -- ^ 457
+  | ErrAcceptNot -- ^ 458
   | ErrNeedMoreParams ByteString -- ^ 461 command
   | ErrAlreadyRegistered -- ^ 462
   | ErrNoPermForHost -- ^ 463
@@ -188,6 +196,8 @@ data IrcError
   | ErrTooManyKnocks -- ^ 713
   | ErrChanOpen -- ^ 713
   | ErrKnockOnChan -- ^ 714
+  | ErrTargUmodeG -- ^ 716
+  | ErrMlockRestricted Char ByteString -- ^ 742 mode setting
   deriving (Read, Show)
 
 data ChannelType = SecretChannel | PrivateChannel | PublicChannel
@@ -244,6 +254,12 @@ ircMsgToServerMsg ircmsg =
 
     ("266",[_,globalusers,maxusers,_txt]) ->
        Just (RplGlobalUsers globalusers maxusers)
+
+    ("281",[_,nick]) ->
+       Just (RplAcceptList (mkId nick))
+
+    ("282",[_,_]) ->
+       Just RplEndOfAccept
 
     ("301",[_,nick,message]) ->
        Just (RplAway (mkId nick) message)
@@ -442,6 +458,15 @@ ircMsgToServerMsg ircmsg =
     ("451",[_,_]) ->
          Just (Err "" ErrNotRegistered)
 
+    ("456",[_,_]) ->
+         Just (Err "" ErrAcceptFull)
+
+    ("457",[_,nick,_]) ->
+         Just (Err (mkId nick) ErrAcceptExist)
+
+    ("458",[_,nick,_]) ->
+         Just (Err (mkId nick) ErrAcceptNot)
+
     ("461",[_,cmd,_]) ->
          Just (Err "" (ErrNeedMoreParams cmd))
 
@@ -547,11 +572,23 @@ ircMsgToServerMsg ircmsg =
     ("714",[_,chan,_]) ->
          Just (Err (mkId chan) ErrKnockOnChan)
 
+    ("716",[_,nick,_]) ->
+         Just (Err (mkId nick) ErrTargUmodeG)
+
+    ("717",[_,nick,_]) ->
+         Just (RplTargNotify (mkId nick))
+
+    ("718",[_,nick,mask,_]) ->
+         Just (RplUmodeGMsg (mkId nick) mask)
+
     ("728",[_,chan,mode,banned,banner,time]) ->
          Just (RplQuietList (mkId chan) (B8.head mode) banned banner (asTimeStamp time))
 
     ("729",[_,chan,mode,_]) ->
          Just (RplEndOfQuietList (mkId chan) (B8.head mode))
+
+    ("742",[_,chan,mode,setting,_]) ->
+         Just (Err (mkId chan) (ErrMlockRestricted (B8.head mode) setting))
 
     ("900",[_,_,account,_]) ->
          Just (RplLoggedIn account)
@@ -581,6 +618,9 @@ ircMsgToServerMsg ircmsg =
          Just (RplSaslMechs mechs)
 
     ("PING",[txt]) -> Just (Ping txt)
+
+    ("PONG",[server    ]) -> Just (Pong server Nothing)
+    ("PONG",[server,txt]) -> Just (Pong server (Just txt))
 
     ("PRIVMSG",[dst,txt]) ->
       do src <- msgPrefix ircmsg

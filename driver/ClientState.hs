@@ -1,9 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 
 module ClientState where
 
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
+import Control.DeepSeq (force)
 import Control.Lens
 import Control.Monad (foldM)
 import Data.ByteString (ByteString)
@@ -177,9 +179,10 @@ addMessage target message st
                     . over mlMentioned   (|| mention txt)
                     . over mlMessages (cons (message,coloredImage))
             where
-            coloredImage
+            !coloredImage
               | Text.any isControl txt = cleanText txt
-              | otherwise = nameHighlighter
+              | otherwise = force -- avoid holding on to old channel lists
+                          $ nameHighlighter
                                 (Text.encodeUtf8 txt)
                                 (views (clientConnection . connChannels . ix target . chanUsers) Map.keysSet st)
                                 (view (clientConnection . connNick) st)

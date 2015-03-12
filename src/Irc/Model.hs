@@ -6,7 +6,6 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveFoldable #-}
 
-
 -- | This module implements a high-level view of the state of
 -- the IRC connection. The library user calls 'advanceModel' to
 -- step the 'IrcConnection' as new messages arrive.
@@ -85,7 +84,7 @@ import Control.Monad.Free
 import Control.Monad.Trans.Error
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
-import Data.Char (ord)
+import Data.Char (ord,toUpper)
 import Data.Foldable (Foldable)
 import Data.List (foldl',find,nub,delete,intersect)
 import Data.Map (Map)
@@ -112,7 +111,7 @@ data IrcConnection = IrcConnection
   { _connNick     :: Identifier
   , _connChannels :: !(Map Identifier IrcChannel)
   , _connId       :: Maybe ByteString
-  , _connChanTypes :: [Word8]
+  , _connChanTypes :: [Char]
   , _connUsers    :: !(Map Identifier IrcUser)
   , _connChanModeTypes :: ModeTypes
   , _connUserModeTypes :: ModeTypes
@@ -129,7 +128,7 @@ defaultIrcConnection = IrcConnection
   { _connNick      = mkId ""
   , _connChannels  = mempty
   , _connId        = Nothing
-  , _connChanTypes = map (fromIntegral.ord) "#" -- TODO: Use ISupport
+  , _connChanTypes = "#" -- TODO: Use ISupport
   , _connUsers     = mempty
   , _connChanModeTypes = defaultChanModeTypes -- TODO: Use ISupport
   , _connUserModeTypes = defaultUmodeTypes
@@ -230,6 +229,9 @@ data IrcMessageType
   | ModeMsgType Bool Char ByteString
   | InviteMsgType
   | KnockMsgType
+  | CallerIdMsgType
+  | CallerIdDeliveredMsgType
+  | CtcpMsgType ByteString ByteString -- ^ ctcp command and arguments
   deriving (Read, Show)
 
 -- | 'IrcUser' is the type of user-level metadata tracked for
@@ -267,6 +269,9 @@ advanceModel :: MsgFromServer -> IrcConnection -> Logic IrcConnection
 advanceModel msg0 conn =
   case msg0 of
        Ping x -> sendMessage (pongCmd x) >> return conn
+
+       Pong server mbMsg ->
+         doServerMessage "PONG" (server <> maybe "" (" "<>) mbMsg) conn
 
        RplWelcome  txt -> doServerMessage "Welcome" txt conn
        RplYourHost txt -> doServerMessage "YourHost" txt conn
@@ -538,6 +543,53 @@ advanceModel msg0 conn =
        RplVersion version server comments ->
          doServerMessage "VERSION" (B8.unwords [version,server,comments]) conn
 
+       RplUmodeGMsg nick mask -> doCallerId nick mask conn
+       RplTargNotify nick -> doCallerIdDeliver nick conn
+
+       RplAcceptList nick -> doAcceptList [nick] conn
+       RplEndOfAccept -> doServerMessage "ACCEPTLIST" "Accept list empty" conn
+
+doAcceptList ::
+  [Identifier] {- ^ nicks -} ->
+  IrcConnection -> Logic IrcConnection
+doAcceptList acc conn =
+  do msg <- getMessage
+     case msg of
+       RplAcceptList nick -> doAcceptList (nick:acc) conn
+       RplEndOfAccept     -> doServerMessage "ACCEPTLIST"
+                                (B8.unwords (map idBytes (reverse acc))) conn
+       _ -> fail "doAcceptList: Unexpected message!"
+
+doCallerIdDeliver ::
+  Identifier {- ^ nick -} ->
+  IrcConnection -> Logic IrcConnection
+doCallerIdDeliver nick conn =
+  do stamp <- getStamp
+     let mesg = IrcMessage
+           { _mesgType    = CallerIdDeliveredMsgType
+           , _mesgSender  = UserInfo nick Nothing Nothing
+           , _mesgStamp   = stamp
+           , _mesgMe      = False
+           , _mesgModes   = ""
+           }
+     recordMessage mesg nick conn
+
+doCallerId ::
+  Identifier {- ^ nick -} ->
+  ByteString {- ^ user\@host -} ->
+  IrcConnection -> Logic IrcConnection
+doCallerId nick mask conn =
+  do stamp <- getStamp
+     let (user,host) = B8.break (=='@') mask
+     let mesg = IrcMessage
+           { _mesgType    = CallerIdMsgType
+           , _mesgSender  = UserInfo nick (Just user) (Just (B8.drop 1 host))
+           , _mesgStamp   = stamp
+           , _mesgMe      = False
+           , _mesgModes   = ""
+           }
+     recordMessage mesg nick conn
+
 doList ::
   Identifier {- ^ channel -} ->
   Integer    {- ^ members -} ->
@@ -595,14 +647,22 @@ doPrivMsg who chan msg conn =
                 , _mesgMe      = False
                 , _mesgModes   = ""
                 }
-         ty
-           | B.length msg >= 9
-           , B.isPrefixOf "\SOHACTION " msg
-           , B.last msg == 1
-           = ActionMsgType (asUtf8 (B.init (B.drop 8 msg)))
-           | otherwise = PrivMsgType (asUtf8 msg)
+         ty = case parseCtcpCommand msg of
+                Nothing                 -> PrivMsgType (asUtf8 msg)
+                Just ("ACTION", action) -> ActionMsgType (asUtf8 action)
+                Just (command , args  ) -> CtcpMsgType command args
 
      recordMessage mesg chan conn
+
+parseCtcpCommand :: ByteString -> Maybe (ByteString, ByteString)
+parseCtcpCommand msg
+  | B8.length msg >= 3
+  , B8.head   msg == '\^A'
+  , B8.last   msg == '\^A' = Just (B8.map toUpper command, B8.drop 1 rest)
+  | otherwise              = Nothing
+  where
+  sansControls = B8.tail (B8.init msg)
+  (command,rest) = B8.break (==' ') sansControls
 
 -- | Record the new topic as set by the given user and
 -- emit a change event.
@@ -1195,7 +1255,7 @@ isMyNick nick conn = nick == view connNick conn
 -- Channel prefixes are configurable, but the most common is @#@
 isChannelName :: Identifier -> IrcConnection -> Bool
 isChannelName c conn =
-  case B.uncons (idBytes c) of
+  case B8.uncons (idBytes c) of
     Just (x,xs) -> not (B.null xs)
                 && x `elem` view connChanTypes conn
     _ -> False -- probably shouldn't happen
@@ -1203,7 +1263,7 @@ isChannelName c conn =
 -- | Predicate for identifiers to identify which represent nicknames
 isNickName :: Identifier -> IrcConnection -> Bool
 isNickName c conn =
-  case B.uncons (idBytes c) of
+  case B8.uncons (idBytes c) of
     Just (x,_) -> not (x `elem` view connChanTypes conn)
     _ -> False -- probably shouldn't happen
 
