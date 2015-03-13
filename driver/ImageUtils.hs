@@ -10,7 +10,6 @@ import Data.Text (Text)
 import Graphics.Vty.Image
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
@@ -159,7 +158,7 @@ nameHighlighter ::
   ByteString -> Set Identifier -> Identifier -> [Color] -> Image
 nameHighlighter msg users me colors = aux 0 0
   where
-  lowmsg = CI.foldCase msg
+  lowmsg = ircFoldCase msg
   n = B8.length lowmsg
   ncolors = length colors
 

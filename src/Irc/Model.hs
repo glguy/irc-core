@@ -95,7 +95,6 @@ import Data.Time
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
 
 import Irc.Format
@@ -881,8 +880,8 @@ installModeChange settings now who polarity mode arg
                    (cons (IrcMaskEntry arg (renderUserInfo who) now))
 
          else over (chanMaskLists . ix mode)
-                   (filter (\x -> CI.foldCase (view maskEntryMask x)
-                               /= CI.foldCase arg))
+                   (filter (\x -> ircFoldCase (view maskEntryMask x)
+                               /= ircFoldCase arg))
 
   -- Handle ops and voices
   | mode `elem` views modesPrefixModes (map fst) settings =
@@ -1293,4 +1292,3 @@ isNickName c conn =
   case B8.uncons (idBytes c) of
     Just (x,_) -> not (x `elem` view connChanTypes conn)
     _ -> False -- probably shouldn't happen
-

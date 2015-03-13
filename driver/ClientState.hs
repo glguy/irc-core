@@ -18,7 +18,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Graphics.Vty.Image
 import System.IO (Handle)
-import qualified Data.CaseInsensitive as CI
+import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -45,7 +45,7 @@ data ClientState = ClientState
   , _clientHeight :: Int
   , _clientWidth :: Int
   , _clientIgnores :: !(Set Identifier)
-  , _clientHighlights :: !(Set Text)
+  , _clientHighlights :: !(Set ByteString)
   , _clientMessages :: !(Map Identifier MessageList)
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
@@ -188,14 +188,14 @@ addMessage target message st
                                 (view (clientConnection . connNick) st)
                                 (view clientNickColors st)
 
-  nickTxt = asUtf8 (idDenote (view (clientConnection . connNick) st))
+  nickTxt = idDenote (view (clientConnection . connNick) st)
 
   highlights
     = set (contains nickTxt) True
     $ view clientHighlights st
 
   mention txt =
-    or [ Text.isInfixOf term (CI.foldCase txt)
+    or [ B.isInfixOf term (ircFoldCase (Text.encodeUtf8 txt))
        | term <- Set.toList highlights
        ]
 

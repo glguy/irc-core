@@ -28,7 +28,6 @@ import Network
 import System.IO
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -429,7 +428,7 @@ commandEvent st = commandsParser (clientInput st)
 
   , ("highlight",
     (\w ->
-       return (over (clientHighlights . contains (CI.foldCase (Text.pack w))) not st'))
+       return (over (clientHighlights . contains (ircFoldCase (Text.encodeUtf8 (Text.pack w)))) not st'))
     <$> pRemainingNoSp)
 
   , ("clear",

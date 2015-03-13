@@ -14,11 +14,11 @@ module Irc.Format
   , idBytes
   , idDenote
   , asUtf8
+  , ircFoldCase
   ) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
-import Data.CaseInsensitive (CI)
 import Data.Monoid
 import Data.String
 import Data.Text (Text)
@@ -27,7 +27,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 
@@ -53,21 +52,21 @@ data RawIrcMsg = RawIrcMsg
   deriving (Read, Show)
 
 -- | Case insensitive identifier representing channels and nicknames
-newtype Identifier = Identifier (CI ByteString)
+data Identifier = Identifier ByteString ByteString
   deriving (Read, Show, Eq, Ord)
 
 instance IsString Identifier where
-  fromString = Identifier . fromString
+  fromString = mkId . fromString
 
 -- | Construct an 'Identifier' from a 'ByteString'
 mkId :: ByteString -> Identifier
-mkId = Identifier . CI.mk
+mkId x = Identifier x (ircFoldCase x)
 
 idBytes :: Identifier -> ByteString
-idBytes (Identifier x) = CI.original x
+idBytes (Identifier x _) = x
 
 idDenote :: Identifier -> ByteString
-idDenote (Identifier x) = CI.foldedCase x
+idDenote (Identifier _ x) = x
 
 -- | Attempt to split an IRC protocol message without its trailing newline
 -- information into a structured message.
@@ -147,3 +146,24 @@ ircGetLine h =
 
 asUtf8 :: ByteString -> Text
 asUtf8 = Text.decodeUtf8With Text.lenientDecode
+
+-- | Capitalize a string according to RFC 2812
+-- Latin letters are capitalized and {|}~ are mapped to [\]^
+ircFoldCase :: ByteString -> ByteString
+ircFoldCase = B.map (B.index casemap . fromIntegral)
+
+casemap :: ByteString
+casemap = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0a\x0b\x0c\x0d\x0e\x0f\
+          \\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1a\x1b\x1c\x1d\x1e\x1f\
+          \ !\"#$%&'()*+,-./0123456789:;<=>?\
+          \@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_\
+          \`ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^\x7f\
+          \\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8a\x8b\x8c\x8d\x8e\x8f\
+          \\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9a\x9b\x9c\x9d\x9e\x9f\
+          \\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xaa\xab\xac\xad\xae\xaf\
+          \\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xba\xbb\xbc\xbd\xbe\xbf\
+          \\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xca\xcb\xcc\xcd\xce\xcf\
+          \\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xda\xdb\xdc\xdd\xde\xdf\
+          \\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xea\xeb\xec\xed\xee\xef\
+          \\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfa\xfb\xfc\xfd\xfe\xff"
+
