@@ -31,8 +31,28 @@ data MsgFromServer
   | RplYourId ByteString -- ^ 042 unique-id
 
   -- 200-399 Command responses
-  | RplEndOfStats ByteString -- ^ 219 statsquery
+  | RplStatsLinkInfo [ByteString] -- ^ 211 arguments
+  | RplStatsCommands [ByteString] -- ^ 212 arguments
+  | RplStatsCLine [ByteString] -- ^ 213 arguments
+  | RplStatsNLine [ByteString] -- ^ 214 arguments
+  | RplStatsILine [ByteString] -- ^ 215 arguments
+  | RplStatsKLine [ByteString] -- ^ 216 arguments
+  | RplStatsQLine [ByteString] -- ^ 217 arguments
+  | RplStatsYLine [ByteString] -- ^ 218 arguments
+  | RplEndOfStats Char -- ^ 219 mode
+  | RplStatsPLine [ByteString] -- ^ 220 arguments
   | RplUmodeIs ByteString [ByteString] -- ^ 221 modes *(params)
+  | RplStatsDLine [ByteString] -- ^ 225
+  | RplStatsVLine [ByteString] -- ^ 240
+  | RplStatsLLine [ByteString] -- ^ 241
+  | RplStatsUptime ByteString -- ^ 242
+  | RplStatsOLine [ByteString] -- ^ 243
+  | RplStatsHLine [ByteString] -- ^ 244
+  | RplStatsSLine [ByteString] -- ^ 245
+  | RplStatsPing  [ByteString] -- ^ 246
+  | RplStatsXLine [ByteString] -- ^ 247
+  | RplStatsULine [ByteString] -- ^ 248
+  | RplStatsDebug [ByteString] -- ^ 249
   | RplStatsConn ByteString -- ^ 250 connection
   | RplLuserClient ByteString -- ^ 251 "There are \<integer\> users and \<integer\> services on \<integer\> servers"
   | RplLuserOp ByteString -- ^ 252 number-of-ops
@@ -43,6 +63,7 @@ data MsgFromServer
   | RplLuserAdminLoc1 ByteString -- ^ 257 admin-info-1
   | RplLuserAdminLoc2 ByteString -- ^ 258 admin-info-2
   | RplLuserAdminEmail ByteString -- ^ 259 admin-email
+  | RplLoadTooHigh ByteString -- ^ 263 command
   | RplLocalUsers ByteString ByteString -- ^ 265 local max
   | RplGlobalUsers ByteString ByteString -- ^ 266 global max
   | RplAcceptList Identifier -- ^ 281
@@ -79,6 +100,8 @@ data MsgFromServer
   | RplVersion ByteString ByteString ByteString -- ^ 351 version server comments
   | RplWhoReply Identifier ByteString ByteString ByteString Identifier ByteString ByteString -- ^ 352 channel user host server nick flags txt
   | RplNameReply ChannelType Identifier [ByteString] -- ^ 353 channeltype channel names
+  | RplLinks ByteString ByteString ByteString -- ^ 364 mask server info
+  | RplEndOfLinks ByteString -- ^ 365 mask
   | RplEndOfNames Identifier -- ^ 366 channel
   | RplBanList Identifier ByteString ByteString UTCTime -- ^ 367 channel banned banner timestamp
   | RplEndOfBanList Identifier -- ^ 368 channel
@@ -222,11 +245,28 @@ ircMsgToServerMsg ircmsg =
     ("042",[_,yourid,_]) ->
        Just (RplYourId yourid)
 
-    ("219",[_,mode,_]) ->
-       Just (RplEndOfStats mode)
-
-    ("221", _:mode:params ) ->
-       Just (RplUmodeIs mode params)
+    ("211", _:linkinfo) -> Just (RplStatsLinkInfo linkinfo)
+    ("212", _:commands) -> Just (RplStatsCommands commands)
+    ("213", _:cline   ) -> Just (RplStatsCLine cline)
+    ("214", _:nline   ) -> Just (RplStatsNLine nline)
+    ("215", _:iline   ) -> Just (RplStatsILine iline)
+    ("216", _:kline   ) -> Just (RplStatsKLine kline)
+    ("217", _:qline   ) -> Just (RplStatsQLine qline)
+    ("218", _:yline   ) -> Just (RplStatsYLine yline)
+    ("219",[_,mode,_] ) -> Just (RplEndOfStats (B8.head mode))
+    ("220", _:pline   ) -> Just (RplStatsPLine pline)
+    ("221", _:mode:params) -> Just (RplUmodeIs mode params)
+    ("225", _:dline   ) -> Just (RplStatsDLine dline)
+    ("240", _:vline   ) -> Just (RplStatsVLine vline)
+    ("241", _:lline   ) -> Just (RplStatsLLine lline)
+    ("242", [_,uptime]) -> Just (RplStatsUptime uptime)
+    ("243", _:oline   ) -> Just (RplStatsOLine oline)
+    ("244", _:hline   ) -> Just (RplStatsHLine hline)
+    ("245", _:sline   ) -> Just (RplStatsSLine sline)
+    ("246", _:ping    ) -> Just (RplStatsPing  ping )
+    ("247", _:xline   ) -> Just (RplStatsXLine xline)
+    ("248", _:uline   ) -> Just (RplStatsULine uline)
+    ("249", _:debug   ) -> Just (RplStatsDebug debug)
 
     ("250",[_,stats]) ->
        Just (RplStatsConn stats)
@@ -248,6 +288,9 @@ ircMsgToServerMsg ircmsg =
     ("257",[_,txt]) -> Just (RplLuserAdminLoc1 txt)
     ("258",[_,txt]) -> Just (RplLuserAdminLoc2 txt)
     ("259",[_,txt]) -> Just (RplLuserAdminEmail txt)
+
+    ("263",[_,cmd,_]) ->
+       Just (RplLoadTooHigh cmd)
 
     ("265",[_,localusers,maxusers,_txt]) ->
        Just (RplLocalUsers localusers maxusers)
@@ -358,6 +401,9 @@ ircMsgToServerMsg ircmsg =
                   "@" -> Just SecretChannel
                   _   -> Nothing
          Just (RplNameReply ty' (mkId chan) (filter (not . B.null) (B.split 32 txt)))
+
+    ("364",[_,mask,server,info]) -> Just (RplLinks mask server info)
+    ("365",[_,mask,_]          ) -> Just (RplEndOfLinks mask)
 
     ("366",[_,chan,_]) -> Just (RplEndOfNames (mkId chan))
 

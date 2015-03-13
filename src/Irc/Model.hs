@@ -286,7 +286,6 @@ advanceModel msg0 conn =
        RplLocalUsers _ _    -> return conn
        RplGlobalUsers _ _   -> return conn
        RplStatsConn _       -> return conn
-       RplEndOfStats _      -> return conn
        RplLuserUnknown _    -> return conn
        RplLuserAdminMe _    -> return conn
        RplLuserAdminLoc1 _  -> return conn
@@ -516,6 +515,8 @@ advanceModel msg0 conn =
        Cap _ _ -> fail "Unexpected CAP"
        RplSaslAborted -> return conn
 
+       RplLoadTooHigh cmd ->
+         doServerError ("Command rate limited: " <> asUtf8 cmd) conn
        RplNickLocked ->
          doServerError "Nickname locked" conn
        RplLoggedIn account ->
@@ -547,6 +548,31 @@ advanceModel msg0 conn =
 
        RplAcceptList nick -> doAcceptList [nick] conn
        RplEndOfAccept -> doServerMessage "ACCEPTLIST" "Accept list empty" conn
+
+       RplLinks mask server info -> doServerMessage "LINKS" (B8.unwords [mask,server,info]) conn
+       RplEndOfLinks mask -> doServerMessage "LINKS" mask conn
+
+       RplStatsLinkInfo linkinfo -> doServerMessage "LINKINFO" (B8.unwords linkinfo) conn
+       RplStatsCommands commands -> doServerMessage "COMMANDS" (B8.unwords commands) conn
+       RplStatsCLine cline -> doServerMessage "CLINE" (B8.unwords cline) conn
+       RplStatsNLine nline -> doServerMessage "NLINE" (B8.unwords nline) conn
+       RplStatsILine iline -> doServerMessage "ILINE" (B8.unwords iline) conn
+       RplStatsKLine kline -> doServerMessage "KLINE" (B8.unwords kline) conn
+       RplStatsQLine qline -> doServerMessage "QLINE" (B8.unwords qline) conn
+       RplStatsYLine yline -> doServerMessage "YLINE" (B8.unwords yline) conn
+       RplEndOfStats mode -> doServerMessage "ENDSTATS" (B8.pack [mode]) conn
+       RplStatsPLine pline -> doServerMessage "PLINE" (B8.unwords pline) conn
+       RplStatsDLine dline -> doServerMessage "DLINE" (B8.unwords dline) conn
+       RplStatsVLine vline -> doServerMessage "VLINE" (B8.unwords vline) conn
+       RplStatsLLine lline -> doServerMessage "LLINE" (B8.unwords lline) conn
+       RplStatsUptime uptime -> doServerMessage "UPTIME" uptime conn
+       RplStatsOLine oline -> doServerMessage "OLINE" (B8.unwords oline) conn
+       RplStatsHLine hline -> doServerMessage "HLINE" (B8.unwords hline) conn
+       RplStatsSLine sline -> doServerMessage "SLINE" (B8.unwords sline) conn
+       RplStatsPing  ping  -> doServerMessage "STATSPING" (B8.unwords ping) conn
+       RplStatsXLine xline -> doServerMessage "XLINE" (B8.unwords xline) conn
+       RplStatsULine uline -> doServerMessage "ULINE" (B8.unwords uline) conn
+       RplStatsDebug debug -> doServerMessage "STATSDEBUG" (B8.unwords debug) conn
 
 doAcceptList ::
   [Identifier] {- ^ nicks -} ->
