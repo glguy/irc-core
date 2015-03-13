@@ -485,6 +485,8 @@ advanceModel msg0 conn =
          doServerMessage "WHOIS" ("Modes: " <> B8.unwords (modes:args)) conn
        RplWhoisOperator _nick txt  ->
          doServerMessage "WHOIS" ("Operator: " <> txt) conn
+       RplWhoisCertFp _nick txt  ->
+         doServerMessage "WHOIS" ("CertFP: " <> txt) conn
        RplEndOfWhois _nick ->
          doServerMessage "WHOIS" "--END--" conn
 
