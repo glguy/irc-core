@@ -133,6 +133,7 @@ compressedImageForState !st = renderOne (activeMessages st)
            string (withForeColor defAttr blue) "* " <|>
            views mesgModes modePrefix msg <|>
            identImg (withForeColor defAttr blue) nick <|>
+           char defAttr ' ' <|>
            colored
 
          KickMsgType who reason -> Just $
