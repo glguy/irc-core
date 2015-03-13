@@ -802,19 +802,19 @@ readEitherTChan a b =
 ------------------------------------------------------------------------
 
 tabComplete :: ClientState -> ClientState
-tabComplete st
-  | null current = st
-  | otherwise =
-      case view clientFocus st of
-        ChannelFocus c ->
-          let vals = userSet c <> channelSet in
-          case view clientTabPattern st of
-            Just pat -> replaceWith (tabSearch pat current vals) st
-            Nothing  -> set clientTabPattern (Just current)
-                      $ replaceWith (tabSearch current current vals) st
-        _ -> st
+tabComplete st = fromMaybe st $
+  do let current = currentWord st
+     guard (not (null current))
+     c <- focusedChan st
+     let vals = userSet c <> channelSet
+     case view clientTabPattern st of
+       Just pat -> do next <- tabSearch pat current vals
+                      Just $ replaceWith next st
+
+       Nothing  -> do next <- tabSearch current current vals
+                      Just $ set clientTabPattern (Just current)
+                           $ replaceWith next st
   where
-  current = currentWord st
   replaceWith str = over clientEditBox $ \box ->
     let box1 = Edit.killWord box
         str1 | view Edit.pos box1 == 0 = str ++ ": "
@@ -832,18 +832,19 @@ currentWord st
   $ reverse
   $ take (view (clientEditBox . Edit.pos) st) (clientInput st)
 
-tabSearch :: String -> String -> Set Identifier -> String
+tabSearch :: String -> String -> Set Identifier -> Maybe String
 tabSearch pat cur vals
   | Just next <- Set.lookupGT cur' vals
   , B.isPrefixOf (idDenote pat') (idDenote next)
-  = B8.unpack (idBytes next)
+  = Just (B8.unpack (idBytes next))
 
   -- wrap around when pat is a user
   | Just next <- Set.lookupGE pat' vals
-  = B8.unpack (idBytes next) -- TODO: Use original case
+  , B.isPrefixOf (idDenote pat') (idDenote next)
+  = Just (B8.unpack (idBytes next)) -- TODO: Use original case
 
   -- if all else fails, do nothing
-  | otherwise = cur
+  | otherwise = Nothing
   where
   pat' = mkId (B8.pack pat)
   cur' = mkId (B8.pack cur)
