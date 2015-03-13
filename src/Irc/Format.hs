@@ -53,7 +53,13 @@ data RawIrcMsg = RawIrcMsg
 
 -- | Case insensitive identifier representing channels and nicknames
 data Identifier = Identifier ByteString ByteString
-  deriving (Read, Show, Eq, Ord)
+  deriving (Read, Show)
+
+instance Eq Identifier where
+  x == y = idDenote x == idDenote y
+
+instance Ord Identifier where
+  compare x y = compare (idDenote x) (idDenote y)
 
 instance IsString Identifier where
   fromString = mkId . fromString
