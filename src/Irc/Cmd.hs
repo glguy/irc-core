@@ -34,6 +34,7 @@ module Irc.Cmd
   , removeCmd
   , knockCmd
   , acceptCmd
+  , timeCmd
   ) where
 
 import Data.Monoid
@@ -396,4 +397,16 @@ acceptCmd nick = renderRawIrcMsg RawIrcMsg
   { msgPrefix = Nothing
   , msgCommand = "ACCEPT"
   , msgParams = [nick]
+  }
+
+-- | Construct an TIME command.
+--
+-- @TIME [<server>]>@
+timeCmd ::
+  Maybe ByteString {- ^ server -} ->
+  ByteString
+timeCmd server = renderRawIrcMsg RawIrcMsg
+  { msgPrefix = Nothing
+  , msgCommand = "TIME"
+  , msgParams = toList server
   }

@@ -299,7 +299,7 @@ advanceModel msg0 conn =
        RplUserHost host ->
          doServerMessage "USERHOST" (B8.unwords host) conn
 
-       RplTime _server time -> doServerMessage "TIME" time conn
+       RplTime server time -> doServerMessage "TIME" (B8.unwords [server,time]) conn
 
        RplInfo _ -> return conn
        RplEndOfInfo -> return conn

@@ -26,6 +26,7 @@ import Data.Traversable (for)
 import Graphics.Vty
 import Network
 import System.IO
+import System.IO.Error (isEOFError)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
@@ -478,6 +479,10 @@ commandEvent st = commandsParser (clientInput st)
          Just chan -> doWithOps chan (doAutoKickBan chan nick (Text.pack reason)) st')
     <$> pNick st <*> pRemainingNoSp)
 
+  , ("time",
+    (\mbServer -> st' <$ clientSend (timeCmd (fmap (Text.encodeUtf8 . Text.pack) mbServer)) st')
+    <$> optional (pToken "server"))
+
   ]
 
 doAccept ::
@@ -774,8 +779,15 @@ sendLoop queue h =
 socketLoop :: TChan MsgFromServer -> Handle -> Maybe Handle -> IO ()
 socketLoop chan h hErr =
   forever (atomically . writeTChan chan =<< getOne h hErr)
-  `catch` \(SomeException e) ->
-  atomically (writeTChan chan (Error (Text.encodeUtf8 (Text.pack (show e)))))
+  `catches`
+   [ Handler $ \ioe ->
+        let msg = if isEOFError ioe
+                    then "Connection terminated"
+                    else Text.encodeUtf8 (Text.pack (show ioe))
+        in atomically (writeTChan chan (Error msg))
+   , Handler $ \(SomeException e) ->
+        atomically (writeTChan chan (Error (Text.encodeUtf8 (Text.pack (show e)))))
+   ]
 
 vtyEventLoop :: TChan Event -> Vty -> IO a
 vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)
