@@ -34,7 +34,7 @@ detailedImageForState !st
   where
   renderOne x =
       timestamp <|>
-      string (withForeColor defAttr blue) (ty ++ " ") <|>
+      string (withForeColor defAttr tyColor) (ty ++ " ") <|>
       renderFullUsermask (view mesgSender x) <|>
       string (withForeColor defAttr blue) (": ") <|>
       cleanText content
@@ -43,25 +43,25 @@ detailedImageForState !st
       | view clientTimeView st = renderTimestamp (view mesgStamp x)
       | otherwise              = emptyImage
 
-    (ty, content) = case view mesgType x of
-       JoinMsgType -> ("J", "")
-       PartMsgType txt -> ("P", txt)
-       NickMsgType txt -> ("C", asUtf8 (idBytes txt))
-       QuitMsgType txt -> ("Q", txt)
-       PrivMsgType txt -> ("M", txt)
-       TopicMsgType txt -> ("T", txt)
-       ActionMsgType txt -> ("A", txt)
-       CtcpMsgType cmd txt -> ("C", asUtf8 (cmd <> " " <> txt))
-       AwayMsgType txt -> ("Y", txt)
-       NoticeMsgType txt -> ("N", txt)
-       KickMsgType who txt -> ("K", asUtf8 (idBytes who) <> " - " <> txt)
-       ErrorMsgType txt -> ("E", txt)
-       ErrMsgType err -> ("E", Text.pack (show err))
-       InviteMsgType -> ("I", "")
-       KnockMsgType -> ("J", "")
-       CallerIdDeliveredMsgType -> ("D", "")
-       CallerIdMsgType -> ("G", "")
-       ModeMsgType pol mode arg -> ("Z", (if pol then "+" else "-")
+    (tyColor, ty, content) = case view mesgType x of
+       JoinMsgType              -> (green  , "Join", "")
+       PartMsgType txt          -> (red    , "Part", txt)
+       NickMsgType txt          -> (yellow , "Nick", asUtf8 (idBytes txt))
+       QuitMsgType txt          -> (red    , "Quit", txt)
+       PrivMsgType txt          -> (blue   , "Priv", txt)
+       TopicMsgType txt         -> (yellow , "Topc", txt)
+       ActionMsgType txt        -> (blue   , "Actn", txt)
+       CtcpMsgType cmd txt      -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
+       AwayMsgType txt          -> (yellow , "Away", txt)
+       NoticeMsgType txt        -> (blue   , "Note", txt)
+       KickMsgType who txt      -> (red    , "Kick", asUtf8 (idBytes who) <> " - " <> txt)
+       ErrorMsgType txt         -> (red    , "ErrT", txt)
+       ErrMsgType err           -> (red    , "ErrR", Text.pack (show err))
+       InviteMsgType            -> (yellow , "Invt", "")
+       KnockMsgType             -> (yellow , "Knoc", "")
+       CallerIdDeliveredMsgType -> (yellow , "Delv", "")
+       CallerIdMsgType          -> (yellow , "Call", "")
+       ModeMsgType pol mode arg -> (yellow , "Mode", (if pol then "+" else "-")
                                         <> Text.pack [mode, ' ']
                                         <> asUtf8 arg)
 
@@ -133,7 +133,6 @@ compressedImageForState !st = renderOne (activeMessages st)
            string (withForeColor defAttr blue) "* " <|>
            views mesgModes modePrefix msg <|>
            identImg (withForeColor defAttr blue) nick <|>
-           string (withForeColor defAttr blue) (": ") <|>
            colored
 
          KickMsgType who reason -> Just $
