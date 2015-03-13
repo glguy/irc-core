@@ -184,6 +184,7 @@ data IrcError
   | ErrBanNickChange -- ^ 435
   | ErrUnavailResource -- ^ 437
   | ErrNickTooFast -- ^ 438
+  | ErrServicesDown -- ^ 440
   | ErrUserNotInChannel Identifier -- ^ 441 nick
   | ErrNotOnChannel -- ^ 442 channel
   | ErrUserOnChannel Identifier -- ^ 443 nick
@@ -495,6 +496,9 @@ ircMsgToServerMsg ircmsg =
     ("437",[_,ident,_]) -> Just (Err (mkId ident) ErrUnavailResource)
 
     ("438",[_,_,_,_]) -> Just (Err "" ErrNickTooFast)
+
+    ("441",[_,nick,_]) ->
+         Just (Err (mkId nick) ErrServicesDown)
 
     ("441",[_,nick,chan,_]) ->
          Just (Err (mkId chan) (ErrUserNotInChannel (mkId nick)))

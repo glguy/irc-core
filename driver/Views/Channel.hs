@@ -294,6 +294,7 @@ errorMessage e =
     ErrUnavailResource        -> "Resource unavailable"
     ErrThrottle               -> "Unable to join due to throttle"
     ErrTooManyChannels        -> "Too many channels joined"
+    ErrServicesDown           -> "Services are unavailable"
     ErrUserNotInChannel nick  -> "Not in channel: " <> asUtf8 (idBytes nick)
     ErrNotOnChannel           -> "Must join channel"
     ErrChanOpPrivsNeeded      -> "Channel privileges needed"
