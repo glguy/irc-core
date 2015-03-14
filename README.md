@@ -66,6 +66,7 @@ Commands
 * `/clear` - Clear all messages for the current channel
 * `/help <topic>` - Request help from the server
 * `/hs <haskell source code>` - Send syntax highlighted source code as a message to the current channel
+* `/type <haskell type>` - Send syntax highlighted Haskell type with polarity checking
 * `/ignore <nick>` - Toggle ignoring a user by nickname.
 * `/join <channel>` - join a new channel (optional key argument)
 * `/kick <nick> <msg>` - Kick a user from the current channel
