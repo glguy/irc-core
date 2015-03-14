@@ -114,7 +114,7 @@ renderTypeS polarity facts t0 =
 
     TyFun f x ->
          renderTypeS (invert polarity) facts f
-       . showString (orange " -> ")
+       . showString " -> "
        . renderTypeS polarity facts x
 
     TyTuple boxed ts ->
@@ -204,22 +204,33 @@ appsToList x           = [x]
 renderVars :: [TyVarBind] -> ShowS
 renderVars vars
   = showString "forall"
-  . showString (concatMap ((' ':). myPretty) vars)
+  . foldr (.) id
+       (map (\v -> showChar ' '. showTyVarBind v) vars)
   . showString ". "
 
 tyVarName :: TyVarBind -> Name
 tyVarName (KindedVar n _) = n
 tyVarName (UnkindedVar n) = n
 
+showTyVarBind :: TyVarBind -> ShowS
+showTyVarBind (KindedVar n k)
+  = showString "("
+  . showString (myPretty n)
+  . showString " :: "
+  . showString (myPretty k)
+  . showString ")"
+showTyVarBind (UnkindedVar n)
+  = showString (myPretty n)
+
 renderCxt :: Polarity -> Context -> ShowS
 renderCxt _ [] = id
 renderCxt polarity [x]
   = showConstraint polarity x
-  . showString (orange " => ")
+  . showString " => "
 renderCxt polarity xs
   = showString "("
   . showCommaSep (map (showConstraint polarity) xs)
-  . showString (") " ++ orange "=> ")
+  . showString (") " ++ "=> ")
 
 showConstraint :: Polarity -> Asst -> ShowS
 showConstraint polarity (ClassA n ts)
@@ -323,6 +334,8 @@ knownTypePolarities =
    ,(Ident "Contravariant",Just [N])
    ,(Ident "Profunctor", Just [N,P])
    ,(Ident "Bifunctor", Just [P,P])
+   ,(Ident "Arrow", Just [N,P])
+
    ,(Ident "Endo", Just [I])
    ,(Ident "Proxy", Just [G])
    ,(Ident "Const", Just [P,G])
