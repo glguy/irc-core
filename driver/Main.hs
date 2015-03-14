@@ -255,8 +255,10 @@ doSendMessageCurrent sendType st =
 data SendType = SendPriv | SendNotice | SendAction
 
 doSendMessage :: SendType -> Identifier -> Text -> ClientState -> IO ClientState
+
 doSendMessage _ _ message st
   | Text.null message = return st
+
 doSendMessage sendType target message st =
   do let bs = case sendType of
                 SendPriv -> privMsgCmd target (Text.encodeUtf8 message)
@@ -265,14 +267,22 @@ doSendMessage sendType target message st =
                 SendNotice -> noticeCmd target (Text.encodeUtf8 message)
      clientSend bs st
      now <- getCurrentTime
-     let myNick = view (clientConnection . connNick) st
-         myModes = view (clientConnection . connChannels . ix target . chanUsers . ix myNick) st
-     return (addMessage target (fakeMsg now myModes) (clearInput st))
+     let myNick = view connNick conn
+         myModes = view (connChannels . ix target . chanUsers . ix myNick) conn
+     return (addMessage target' (fakeMsg now myModes) (clearInput st))
 
   where
+  conn = view clientConnection st
+
+  (target', mbStatusMode) = case B8.uncons (idDenote target) of
+                              Just (x,xs) | x `elem` view connStatusMsg conn
+                                 -> (mkId xs, Just x)
+                              _ -> (target,Nothing)
+
   fakeMsg now modes = IrcMessage
     { _mesgSender = who
     , _mesgType = case sendType of
+                    _ | Just m <- mbStatusMode -> StatusMsgType m message
                     SendPriv   -> PrivMsgType   message
                     SendNotice -> NoticeMsgType message
                     SendAction -> ActionMsgType message
@@ -443,8 +453,6 @@ commandEvent st = commandsParser (clientInput st)
     <$> optional (pNick st))
 
   , ("acceptlist", pure (doAccept True (Just "*") st))
-
-  , ("gc", length (show (view clientConnection st)) `seq` pure (return st'))
 
   , ("nick",
     (\nick -> st' <$ clientSend (nickCmd nick) st')

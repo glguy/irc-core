@@ -8,6 +8,7 @@ module Irc.Core
   , ircMsgToServerMsg
   ) where
 
+import Control.Lens (over, _2)
 import Data.ByteString (ByteString)
 import Data.Time
 import Data.Time.Clock.POSIX
@@ -26,7 +27,7 @@ data MsgFromServer
   | RplYourHost ByteString -- ^ 002 "Your host is \<servername\>, running version \<ver\>"
   | RplCreated  ByteString -- ^ 003 "This server was created \<date\>"
   | RplMyInfo   ByteString ByteString ByteString ByteString ByteString -- ^ 004 servername version available-user-modes available-channel-modes
-  | RplISupport [ByteString] -- ^ 005 *(KEY=VALUE)
+  | RplISupport [(ByteString,ByteString)] -- ^ 005 *(KEY=VALUE)
   | RplSnoMask ByteString -- ^ 008 snomask
   | RplYourId ByteString -- ^ 042 unique-id
 
@@ -238,8 +239,10 @@ ircMsgToServerMsg ircmsg =
     ("004",[_,host,version,umodes,lmodes,cmodes]) ->
        Just (RplMyInfo host version umodes lmodes cmodes)
 
-    ("005",_:params) ->
-       Just (RplISupport params)
+    ("005",_:params)
+      | not (null params) ->
+         let parse1 = over _2 (B.drop 1) . B8.break (=='=')
+         in Just (RplISupport (map parse1 (init params)))
 
     ("008",[_,snomask,_]) ->
        Just (RplSnoMask (B.tail snomask))

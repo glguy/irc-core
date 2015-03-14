@@ -49,6 +49,7 @@ detailedImageForState !st
        NickMsgType txt          -> (yellow , "Nick", asUtf8 (idBytes txt))
        QuitMsgType txt          -> (red    , "Quit", txt)
        PrivMsgType txt          -> (blue   , "Priv", txt)
+       StatusMsgType mode txt   -> (blue   , "Stat", Text.singleton mode <> txt)
        TopicMsgType txt         -> (yellow , "Topc", txt)
        ActionMsgType txt        -> (blue   , "Actn", txt)
        CtcpMsgType cmd txt      -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
@@ -119,6 +120,15 @@ compressedImageForState !st = renderOne (activeMessages st)
          PrivMsgType _ | visible -> Just $
            views mesgModes modePrefix msg <|>
            formatNick (view mesgMe msg) nick <|>
+           string (withForeColor defAttr blue) (": ") <|>
+           colored
+
+         StatusMsgType mode _ | visible -> Just $
+           char defAttr '(' <|>
+           char (withForeColor defAttr brightRed) mode <|>
+           string defAttr ") " <|>
+           views mesgModes modePrefix msg <|>
+           identImg (withForeColor defAttr brightWhite) nick <|>
            string (withForeColor defAttr blue) (": ") <|>
            colored
 

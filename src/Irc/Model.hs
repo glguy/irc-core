@@ -17,6 +17,8 @@ module Irc.Model
   , connId
   , connChanModeTypes
   , connUserModeTypes
+  , connKnock
+  , connStatusMsg
   , connUsers
   , connMyInfo
   , connSasl
@@ -110,6 +112,8 @@ data IrcConnection = IrcConnection
   , _connChannels :: !(Map Identifier IrcChannel)
   , _connId       :: Maybe ByteString
   , _connChanTypes :: [Char]
+  , _connStatusMsg :: [Char]
+  , _connKnock :: Bool
   , _connUsers    :: !(Map Identifier IrcUser)
   , _connChanModeTypes :: ModeTypes
   , _connUserModeTypes :: ModeTypes
@@ -126,9 +130,11 @@ defaultIrcConnection = IrcConnection
   { _connNick      = mkId ""
   , _connChannels  = mempty
   , _connId        = Nothing
-  , _connChanTypes = "#" -- TODO: Use ISupport
+  , _connChanTypes = "#"
+  , _connStatusMsg = ""
+  , _connKnock     = False
   , _connUsers     = mempty
-  , _connChanModeTypes = defaultChanModeTypes -- TODO: Use ISupport
+  , _connChanModeTypes = defaultChanModeTypes
   , _connUserModeTypes = defaultUmodeTypes
   , _connMyInfo    = Nothing
   , _connSasl      = Nothing
@@ -213,6 +219,7 @@ data IrcMessage = IrcMessage
 -- | Event types and associated fields used by 'IrcMessage'.
 data IrcMessageType
   = PrivMsgType   Text
+  | StatusMsgType Char Text
   | NoticeMsgType Text
   | ActionMsgType Text
   | AwayMsgType   Text
@@ -537,10 +544,9 @@ advanceModel msg0 conn =
        Authenticate _ ->
          doServerError "Unexpected Authenticate" conn
 
-       Error e ->
-         doServerError (asUtf8 e) conn
+       Error e -> doServerError (asUtf8 e) conn
 
-       RplISupport _ -> return conn -- TODO
+       RplISupport isupport -> doISupport isupport conn
        RplVersion version server comments ->
          doServerMessage "VERSION" (B8.unwords [version,server,comments]) conn
 
@@ -574,6 +580,43 @@ advanceModel msg0 conn =
        RplStatsXLine xline -> doServerMessage "XLINE" (B8.unwords xline) conn
        RplStatsULine uline -> doServerMessage "ULINE" (B8.unwords uline) conn
        RplStatsDebug debug -> doServerMessage "STATSDEBUG" (B8.unwords debug) conn
+
+doISupport ::
+  [(ByteString,ByteString)] {- ^ [(key,value)] -} ->
+  IrcConnection -> Logic IrcConnection
+doISupport params conn = return (foldl' (flip support) conn params)
+
+support :: (ByteString,ByteString) -> IrcConnection -> IrcConnection
+support ("CHANTYPES",types) = set connChanTypes (B8.unpack types)
+support ("CHANMODES",modes) = updateChanModes (B8.unpack modes)
+support ("STATUSMSG",modes) = set connStatusMsg (B8.unpack modes)
+support ("PREFIX",modes) = updateChanPrefix (B8.unpack modes)
+support _ = id
+
+updateChanModes ::
+  String {- lists,always,set,never -} ->
+  IrcConnection -> IrcConnection
+updateChanModes modes
+  = over connChanModeTypes
+  $ set modesLists listModes
+  . set modesAlwaysArg alwaysModes
+  . set modesSetArg setModes
+  . set modesNeverArg neverModes
+  where
+  next = over _2 (drop 1) . break (==',')
+  (listModes  ,modes1) = next modes
+  (alwaysModes,modes2) = next modes1
+  (setModes   ,modes3) = next modes2
+  (neverModes ,_)      = next modes3
+
+updateChanPrefix ::
+  String {- e.g. (ov)@+ -} ->
+  IrcConnection -> IrcConnection
+updateChanPrefix [] = id
+updateChanPrefix (_:modes) =
+  set (connChanModeTypes . modesPrefixModes) (zip a b)
+  where
+  (a,b) = over _2 (drop 1) (break (==')') modes)
 
 doAcceptList ::
   [Identifier] {- ^ nicks -} ->
@@ -664,6 +707,20 @@ doPrivMsg ::
   Identifier {- ^ message target -} ->
   ByteString {- ^ message        -} ->
   IrcConnection -> Logic IrcConnection
+doPrivMsg who chan msg conn
+  | Just (x,xs) <- B8.uncons (idDenote chan)
+  , x `elem` view connStatusMsg conn =
+  do stamp <- getStamp
+     let chan' = mkId xs
+         mesg = IrcMessage
+                { _mesgType    = StatusMsgType x (asUtf8 msg)
+                , _mesgSender  = who
+                , _mesgStamp   = stamp
+                , _mesgMe      = False
+                , _mesgModes   = ""
+                }
+     recordMessage mesg chan' conn
+
 doPrivMsg who chan msg conn =
   do stamp <- getStamp
      let mesg = IrcMessage
@@ -1159,6 +1216,21 @@ doNotifyChannel ::
   ByteString ->
   IrcConnection ->
   Logic IrcConnection
+
+doNotifyChannel who chan msg conn
+  | Just (x,xs) <- B8.uncons (idDenote chan)
+  , x `elem` view connStatusMsg conn =
+  do stamp <- getStamp
+     let chan' = mkId xs
+         mesg = IrcMessage
+                { _mesgType    = StatusMsgType x (asUtf8 msg)
+                , _mesgSender  = who
+                , _mesgStamp   = stamp
+                , _mesgMe      = False
+                , _mesgModes   = ""
+                }
+     recordMessage mesg chan' conn
+
 doNotifyChannel who chan msg conn =
   do stamp <- getStamp
      let mesg = IrcMessage
