@@ -4,7 +4,6 @@ import ClientState
 import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Map (Map)
-import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Graphics.Vty.Image
 import ImageUtils
@@ -60,7 +59,7 @@ channelInfoImage chan st =
       prefixes = view (clientConnection . connChanModeTypes . modesPrefixModes) st
       modePrefix modes =
         string (withForeColor defAttr blue)
-               (mapMaybe (`lookup` prefixes) modes)
+        [ prefix | (mode,prefix) <- prefixes, mode `elem` modes ]
 
       usersLines
         = return

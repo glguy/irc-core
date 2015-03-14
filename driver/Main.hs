@@ -718,27 +718,27 @@ dividerImage :: ClientState -> Image
 dividerImage st
   = extendToWidth (nickPart <|> channelPart)
   where
+  conn = view clientConnection st
+
+  myNick = view connNick conn
+
   channelPart =
     ifoldr (\i x xs -> drawOne i x <|> xs)
            emptyImage
            (fullMessageLists st <> extraDefaults)
 
+  -- e.g. glguy(+Zi)
   nickPart =
-    identImg defAttr (view (clientConnection . connNick) st) <|>
+    identImg defAttr myNick <|>
     string defAttr "(+" <|>
-    utf8Bytestring' defAttr (view (clientConnection . connUmode) st) <|>
+    utf8Bytestring' defAttr (view connUmode conn) <|>
     char defAttr ')'
 
   drawOne :: Identifier -> MessageList -> Image
   drawOne i seen
     | focusedName st == i =
         string defAttr "─(" <|>
-        utf8Bytestring'
-          (withForeColor defAttr green)
-          (identToBytes i) <|>
-        string defAttr ")"
-    | focusedName st == i =
-        string defAttr "─(" <|>
+        string (withForeColor defAttr blue) focusedChanPrefixes <|>
         identImg (withForeColor defAttr green) i <|>
         string defAttr ")"
     | views mlNewMessages (>0) seen =
@@ -752,6 +752,13 @@ dividerImage st
         string defAttr "]"
     | otherwise =
         string defAttr "─o"
+
+  -- e.g. [('o','@'),('v','+')]
+  prefixMapping = view (connChanModeTypes . modesPrefixModes) conn
+  myFocusedModes = view (connChannels . ix (focusedName st) . chanUsers . ix myNick) conn
+
+  -- allow prefixMapping to dictate the ordering
+  focusedChanPrefixes = [ prefix | (mode,prefix) <- prefixMapping, mode `elem` myFocusedModes ]
 
   -- deal with the fact that the server window uses the "" identifier
   identToBytes x
@@ -891,15 +898,15 @@ doWithOps chan privop st
     | otherwise = getOpFirst
 
   where
-  myNick = view (clientConnection . connNick) st
+  conn = view clientConnection st
+  myNick = view connNick conn
 
   alreadyOp =
-    elemOf ( clientConnection
-           . connChannels . ix chan
+    elemOf ( connChannels . ix chan
            . chanUsers . ix myNick
            . folded)
            'o'
-           st
+           conn
 
   handler = EventHandler
     { _evName = "Get op for privop"
