@@ -1,8 +1,6 @@
 My IRC client
 =============
 
-This client has fewer features than the one you're using now. You probably don't want to use it.
-
 ![](https://raw.githubusercontent.com/wiki/glguy/irc-core/images/screenshot.png)
 
 Library
@@ -27,6 +25,7 @@ Client Features
 * Chanserv automation (automatically requests op from chanserv for privileged commands)
 * Command syntax highlighting with hints.
 * Each user's nick is assigned a consistent color, when a user's nick is rendered in a chat message it uses that same color.
+* Support for /STATUSMSG/ messages
 
 No SSL?
 =======
@@ -63,6 +62,7 @@ Commands
 * `/bans` - Show known bans for current channel. Note: Request bans list with `/quote mode <channel> +b`
 * `/channel <channel>` - switch to a user message window
 * `/channelinfo` - Show information for the current channel
+* `/ctcp <command> <params>` - Send CTCP command to current window
 * `/clear` - Clear all messages for the current channel
 * `/help <topic>` - Request help from the server
 * `/hs <haskell source code>` - Send syntax highlighted source code as a message to the current channel

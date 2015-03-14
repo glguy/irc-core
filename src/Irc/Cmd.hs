@@ -20,6 +20,8 @@ module Irc.Cmd
   , inviteCmd
   , kickCmd
   , privMsgCmd
+  , ctcpRequestCmd
+  , ctcpResponseCmd
   , noticeCmd
   , whoisCmd
   , whowasCmd
@@ -239,6 +241,26 @@ privMsgCmd ::
 privMsgCmd target msg = renderRawIrcMsg outgoingMsg
   { msgCommand = "PRIVMSG"
   , msgParams = [idBytes target,msg]
+  }
+
+ctcpRequestCmd ::
+  Identifier {- ^ target  -} ->
+  ByteString {- ^ command -} ->
+  ByteString {- ^ parameters -} ->
+  ByteString
+ctcpRequestCmd target command params = renderRawIrcMsg outgoingMsg
+  { msgCommand = "PRIVMSG"
+  , msgParams  = [idBytes target, "\x01" <> command <> " " <> params <> "\x01"]
+  }
+
+ctcpResponseCmd ::
+  Identifier {- ^ target  -} ->
+  ByteString {- ^ command -} ->
+  ByteString {- ^ parameters -} ->
+  ByteString
+ctcpResponseCmd target command params = renderRawIrcMsg outgoingMsg
+  { msgCommand = "NOTICE"
+  , msgParams  = [idBytes target, "\x01" <> command <> " " <> params <> "\x01"]
   }
 
 -- | Construct a NOTICE command. This send notice chat messages

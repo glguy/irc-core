@@ -37,17 +37,22 @@ import qualified Data.Text.Encoding as Text
 import Irc.Core
 import Irc.Cmd
 import Irc.Format
+import Irc.Message
 import Irc.Model
 import Irc.RateLimit
 
-import ImageUtils
+import ClientState
 import CommandArgs
 import CommandParser
-import ClientState
+import CtcpHandler
+import ImageUtils
+import Views.BanList
 import Views.Channel
 import Views.ChannelInfo
-import Views.BanList
 import qualified EditBox as Edit
+
+data SendType = SendCtcp String | SendPriv | SendNotice | SendAction
+makePrisms ''SendType
 
 main :: IO ()
 main = do
@@ -99,7 +104,7 @@ main = do
          , _clientHighlights      = mempty
          , _clientMessages        = mempty
          , _clientNickColors      = defaultNickColors
-         , _clientAutomation      = []
+         , _clientAutomation      = [ctcpHandler]
          }
 
 initializeConnection :: CommandArgs -> Handle -> IO ()
@@ -252,12 +257,11 @@ doSendMessageCurrent sendType st =
       doSendMessage sendType c (Text.pack (clientInput st)) st
     _ -> return st
 
-data SendType = SendPriv | SendNotice | SendAction
 
 doSendMessage :: SendType -> Identifier -> Text -> ClientState -> IO ClientState
 
-doSendMessage _ _ message st
-  | Text.null message = return st
+doSendMessage sendType _ message st
+  | Text.null message && hasn't _SendCtcp sendType = return st
 
 doSendMessage sendType target message st =
   do let bs = case sendType of
@@ -265,6 +269,9 @@ doSendMessage sendType target message st =
                 SendAction -> privMsgCmd target ("\SOHACTION " <>
                                                  Text.encodeUtf8 message <> "\SOH")
                 SendNotice -> noticeCmd target (Text.encodeUtf8 message)
+                SendCtcp cmd -> ctcpRequestCmd target
+                                 (Text.encodeUtf8 (Text.pack (map toUpper cmd)))
+                                 (Text.encodeUtf8 message)
      clientSend bs st
      now <- getCurrentTime
      let myNick = view connNick conn
@@ -286,6 +293,8 @@ doSendMessage sendType target message st =
                     SendPriv   -> PrivMsgType   message
                     SendNotice -> NoticeMsgType message
                     SendAction -> ActionMsgType message
+                    SendCtcp cmd -> CtcpReqMsgType (Text.encodeUtf8 (Text.pack cmd))
+                                                   (Text.encodeUtf8 message)
     , _mesgStamp = now
     , _mesgModes = modes
     , _mesgMe = True
@@ -341,6 +350,10 @@ commandEvent st = commandsParser (clientInput st)
   , ("msg",
     (\target msg -> doSendMessage SendPriv target (Text.pack msg) st)
     <$> pTarget <*> pRemainingNoSp)
+
+  , ("ctcp",
+    (\command params -> doSendMessage (SendCtcp command) (focusedName st) (Text.pack params) st)
+    <$> pToken "command" <*> pRemainingNoSp)
 
     -- carefully preserve whitespace after the command
   , ("hs",
@@ -521,11 +534,13 @@ doKnock ::
   Identifier {- ^ channel  -} ->
   ClientState -> IO ClientState
 doKnock chan st
-  | has (clientConnection . connChannels . ix chan) st  -- don't knock channels you're in
-    || not (isChannelName chan (view clientConnection st)) -- only knock channels
-    = return st
+  | not available || not isChannel || inChannel = return st
   | otherwise = do clientSend (knockCmd chan) st
                    return (clearInput st)
+  where
+  available = view (clientConnection . connKnock) st
+  inChannel = has (clientConnection . connChannels . ix chan) st
+  isChannel = isChannelName chan (view clientConnection st)
 
 doInvite ::
   Identifier {- ^ nickname -} ->

@@ -18,6 +18,8 @@ module Irc.Model
   , connChanModeTypes
   , connUserModeTypes
   , connKnock
+  , connExcepts
+  , connInvex
   , connStatusMsg
   , connUsers
   , connMyInfo
@@ -50,15 +52,6 @@ module Irc.Model
   , maskEntryMask
   , maskEntryWho
   , maskEntryStamp
-
-  -- * High-level IRC events
-  , IrcMessage(..)
-  , IrcMessageType(..)
-  , mesgType
-  , mesgSender
-  , mesgStamp
-  , mesgMe
-  , mesgModes
 
   -- * User metadata
   , IrcUser(..)
@@ -100,6 +93,7 @@ import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
 
 import Irc.Format
+import Irc.Message
 import Irc.Cmd
 import Irc.Core
 import Irc.Core.Prisms
@@ -113,7 +107,9 @@ data IrcConnection = IrcConnection
   , _connId       :: Maybe ByteString
   , _connChanTypes :: [Char]
   , _connStatusMsg :: [Char]
-  , _connKnock :: Bool
+  , _connKnock    :: Bool
+  , _connExcepts  :: Maybe Char
+  , _connInvex    :: Maybe Char
   , _connUsers    :: !(Map Identifier IrcUser)
   , _connChanModeTypes :: ModeTypes
   , _connUserModeTypes :: ModeTypes
@@ -130,9 +126,11 @@ defaultIrcConnection = IrcConnection
   { _connNick      = mkId ""
   , _connChannels  = mempty
   , _connId        = Nothing
-  , _connChanTypes = "#"
+  , _connChanTypes = "#&" -- default per RFC
   , _connStatusMsg = ""
   , _connKnock     = False
+  , _connExcepts   = Nothing
+  , _connInvex     = Nothing
   , _connUsers     = mempty
   , _connChanModeTypes = defaultChanModeTypes
   , _connUserModeTypes = defaultUmodeTypes
@@ -205,40 +203,6 @@ data IrcMaskEntry = IrcMaskEntry
   }
   deriving (Read, Show)
 
--- | 'IrcMessage' represents a high-level event to be communicated out
--- to the library user when something changes on a connection.
-data IrcMessage = IrcMessage
-  { _mesgType :: !IrcMessageType
-  , _mesgSender :: !UserInfo
-  , _mesgStamp :: !UTCTime
-  , _mesgMe :: !Bool
-  , _mesgModes :: String
-  }
-  deriving (Read, Show)
-
--- | Event types and associated fields used by 'IrcMessage'.
-data IrcMessageType
-  = PrivMsgType   Text
-  | StatusMsgType Char Text
-  | NoticeMsgType Text
-  | ActionMsgType Text
-  | AwayMsgType   Text
-  | JoinMsgType
-  | KickMsgType   Identifier Text
-  | PartMsgType   Text
-  | QuitMsgType   Text
-  | NickMsgType   Identifier
-  | TopicMsgType  Text
-  | ErrorMsgType  Text
-  | ErrMsgType  IrcError -- Family of various responses
-  | ModeMsgType Bool Char ByteString
-  | InviteMsgType
-  | KnockMsgType
-  | CallerIdMsgType
-  | CallerIdDeliveredMsgType
-  | CtcpMsgType ByteString ByteString -- ^ ctcp command and arguments
-  deriving (Read, Show)
-
 -- | 'IrcUser' is the type of user-level metadata tracked for
 -- the users visible on the current IRC connection.
 data IrcUser = IrcUser
@@ -261,7 +225,6 @@ data Fuzzy a = Known !a | Unknown | None
 
 makeLenses ''IrcConnection
 makeLenses ''IrcChannel
-makeLenses ''IrcMessage
 makeLenses ''IrcUser
 makeLenses ''IrcMaskEntry
 makeLenses ''ModeTypes
@@ -581,6 +544,8 @@ advanceModel msg0 conn =
        RplStatsULine uline -> doServerMessage "ULINE" (B8.unwords uline) conn
        RplStatsDebug debug -> doServerMessage "STATSDEBUG" (B8.unwords debug) conn
 
+-- ISUPPORT is defined by
+-- https://tools.ietf.org/html/draft-brocklesby-irc-isupport-03#section-3.14
 doISupport ::
   [(ByteString,ByteString)] {- ^ [(key,value)] -} ->
   IrcConnection -> Logic IrcConnection
@@ -591,6 +556,17 @@ support ("CHANTYPES",types) = set connChanTypes (B8.unpack types)
 support ("CHANMODES",modes) = updateChanModes (B8.unpack modes)
 support ("STATUSMSG",modes) = set connStatusMsg (B8.unpack modes)
 support ("PREFIX",modes) = updateChanPrefix (B8.unpack modes)
+
+support ("INVEX",mode) =
+  case B8.uncons mode of
+    Nothing    -> set connInvex (Just 'I')
+    Just (m,_) -> set connInvex (Just $! m)
+
+support ("EXCEPTS",mode) =
+  case B8.uncons mode of
+    Nothing    -> set connExcepts (Just 'e')
+    Just (m,_) -> set connExcepts (Just $! m)
+
 support _ = id
 
 updateChanModes ::
@@ -733,7 +709,7 @@ doPrivMsg who chan msg conn =
          ty = case parseCtcpCommand msg of
                 Nothing                 -> PrivMsgType (asUtf8 msg)
                 Just ("ACTION", action) -> ActionMsgType (asUtf8 action)
-                Just (command , args  ) -> CtcpMsgType command args
+                Just (command , args  ) -> CtcpReqMsgType command args
 
      recordMessage mesg chan conn
 
@@ -1217,6 +1193,7 @@ doNotifyChannel ::
   IrcConnection ->
   Logic IrcConnection
 
+-- TODO: STATUSMSG should just be a target, not a message type!
 doNotifyChannel who chan msg conn
   | Just (x,xs) <- B8.uncons (idDenote chan)
   , x `elem` view connStatusMsg conn =
@@ -1233,8 +1210,11 @@ doNotifyChannel who chan msg conn
 
 doNotifyChannel who chan msg conn =
   do stamp <- getStamp
+     let ty = case parseCtcpCommand msg of
+                Nothing                 -> NoticeMsgType (asUtf8 msg)
+                Just (command , args  ) -> CtcpRspMsgType command args
      let mesg = IrcMessage
-               { _mesgType = NoticeMsgType (asUtf8 msg)
+               { _mesgType = ty
                , _mesgSender = who
                , _mesgStamp = stamp
                , _mesgMe = False

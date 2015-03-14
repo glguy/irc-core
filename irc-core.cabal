@@ -25,6 +25,8 @@ description:
   .
   * "Irc.Core.Prisms" - Prisms for all of the mid-level IRC message constructors
   .
+  * "Irc.Message" - High-level IRC event messages for client interpretation
+  .
   * "Irc.Model" - Functions for interpreting mid-level IRC messages to generate high-level
                   event messages and to maintain a consistent view of the connection
   .
@@ -35,6 +37,8 @@ description:
   * "Main" - Main client module
   .
   * "ClientState" - Types and operations representing the full state of the client
+  .
+  * "CtcpHandler" - Event handler for CTCP messages
   .
   * "CommandArgs" - Types and functions for interpreting the initial client configuration
   .
@@ -58,6 +62,7 @@ library
   exposed-modules:     Irc.Core
                        Irc.Core.Prisms
                        Irc.Cmd
+                       Irc.Message
                        Irc.Model
                        Irc.Format
                        Irc.RateLimit
@@ -80,6 +85,7 @@ library
 executable glirc
   main-is: Main.hs
   other-modules: ClientState
+                 CtcpHandler
                  CommandArgs
                  CommandParser
                  EditBox

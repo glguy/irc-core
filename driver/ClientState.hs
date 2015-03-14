@@ -25,6 +25,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 import Irc.Format
+import Irc.Message
 import Irc.Model
 
 import EditBox (EditBox)
@@ -44,7 +45,7 @@ data ClientState = ClientState
   , _clientScrollPos :: Int
   , _clientHeight :: Int
   , _clientWidth :: Int
-  , _clientIgnores :: !(Set Identifier)
+  , _clientIgnores :: !(Set Identifier) -- Todo: support mask matching
   , _clientHighlights :: !(Set ByteString)
   , _clientMessages :: !(Map Identifier MessageList)
   , _clientNickColors :: [Color]

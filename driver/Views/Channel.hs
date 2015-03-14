@@ -15,6 +15,7 @@ import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Text as Text
 
 import Irc.Format
+import Irc.Message
 import Irc.Model
 import Irc.Core
 
@@ -52,7 +53,8 @@ detailedImageForState !st
        StatusMsgType mode txt   -> (blue   , "Stat", Text.singleton mode <> txt)
        TopicMsgType txt         -> (yellow , "Topc", txt)
        ActionMsgType txt        -> (blue   , "Actn", txt)
-       CtcpMsgType cmd txt      -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
+       CtcpRspMsgType cmd txt   -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
+       CtcpReqMsgType cmd txt   -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
        AwayMsgType txt          -> (yellow , "Away", txt)
        NoticeMsgType txt        -> (blue   , "Note", txt)
        KickMsgType who txt      -> (red    , "Kick", asUtf8 (idBytes who) <> " - " <> txt)
@@ -146,6 +148,15 @@ compressedImageForState !st = renderOne (activeMessages st)
            char defAttr ' ' <|>
            colored
 
+         CtcpRspMsgType cmd params | visible -> Just $
+           string (withForeColor defAttr red) "C " <|>
+           views mesgModes modePrefix msg <|>
+           identImg (withForeColor defAttr blue) nick <|>
+           char defAttr ' ' <|>
+           cleanText (asUtf8 cmd) <|>
+           char defAttr ' ' <|>
+           cleanText (asUtf8 params)
+
          KickMsgType who reason -> Just $
            views mesgModes modePrefix msg <|>
            formatNick (view mesgMe msg) nick <|>
@@ -205,7 +216,7 @@ compressedImageForState !st = renderOne (activeMessages st)
         visible = not (view (contains who) ignores)
         metaAttr = withForeColor defAttr brightBlack
     in case view mesgType msg of
-         CtcpMsgType{} ->
+         CtcpReqMsgType{} ->
            renderMeta
              (img <|>
               char (withForeColor defAttr brightBlue) 'C' <|>
