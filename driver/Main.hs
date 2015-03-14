@@ -275,21 +275,18 @@ doSendMessage sendType target message st =
      clientSend bs st
      now <- getCurrentTime
      let myNick = view connNick conn
-         myModes = view (connChannels . ix target . chanUsers . ix myNick) conn
+         myModes = view (connChannels . ix target' . chanUsers . ix myNick) conn
      return (addMessage target' (fakeMsg now myModes) (clearInput st))
 
   where
   conn = view clientConnection st
 
-  (target', mbStatusMode) = case B8.uncons (idDenote target) of
-                              Just (x,xs) | x `elem` view connStatusMsg conn
-                                 -> (mkId xs, Just x)
-                              _ -> (target,Nothing)
+  (statusmsg, target') = splitStatusMsg target conn
 
   fakeMsg now modes = IrcMessage
     { _mesgSender = who
+    , _mesgStatus = statusmsg
     , _mesgType = case sendType of
-                    _ | Just m <- mbStatusMode -> StatusMsgType m message
                     SendPriv   -> PrivMsgType   message
                     SendNotice -> NoticeMsgType message
                     SendAction -> ActionMsgType message

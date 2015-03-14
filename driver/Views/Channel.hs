@@ -6,7 +6,6 @@ import Control.Lens
 import Data.Monoid
 import Data.Foldable (toList)
 import Data.List (stripPrefix)
-import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Data.Time (UTCTime, formatTime)
 import Graphics.Vty.Image
@@ -36,6 +35,7 @@ detailedImageForState !st
   renderOne x =
       timestamp <|>
       string (withForeColor defAttr tyColor) (ty ++ " ") <|>
+      statusMsgImage (view mesgStatus x) <|>
       renderFullUsermask (view mesgSender x) <|>
       string (withForeColor defAttr blue) (": ") <|>
       cleanText content
@@ -50,7 +50,6 @@ detailedImageForState !st
        NickMsgType txt          -> (yellow , "Nick", asUtf8 (idBytes txt))
        QuitMsgType txt          -> (red    , "Quit", txt)
        PrivMsgType txt          -> (blue   , "Priv", txt)
-       StatusMsgType mode txt   -> (blue   , "Stat", Text.singleton mode <> txt)
        TopicMsgType txt         -> (yellow , "Topc", txt)
        ActionMsgType txt        -> (blue   , "Actn", txt)
        CtcpRspMsgType cmd txt   -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
@@ -120,21 +119,14 @@ compressedImageForState !st = renderOne (activeMessages st)
     mbImg =
        case view mesgType msg of
          PrivMsgType _ | visible -> Just $
+           statusMsgImage (view mesgStatus msg) <|>
            views mesgModes modePrefix msg <|>
            formatNick (view mesgMe msg) nick <|>
            string (withForeColor defAttr blue) (": ") <|>
            colored
 
-         StatusMsgType mode _ | visible -> Just $
-           char defAttr '(' <|>
-           char (withForeColor defAttr brightRed) mode <|>
-           string defAttr ") " <|>
-           views mesgModes modePrefix msg <|>
-           identImg (withForeColor defAttr brightWhite) nick <|>
-           string (withForeColor defAttr blue) (": ") <|>
-           colored
-
          NoticeMsgType _ | visible -> Just $
+           statusMsgImage (view mesgStatus msg) <|>
            string (withForeColor defAttr red) "! " <|>
            views mesgModes modePrefix msg <|>
            identImg (withForeColor defAttr red) nick <|>
@@ -142,6 +134,7 @@ compressedImageForState !st = renderOne (activeMessages st)
            colored
 
          ActionMsgType _ | visible -> Just $
+           statusMsgImage (view mesgStatus msg) <|>
            string (withForeColor defAttr blue) "* " <|>
            views mesgModes modePrefix msg <|>
            identImg (withForeColor defAttr blue) nick <|>
@@ -270,8 +263,16 @@ compressedImageForState !st = renderOne (activeMessages st)
 
   modePrefix modes =
     string (withForeColor defAttr blue)
-           (mapMaybe (`lookup` prefixes) modes)
+    [ prefix | (mode,prefix) <- prefixes, mode `elem` modes]
 
+
+statusMsgImage :: String -> Image
+statusMsgImage status
+  | null status = emptyImage
+  | otherwise =
+           char defAttr '(' <|>
+           string (withForeColor defAttr brightRed) status <|>
+           string defAttr ") "
 
 
 errorMessage :: IrcError -> Text

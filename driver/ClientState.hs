@@ -97,7 +97,6 @@ isRelevant (PrivMsgType   msg) = Just msg
 isRelevant (NoticeMsgType msg) = Just msg
 isRelevant (ActionMsgType msg) = Just msg
 isRelevant (ErrorMsgType msg)  = Just msg
-isRelevant (StatusMsgType _ msg) = Just msg
 isRelevant _                   = Nothing
 
 

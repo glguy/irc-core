@@ -70,6 +70,7 @@ module Irc.Model
   , isChannelName
   , isNickName
   , isMyNick
+  , splitStatusMsg
   ) where
 
 import Control.Applicative
@@ -397,12 +398,10 @@ advanceModel msg0 conn =
 
        Err target err ->
          do now <- getStamp
-            let mesg = IrcMessage
+            let mesg = defaultIrcMessage
                   { _mesgType    = ErrMsgType err
                   , _mesgSender  = UserInfo "" Nothing Nothing
                   , _mesgStamp   = now
-                  , _mesgMe      = False
-                  , _mesgModes   = ""
                   }
             recordMessage mesg target conn
 
@@ -410,12 +409,10 @@ advanceModel msg0 conn =
          doChannelError chan "Knock delivered" conn
        RplKnock chan who ->
          do now <- getStamp
-            let mesg = IrcMessage
+            let mesg = defaultIrcMessage
                   { _mesgType    = KnockMsgType
                   , _mesgSender  = who
                   , _mesgStamp   = now
-                  , _mesgMe      = False
-                  , _mesgModes   = ""
                   }
             recordMessage mesg chan conn
 
@@ -423,12 +420,10 @@ advanceModel msg0 conn =
          doChannelError chan ("Inviting " <> asUtf8 (idBytes nick)) conn
        Invite who chan ->
          do now <- getStamp
-            let mesg = IrcMessage
+            let mesg = defaultIrcMessage
                   { _mesgType    = InviteMsgType
                   , _mesgSender  = who
                   , _mesgStamp   = now
-                  , _mesgMe      = False
-                  , _mesgModes   = ""
                   }
             recordMessage mesg chan conn
 
@@ -610,12 +605,10 @@ doCallerIdDeliver ::
   IrcConnection -> Logic IrcConnection
 doCallerIdDeliver nick conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = CallerIdDeliveredMsgType
            , _mesgSender  = UserInfo nick Nothing Nothing
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordMessage mesg nick conn
 
@@ -626,12 +619,10 @@ doCallerId ::
 doCallerId nick mask conn =
   do stamp <- getStamp
      let (user,host) = B8.break (=='@') mask
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = CallerIdMsgType
            , _mesgSender  = UserInfo nick (Just user) (Just (B8.drop 1 host))
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordMessage mesg nick conn
 
@@ -652,12 +643,10 @@ doAwayReply ::
   IrcConnection -> Logic IrcConnection
 doAwayReply nick message conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = AwayMsgType message
            , _mesgSender  = UserInfo nick Nothing Nothing
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordMessage mesg nick conn
 
@@ -667,12 +656,10 @@ doChannelError ::
   IrcConnection -> Logic IrcConnection
 doChannelError chan reason conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = ErrorMsgType reason
            , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordMessage mesg chan conn
 
@@ -683,35 +670,21 @@ doPrivMsg ::
   Identifier {- ^ message target -} ->
   ByteString {- ^ message        -} ->
   IrcConnection -> Logic IrcConnection
-doPrivMsg who chan msg conn
-  | Just (x,xs) <- B8.uncons (idDenote chan)
-  , x `elem` view connStatusMsg conn =
-  do stamp <- getStamp
-     let chan' = mkId xs
-         mesg = IrcMessage
-                { _mesgType    = StatusMsgType x (asUtf8 msg)
-                , _mesgSender  = who
-                , _mesgStamp   = stamp
-                , _mesgMe      = False
-                , _mesgModes   = ""
-                }
-     recordMessage mesg chan' conn
-
 doPrivMsg who chan msg conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let (statusmsg, chan') = splitStatusMsg chan conn
+         mesg = defaultIrcMessage
                 { _mesgType    = ty
                 , _mesgSender  = who
                 , _mesgStamp   = stamp
-                , _mesgMe      = False
-                , _mesgModes   = ""
+                , _mesgStatus  = statusmsg
                 }
          ty = case parseCtcpCommand msg of
                 Nothing                 -> PrivMsgType (asUtf8 msg)
                 Just ("ACTION", action) -> ActionMsgType (asUtf8 action)
                 Just (command , args  ) -> CtcpReqMsgType command args
 
-     recordMessage mesg chan conn
+     recordMessage mesg chan' conn
 
 parseCtcpCommand :: ByteString -> Maybe (ByteString, ByteString)
 parseCtcpCommand msg
@@ -733,12 +706,10 @@ doTopic ::
 doTopic who chan topic conn =
   do stamp <- getStamp
      let topicText = asUtf8 topic
-         m = IrcMessage
+         m = defaultIrcMessage
                 { _mesgType = TopicMsgType topicText
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgModes = ""
-                , _mesgMe = False
                 }
          topicEntry = Just (topicText,renderUserInfo who,stamp)
          conn1 = set (connChannels . ix chan . chanTopic) (Just topicEntry) conn
@@ -819,12 +790,10 @@ doChannelModeIs chan modes args conn =
 doServerError :: Text -> IrcConnection -> Logic IrcConnection
 doServerError err conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = ErrorMsgType err
            , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordFor "" mesg
      return conn
@@ -886,14 +855,13 @@ doChannelModeChanges ms who chan conn0 =
                  (installModeChange settings now who polarity m a))
            (recordMessage modeMsg chan conn)
     where
-    modeMsg = IrcMessage
+    modeMsg = defaultIrcMessage
            { _mesgType   = ModeMsgType polarity m a
            , _mesgSender = who
            , _mesgStamp  = now
            , _mesgModes  = view ( connChannels . ix chan
                                 . chanUsers . ix (userNick who)
                                 ) conn
-           , _mesgMe     = False
            }
 
 installModeChange ::
@@ -995,12 +963,10 @@ doNick ::
   IrcConnection -> Logic IrcConnection
 doNick who newnick conn =
   do stamp <- getStamp
-     let m = IrcMessage
+     let m = defaultIrcMessage
                 { _mesgType = NickMsgType newnick
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgModes = ""
-                , _mesgMe = False
                 }
 
      let conn1 | isMyNick (userNick who) conn =
@@ -1036,12 +1002,10 @@ doPart ::
   IrcConnection -> Logic IrcConnection
 doPart who chan reason conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
                 { _mesgType = PartMsgType (asUtf8 reason)
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgMe = False
-                , _mesgModes = ""
                 }
          removeUser = set (chanUsers . at (userNick who)) Nothing
 
@@ -1069,12 +1033,10 @@ doKick ::
   IrcConnection -> Logic IrcConnection
 doKick who chan tgt reason conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
                 { _mesgType = KickMsgType tgt (asUtf8 reason)
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgModes = ""
-                , _mesgMe = False
                 }
 
      let conn1 = set (connChannels . ix chan . chanUsers . at tgt)
@@ -1118,12 +1080,10 @@ doQuit ::
   IrcConnection -> Logic IrcConnection
 doQuit who reason conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
                 { _mesgType = QuitMsgType (asUtf8 reason)
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgMe = False
-                , _mesgModes = ""
                 }
 
      iforOf (connChannels . itraversed)
@@ -1167,12 +1127,10 @@ doJoinChannel who acct chan conn =
                    Unknown -> id
 
      -- record join event
-         m = IrcMessage
+         m = defaultIrcMessage
                { _mesgType = JoinMsgType
                , _mesgSender = who
                , _mesgStamp = stamp
-               , _mesgMe = False
-               , _mesgModes = ""
                }
      recordMessage m chan conn3
 
@@ -1193,34 +1151,19 @@ doNotifyChannel ::
   IrcConnection ->
   Logic IrcConnection
 
--- TODO: STATUSMSG should just be a target, not a message type!
-doNotifyChannel who chan msg conn
-  | Just (x,xs) <- B8.uncons (idDenote chan)
-  , x `elem` view connStatusMsg conn =
-  do stamp <- getStamp
-     let chan' = mkId xs
-         mesg = IrcMessage
-                { _mesgType    = StatusMsgType x (asUtf8 msg)
-                , _mesgSender  = who
-                , _mesgStamp   = stamp
-                , _mesgMe      = False
-                , _mesgModes   = ""
-                }
-     recordMessage mesg chan' conn
-
 doNotifyChannel who chan msg conn =
   do stamp <- getStamp
+     let (statusmsg, chan') = splitStatusMsg chan conn
      let ty = case parseCtcpCommand msg of
                 Nothing                 -> NoticeMsgType (asUtf8 msg)
                 Just (command , args  ) -> CtcpRspMsgType command args
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
                { _mesgType = ty
                , _mesgSender = who
                , _mesgStamp = stamp
-               , _mesgMe = False
-               , _mesgModes = ""
+               , _mesgStatus = statusmsg
                }
-     recordMessage mesg chan conn
+     recordMessage mesg chan' conn
 
 doServerMessage ::
   ByteString {- ^ who -} ->
@@ -1228,12 +1171,10 @@ doServerMessage ::
   IrcConnection -> Logic IrcConnection
 doServerMessage who txt conn =
   do stamp <- getStamp
-     let m = IrcMessage
+     let m = defaultIrcMessage
                { _mesgType    = PrivMsgType (asUtf8 txt)
                , _mesgSender  = UserInfo (mkId who) Nothing Nothing
                , _mesgStamp   = stamp
-               , _mesgMe      = False
-               , _mesgModes   = ""
                }
      recordFor "" m
      return conn
@@ -1345,3 +1286,11 @@ isNickName c conn =
   case B8.uncons (idBytes c) of
     Just (x,_) -> not (x `elem` view connChanTypes conn)
     _ -> False -- probably shouldn't happen
+
+splitStatusMsg :: Identifier -> IrcConnection -> (String,Identifier)
+splitStatusMsg target conn = aux [] (idBytes target)
+  where
+  aux acc bs =
+    case B8.uncons bs of
+      Just (x,xs) | x `elem` view connStatusMsg conn -> aux (x:acc) xs
+      _ -> (reverse acc, mkId bs)
