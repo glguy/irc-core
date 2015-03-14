@@ -44,6 +44,14 @@ import qualified Data.ByteString.Char8 as B8
 
 import Irc.Format
 
+outgoingMsg :: RawIrcMsg
+outgoingMsg = RawIrcMsg
+  { msgTime = Nothing
+  , msgPrefix = Nothing
+  , msgCommand = ""
+  , msgParams = []
+  }
+
 -- | Construct a MODE command
 --
 -- @MODE target *(mode) *(modeparams)@
@@ -51,9 +59,8 @@ modeCmd ::
   Identifier   {- ^ target -} ->
   [ByteString] {- ^ modes and params -} ->
   ByteString
-modeCmd c modes = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand  = "MODE"
+modeCmd c modes = renderRawIrcMsg outgoingMsg
+  { msgCommand  = "MODE"
   , msgParams = idBytes c : modes
   }
 
@@ -65,9 +72,8 @@ kickCmd ::
   Identifier {- ^ nick  -} ->
   ByteString {- ^ msg -} ->
   ByteString
-kickCmd c nick msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand  = "KICK"
+kickCmd c nick msg = renderRawIrcMsg outgoingMsg
+  { msgCommand  = "KICK"
   , msgParams = [idBytes c, idBytes nick, msg]
   }
 
@@ -79,9 +85,8 @@ removeCmd ::
   Identifier {- ^ nick  -} ->
   ByteString {- ^ msg -} ->
   ByteString
-removeCmd c nick msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand  = "REMOVE"
+removeCmd c nick msg = renderRawIrcMsg outgoingMsg
+  { msgCommand  = "REMOVE"
   , msgParams = [idBytes c, idBytes nick, msg]
   }
 
@@ -91,9 +96,8 @@ removeCmd c nick msg = renderRawIrcMsg RawIrcMsg
 --
 -- @JOIN channel [key]@
 joinCmd :: Identifier -> Maybe ByteString -> ByteString
-joinCmd chan mbKeys = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand  = "JOIN"
+joinCmd chan mbKeys = renderRawIrcMsg outgoingMsg
+  { msgCommand  = "JOIN"
   , msgParams = [idBytes chan] <> toList mbKeys
   }
 
@@ -104,9 +108,8 @@ partCmd ::
   Identifier {- ^ channel -} ->
   ByteString {- ^ message -} ->
   ByteString
-partCmd chan msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand  = "PART"
+partCmd chan msg = renderRawIrcMsg outgoingMsg
+  { msgCommand  = "PART"
   , msgParams = [idBytes chan,msg]
   }
 
@@ -118,9 +121,8 @@ topicCmd ::
   Identifier {- ^ channel -} ->
   ByteString {- ^ topic   -} ->
   ByteString
-topicCmd chan msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand  = "TOPIC"
+topicCmd chan msg = renderRawIrcMsg outgoingMsg
+  { msgCommand  = "TOPIC"
   , msgParams = [idBytes chan,msg]
   }
 
@@ -130,9 +132,8 @@ topicCmd chan msg = renderRawIrcMsg RawIrcMsg
 whoisCmd ::
   Identifier {- ^ user -} ->
   ByteString
-whoisCmd user = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand  = "WHOIS"
+whoisCmd user = renderRawIrcMsg outgoingMsg
+  { msgCommand  = "WHOIS"
   , msgParams = [idBytes user]
   }
 
@@ -142,9 +143,8 @@ whoisCmd user = renderRawIrcMsg RawIrcMsg
 whowasCmd ::
   Identifier {- ^ user -} ->
   ByteString
-whowasCmd user = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand  = "WHOWAS"
+whowasCmd user = renderRawIrcMsg outgoingMsg
+  { msgCommand  = "WHOWAS"
   , msgParams = [idBytes user]
   }
 
@@ -155,9 +155,8 @@ whowasCmd user = renderRawIrcMsg RawIrcMsg
 nickCmd ::
   Identifier {- ^ nickname -} ->
   ByteString
-nickCmd nick = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "NICK"
+nickCmd nick = renderRawIrcMsg outgoingMsg
+  { msgCommand = "NICK"
   , msgParams = [idBytes nick]
   }
 
@@ -169,9 +168,8 @@ userCmd ::
   ByteString {- ^ username -} ->
   ByteString {- ^ realname -} ->
   ByteString
-userCmd user realname = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "USER"
+userCmd user realname = renderRawIrcMsg outgoingMsg
+  { msgCommand = "USER"
   , msgParams = [user,"0","*",realname]
   }
 
@@ -182,9 +180,8 @@ userCmd user realname = renderRawIrcMsg RawIrcMsg
 pongCmd ::
   ByteString {- ^ token -} ->
   ByteString
-pongCmd token = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "PONG"
+pongCmd token = renderRawIrcMsg outgoingMsg
+  { msgCommand = "PONG"
   , msgParams = [token]
   }
 
@@ -195,9 +192,8 @@ pongCmd token = renderRawIrcMsg RawIrcMsg
 passCmd ::
   ByteString {- ^ password -} ->
   ByteString
-passCmd password = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "PASS"
+passCmd password = renderRawIrcMsg outgoingMsg
+  { msgCommand = "PASS"
   , msgParams = [password]
   }
 
@@ -207,9 +203,8 @@ passCmd password = renderRawIrcMsg RawIrcMsg
 --
 -- @CAP LS@
 capLsCmd :: ByteString
-capLsCmd = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "CAP"
+capLsCmd = renderRawIrcMsg outgoingMsg
+  { msgCommand = "CAP"
   , msgParams = ["LS"]
   }
 
@@ -218,9 +213,8 @@ capLsCmd = renderRawIrcMsg RawIrcMsg
 --
 -- @CAP REQ :cap0 cap1 .. capN@
 capReqCmd :: [ByteString] -> ByteString
-capReqCmd caps = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand    = "CAP"
+capReqCmd caps = renderRawIrcMsg outgoingMsg
+  { msgCommand    = "CAP"
   , msgParams = ["REQ",B8.unwords caps]
   }
 
@@ -229,9 +223,8 @@ capReqCmd caps = renderRawIrcMsg RawIrcMsg
 --
 -- @CAP END@
 capEndCmd :: ByteString
-capEndCmd = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand    = "CAP"
+capEndCmd = renderRawIrcMsg outgoingMsg
+  { msgCommand    = "CAP"
   , msgParams = ["END"]
   }
 
@@ -243,9 +236,8 @@ privMsgCmd ::
   Identifier {- ^ target  -} ->
   ByteString {- ^ message -} ->
   ByteString
-privMsgCmd target msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "PRIVMSG"
+privMsgCmd target msg = renderRawIrcMsg outgoingMsg
+  { msgCommand = "PRIVMSG"
   , msgParams = [idBytes target,msg]
   }
 
@@ -257,9 +249,8 @@ noticeCmd ::
   Identifier {- ^ target  -} ->
   ByteString {- ^ message -} ->
   ByteString
-noticeCmd target msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "NOTICE"
+noticeCmd target msg = renderRawIrcMsg outgoingMsg
+  { msgCommand = "NOTICE"
   , msgParams = [idBytes target,msg]
   }
 
@@ -269,9 +260,8 @@ noticeCmd target msg = renderRawIrcMsg RawIrcMsg
 authenticateCmd ::
   ByteString {- ^ message -} ->
   ByteString
-authenticateCmd msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "AUTHENTICATE"
+authenticateCmd msg = renderRawIrcMsg outgoingMsg
+  { msgCommand = "AUTHENTICATE"
   , msgParams = [msg]
   }
 
@@ -281,9 +271,8 @@ authenticateCmd msg = renderRawIrcMsg RawIrcMsg
 helpCmd ::
   ByteString {- ^ topic -} ->
   ByteString
-helpCmd msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "HELP"
+helpCmd msg = renderRawIrcMsg outgoingMsg
+  { msgCommand = "HELP"
   , msgParams = [msg]
   }
 
@@ -293,9 +282,8 @@ helpCmd msg = renderRawIrcMsg RawIrcMsg
 awayCmd ::
   ByteString {- ^ message -} ->
   ByteString
-awayCmd msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "AWAY"
+awayCmd msg = renderRawIrcMsg outgoingMsg
+  { msgCommand = "AWAY"
   , msgParams = [msg]
   }
 
@@ -305,9 +293,8 @@ awayCmd msg = renderRawIrcMsg RawIrcMsg
 quitCmd ::
   ByteString {- ^ message -} ->
   ByteString
-quitCmd msg = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "QUIT"
+quitCmd msg = renderRawIrcMsg outgoingMsg
+  { msgCommand = "QUIT"
   , msgParams = [msg]
   }
 
@@ -317,9 +304,8 @@ quitCmd msg = renderRawIrcMsg RawIrcMsg
 listCmd ::
   [Identifier] {- ^ channels -} ->
   ByteString
-listCmd chans = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "LIST"
+listCmd chans = renderRawIrcMsg outgoingMsg
+  { msgCommand = "LIST"
   , msgParams = [B8.intercalate "," (map idBytes chans)]
   }
 
@@ -330,9 +316,8 @@ inviteCmd ::
   Identifier {- ^ nickname -} ->
   Identifier {- ^ channel  -} ->
   ByteString
-inviteCmd nick chan = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "INVITE"
+inviteCmd nick chan = renderRawIrcMsg outgoingMsg
+  { msgCommand = "INVITE"
   , msgParams = [idBytes nick,idBytes chan]
   }
 
@@ -342,9 +327,8 @@ inviteCmd nick chan = renderRawIrcMsg RawIrcMsg
 namesCmd ::
   [Identifier] {- ^ channels -} ->
   ByteString
-namesCmd chans = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "NAMES"
+namesCmd chans = renderRawIrcMsg outgoingMsg
+  { msgCommand = "NAMES"
   , msgParams = if null chans
                   then []
                   else [B8.intercalate "," (map idBytes chans)]
@@ -357,9 +341,8 @@ operCmd ::
   ByteString {- ^ name -} ->
   ByteString {- ^ password -} ->
   ByteString
-operCmd name pass = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "OPER"
+operCmd name pass = renderRawIrcMsg outgoingMsg
+  { msgCommand = "OPER"
   , msgParams = [name,pass]
   }
 
@@ -369,9 +352,8 @@ operCmd name pass = renderRawIrcMsg RawIrcMsg
 whoCmd ::
   ByteString {- ^ mask -} ->
   ByteString
-whoCmd mask = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "WHO"
+whoCmd mask = renderRawIrcMsg outgoingMsg
+  { msgCommand = "WHO"
   , msgParams = [mask]
   }
 
@@ -381,9 +363,8 @@ whoCmd mask = renderRawIrcMsg RawIrcMsg
 knockCmd ::
   Identifier {- ^ channel -} ->
   ByteString
-knockCmd chan = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "KNOCK"
+knockCmd chan = renderRawIrcMsg outgoingMsg
+  { msgCommand = "KNOCK"
   , msgParams = [idBytes chan]
   }
 
@@ -393,9 +374,8 @@ knockCmd chan = renderRawIrcMsg RawIrcMsg
 acceptCmd ::
   ByteString {- ^ nick, -nick, * -} ->
   ByteString
-acceptCmd nick = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "ACCEPT"
+acceptCmd nick = renderRawIrcMsg outgoingMsg
+  { msgCommand = "ACCEPT"
   , msgParams = [nick]
   }
 
@@ -405,8 +385,7 @@ acceptCmd nick = renderRawIrcMsg RawIrcMsg
 timeCmd ::
   Maybe ByteString {- ^ server -} ->
   ByteString
-timeCmd server = renderRawIrcMsg RawIrcMsg
-  { msgPrefix = Nothing
-  , msgCommand = "TIME"
+timeCmd server = renderRawIrcMsg outgoingMsg
+  { msgCommand = "TIME"
   , msgParams = toList server
   }

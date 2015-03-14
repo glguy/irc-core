@@ -114,7 +114,7 @@ initializeConnection args h =
       toUtf8 = Text.encodeUtf8 . Text.pack
       toId = mkId . B8.pack
 
-driver :: Vty -> TChan Event -> TChan MsgFromServer -> ClientState -> IO ()
+driver :: Vty -> TChan Event -> TChan (UTCTime, MsgFromServer) -> ClientState -> IO ()
 driver vty vtyEventChan ircMsgChan st0 =
   do let (scroll', pic) = picForState st0
          st1 = set clientScrollPos scroll' st0
@@ -122,7 +122,7 @@ driver vty vtyEventChan ircMsgChan st0 =
      e <- readEitherTChan vtyEventChan ircMsgChan
      case e of
        Left vtyEvent -> processVtyEvent st1 vtyEvent
-       Right msg     -> processIrcMsg st1 msg
+       Right (time,msg) -> processIrcMsg st1 time msg
 
   where
   continue = driver vty vtyEventChan ircMsgChan
@@ -147,14 +147,12 @@ driver vty vtyEventChan ircMsgChan st0 =
 
       _ -> continue st
 
-  processIrcMsg st msg =
-    do now <- getCurrentTime
-
-       let m :: IO (Either String IrcConnection, ClientState)
+  processIrcMsg st time msg =
+    do let m :: IO (Either String IrcConnection, ClientState)
            m = flip runStateT st
              $ retract
              $ hoistFree (interpretLogicOp ircMsgChan)
-             $ runLogic now (advanceModel msg (view clientConnection st))
+             $ runLogic time (advanceModel msg (view clientConnection st))
 
        res <- m
        case res of
@@ -162,10 +160,10 @@ driver vty vtyEventChan ircMsgChan st0 =
                             continue st'
          (Right conn',st') -> continue (set clientConnection conn' st')
 
-interpretLogicOp :: TChan MsgFromServer -> LogicOp a -> StateT ClientState IO a
+interpretLogicOp :: TChan (UTCTime, MsgFromServer) -> LogicOp a -> StateT ClientState IO a
 
 interpretLogicOp ircMsgChan (Expect k) =
-  do fmap k (liftIO (atomically (readTChan ircMsgChan)))
+  do fmap (k.snd) (liftIO (atomically (readTChan ircMsgChan)))
 
 interpretLogicOp _ (Emit bytes r) =
   do st <- get
@@ -776,31 +774,37 @@ sendLoop queue h =
           tickRateLimit r
           B.hPut h x
 
-socketLoop :: TChan MsgFromServer -> Handle -> Maybe Handle -> IO ()
+socketLoop :: TChan (UTCTime, MsgFromServer) -> Handle -> Maybe Handle -> IO ()
 socketLoop chan h hErr =
   forever (atomically . writeTChan chan =<< getOne h hErr)
   `catches`
    [ Handler $ \ioe ->
-        let msg = if isEOFError ioe
+      do let msg = if isEOFError ioe
                     then "Connection terminated"
                     else Text.encodeUtf8 (Text.pack (show ioe))
-        in atomically (writeTChan chan (Error msg))
+         now <- getCurrentTime
+         atomically (writeTChan chan (now, Error msg))
    , Handler $ \(SomeException e) ->
-        atomically (writeTChan chan (Error (Text.encodeUtf8 (Text.pack (show e)))))
+        do now <- getCurrentTime
+           atomically (writeTChan chan (now, Error (Text.encodeUtf8 (Text.pack (show e)))))
    ]
 
 vtyEventLoop :: TChan Event -> Vty -> IO a
 vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)
 
-getOne :: Handle -> Maybe Handle -> IO MsgFromServer
+getOne :: Handle -> Maybe Handle -> IO (UTCTime, MsgFromServer)
 getOne h hErr =
     do xs <- ircGetLine h
        case parseRawIrcMsg xs of
          Nothing -> debug xs >> getOne h hErr
          Just msg ->
            case ircMsgToServerMsg msg of
-             Just x -> debug x >> return x
              Nothing -> debug msg >> getOne h hErr
+             Just x -> do t <- case msgTime msg of
+                                 Nothing -> getCurrentTime
+                                 Just t  -> return t
+                          debug x
+                          return (t,x)
   where
   debug x = for_ hErr (`hPrint` x)
 

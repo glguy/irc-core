@@ -22,7 +22,9 @@ import Data.ByteString.Builder (Builder)
 import Data.Monoid
 import Data.String
 import Data.Text (Text)
+import Data.Time (UTCTime, parseTime)
 import System.IO (Handle)
+import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as B8
@@ -45,7 +47,8 @@ data UserInfo = UserInfo
 --
 -- @:prefix COMMAND param0 param1 param2 .. paramN@
 data RawIrcMsg = RawIrcMsg
-  { msgPrefix  :: Maybe UserInfo
+  { msgTime    :: Maybe UTCTime
+  , msgPrefix  :: Maybe UserInfo
   , msgCommand :: ByteString
   , msgParams  :: [ByteString]
   }
@@ -78,18 +81,42 @@ idDenote (Identifier _ x) = x
 -- information into a structured message.
 parseRawIrcMsg :: ByteString -> Maybe RawIrcMsg
 parseRawIrcMsg x =
-  do (y,ys) <- B.uncons x
-     if y == 58
+  do (timePart,x') <- splitTimePart x
+     (y,ys) <- B8.uncons x'
+     if y == ':'
        then case duplicate (tokens ys) of
               prefix : command : rest ->
-                return $! RawIrcMsg (Just (parseUserInfo prefix))
-                                    command
-                                    rest
+                return $! RawIrcMsg
+                            { msgTime    = timePart
+                            , msgPrefix  = Just (parseUserInfo prefix)
+                            , msgCommand = command
+                            , msgParams  = rest
+                            }
               _ -> Nothing
        else case duplicate (tokens x) of
               command : rest ->
-                return $! RawIrcMsg Nothing command rest
+                return $! RawIrcMsg
+                            { msgTime    = timePart
+                            , msgPrefix  = Nothing
+                            , msgCommand = command
+                            , msgParams  = rest
+                            }
               _ -> Nothing
+
+-- server-time-iso format
+-- @time=2015-03-04T22:29:04.064Z
+splitTimePart :: ByteString -> Maybe (Maybe UTCTime, ByteString)
+splitTimePart x
+  | B.isPrefixOf key x =
+      do let (timeStr,x') = B8.break (==' ') (B.drop (B.length key) x)
+         time <- parseIrcTime (B8.unpack timeStr)
+         Just (Just time, B.drop 1 x')
+  | otherwise = Just (Nothing,x)
+  where
+  key = "@time="
+
+parseIrcTime :: String -> Maybe UTCTime
+parseIrcTime = parseTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%Z"
 
 renderUserInfo :: UserInfo -> ByteString
 renderUserInfo u = idBytes (userNick u)

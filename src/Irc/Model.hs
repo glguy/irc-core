@@ -720,7 +720,8 @@ doCapLs rawCaps conn =
   offeredCaps = B8.words rawCaps
   supportedCaps = saslSupport
                ++ ["away-notify","account-notify","userhost-in-names",
-                   "extended-join","multi-prefix"]
+                   "extended-join","multi-prefix",
+                   "znc.in/server-time-iso","server-time"]
   saslSupport =
     case view connSasl conn of
       Nothing -> []
