@@ -282,8 +282,8 @@ advanceModel msg0 conn =
        RplLuserChannels _   -> return conn
        RplLuserMe _         -> return conn
        RplLuserClient _     -> return conn
-       RplLocalUsers _ _    -> return conn
-       RplGlobalUsers _ _   -> return conn
+       RplLocalUsers _      -> return conn
+       RplGlobalUsers _     -> return conn
        RplStatsConn _       -> return conn
        RplLuserUnknown _    -> return conn
        RplLuserAdminMe _    -> return conn

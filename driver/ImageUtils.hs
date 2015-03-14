@@ -4,7 +4,7 @@ module ImageUtils where
 import Control.Lens
 import Data.Array
 import Data.ByteString (ByteString)
-import Data.Char (isControl, isAlpha)
+import Data.Char (isControl, isAlphaNum)
 import Data.Set (Set)
 import Data.Text (Text)
 import Graphics.Vty.Image
@@ -184,8 +184,8 @@ nameHighlighter msg users me colors = aux 0 0
 
     advance curHi
       | curHi + 1 == n = curHi + 1
-      | isAlpha (B8.index lowmsg curHi)
-      , isAlpha (B8.index lowmsg (curHi+1)) = advance (curHi+1)
+      | isAlphaNum (B8.index lowmsg curHi)
+      , isAlphaNum (B8.index lowmsg (curHi+1)) = advance (curHi+1)
       | otherwise = curHi+1
 
 
@@ -198,7 +198,7 @@ nameLookup haystack s =
   where
   boundaryCheck needle =
     B8.length needle == B8.length (idDenote haystack) ||
-    not (isAlpha (B8.index (idDenote haystack) (B8.length needle)))
+    not (isAlphaNum (B8.index (idDenote haystack) (B8.length needle)))
 
 nickHash :: ByteString -> Int
 nickHash n =

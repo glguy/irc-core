@@ -64,8 +64,8 @@ data MsgFromServer
   | RplLuserAdminLoc2 ByteString -- ^ 258 admin-info-2
   | RplLuserAdminEmail ByteString -- ^ 259 admin-email
   | RplLoadTooHigh ByteString -- ^ 263 command
-  | RplLocalUsers ByteString ByteString -- ^ 265 local max
-  | RplGlobalUsers ByteString ByteString -- ^ 266 global max
+  | RplLocalUsers [ByteString] -- ^ 265 [local] [max] txt
+  | RplGlobalUsers [ByteString] -- ^ 266 [global] [max] txt
   | RplWhoisCertFp Identifier ByteString -- ^ 276 nick txt
   | RplAcceptList Identifier -- ^ 281
   | RplEndOfAccept -- ^ 282
@@ -294,11 +294,11 @@ ircMsgToServerMsg ircmsg =
     ("263",[_,cmd,_]) ->
        Just (RplLoadTooHigh cmd)
 
-    ("265",[_,localusers,maxusers,_txt]) ->
-       Just (RplLocalUsers localusers maxusers)
+    ("265", _:params) ->
+       Just (RplLocalUsers params)
 
-    ("266",[_,globalusers,maxusers,_txt]) ->
-       Just (RplGlobalUsers globalusers maxusers)
+    ("266", _:params ) ->
+       Just (RplGlobalUsers params)
 
     ("276",[_,nick,txt]) ->
        Just (RplWhoisCertFp (mkId nick) txt)
