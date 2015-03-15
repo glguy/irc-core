@@ -99,7 +99,7 @@ data MsgFromServer
   | RplEndOfInviteList Identifier -- ^ 347 channel
   | RplExceptionList Identifier ByteString ByteString UTCTime -- ^ 348 channel mask who timestamp
   | RplEndOfExceptionList Identifier -- ^ 349 channel
-  | RplVersion ByteString ByteString ByteString -- ^ 351 version server comments
+  | RplVersion [ByteString] -- ^ 351 version server comments
   | RplWhoReply Identifier ByteString ByteString ByteString Identifier ByteString ByteString -- ^ 352 channel user host server nick flags txt
   | RplNameReply ChannelType Identifier [ByteString] -- ^ 353 channeltype channel names
   | RplLinks ByteString ByteString ByteString -- ^ 364 mask server info
@@ -396,8 +396,8 @@ ircMsgToServerMsg ircmsg =
     ("349",[_,chan,_txt]) ->
        Just (RplEndOfExceptionList (mkId chan))
 
-    ("351",[_,version,server,comments]) ->
-       Just (RplVersion version server comments)
+    ("351", _:version) ->
+       Just (RplVersion version)
 
     ("352",[_,chan,user,host,server,nick,flags,txt]) ->
        Just (RplWhoReply (mkId chan) user host server (mkId nick) flags txt) -- trailing is: <hop> <realname>

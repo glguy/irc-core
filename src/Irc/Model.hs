@@ -505,8 +505,8 @@ advanceModel msg0 conn =
        Error e -> doServerError (asUtf8 e) conn
 
        RplISupport isupport -> doISupport isupport conn
-       RplVersion version server comments ->
-         doServerMessage "VERSION" (B8.unwords [version,server,comments]) conn
+       RplVersion version ->
+         doServerMessage "VERSION" (B8.unwords version) conn
 
        RplUmodeGMsg nick mask -> doCallerId nick mask conn
        RplTargNotify nick -> doCallerIdDeliver nick conn
