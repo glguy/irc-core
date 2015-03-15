@@ -14,6 +14,7 @@ module CommandParser
   , pChar
   , pSatisfy
   , pHaskell
+  , pAnyChar
   , commandsParser
   ) where
 
@@ -58,6 +59,12 @@ instance Alternative Parser where
       (rx@(_,_,Just{}),_) -> rx
       (_,ry@(_,_,Just{})) -> ry
       (rx,_) -> rx
+
+pAnyChar :: Parser Char
+pAnyChar = pValidToken "character" $ \t ->
+  case t of
+    [x] -> Just x
+    _   -> Nothing
 
 pValidToken :: String -> (String -> Maybe a) -> Parser a
 pValidToken name validate = Parser $ \s ->

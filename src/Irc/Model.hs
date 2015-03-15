@@ -269,10 +269,15 @@ advanceModel msg0 conn =
        RplGlobalUsers _     -> return conn
        RplStatsConn _       -> return conn
        RplLuserUnknown _    -> return conn
-       RplLuserAdminMe _    -> return conn
-       RplLuserAdminLoc1 _  -> return conn
-       RplLuserAdminLoc2 _  -> return conn
-       RplLuserAdminEmail _ -> return conn
+
+       RplLuserAdminMe    txt ->
+         doServerMessage "ADMIN" txt conn
+       RplLuserAdminLoc1  txt ->
+         doServerMessage "ADMIN" txt conn
+       RplLuserAdminLoc2  txt ->
+         doServerMessage "ADMIN" txt conn
+       RplLuserAdminEmail txt ->
+         doServerMessage "ADMIN" txt conn
 
        -- Channel list not implemented
        RplListStart     -> return conn

@@ -291,7 +291,7 @@ ircMsgToServerMsg ircmsg =
        Just (RplLuserChannels num)
 
     ("255",[_,txt]) -> Just (RplLuserMe txt)
-    ("256",[_,server,_]) -> Just (RplLuserAdminMe server)
+    ("256",[_,server]) -> Just (RplLuserAdminMe server)
     ("257",[_,txt]) -> Just (RplLuserAdminLoc1 txt)
     ("258",[_,txt]) -> Just (RplLuserAdminLoc2 txt)
     ("259",[_,txt]) -> Just (RplLuserAdminEmail txt)

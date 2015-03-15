@@ -509,6 +509,20 @@ commandEvent st = commandsParser (clientInput st)
     (\mbServer -> st' <$ clientSend (timeCmd (fmap (Text.encodeUtf8 . Text.pack) mbServer)) st')
     <$> optional (pToken "server"))
 
+  , ("admin",
+    (\mbServer -> st' <$ clientSend (adminCmd (fmap (Text.encodeUtf8 . Text.pack) mbServer)) st')
+    <$> optional (pToken "server"))
+
+  , ("stats",
+    (\letter mbTarget ->
+        st' <$ clientSend (statsCmd letter (fmap (Text.encodeUtf8 . Text.pack) mbTarget)) st')
+    <$> pAnyChar <*> optional (pToken "target"))
+
+  , ("oper",
+    (\user pass -> st' <$ clientSend (operCmd (Text.encodeUtf8 (Text.pack user))
+                                              (Text.encodeUtf8 (Text.pack pass))) st')
+    <$> pToken "username" <*> pToken "password")
+
   ]
 
 doMode ::

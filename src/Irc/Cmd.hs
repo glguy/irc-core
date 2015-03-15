@@ -37,6 +37,8 @@ module Irc.Cmd
   , knockCmd
   , acceptCmd
   , timeCmd
+  , adminCmd
+  , statsCmd
   ) where
 
 import Data.Monoid
@@ -410,4 +412,27 @@ timeCmd ::
 timeCmd server = renderRawIrcMsg outgoingMsg
   { msgCommand = "TIME"
   , msgParams = toList server
+  }
+
+-- | Construct an ADMIN command.
+--
+-- @ADMIN [<server>]>@
+adminCmd ::
+  Maybe ByteString {- ^ server -} ->
+  ByteString
+adminCmd server = renderRawIrcMsg outgoingMsg
+  { msgCommand = "ADMIN"
+  , msgParams = toList server
+  }
+
+-- | Construct a STATS command.
+--
+-- @STATS <letter> [<server>]>@
+statsCmd ::
+  Char ->
+  Maybe ByteString {- ^ target -} ->
+  ByteString
+statsCmd letter target = renderRawIrcMsg outgoingMsg
+  { msgCommand = "STATS"
+  , msgParams = B8.singleton letter : toList target
   }
