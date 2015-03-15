@@ -109,7 +109,7 @@ main = do
          , _clientHighlights      = mempty
          , _clientMessages        = mempty
          , _clientNickColors      = defaultNickColors
-         , _clientAutomation      = [ctcpHandler]
+         , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop]
          , _clientTimers          = mempty
          , _clientUserInfo        = Text.encodeUtf8 (Text.pack (view cmdArgUserInfo args))
          }
@@ -436,9 +436,8 @@ commandEvent st = commandsParser (clientInput st)
   , ("invite",
     (\nick ->
        case focusedChan st of
-         Nothing -> return st
-         Just chan ->
-           doInvite nick chan st)
+         Nothing   -> return st
+         Just chan -> doInvite nick chan st)
     <$> pNick st)
 
   , ("knock",
@@ -1030,3 +1029,19 @@ doAutoKickBan chan nick reason st =
   banMask = fromMaybe nickMask
           $ previews (folded . usrAccount . folded) ("$a:"<>) usr
     `mplus` previews (folded . usrHost    . folded) ("*!*@"<>) usr
+
+-- | Cancel any pending deop timer if I'm deopped
+cancelDeopTimerOnDeop :: EventHandler
+cancelDeopTimerOnDeop = EventHandler
+  { _evName = "cancel deop timer on deop"
+  , _evOnEvent = \evTgt evMsg evSt ->
+      let evSt' = reschedule evSt in
+      case view mesgType evMsg of
+        ModeMsgType False 'o' modeNick
+          | mkId modeNick == view (clientConnection.connNick) evSt ->
+                return $ filterTimerEvents (/= DropOperator evTgt) evSt'
+
+        _ -> return evSt'
+  }
+  where
+  reschedule = over clientAutomation (cons cancelDeopTimerOnDeop)
