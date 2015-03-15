@@ -20,6 +20,7 @@ data CommandArgs = CommandArgs
   , _cmdArgSaslUser :: String
   , _cmdArgSaslPass :: Maybe String
   , _cmdArgDebug    :: Maybe FilePath
+  , _cmdArgUserInfo :: String
   }
 
 makeLenses ''CommandArgs
@@ -36,6 +37,7 @@ initialCommandArgs = CommandArgs
   , _cmdArgSaslUser = ""
   , _cmdArgSaslPass = Nothing
   , _cmdArgDebug    = Nothing
+  , _cmdArgUserInfo = ""
   }
 
 getCommandArgs :: IO CommandArgs
@@ -82,5 +84,6 @@ optDescrs =
   , Option "r" ["real"] (ReqArg (set cmdArgReal) "REAL") "Real Name"
   , Option ""  ["sasl-user"] (ReqArg (set cmdArgSaslUser) "USER") "SASL username"
   , Option "d" ["debug"] (ReqArg (set cmdArgDebug . Just) "FILE") "Debug log filename"
+  , Option "i" ["userinfo"] (ReqArg (set cmdArgUserInfo) "USERINFO") "CTCP USERINFO Response"
   , Option "h" ["help"] (NoArg  (set cmdArgHelp True))   "Show help"
   ]

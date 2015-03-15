@@ -41,6 +41,7 @@ data ClientState = ClientState
   , _clientTimeView   :: !Bool
   , _clientMetaView   :: !Bool
   , _clientEditBox    :: EditBox
+  , _clientUserInfo   :: ByteString -- ctcp standard says users has to set this
   , _clientTabPattern :: Maybe String
   , _clientScrollPos :: Int
   , _clientHeight :: Int

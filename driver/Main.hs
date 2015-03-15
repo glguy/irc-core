@@ -107,6 +107,7 @@ main = do
          , _clientMessages        = mempty
          , _clientNickColors      = defaultNickColors
          , _clientAutomation      = [ctcpHandler]
+         , _clientUserInfo        = Text.encodeUtf8 (Text.pack (view cmdArgUserInfo args))
          }
 
 initializeConnection :: CommandArgs -> Handle -> IO ()

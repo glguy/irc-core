@@ -33,12 +33,21 @@ ctcpHandler = EventHandler
                -- Don't send responses to ignored users
                unless (view (clientIgnores . contains sender) st) $
                  case command of
+                   "CLIENTINFO" ->
+                     clientSend (ctcpResponseCmd sender "CLIENTINFO"
+                                   "ACTION CLIENTINFO FINGER PING SOURCE TIME USERINFO VERSION") st
                    "VERSION" ->
                      clientSend (ctcpResponseCmd sender "VERSION" versionString) st
+                   "USERINFO" ->
+                     clientSend (ctcpResponseCmd sender "USERINFO"
+                                    (view clientUserInfo st)) st
                    "PING" ->
                      clientSend (ctcpResponseCmd sender "PING" params) st
                    "SOURCE" ->
                      clientSend (ctcpResponseCmd sender "SOURCE" sourceString) st
+                   "FINGER" ->
+                     clientSend (ctcpResponseCmd sender "FINGER"
+                                    "Username and idle time unavailable") st
                    "TIME" -> do
                      now <- getZonedTime
                      let resp = formatTime defaultTimeLocale "%a %d %b %Y %T %Z" now
