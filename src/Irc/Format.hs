@@ -132,7 +132,7 @@ rawIrcMsgParser =
 -- | Parse the list of parameters in a raw message. The RFC
 -- allows for up to 15 parameters.
 paramsParser :: Int -> Parser [ByteString]
-paramsParser n = endOfInput $> []
+paramsParser n = optional (char ' ') *> endOfInput $> []
              <|> char ' '   *> more
   where
   more

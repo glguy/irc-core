@@ -7,15 +7,17 @@ module ClientState where
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.DeepSeq (force)
 import Control.Lens
-import Control.Monad (foldM)
+import Control.Monad (foldM, guard)
 import Data.ByteString (ByteString)
 import Data.Char (isControl)
 import Data.Functor
+import Data.Functor.Compose
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
+import Data.Time (UTCTime)
 import Graphics.Vty.Image
 import System.IO (Handle)
 import qualified Data.ByteString as B
@@ -51,8 +53,13 @@ data ClientState = ClientState
   , _clientMessages :: !(Map Identifier MessageList)
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
+  , _clientTimers     :: Map UTCTime [TimerEvent]
   }
   -- TODO: split this record into logical pieces
+
+data TimerEvent
+  = DropOperator Identifier
+  deriving (Read, Show, Eq)
 
 data MessageList = MessageList
   { _mlNewMessages :: !Int
@@ -82,6 +89,7 @@ makeLenses ''ClientState
 makeLenses ''MessageList
 makeLenses ''EventHandler
 makePrisms ''Focus
+makePrisms ''TimerEvent
 
 resetCurrentChannelMessages :: ClientState -> ClientState
 resetCurrentChannelMessages st =
@@ -238,3 +246,26 @@ prevInSorted x ys =
      case Set.maxView ys of
        Just (y,_) -> y
        Nothing    -> x
+
+nextTimerEvent :: UTCTime -> ClientState -> Maybe (TimerEvent, ClientState)
+nextTimerEvent now = alaf Compose clientTimers aux
+  where
+  aux :: Map UTCTime [TimerEvent] -> Maybe (TimerEvent, Map UTCTime [TimerEvent])
+  aux timers =
+    do ((when,events), timers1) <- Map.minViewWithKey timers
+       guard (when <= now)
+       case events of
+         []   -> error "nextTimerEvent: empty entry!"
+         [e]  -> return (e, timers1)
+         e:es -> return (e, Map.insert when es timers1)
+
+filterTimerEvents :: (TimerEvent -> Bool) -> ClientState -> ClientState
+filterTimerEvents p = over clientTimers (Map.mapMaybe aux)
+  where
+  aux xs
+    | null xs' = Nothing
+    | otherwise = Just xs'
+    where xs' = filter p xs
+
+addTimerEvent :: UTCTime -> TimerEvent -> ClientState -> ClientState
+addTimerEvent when e = over clientTimers (Map.insertWith (++) when [e])

@@ -56,6 +56,9 @@ import qualified EditBox as Edit
 data SendType = SendCtcp String | SendPriv | SendNotice | SendAction
 makePrisms ''SendType
 
+deopWaitDuration :: NominalDiffTime
+deopWaitDuration = 5*60 -- seconds
+
 main :: IO ()
 main = do
   args <- getCommandArgs
@@ -107,6 +110,7 @@ main = do
          , _clientMessages        = mempty
          , _clientNickColors      = defaultNickColors
          , _clientAutomation      = [ctcpHandler]
+         , _clientTimers          = mempty
          , _clientUserInfo        = Text.encodeUtf8 (Text.pack (view cmdArgUserInfo args))
          }
 
@@ -133,8 +137,21 @@ driver vty vtyEventChan ircMsgChan st0 =
        Right (time,msg) -> processIrcMsg st1 time msg
 
   where
-  continue = driver vty vtyEventChan ircMsgChan
+  -- processVtyEvent and processIrcMsg jump here
+  continue = considerTimers
            . resetCurrentChannelMessages
+
+  considerTimers st =
+    do now <- getCurrentTime
+       case nextTimerEvent now st of
+         Nothing -> driver vty vtyEventChan ircMsgChan st
+         Just (e,st') -> processTimerEvent e st'
+
+  processTimerEvent e st =
+    case e of
+      DropOperator chan ->
+        do clientSend (modeCmd chan ["-o",views (clientConnection.connNick) idBytes st]) st
+           considerTimers st
 
   processVtyEvent st event =
     case event of
@@ -948,14 +965,15 @@ doWithOps ::
   (ClientState -> IO ClientState) {- ^ privileged operation -} ->
   ClientState -> IO ClientState
 doWithOps chan privop st
-    | alreadyOp = finishUp False st
+    | initiallyOp = finishUp st
     | otherwise = getOpFirst
 
   where
   conn = view clientConnection st
   myNick = view connNick conn
 
-  alreadyOp =
+  -- was I op when the command was entered
+  initiallyOp =
     elemOf ( connChannels . ix chan
            . chanUsers . ix myNick
            . folded)
@@ -968,19 +986,32 @@ doWithOps chan privop st
          case view mesgType evMsg of
            ModeMsgType True 'o' modeNick
              | mkId modeNick == myNick
-             , evTgt    == chan -> finishUp True evSt
+             , evTgt    == chan -> finishUp evSt
            _ -> return (over clientAutomation (cons handler) evSt)
     }
 
-  finishUp deop st1 =
-    do st2 <- privop st1
-       when deop $
-         clientSend (modeCmd chan ["-o",idDenote myNick]) st2
-       return st2
+  finishUp st1 = privop =<< installTimer st1
 
   getOpFirst =
     do clientSend (privMsgCmd "chanserv" ("op " <> idDenote chan)) st
        return (over clientAutomation (cons handler) st)
+
+  computeDeopTime =
+    do now <- getCurrentTime
+       return (addUTCTime deopWaitDuration now)
+
+  installTimer st0
+    | deopScheduled chan st0 || not initiallyOp =
+         do time <- computeDeopTime
+            return $ addTimerEvent time (DropOperator chan)
+                   $ filterTimerEvents (/= DropOperator chan) st0
+    | otherwise = return st0
+
+-- | Predicate to determine if a deop is scheduled to happen
+deopScheduled ::
+  Identifier {- ^ channel -} ->
+  ClientState -> Bool
+deopScheduled = elemOf (clientTimers . folded . folded . _DropOperator)
 
 doAutoKickBan ::
   Identifier {- ^ channel -} ->
