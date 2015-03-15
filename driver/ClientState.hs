@@ -174,10 +174,12 @@ addMessage target message st
            (Just . aux . fromMaybe defaultMessageList)
            st
   where
+  conn = view clientConnection st
+
   aux = case views mesgType isRelevant message of
           Nothing -> over mlMessages (cons (message,error "unused colored message"))
           Just txt -> over mlNewMessages (+1)
-                    . over mlMentioned   (|| mention txt)
+                    . over mlMentioned   (|| mention txt || private)
                     . over mlMessages (cons (message,coloredImage))
             where
             !coloredImage
@@ -185,11 +187,11 @@ addMessage target message st
               | otherwise = force -- avoid holding on to old channel lists
                           $ nameHighlighter
                                 (Text.encodeUtf8 txt)
-                                (views (clientConnection . connChannels . ix target . chanUsers) Map.keysSet st)
-                                (view (clientConnection . connNick) st)
+                                (views (connChannels . ix target . chanUsers) Map.keysSet conn)
+                                (view connNick conn)
                                 (view clientNickColors st)
 
-  nickTxt = idDenote (view (clientConnection . connNick) st)
+  nickTxt = idDenote (view connNick conn)
 
   highlights
     = set (contains nickTxt) True
@@ -199,6 +201,8 @@ addMessage target message st
     or [ B.isInfixOf term (ircFoldCase (Text.encodeUtf8 txt))
        | term <- Set.toList highlights
        ]
+
+  private = isNickName target conn && not (view mesgMe message)
 
 fullMessageLists :: ClientState -> Map Identifier MessageList
 fullMessageLists st
