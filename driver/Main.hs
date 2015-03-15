@@ -774,7 +774,9 @@ dividerImage st
     | focusedName st == i =
         string defAttr "─(" <|>
         string (withForeColor defAttr blue) focusedChanPrefixes <|>
-        identImg (withForeColor defAttr green) i <|>
+        utf8Bytestring'
+          (withForeColor defAttr green)
+          (identToBytes i) <|>
         string defAttr ")"
     | views mlNewMessages (>0) seen =
         string defAttr "─[" <|>
