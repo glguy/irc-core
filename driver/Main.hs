@@ -17,6 +17,7 @@ import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Char
 import Data.Foldable (for_, traverse_)
+import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
@@ -393,12 +394,7 @@ commandEvent st = commandsParser (clientInput st)
     <$> pRemainingNoSp)
 
   , ("mode",
-    (\args ->
-       case focusedChan st of
-         Nothing -> return st
-         Just chan ->
-           doWithOps chan (\evSt ->
-             evSt <$ clientSend (modeCmd chan (map toB (words args))) evSt) st')
+    (\args -> doMode (Text.encodeUtf8 (Text.pack args)) st)
     <$> pRemainingNoSp)
 
   , ("kick",
@@ -511,6 +507,22 @@ commandEvent st = commandsParser (clientInput st)
     <$> optional (pToken "server"))
 
   ]
+
+doMode ::
+  ByteString {- mode change -} ->
+  ClientState -> IO ClientState
+doMode args st = fromMaybe (return st) $
+  do chan         <- focusedChan st
+     modes:params <- Just (B8.words args)
+     parsedModes  <- splitModes (view (clientConnection.connChanModeTypes) st)
+                        modes params
+     let modeChunks = chunksOf (view (clientConnection.connModes) st) parsedModes
+     return $
+       doWithOps chan (\evSt ->
+         do for_ modeChunks $ \modeChunk ->
+              clientSend (modeCmd chan (unsplitModes modeChunk)) evSt
+            return evSt)
+         (clearInput st)
 
 doAccept ::
   Bool {- ^ add to list -} ->

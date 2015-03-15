@@ -21,6 +21,7 @@ module Irc.Model
   , connExcepts
   , connInvex
   , connStatusMsg
+  , connModes
   , connUsers
   , connMyInfo
   , connSasl
@@ -71,6 +72,8 @@ module Irc.Model
   , isNickName
   , isMyNick
   , splitStatusMsg
+  , splitModes
+  , unsplitModes
   ) where
 
 import Control.Applicative
@@ -114,6 +117,7 @@ data IrcConnection = IrcConnection
   , _connUsers    :: !(Map Identifier IrcUser)
   , _connChanModeTypes :: ModeTypes
   , _connUserModeTypes :: ModeTypes
+  , _connModes    :: Int
   , _connMyInfo   :: Maybe (ByteString,ByteString)
   , _connSasl     :: Maybe (ByteString,ByteString)
   , _connUmode    :: ByteString
@@ -133,6 +137,7 @@ defaultIrcConnection = IrcConnection
   , _connExcepts   = Nothing
   , _connInvex     = Nothing
   , _connUsers     = mempty
+  , _connModes     = 3
   , _connChanModeTypes = defaultChanModeTypes
   , _connUserModeTypes = defaultUmodeTypes
   , _connMyInfo    = Nothing
@@ -552,6 +557,11 @@ support ("CHANMODES",modes) = updateChanModes (B8.unpack modes)
 support ("STATUSMSG",modes) = set connStatusMsg (B8.unpack modes)
 support ("PREFIX",modes) = updateChanPrefix (B8.unpack modes)
 
+support ("MODES",str) =
+  case B8.readInt str of
+    Just (n,rest) | B.null rest -> set connModes (max 1 n)
+    _                           -> id
+
 support ("INVEX",mode) =
   case B8.uncons mode of
     Nothing    -> set connInvex (Just 'I')
@@ -901,6 +911,19 @@ installModeChange settings now who polarity mode arg
 
          else set (chanModes . mapped . at mode)
                   Nothing
+
+unsplitModes ::
+  [(Bool,Char,ByteString)] ->
+  [ByteString]
+unsplitModes modes
+  = B8.pack (foldr combineModeChars (const "") modes True)
+  : [arg | (_,_,arg) <- modes, not (B.null arg)]
+  where
+  combineModeChars (q,m,_) rest p
+    | p == q = m : rest p
+    | q = '+' : m : rest True
+    | otherwise = '-' : m : rest False
+
 
 -- | Split up a mode change command and arguments into individual changes
 -- given a configuration.
