@@ -446,8 +446,11 @@ advanceModel msg0 conn =
          doServerMessage "WHOIS" "secure connection" conn
        RplWhoisHost _nick txt ->
          doServerMessage "WHOIS" txt conn
-       RplWhoisIdle _nick idle _signon ->
-         doServerMessage "WHOIS" ("Idle seconds: " <> idle) conn
+       RplWhoisIdle _nick idle signon ->
+         doServerMessage "WHOIS" ("Idle seconds: " <> B8.pack (show idle) <>
+                                  ", Sign-on: " <> maybe "unknown" (B8.pack . show)
+                                                        signon
+                                 ) conn
        RplWhoisAccount nick account ->
          doServerMessage "WHOIS" ("Logged in as: " <> account)
             (set (connUsers . ix nick . usrAccount) (Just account) conn)

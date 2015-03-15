@@ -81,7 +81,7 @@ data MsgFromServer
   | RplWhoisOperator Identifier ByteString -- ^ 313 nick "is an IRC operator"
   | RplWhoWasUser Identifier ByteString ByteString ByteString -- ^ 314 nick user host realname
   | RplEndOfWho Identifier -- ^ 315 channel
-  | RplWhoisIdle Identifier ByteString UTCTime -- ^ 317 nick idle signon
+  | RplWhoisIdle Identifier Integer (Maybe UTCTime) -- ^ 317 nick idle signon
   | RplEndOfWhois Identifier -- ^ 318 nick
   | RplWhoisChannels Identifier ByteString -- ^ 319 nick channels
   | RplListStart -- ^ 321
@@ -346,7 +346,10 @@ ircMsgToServerMsg ircmsg =
        Just (RplEndOfWho (mkId chan))
 
     ("317",[_,nick,idle,signon,_txt]) ->
-       Just (RplWhoisIdle (mkId nick) idle (asTimeStamp signon))
+       Just (RplWhoisIdle (mkId nick) (asNumber idle) (Just (asTimeStamp signon)))
+
+    ("317",[_,nick,idle,_txt]) ->
+       Just (RplWhoisIdle (mkId nick) (asNumber idle) Nothing)
 
     ("318",[_,nick,_txt]) ->
        Just (RplEndOfWhois (mkId nick))
