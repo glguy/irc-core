@@ -337,4 +337,5 @@ errorMessage e =
     ErrTooManyKnocks          -> "Too many knocks"
     ErrChanOpen               -> "Knock unnecessary"
     ErrTargUmodeG             -> "Message ignored by +g mode"
+    ErrNoPrivs priv           -> "Oper privilege required: " <> asUtf8 priv
     ErrMlockRestricted m ms   -> "Mode '" <> Text.singleton m <> "' in locked set \"" <> asUtf8 ms <> "\""

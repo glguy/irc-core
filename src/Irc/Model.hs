@@ -548,6 +548,8 @@ advanceModel msg0 conn =
        RplStatsULine uline -> doServerMessage "ULINE" (B8.unwords uline) conn
        RplStatsDebug debug -> doServerMessage "STATSDEBUG" (B8.unwords debug) conn
 
+       RplPrivs txt -> doServerMessage "PRIVS" txt conn
+
 -- ISUPPORT is defined by
 -- https://tools.ietf.org/html/draft-brocklesby-irc-isupport-03#section-3.14
 doISupport ::

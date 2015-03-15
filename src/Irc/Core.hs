@@ -67,6 +67,7 @@ data MsgFromServer
   | RplLoadTooHigh ByteString -- ^ 263 command
   | RplLocalUsers [ByteString] -- ^ 265 [local] [max] txt
   | RplGlobalUsers [ByteString] -- ^ 266 [global] [max] txt
+  | RplPrivs ByteString -- ^ 270 privstring
   | RplWhoisCertFp Identifier ByteString -- ^ 276 nick txt
   | RplAcceptList Identifier -- ^ 281
   | RplEndOfAccept -- ^ 282
@@ -223,6 +224,7 @@ data IrcError
   | ErrChanOpen -- ^ 713
   | ErrKnockOnChan -- ^ 714
   | ErrTargUmodeG -- ^ 716
+  | ErrNoPrivs ByteString -- ^ 723 priv
   | ErrMlockRestricted Char ByteString -- ^ 742 mode setting
   deriving (Read, Show)
 
@@ -302,6 +304,9 @@ ircMsgToServerMsg ircmsg =
 
     ("266", _:params ) ->
        Just (RplGlobalUsers params)
+
+    ("270",[_,txt]) ->
+       Just (RplPrivs txt)
 
     ("276",[_,nick,txt]) ->
        Just (RplWhoisCertFp (mkId nick) txt)
@@ -634,6 +639,9 @@ ircMsgToServerMsg ircmsg =
 
     ("716",[_,nick,_]) ->
          Just (Err (mkId nick) ErrTargUmodeG)
+
+    ("723",[_,priv,_]) ->
+         Just (Err "" (ErrNoPrivs priv))
 
     ("717",[_,nick,_]) ->
          Just (RplTargNotify (mkId nick))
