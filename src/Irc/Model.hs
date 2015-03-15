@@ -77,6 +77,7 @@ module Irc.Model
   ) where
 
 import Control.Applicative
+import Control.Monad (guard)
 import Control.Lens
 import Control.Monad (foldM)
 import Control.Monad.Free
@@ -933,7 +934,7 @@ splitModes ::
   [ByteString] {- ^ arguments           -} ->
   Maybe [(Bool,Char,ByteString)]
 splitModes icm modes0 =
-  foldr aux (\_ _ -> Just []) (B8.unpack modes0) True
+  foldr aux (\_ args -> [] <$ guard (null args)) (B8.unpack modes0) True
   where
   aux m rec polarity args =
     case m of
