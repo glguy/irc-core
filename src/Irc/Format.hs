@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module provides a parser and printer for the low-level IRC
 -- message format.
@@ -17,8 +18,11 @@ module Irc.Format
   , ircFoldCase
   ) where
 
+import Control.Applicative
+import Data.Attoparsec.ByteString.Char8 as P
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
+import Data.Functor
 import Data.Monoid
 import Data.String
 import Data.Text (Text)
@@ -81,57 +85,114 @@ idDenote (Identifier _ x) = x
 -- information into a structured message.
 parseRawIrcMsg :: ByteString -> Maybe RawIrcMsg
 parseRawIrcMsg x =
-  do (timePart,x') <- splitTimePart x
-     (y,ys) <- B8.uncons x'
-     if y == ':'
-       then case duplicate (tokens ys) of
-              prefix : command : rest ->
-                return $! RawIrcMsg
-                            { msgTime    = timePart
-                            , msgPrefix  = Just (parseUserInfo prefix)
-                            , msgCommand = command
-                            , msgParams  = rest
-                            }
-              _ -> Nothing
-       else case duplicate (tokens x) of
-              command : rest ->
-                return $! RawIrcMsg
-                            { msgTime    = timePart
-                            , msgPrefix  = Nothing
-                            , msgCommand = command
-                            , msgParams  = rest
-                            }
-              _ -> Nothing
+  case parseOnly rawIrcMsgParser x of
+    Left{}  -> Nothing
+    Right r -> Just r
 
--- server-time-iso format
--- @time=2015-03-04T22:29:04.064Z
-splitTimePart :: ByteString -> Maybe (Maybe UTCTime, ByteString)
-splitTimePart x
-  | B.isPrefixOf key x =
-      do let (timeStr,x') = B8.break (==' ') (B.drop (B.length key) x)
-         time <- parseIrcTime (B8.unpack timeStr)
-         Just (Just time, B.drop 1 x')
-  | otherwise = Just (Nothing,x)
+-- | RFC 2812 specifies that there can only be up to
+-- 14 "middle" parameters, after that the fifteenth is
+-- the final parameter and the trailing : is optional!
+maxMiddleParams :: Int
+maxMiddleParams = 14
+
+--  Excerpt from https://tools.ietf.org/html/rfc2812#section-2.3.1
+
+--  message    =  [ ":" prefix SPACE ] command [ params ] crlf
+--  prefix     =  servername / ( nickname [ [ "!" user ] "@" host ] )
+--  command    =  1*letter / 3digit
+--  params     =  *14( SPACE middle ) [ SPACE ":" trailing ]
+--             =/ 14( SPACE middle ) [ SPACE [ ":" ] trailing ]
+
+--  nospcrlfcl =  %x01-09 / %x0B-0C / %x0E-1F / %x21-39 / %x3B-FF
+--                  ; any octet except NUL, CR, LF, " " and ":"
+--  middle     =  nospcrlfcl *( ":" / nospcrlfcl )
+--  trailing   =  *( ":" / " " / nospcrlfcl )
+
+--  SPACE      =  %x20        ; space character
+--  crlf       =  %x0D %x0A   ; "carriage return" "linefeed"
+
+-- | Parse a whole IRC message assuming that the trailing
+-- newlines have already been removed. This parser will
+-- parse valid messages correctly but will also accept some
+-- invalid messages. Presumably the server isn't sending
+-- invalid messages!
+rawIrcMsgParser :: Parser RawIrcMsg
+rawIrcMsgParser =
+  do time   <- optional timeParser
+     prefix <- optional prefixParser
+     cmd    <- simpleTokenParser
+     params <- paramsParser maxMiddleParams
+     return RawIrcMsg
+              { msgTime    = time
+              , msgPrefix  = prefix
+              , msgCommand = cmd
+              , msgParams  = params
+              }
+
+-- | Parse the list of parameters in a raw message. The RFC
+-- allows for up to 15 parameters.
+paramsParser :: Int -> Parser [ByteString]
+paramsParser n = endOfInput $> []
+             <|> char ' '   *> more
   where
-  key = "@time="
+  more
+    | n == 0 =
+        do _ <- optional (char ':')
+           finalParam
+
+    | otherwise =
+        do next <- peekChar'
+           case next of
+             ':' -> anyChar *> finalParam
+             _   -> middleParam
+
+  finalParam =
+    do x <- takeByteString
+       let !x' = B.copy x
+       return [x']
+
+  middleParam =
+    do x <- P.takeWhile (/= ' ')
+       let !x' = B.copy x
+       xs <- paramsParser (n-1)
+       return (x':xs)
+
+-- | Parse the server-time message prefix:
+-- @time=2015-03-04T22:29:04.064Z
+timeParser :: Parser UTCTime
+timeParser =
+  do _         <- string "@time="
+     timeBytes <- simpleTokenParser
+     _         <- char ' '
+     case parseIrcTime (B8.unpack timeBytes) of
+       Nothing   -> fail "Bad time string"
+       Just time -> return time
 
 parseIrcTime :: String -> Maybe UTCTime
 parseIrcTime = parseTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%Z"
 
+prefixParser :: Parser UserInfo
+prefixParser =
+  do _   <- char ':'
+     tok <- simpleTokenParser
+     _   <- char ' '
+     return (parseUserInfo tok)
+
+-- | Take the bytes up to the next space delimiter
+simpleTokenParser :: Parser ByteString
+simpleTokenParser =
+  do xs <- P.takeWhile (/= ' ')
+     return $! B8.copy xs
+
+-- | Take the bytes up to the next space delimiter.
+-- If the first character of this token is a ':'
+-- then take the whole remaining bytestring
+
+-- | Render 'UserInfo' as @nick!username\@hostname@
 renderUserInfo :: UserInfo -> ByteString
 renderUserInfo u = idBytes (userNick u)
                 <> maybe B.empty ("!" <>) (userName u)
                 <> maybe B.empty ("@" <>) (userHost u)
-
--- | Split up a bytestring into space delimited tokens. The last token
--- in the bytestring is potentially indicated by a leading colon.
-tokens :: ByteString -> [ByteString]
-tokens x =
-  case B.uncons x of
-    Nothing -> []
-    Just (58,xs) -> [xs]
-    _            -> let (a,b) = B.break (==32) x
-                    in a : tokens (B.drop 1 b)
 
 -- | Split up a hostmask into a nickname, username, and hostname.
 -- The username and hostname might not be defined but are delimited by
@@ -143,8 +204,8 @@ parseUserInfo x = UserInfo
   , userHost = if B.null host then Nothing else Just (B.drop 1 host)
   }
   where
-  (nickuser,host) = B.break (==64) x
-  (nick,user) = B.break (==33) nickuser
+  (nickuser,host) = B8.break (=='@') x
+  (nick,user) = B8.break (=='!') nickuser
 
 -- | Serialize a structured IRC protocol message back into its wire
 -- format. This command adds the required trailing newline.
@@ -165,12 +226,6 @@ buildParams [x]
 buildParams (x:xs)
   = Builder.word8 32 <> Builder.byteString x <> buildParams xs
 buildParams [] = mempty
-
--- | Copy all of the bytestrings strictly to make sure
--- we're not holding on to large packets.
-duplicate :: [ByteString] -> [ByteString]
-duplicate [] = []
-duplicate (x:xs) = ((:) $! B.copy x) $! duplicate xs
 
 ircGetLine :: Handle -> IO ByteString
 ircGetLine h =
@@ -199,4 +254,3 @@ casemap = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\
           \\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\
           \\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\
           \\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff"
-
