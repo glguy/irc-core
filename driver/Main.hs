@@ -447,7 +447,7 @@ commandEvent st = commandsParser (clientInput st)
         case focusedChan st of
           Nothing -> return st
           Just chan -> doTopicCmd chan (toB rest) st')
-    <$> pRemainingNoSp)
+    <$> pRemainingNoSpLimit (view (clientConnection.connTopicLen) st))
 
   , ("ignore",
     (\u -> return (over (clientIgnores . contains u) not st'))

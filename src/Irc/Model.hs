@@ -21,6 +21,7 @@ module Irc.Model
   , connExcepts
   , connInvex
   , connStatusMsg
+  , connTopicLen
   , connModes
   , connUsers
   , connMyInfo
@@ -119,6 +120,7 @@ data IrcConnection = IrcConnection
   , _connChanModeTypes :: ModeTypes
   , _connUserModeTypes :: ModeTypes
   , _connModes    :: Int
+  , _connTopicLen :: Int
   , _connMyInfo   :: Maybe (ByteString,ByteString)
   , _connSasl     :: Maybe (ByteString,ByteString)
   , _connUmode    :: ByteString
@@ -139,6 +141,7 @@ defaultIrcConnection = IrcConnection
   , _connInvex     = Nothing
   , _connUsers     = mempty
   , _connModes     = 3
+  , _connTopicLen  = 400 -- default is unbounded but message length is bounded
   , _connChanModeTypes = defaultChanModeTypes
   , _connUserModeTypes = defaultUmodeTypes
   , _connMyInfo    = Nothing
@@ -562,6 +565,11 @@ support ("CHANTYPES",types) = set connChanTypes (B8.unpack types)
 support ("CHANMODES",modes) = updateChanModes (B8.unpack modes)
 support ("STATUSMSG",modes) = set connStatusMsg (B8.unpack modes)
 support ("PREFIX",modes) = updateChanPrefix (B8.unpack modes)
+
+support ("TOPICLEN",len) =
+  case B8.readInt len of
+    Just (n,rest) | B.null rest -> set connTopicLen n
+    _                           -> id
 
 support ("MODES",str) =
   case B8.readInt str of

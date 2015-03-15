@@ -7,6 +7,7 @@ module CommandParser
   , pNick
   , pRemaining
   , pRemainingNoSp
+  , pRemainingNoSpLimit
   , pToken
   , pValidToken
   , pTarget
@@ -80,6 +81,15 @@ pRemaining = Parser (\s -> ("", stringWithControls defAttr s, Just s))
 
 pRemainingNoSp :: Parser String
 pRemainingNoSp = fmap (dropWhile isSpace) pRemaining
+
+pRemainingNoSpLimit :: Int -> Parser String
+pRemainingNoSpLimit len =
+  Parser (\s ->
+    let (w,s') = span (==' ') s
+        (a,b) = splitAt len (dropWhile isSpace s')
+    in if null b then ("", stringWithControls defAttr (w++a), Just a)
+                 else ("", stringWithControls defAttr (w++a) Vty.<|>
+                           stringWithControls (withForeColor defAttr red) b, Nothing))
 
 pChannel :: ClientState -> Parser Identifier
 pChannel st = pValidToken "channel" $ \chan ->
