@@ -18,6 +18,7 @@ module Irc.Model
   , connChanModeTypes
   , connUserModeTypes
   , connKnock
+  , connNickLen
   , connExcepts
   , connInvex
   , connStatusMsg
@@ -114,6 +115,7 @@ data IrcConnection = IrcConnection
   , _connChanTypes :: [Char]
   , _connStatusMsg :: [Char]
   , _connKnock    :: Bool
+  , _connNickLen  :: Int
   , _connExcepts  :: Maybe Char
   , _connInvex    :: Maybe Char
   , _connUsers    :: !(Map Identifier IrcUser)
@@ -137,6 +139,7 @@ defaultIrcConnection = IrcConnection
   , _connChanTypes = "#&" -- default per RFC
   , _connStatusMsg = ""
   , _connKnock     = False
+  , _connNickLen   = 9
   , _connExcepts   = Nothing
   , _connInvex     = Nothing
   , _connUsers     = mempty
@@ -565,6 +568,11 @@ support ("CHANTYPES",types) = set connChanTypes (B8.unpack types)
 support ("CHANMODES",modes) = updateChanModes (B8.unpack modes)
 support ("STATUSMSG",modes) = set connStatusMsg (B8.unpack modes)
 support ("PREFIX",modes) = updateChanPrefix (B8.unpack modes)
+support ("KNOCK",_) = set connKnock True
+support ("NICKLEN",len) =
+  case B8.readInt len of
+    Just (n,rest) | B.null rest -> set connNickLen n
+    _                           -> id
 
 support ("TOPICLEN",len) =
   case B8.readInt len of

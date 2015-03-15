@@ -473,7 +473,9 @@ commandEvent st = commandsParser (clientInput st)
   , ("acceptlist", pure (doAccept True (Just "*") st))
 
   , ("nick",
-    (\nick -> st' <$ clientSend (nickCmd nick) st')
+    (\nick -> if B8.length (idBytes nick) > view (clientConnection . connNickLen) st
+                then return st
+                else st' <$ clientSend (nickCmd nick) st')
     <$> pNick st)
 
   , ("away",
