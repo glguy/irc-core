@@ -127,6 +127,7 @@ data IrcConnection = IrcConnection
   , _connSasl     :: Maybe (ByteString,ByteString)
   , _connUmode    :: ByteString
   , _connSnoMask  :: ByteString
+  , _connPhase    :: Phase
   }
   deriving (Read, Show)
 
@@ -151,7 +152,14 @@ defaultIrcConnection = IrcConnection
   , _connSasl      = Nothing
   , _connUmode     = ""
   , _connSnoMask   = ""
+  , _connPhase     = RegistrationPhase
   }
+
+data Phase
+  = RegistrationPhase
+  | ActivePhase
+  | SaslPhase
+  deriving (Read, Show, Eq)
 
 -- | Settings that describe how to interpret channel modes
 data ModeTypes = ModeTypes
@@ -254,7 +262,8 @@ advanceModel msg0 conn =
        Pong server mbMsg ->
          doServerMessage "PONG" (server <> maybe "" (" "<>) mbMsg) conn
 
-       RplWelcome  txt -> doServerMessage "Welcome" txt conn
+       RplWelcome  txt -> doServerMessage "Welcome" txt
+                        $ set connPhase ActivePhase conn
        RplYourHost txt -> doServerMessage "YourHost" txt conn
        RplCreated  txt -> doServerMessage "Created" txt conn
        RplMyInfo host version _ _ _ ->
@@ -509,18 +518,12 @@ advanceModel msg0 conn =
          doServerMessage "LOGIN" account conn
        RplLoggedOut ->
          doServerMessage "LOGOUT" "" conn
-       RplSaslSuccess ->
-         doServerError "Unexpected SASL Success" conn
-       RplSaslFail ->
-         doServerError "Unexpected SASL Fail" conn
        RplSaslTooLong ->
          doServerError "Unexpected SASL Too Long" conn
        RplSaslAlready ->
          doServerError "Unexpected SASL Already" conn
        RplSaslMechs _ ->
          doServerError "Unexpected SASL Mechanism List" conn
-       Authenticate _ ->
-         doServerError "Unexpected Authenticate" conn
 
        Error e -> doServerError (asUtf8 e) conn
 
@@ -560,6 +563,34 @@ advanceModel msg0 conn =
        RplStatsDebug debug -> doServerMessage "STATSDEBUG" (B8.unwords debug) conn
 
        RplPrivs txt -> doServerMessage "PRIVS" txt conn
+
+       Authenticate msg
+         | view connPhase conn == SaslPhase
+         , msg == "+"
+         , Just (user,pass) <- view connSasl conn ->
+             do sendMessage (authenticateCmd (encodePlainAuthentication user pass))
+                return conn
+         | otherwise ->
+             doServerError "Unexpected Authenticate" conn
+
+       RplSaslSuccess
+         | view connPhase conn == SaslPhase ->
+            do sendMessage capEndCmd
+               doServerMessage "SASL" "Authentication successful"
+                  $ set connPhase RegistrationPhase conn
+         | otherwise ->
+             doServerError "Unexpected SASL Success" conn
+
+       RplSaslFail
+         | view connPhase conn == SaslPhase ->
+            do sendMessage capEndCmd
+               doServerMessage "SASL" "Authentication failed"
+                   $ set connPhase RegistrationPhase conn
+         | otherwise ->
+            doServerError "Unexpected SASL Fail" conn
+
+
+
 
 -- ISUPPORT is defined by
 -- https://tools.ietf.org/html/draft-brocklesby-irc-isupport-03#section-3.14
@@ -772,36 +803,13 @@ doCapAck ::
   ByteString {- ^ raw, spaces delimited caps list -} ->
   IrcConnection -> Logic IrcConnection
 doCapAck rawCaps conn =
-  do let ackCaps = B8.words rawCaps
-
-     conn' <- case view connSasl conn of
-                Just (user,pass) | "sasl" `elem` ackCaps -> doSasl user pass conn
-                _ -> return conn
-
-     sendMessage capEndCmd
-     return conn'
-
--- | Complete SASL PLAIN authentication
-doSasl ::
-  ByteString {- ^ SASL authentication/authorization name -} ->
-  ByteString {- ^ SASL password -} ->
-  IrcConnection -> Logic IrcConnection
-doSasl user pass conn =
-  do sendMessage (authenticateCmd "PLAIN")
-     Authenticate "+" <- getMessage
-
-     sendMessage (authenticateCmd (encodePlainAuthentication user pass))
-     resp1 <- getMessage
-     case resp1 of
-       RplLoggedIn _account ->
-         do RplSaslSuccess <- getMessage
-            doServerMessage "SASL" "Authentication successful" conn
-
-       RplSaslFail ->
-         do doServerMessage "SASL" "Authentication failed" conn
-
-       _ -> fail "Bad SASL interaction"
-
+  let ackCaps = B8.words rawCaps in
+  case view connSasl conn of
+    Just{} | "sasl" `elem` ackCaps ->
+         do sendMessage (authenticateCmd "PLAIN")
+            return (set connPhase SaslPhase conn)
+    _ -> do sendMessage capEndCmd
+            return conn
 
 encodePlainAuthentication ::
   ByteString {- ^ username -} ->
