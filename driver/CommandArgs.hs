@@ -24,6 +24,7 @@ data CommandArgs = CommandArgs
   , _cmdArgTls      :: Bool
   , _cmdArgTlsClientCert :: Maybe FilePath
   , _cmdArgTlsClientKey  :: Maybe FilePath
+  , _cmdArgTlsInsecure   :: Bool
   }
 
 data SslArgs = SslArgs
@@ -48,6 +49,7 @@ initialCommandArgs = CommandArgs
   , _cmdArgTls      = False
   , _cmdArgTlsClientCert = Nothing
   , _cmdArgTlsClientKey  = Nothing
+  , _cmdArgTlsInsecure   = False
   }
 
 getCommandArgs :: IO CommandArgs
@@ -98,5 +100,6 @@ optDescrs =
   , Option "t" [ "tls"]       (NoArg  (set cmdArgTls True)) "Enable TLS"
   , Option ""  [ "tls-client-cert"] (ReqArg (set cmdArgTlsClientCert . Just) "PATH") "Path to PEM encoded client certificate"
   , Option ""  [ "tls-client-key"] (ReqArg (set cmdArgTlsClientKey . Just) "PATH") "Path to PEM encoded client key"
+  , Option ""  [ "tls-insecure"] (NoArg (set cmdArgTlsInsecure True)) "Disable server certificate verification"
   , Option "h" [ "help"]      (NoArg  (set cmdArgHelp True))   "Show help"
   ]

@@ -7,6 +7,7 @@ import Data.Default.Class (def)
 import Data.Maybe         (fromMaybe)
 import Data.X509          (CertificateChain(..))
 import Data.X509.File     (readSignedObject, readKeyFile)
+import Data.X509.Validation (validateDefault)
 import Network.Connection
 import Network.TLS
 import Network.TLS.Extra  (ciphersuite_strong)
@@ -24,37 +25,40 @@ getRawIrcLine h =
 
 buildConnectionParams :: CommandArgs -> IO ConnectionParams
 buildConnectionParams args =
-  do  tlsSettings <- buildTlsSettings args
-      return ConnectionParams
-        { connectionHostname  = view cmdArgServer args
-        , connectionPort      = fromIntegral (view cmdArgPort args)
-        , connectionUseSecure = tlsSettings
-        , connectionUseSocks  = Nothing
-        }
+  do useSecure <- if view cmdArgTls args
+                     then fmap Just (buildTlsSettings args)
+                     else return Nothing
+     return ConnectionParams
+       { connectionHostname  = view cmdArgServer args
+       , connectionPort      = fromIntegral (view cmdArgPort args)
+       , connectionUseSecure = useSecure
+       , connectionUseSocks  = Nothing
+       }
 
-buildTlsSettings :: CommandArgs -> IO (Maybe TLSSettings)
-buildTlsSettings args
-  | view cmdArgTls args =
-      do store      <- getSystemCertificateStore
-         clientCred <- loadClientCredentials args
-         return (Just (TLSSettings (clientParams store clientCred)))
-  | otherwise = return Nothing
-  where
-  clientParams store clientCred =
-    (defaultParamsClient (view cmdArgServer args) "")
-    { clientSupported = supported
-    , clientHooks = hooks clientCred
-    , clientShared = shared store
-    }
 
-  supported = def
-    { supportedCiphers = ciphersuite_strong }
+buildTlsSettings :: CommandArgs -> IO TLSSettings
+buildTlsSettings args =
+  do store      <- getSystemCertificateStore
+     clientCred <- loadClientCredentials args
 
-  hooks clientCred = def
-    { onCertificateRequest = \_ -> return clientCred }
+     return $ TLSSettings $
+       (defaultParamsClient (view cmdArgServer args) "")
 
-  shared store = def
-    { sharedCAStore = store }
+       { clientSupported = def
+           { supportedCiphers = ciphersuite_strong }
+
+       , clientHooks = def
+           { onCertificateRequest = \_ -> return clientCred
+           , onServerCertificate  =
+               if view cmdArgTlsInsecure args
+                  then (\_ _ _ _ -> return [])
+                  else validateDefault
+           }
+
+       , clientShared = def
+           { sharedCAStore = store }
+       }
+
 
 loadClientCredentials :: CommandArgs -> IO (Maybe (CertificateChain, PrivKey))
 loadClientCredentials args =
