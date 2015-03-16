@@ -15,13 +15,14 @@ import System.X509        (getSystemCertificateStore)
 import qualified Data.ByteString.Char8 as B8
 
 import CommandArgs
+
 -- | This behaves like 'connectionGetLine' but it strips off the @'\r'@
--- IRC calls for 512 packets but some IRCds might send more, I round off
--- to 1024.
+-- IRC calls for 512 byte packets  I rounded off to 1024.
 getRawIrcLine :: Connection -> IO ByteString
 getRawIrcLine h =
   do b <- connectionGetLine 1024 h
-     return (B8.init b)
+     return (if B8.null then b else B8.init b)
+        -- empty lines will still fail, just later and nicely
 
 buildConnectionParams :: CommandArgs -> IO ConnectionParams
 buildConnectionParams args =
