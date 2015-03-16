@@ -22,6 +22,8 @@ data CommandArgs = CommandArgs
   , _cmdArgDebug    :: Maybe FilePath
   , _cmdArgUserInfo :: String
   , _cmdArgTls      :: Bool
+  , _cmdArgTlsClientCert :: Maybe FilePath
+  , _cmdArgTlsClientKey  :: Maybe FilePath
   }
 
 data SslArgs = SslArgs
@@ -44,6 +46,8 @@ initialCommandArgs = CommandArgs
   , _cmdArgDebug    = Nothing
   , _cmdArgUserInfo = ""
   , _cmdArgTls      = False
+  , _cmdArgTlsClientCert = Nothing
+  , _cmdArgTlsClientKey  = Nothing
   }
 
 getCommandArgs :: IO CommandArgs
@@ -92,5 +96,7 @@ optDescrs =
   , Option "d" [ "debug"]     (ReqArg (set cmdArgDebug . Just) "FILE") "Debug log filename"
   , Option "i" [ "userinfo"]  (ReqArg (set cmdArgUserInfo) "USERINFO") "CTCP USERINFO Response"
   , Option "t" [ "tls"]       (NoArg  (set cmdArgTls True)) "Enable TLS"
+  , Option ""  [ "tls-client-cert"] (ReqArg (set cmdArgTlsClientCert . Just) "PATH") "Path to PEM encoded client certificate"
+  , Option ""  [ "tls-client-key"] (ReqArg (set cmdArgTlsClientKey . Just) "PATH") "Path to PEM encoded client key"
   , Option "h" [ "help"]      (NoArg  (set cmdArgHelp True))   "Show help"
   ]
