@@ -21,6 +21,11 @@ data CommandArgs = CommandArgs
   , _cmdArgSaslPass :: Maybe String
   , _cmdArgDebug    :: Maybe FilePath
   , _cmdArgUserInfo :: String
+  , _cmdArgTls      :: Bool
+  }
+
+data SslArgs = SslArgs
+  { _sslClientCertificate :: Maybe FilePath
   }
 
 makeLenses ''CommandArgs
@@ -38,6 +43,7 @@ initialCommandArgs = CommandArgs
   , _cmdArgSaslPass = Nothing
   , _cmdArgDebug    = Nothing
   , _cmdArgUserInfo = ""
+  , _cmdArgTls      = False
   }
 
 getCommandArgs :: IO CommandArgs
@@ -78,12 +84,13 @@ help =
 
 optDescrs :: [OptDescr (CommandArgs -> CommandArgs)]
 optDescrs =
-  [ Option "p" ["port"] (ReqArg (set cmdArgPort . read) "PORT") "IRC Server Port"
-  , Option "n" ["nick"] (ReqArg (set cmdArgNick) "NICK") "Nickname"
-  , Option "u" ["user"] (ReqArg (set cmdArgUser) "USER") "Username"
-  , Option "r" ["real"] (ReqArg (set cmdArgReal) "REAL") "Real Name"
-  , Option ""  ["sasl-user"] (ReqArg (set cmdArgSaslUser) "USER") "SASL username"
-  , Option "d" ["debug"] (ReqArg (set cmdArgDebug . Just) "FILE") "Debug log filename"
-  , Option "i" ["userinfo"] (ReqArg (set cmdArgUserInfo) "USERINFO") "CTCP USERINFO Response"
-  , Option "h" ["help"] (NoArg  (set cmdArgHelp True))   "Show help"
+  [ Option "p" [ "port"]      (ReqArg (set cmdArgPort . read) "PORT") "IRC Server Port"
+  , Option "n" [ "nick"]      (ReqArg (set cmdArgNick) "NICK") "Nickname"
+  , Option "u" [ "user"]      (ReqArg (set cmdArgUser) "USER") "Username"
+  , Option "r" [ "real"]      (ReqArg (set cmdArgReal) "REAL") "Real Name"
+  , Option " "  ["sasl-user"] (ReqArg (set cmdArgSaslUser) "USER") "SASL username"
+  , Option "d" [ "debug"]     (ReqArg (set cmdArgDebug . Just) "FILE") "Debug log filename"
+  , Option "i" [ "userinfo"]  (ReqArg (set cmdArgUserInfo) "USERINFO") "CTCP USERINFO Response"
+  , Option "t" [ "tls"]       (NoArg  (set cmdArgTls True)) "Enable TLS"
+  , Option "h" [ "help"]      (NoArg  (set cmdArgHelp True))   "Show help"
   ]

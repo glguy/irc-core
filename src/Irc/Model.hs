@@ -113,25 +113,25 @@ import Irc.Core.Prisms
 -- channel membership, user and channel modes, and other connection
 -- state.
 data IrcConnection = IrcConnection
-  { _connNick     :: Identifier
+  { _connNick     :: !Identifier
   , _connChannels :: !(Map Identifier IrcChannel)
   , _connId       :: Maybe ByteString
   , _connChanTypes :: [Char]
   , _connStatusMsg :: [Char]
-  , _connKnock    :: Bool
-  , _connNickLen  :: Int
+  , _connKnock    :: !Bool
+  , _connNickLen  :: !Int
   , _connExcepts  :: Maybe Char
   , _connInvex    :: Maybe Char
   , _connUsers    :: !(Map Identifier IrcUser)
-  , _connChanModeTypes :: ModeTypes
-  , _connUserModeTypes :: ModeTypes
-  , _connModes    :: Int
-  , _connTopicLen :: Int
+  , _connChanModeTypes :: !ModeTypes
+  , _connUserModeTypes :: !ModeTypes
+  , _connModes    :: !Int
+  , _connTopicLen :: !Int
   , _connMyInfo   :: Maybe (ByteString,ByteString)
   , _connSasl     :: Maybe (ByteString,ByteString)
-  , _connUmode    :: ByteString
-  , _connSnoMask  :: ByteString
-  , _connPhase    :: Phase
+  , _connUmode    :: !ByteString
+  , _connSnoMask  :: !ByteString
+  , _connPhase    :: !Phase
   }
   deriving (Read, Show)
 

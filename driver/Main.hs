@@ -25,7 +25,7 @@ import Data.Text (Text)
 import Data.Time
 import Data.Traversable (for)
 import Graphics.Vty
-import Network
+import Network.Connection
 import System.IO
 import System.IO.Error (isEOFError)
 import qualified Data.ByteString as B
@@ -43,6 +43,7 @@ import Irc.Model
 import Irc.RateLimit
 
 import ClientState
+import Connection (connect, getRawIrcLine)
 import CommandArgs
 import CommandParser
 import CtcpHandler
@@ -63,9 +64,7 @@ main :: IO ()
 main = do
   args <- getCommandArgs
 
-  h    <- connectTo (view cmdArgServer args) (PortNumber (fromIntegral (view cmdArgPort args)))
-  hSetNewlineMode h NewlineMode { inputNL = CRLF, outputNL = CRLF }
-  hSetEncoding h utf8
+  h <- connect args
 
   hErr <- for (view cmdArgDebug args) $ \fn ->
             do hErr <- openFile fn WriteMode
@@ -114,12 +113,12 @@ main = do
          , _clientUserInfo        = Text.encodeUtf8 (Text.pack (view cmdArgUserInfo args))
          }
 
-initializeConnection :: CommandArgs -> Handle -> IO ()
+initializeConnection :: CommandArgs -> Connection -> IO ()
 initializeConnection args h =
-  do B.hPut h capLsCmd
-     traverse_ (B.hPut h . passCmd . toUtf8) (view cmdArgPassword args)
-     B.hPut h (nickCmd (views cmdArgNick toId args))
-     B.hPut h (userCmd (views cmdArgUser toUtf8 args)
+  do connectionPut h capLsCmd
+     traverse_ (connectionPut h . passCmd . toUtf8) (view cmdArgPassword args)
+     connectionPut h (nickCmd (views cmdArgNick toId args))
+     connectionPut h (userCmd (views cmdArgUser toUtf8 args)
                        (views cmdArgReal toUtf8 args))
   where
 
@@ -863,15 +862,15 @@ dividerImage st
 -- Event loops
 ------------------------------------------------------------------------
 
-sendLoop :: TChan ByteString -> Handle -> IO ()
+sendLoop :: TChan ByteString -> Connection -> IO ()
 sendLoop queue h =
   do r <- newRateLimit 2 5
      forever $
        do x <- atomically (readTChan queue)
           tickRateLimit r
-          B.hPut h x
+          connectionPut h x
 
-socketLoop :: TChan (UTCTime, MsgFromServer) -> Handle -> Maybe Handle -> IO ()
+socketLoop :: TChan (UTCTime, MsgFromServer) -> Connection -> Maybe Handle -> IO ()
 socketLoop chan h hErr =
   forever (atomically . writeTChan chan =<< getOne h hErr)
   `catches`
@@ -889,9 +888,9 @@ socketLoop chan h hErr =
 vtyEventLoop :: TChan Event -> Vty -> IO a
 vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)
 
-getOne :: Handle -> Maybe Handle -> IO (UTCTime, MsgFromServer)
+getOne :: Connection -> Maybe Handle -> IO (UTCTime, MsgFromServer)
 getOne h hErr =
-    do xs <- ircGetLine h
+    do xs <- getRawIrcLine h
        case parseRawIrcMsg xs of
          Nothing -> debug xs >> getOne h hErr
          Just msg ->

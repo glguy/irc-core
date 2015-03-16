@@ -321,10 +321,10 @@ ircMsgToServerMsg ircmsg =
        Just (RplAway (mkId nick) message)
 
     ("302",[_,txt]) ->
-       Just (RplUserHost (filter (not . B.null) (B.split 32 txt)))
+       Just (RplUserHost (filter (not . B.null) (B8.split ' ' txt)))
 
     ("303",[_,txt]) ->
-       Just (RplIsOn (map mkId (filter (not . B.null) (B.split 32 txt))))
+       Just (RplIsOn (map mkId (filter (not . B.null) (B8.split ' ' txt))))
 
     ("305",[_,_]) ->
        Just RplUnAway
@@ -408,7 +408,8 @@ ircMsgToServerMsg ircmsg =
        Just (RplVersion version)
 
     ("352",[_,chan,user,host,server,nick,flags,txt]) ->
-       Just (RplWhoReply (mkId chan) user host server (mkId nick) flags txt) -- trailing is: <hop> <realname>
+       Just (RplWhoReply (mkId chan) user host server (mkId nick) flags txt)
+         -- trailing is: <hop> <realname>
 
     ("353",[_,ty,chan,txt]) ->
       do ty' <- case ty of
@@ -416,7 +417,7 @@ ircMsgToServerMsg ircmsg =
                   "*" -> Just PrivateChannel
                   "@" -> Just SecretChannel
                   _   -> Nothing
-         Just (RplNameReply ty' (mkId chan) (filter (not . B.null) (B.split 32 txt)))
+         Just (RplNameReply ty' (mkId chan) (filter (not . B.null) (B8.split ' ' txt)))
 
     ("364",[_,mask,server,info]) -> Just (RplLinks mask server info)
     ("365",[_,mask,_]          ) -> Just (RplEndOfLinks mask)
@@ -443,10 +444,10 @@ ircMsgToServerMsg ircmsg =
     ("376",[_,_]) -> Just RplEndOfMotd
 
     ("379",_:nick:modes:args) ->
-       Just (RplWhoisModes (mkId nick )modes args)
+       Just (RplWhoisModes (mkId nick) modes args)
 
     ("378",[_,nick,txt]) ->
-       Just (RplWhoisHost (mkId nick )txt)
+       Just (RplWhoisHost (mkId nick) txt)
 
     ("381",[_,txt]) ->
          Just (RplYoureOper txt)
