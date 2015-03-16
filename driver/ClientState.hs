@@ -17,7 +17,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Time (UTCTime)
+import Data.Time (TimeZone, UTCTime)
 import Graphics.Vty.Image
 import System.IO (Handle)
 import qualified Data.ByteString as B
@@ -54,6 +54,7 @@ data ClientState = ClientState
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
   , _clientTimers     :: Map UTCTime [TimerEvent]
+  , _clientTimeZone   :: TimeZone
   }
   -- TODO: split this record into logical pieces
 

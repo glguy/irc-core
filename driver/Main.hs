@@ -90,6 +90,7 @@ main = do
        _ <- forkIO (vtyEventLoop vtyEventChan vty)
        _ <- forkIO (sendLoop sendChan h)
        (width,height) <- displayBounds (outputIface vty)
+       zone <- getCurrentTimeZone
        driver vty vtyEventChan socketChan ClientState
          { _clientSendChan        = sendChan
          , _clientErrors          = hErr
@@ -110,6 +111,7 @@ main = do
          , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop]
          , _clientTimers          = mempty
          , _clientUserInfo        = Text.encodeUtf8 (Text.pack (view cmdArgUserInfo args))
+         , _clientTimeZone        = zone
          }
 
 initializeConnection :: CommandArgs -> Connection -> IO ()

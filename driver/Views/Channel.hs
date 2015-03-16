@@ -7,7 +7,7 @@ import Data.Monoid
 import Data.Foldable (toList)
 import Data.List (stripPrefix)
 import Data.Text (Text)
-import Data.Time (UTCTime, formatTime)
+import Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
 import Graphics.Vty.Image
 import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString.Char8 as BS8
@@ -32,6 +32,7 @@ detailedImageForState !st
   $ map fst
   $ activeMessages st
   where
+  zone = view clientTimeZone st
   renderOne x =
       timestamp <|>
       string (withForeColor defAttr tyColor) (ty ++ " ") <|>
@@ -41,7 +42,7 @@ detailedImageForState !st
       cleanText content
     where
     timestamp
-      | view clientTimeView st = renderTimestamp (view mesgStamp x)
+      | view clientTimeView st = renderTimestamp zone (view mesgStamp x)
       | otherwise              = emptyImage
 
     (tyColor, ty, content) = case view mesgType x of
@@ -67,15 +68,17 @@ detailedImageForState !st
                                         <> Text.pack [mode, ' ']
                                         <> asUtf8 arg)
 
-renderTimestamp :: UTCTime -> Image
-renderTimestamp
+renderTimestamp :: TimeZone -> UTCTime -> Image
+renderTimestamp zone
   = string (withForeColor defAttr brightBlack)
   . formatTime defaultTimeLocale "%H:%M:%S "
+  . utcToZonedTime zone
 
-renderCompressedTimestamp :: UTCTime -> Image
-renderCompressedTimestamp
+renderCompressedTimestamp :: TimeZone -> UTCTime -> Image
+renderCompressedTimestamp zone
   = string (withForeColor defAttr brightBlack)
   . formatTime defaultTimeLocale "[%H:%M] "
+  . utcToZonedTime zone
 
 activeMessages :: ClientState -> [(IrcMessage,Image)]
 activeMessages st =
@@ -90,6 +93,7 @@ activeMessages st =
 compressedImageForState :: ClientState -> [Image]
 compressedImageForState !st = renderOne (activeMessages st)
   where
+  zone = view clientTimeZone st
   width = view clientWidth st
 
   ncolors = views clientNickColors length st
@@ -109,7 +113,7 @@ compressedImageForState !st = renderOne (activeMessages st)
 
     where
     timestamp
-      | view clientTimeView st = renderCompressedTimestamp (view mesgStamp msg)
+      | view clientTimeView st = renderCompressedTimestamp zone (view mesgStamp msg)
       | otherwise              = emptyImage
 
     nick = views mesgSender userNick msg
