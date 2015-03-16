@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -1231,8 +1232,12 @@ splitNamesReplyName modeMap = aux []
 
 -- | Execute the 'Logic' value using a given operation for sending and
 -- recieving IRC messages.
-runLogic :: UTCTime -> Logic a -> Free LogicOp (Either String a)
-runLogic now (Logic f) = runErrorT (runReaderT f now)
+runLogic :: (Functor m,Monad m) => UTCTime -> (forall a. LogicOp a -> m a) -> Logic a -> m (Either String a)
+runLogic now ops (Logic f)
+  = retract
+  $ hoistFree ops
+  $ runErrorT
+  $ runReaderT f now
 
 data LogicOp r
   = Expect  (MsgFromServer -> r)

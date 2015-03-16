@@ -11,7 +11,6 @@ import Control.Concurrent.STM
 import Control.Exception
 import Control.Lens
 import Control.Monad
-import Control.Monad.Free
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
@@ -152,9 +151,9 @@ driver vty vtyEventChan ircMsgChan st0 =
 
        let m :: IO (Either String IrcConnection, ClientState)
            m = flip runStateT st
-             $ retract
-             $ hoistFree (interpretLogicOp ircMsgChan)
-             $ runLogic now (advanceModel msg (view clientConnection st))
+             $ runLogic now
+                        (interpretLogicOp ircMsgChan)
+                        (advanceModel msg (view clientConnection st))
 
        res <- m
        case res of
