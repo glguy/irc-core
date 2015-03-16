@@ -20,6 +20,15 @@ data CommandArgs = CommandArgs
   , _cmdArgSaslUser :: String
   , _cmdArgSaslPass :: Maybe String
   , _cmdArgDebug    :: Maybe FilePath
+  , _cmdArgUserInfo :: String
+  , _cmdArgTls      :: Bool
+  , _cmdArgTlsClientCert :: Maybe FilePath
+  , _cmdArgTlsClientKey  :: Maybe FilePath
+  , _cmdArgTlsInsecure   :: Bool
+  }
+
+data SslArgs = SslArgs
+  { _sslClientCertificate :: Maybe FilePath
   }
 
 makeLenses ''CommandArgs
@@ -36,6 +45,11 @@ initialCommandArgs = CommandArgs
   , _cmdArgSaslUser = ""
   , _cmdArgSaslPass = Nothing
   , _cmdArgDebug    = Nothing
+  , _cmdArgUserInfo = ""
+  , _cmdArgTls      = False
+  , _cmdArgTlsClientCert = Nothing
+  , _cmdArgTlsClientKey  = Nothing
+  , _cmdArgTlsInsecure   = False
   }
 
 getCommandArgs :: IO CommandArgs
@@ -76,11 +90,16 @@ help =
 
 optDescrs :: [OptDescr (CommandArgs -> CommandArgs)]
 optDescrs =
-  [ Option "p" ["port"] (ReqArg (set cmdArgPort . read) "PORT") "IRC Server Port"
-  , Option "n" ["nick"] (ReqArg (set cmdArgNick) "NICK") "Nickname"
-  , Option "u" ["user"] (ReqArg (set cmdArgUser) "USER") "Username"
-  , Option "r" ["real"] (ReqArg (set cmdArgReal) "REAL") "Real Name"
-  , Option ""  ["sasl-user"] (ReqArg (set cmdArgSaslUser) "USER") "SASL username"
-  , Option "d" ["debug"] (ReqArg (set cmdArgDebug . Just) "FILE") "Debug log filename"
-  , Option "h" ["help"] (NoArg  (set cmdArgHelp True))   "Show help"
+  [ Option "p" [ "port"]      (ReqArg (set cmdArgPort . read) "PORT") "IRC Server Port"
+  , Option "n" [ "nick"]      (ReqArg (set cmdArgNick) "NICK") "Nickname"
+  , Option "u" [ "user"]      (ReqArg (set cmdArgUser) "USER") "Username"
+  , Option "r" [ "real"]      (ReqArg (set cmdArgReal) "REAL") "Real Name"
+  , Option " "  ["sasl-user"] (ReqArg (set cmdArgSaslUser) "USER") "SASL username"
+  , Option "d" [ "debug"]     (ReqArg (set cmdArgDebug . Just) "FILE") "Debug log filename"
+  , Option "i" [ "userinfo"]  (ReqArg (set cmdArgUserInfo) "USERINFO") "CTCP USERINFO Response"
+  , Option "t" [ "tls"]       (NoArg  (set cmdArgTls True)) "Enable TLS"
+  , Option ""  [ "tls-client-cert"] (ReqArg (set cmdArgTlsClientCert . Just) "PATH") "Path to PEM encoded client certificate"
+  , Option ""  [ "tls-client-key"] (ReqArg (set cmdArgTlsClientKey . Just) "PATH") "Path to PEM encoded client key"
+  , Option ""  [ "tls-insecure"] (NoArg (set cmdArgTlsInsecure True)) "Disable server certificate verification"
+  , Option "h" [ "help"]      (NoArg  (set cmdArgHelp True))   "Show help"
   ]

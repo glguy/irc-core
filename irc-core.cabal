@@ -25,6 +25,8 @@ description:
   .
   * "Irc.Core.Prisms" - Prisms for all of the mid-level IRC message constructors
   .
+  * "Irc.Message" - High-level IRC event messages for client interpretation
+  .
   * "Irc.Model" - Functions for interpreting mid-level IRC messages to generate high-level
                   event messages and to maintain a consistent view of the connection
   .
@@ -35,6 +37,8 @@ description:
   * "Main" - Main client module
   .
   * "ClientState" - Types and operations representing the full state of the client
+  .
+  * "CtcpHandler" - Event handler for CTCP messages
   .
   * "CommandArgs" - Types and functions for interpreting the initial client configuration
   .
@@ -58,6 +62,7 @@ library
   exposed-modules:     Irc.Core
                        Irc.Core.Prisms
                        Irc.Cmd
+                       Irc.Message
                        Irc.Model
                        Irc.Format
                        Irc.RateLimit
@@ -71,6 +76,7 @@ library
                        lens             >= 4.7      && < 4.9,
                        text             >= 1.2.0.4  && < 1.3,
                        time             >= 1.4.2    && < 1.5,
+                       old-locale       >= 1.0.0.6  && < 1.1,
                        transformers     >= 0.2      && < 0.5
 
   hs-source-dirs:      src
@@ -79,6 +85,7 @@ library
 executable glirc
   main-is: Main.hs
   other-modules: ClientState
+                 CtcpHandler
                  CommandArgs
                  CommandParser
                  EditBox
@@ -90,6 +97,15 @@ executable glirc
   hs-source-dirs: driver
   ghc-options: -threaded
   build-depends: irc-core,
+
+                 connection       >= 0.2.4    && < 0.3,
+                 tls              >= 1.2.16   && < 1.3,
+                 data-default-class >= 0.0.1  && < 0.1,
+                 x509             >= 1.5.0.1  && < 1.6,
+                 x509-system      >= 1.5.0    && < 1.6,
+                 x509-store       >= 1.5.0    && < 1.6,
+                 x509-validation  >= 1.5.1    && < 1.6,
+
                  array            >= 0.5      && < 0.6,
                  base             >= 4.7      && < 4.8,
                  bytestring       >= 0.10.4.0 && < 0.11,
@@ -98,11 +114,13 @@ executable glirc
                  lens             >= 4.7      && < 4.9,
                  network          >= 2.6.0.2  && < 2.7,
                  old-locale       >= 1.0.0.6  && < 1.1,
+                 split            >= 0.2.2    && < 0.3,
                  stm              >= 2.4.4    && < 2.5,
                  text             >= 1.2.0.4  && < 1.3,
                  time             >= 1.4.2    && < 1.5,
                  vty              >= 5.2.7    && < 5.3,
                  haskell-lexer    >= 1.0      && < 1.1,
+                 haskell-src-exts >= 1.16.0.1 && < 1.17,
                  transformers     >= 0.2      && < 0.5
   default-language:    Haskell2010
 

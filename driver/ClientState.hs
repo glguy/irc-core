@@ -7,15 +7,17 @@ module ClientState where
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.DeepSeq (force)
 import Control.Lens
-import Control.Monad (foldM)
+import Control.Monad (foldM, guard)
 import Data.ByteString (ByteString)
 import Data.Char (isControl)
 import Data.Functor
+import Data.Functor.Compose
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
+import Data.Time (UTCTime)
 import Graphics.Vty.Image
 import System.IO (Handle)
 import qualified Data.ByteString as B
@@ -25,6 +27,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 import Irc.Format
+import Irc.Message
 import Irc.Model
 
 import EditBox (EditBox)
@@ -40,17 +43,23 @@ data ClientState = ClientState
   , _clientTimeView   :: !Bool
   , _clientMetaView   :: !Bool
   , _clientEditBox    :: EditBox
+  , _clientUserInfo   :: ByteString -- ctcp standard says users has to set this
   , _clientTabPattern :: Maybe String
   , _clientScrollPos :: Int
   , _clientHeight :: Int
   , _clientWidth :: Int
-  , _clientIgnores :: !(Set Identifier)
+  , _clientIgnores :: !(Set Identifier) -- Todo: support mask matching
   , _clientHighlights :: !(Set ByteString)
   , _clientMessages :: !(Map Identifier MessageList)
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
+  , _clientTimers     :: Map UTCTime [TimerEvent]
   }
   -- TODO: split this record into logical pieces
+
+data TimerEvent
+  = DropOperator Identifier
+  deriving (Read, Show, Eq)
 
 data MessageList = MessageList
   { _mlNewMessages :: !Int
@@ -80,6 +89,7 @@ makeLenses ''ClientState
 makeLenses ''MessageList
 makeLenses ''EventHandler
 makePrisms ''Focus
+makePrisms ''TimerEvent
 
 resetCurrentChannelMessages :: ClientState -> ClientState
 resetCurrentChannelMessages st =
@@ -173,10 +183,12 @@ addMessage target message st
            (Just . aux . fromMaybe defaultMessageList)
            st
   where
+  conn = view clientConnection st
+
   aux = case views mesgType isRelevant message of
           Nothing -> over mlMessages (cons (message,error "unused colored message"))
           Just txt -> over mlNewMessages (+1)
-                    . over mlMentioned   (|| mention txt)
+                    . over mlMentioned   (|| mention txt || private)
                     . over mlMessages (cons (message,coloredImage))
             where
             !coloredImage
@@ -184,11 +196,11 @@ addMessage target message st
               | otherwise = force -- avoid holding on to old channel lists
                           $ nameHighlighter
                                 (Text.encodeUtf8 txt)
-                                (views (clientConnection . connChannels . ix target . chanUsers) Map.keysSet st)
-                                (view (clientConnection . connNick) st)
+                                (views (connChannels . ix target . chanUsers) Map.keysSet conn)
+                                (view connNick conn)
                                 (view clientNickColors st)
 
-  nickTxt = idDenote (view (clientConnection . connNick) st)
+  nickTxt = idDenote (view connNick conn)
 
   highlights
     = set (contains nickTxt) True
@@ -198,6 +210,8 @@ addMessage target message st
     or [ B.isInfixOf term (ircFoldCase (Text.encodeUtf8 txt))
        | term <- Set.toList highlights
        ]
+
+  private = isNickName target conn && not (view mesgMe message)
 
 fullMessageLists :: ClientState -> Map Identifier MessageList
 fullMessageLists st
@@ -232,3 +246,26 @@ prevInSorted x ys =
      case Set.maxView ys of
        Just (y,_) -> y
        Nothing    -> x
+
+nextTimerEvent :: UTCTime -> ClientState -> Maybe (TimerEvent, ClientState)
+nextTimerEvent now = alaf Compose clientTimers aux
+  where
+  aux :: Map UTCTime [TimerEvent] -> Maybe (TimerEvent, Map UTCTime [TimerEvent])
+  aux timers =
+    do ((when,events), timers1) <- Map.minViewWithKey timers
+       guard (when <= now)
+       case events of
+         []   -> error "nextTimerEvent: empty entry!"
+         [e]  -> return (e, timers1)
+         e:es -> return (e, Map.insert when es timers1)
+
+filterTimerEvents :: (TimerEvent -> Bool) -> ClientState -> ClientState
+filterTimerEvents p = over clientTimers (Map.mapMaybe aux)
+  where
+  aux xs
+    | null xs' = Nothing
+    | otherwise = Just xs'
+    where xs' = filter p xs
+
+addTimerEvent :: UTCTime -> TimerEvent -> ClientState -> ClientState
+addTimerEvent when e = over clientTimers (Map.insertWith (++) when [e])

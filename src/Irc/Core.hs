@@ -8,6 +8,7 @@ module Irc.Core
   , ircMsgToServerMsg
   ) where
 
+import Control.Lens (over, _2)
 import Data.ByteString (ByteString)
 import Data.Time
 import Data.Time.Clock.POSIX
@@ -26,7 +27,7 @@ data MsgFromServer
   | RplYourHost ByteString -- ^ 002 "Your host is \<servername\>, running version \<ver\>"
   | RplCreated  ByteString -- ^ 003 "This server was created \<date\>"
   | RplMyInfo   ByteString ByteString ByteString ByteString ByteString -- ^ 004 servername version available-user-modes available-channel-modes
-  | RplISupport [ByteString] -- ^ 005 *(KEY=VALUE)
+  | RplISupport [(ByteString,ByteString)] -- ^ 005 *(KEY=VALUE)
   | RplSnoMask ByteString -- ^ 008 snomask
   | RplYourId ByteString -- ^ 042 unique-id
 
@@ -64,8 +65,9 @@ data MsgFromServer
   | RplLuserAdminLoc2 ByteString -- ^ 258 admin-info-2
   | RplLuserAdminEmail ByteString -- ^ 259 admin-email
   | RplLoadTooHigh ByteString -- ^ 263 command
-  | RplLocalUsers ByteString ByteString -- ^ 265 local max
-  | RplGlobalUsers ByteString ByteString -- ^ 266 global max
+  | RplLocalUsers [ByteString] -- ^ 265 [local] [max] txt
+  | RplGlobalUsers [ByteString] -- ^ 266 [global] [max] txt
+  | RplPrivs ByteString -- ^ 270 privstring
   | RplWhoisCertFp Identifier ByteString -- ^ 276 nick txt
   | RplAcceptList Identifier -- ^ 281
   | RplEndOfAccept -- ^ 282
@@ -80,7 +82,7 @@ data MsgFromServer
   | RplWhoisOperator Identifier ByteString -- ^ 313 nick "is an IRC operator"
   | RplWhoWasUser Identifier ByteString ByteString ByteString -- ^ 314 nick user host realname
   | RplEndOfWho Identifier -- ^ 315 channel
-  | RplWhoisIdle Identifier ByteString UTCTime -- ^ 317 nick idle signon
+  | RplWhoisIdle Identifier Integer (Maybe UTCTime) -- ^ 317 nick idle signon
   | RplEndOfWhois Identifier -- ^ 318 nick
   | RplWhoisChannels Identifier ByteString -- ^ 319 nick channels
   | RplListStart -- ^ 321
@@ -98,7 +100,7 @@ data MsgFromServer
   | RplEndOfInviteList Identifier -- ^ 347 channel
   | RplExceptionList Identifier ByteString ByteString UTCTime -- ^ 348 channel mask who timestamp
   | RplEndOfExceptionList Identifier -- ^ 349 channel
-  | RplVersion ByteString ByteString ByteString -- ^ 351 version server comments
+  | RplVersion [ByteString] -- ^ 351 version server comments
   | RplWhoReply Identifier ByteString ByteString ByteString Identifier ByteString ByteString -- ^ 352 channel user host server nick flags txt
   | RplNameReply ChannelType Identifier [ByteString] -- ^ 353 channeltype channel names
   | RplLinks ByteString ByteString ByteString -- ^ 364 mask server info
@@ -222,6 +224,7 @@ data IrcError
   | ErrChanOpen -- ^ 713
   | ErrKnockOnChan -- ^ 714
   | ErrTargUmodeG -- ^ 716
+  | ErrNoPrivs ByteString -- ^ 723 priv
   | ErrMlockRestricted Char ByteString -- ^ 742 mode setting
   deriving (Read, Show)
 
@@ -238,8 +241,10 @@ ircMsgToServerMsg ircmsg =
     ("004",[_,host,version,umodes,lmodes,cmodes]) ->
        Just (RplMyInfo host version umodes lmodes cmodes)
 
-    ("005",_:params) ->
-       Just (RplISupport params)
+    ("005",_:params)
+      | not (null params) ->
+         let parse1 = over _2 (B.drop 1) . B8.break (=='=')
+         in Just (RplISupport (map parse1 (init params)))
 
     ("008",[_,snomask,_]) ->
        Just (RplSnoMask (B.tail snomask))
@@ -286,7 +291,7 @@ ircMsgToServerMsg ircmsg =
        Just (RplLuserChannels num)
 
     ("255",[_,txt]) -> Just (RplLuserMe txt)
-    ("256",[_,server,_]) -> Just (RplLuserAdminMe server)
+    ("256",[_,server]) -> Just (RplLuserAdminMe server)
     ("257",[_,txt]) -> Just (RplLuserAdminLoc1 txt)
     ("258",[_,txt]) -> Just (RplLuserAdminLoc2 txt)
     ("259",[_,txt]) -> Just (RplLuserAdminEmail txt)
@@ -294,11 +299,14 @@ ircMsgToServerMsg ircmsg =
     ("263",[_,cmd,_]) ->
        Just (RplLoadTooHigh cmd)
 
-    ("265",[_,localusers,maxusers,_txt]) ->
-       Just (RplLocalUsers localusers maxusers)
+    ("265", _:params) ->
+       Just (RplLocalUsers params)
 
-    ("266",[_,globalusers,maxusers,_txt]) ->
-       Just (RplGlobalUsers globalusers maxusers)
+    ("266", _:params ) ->
+       Just (RplGlobalUsers params)
+
+    ("270",[_,txt]) ->
+       Just (RplPrivs txt)
 
     ("276",[_,nick,txt]) ->
        Just (RplWhoisCertFp (mkId nick) txt)
@@ -313,10 +321,10 @@ ircMsgToServerMsg ircmsg =
        Just (RplAway (mkId nick) message)
 
     ("302",[_,txt]) ->
-       Just (RplUserHost (filter (not . B.null) (B.split 32 txt)))
+       Just (RplUserHost (filter (not . B.null) (B8.split ' ' txt)))
 
     ("303",[_,txt]) ->
-       Just (RplIsOn (map mkId (filter (not . B.null) (B.split 32 txt))))
+       Just (RplIsOn (map mkId (filter (not . B.null) (B8.split ' ' txt))))
 
     ("305",[_,_]) ->
        Just RplUnAway
@@ -343,7 +351,10 @@ ircMsgToServerMsg ircmsg =
        Just (RplEndOfWho (mkId chan))
 
     ("317",[_,nick,idle,signon,_txt]) ->
-       Just (RplWhoisIdle (mkId nick) idle (asTimeStamp signon))
+       Just (RplWhoisIdle (mkId nick) (asNumber idle) (Just (asTimeStamp signon)))
+
+    ("317",[_,nick,idle,_txt]) ->
+       Just (RplWhoisIdle (mkId nick) (asNumber idle) Nothing)
 
     ("318",[_,nick,_txt]) ->
        Just (RplEndOfWhois (mkId nick))
@@ -393,11 +404,12 @@ ircMsgToServerMsg ircmsg =
     ("349",[_,chan,_txt]) ->
        Just (RplEndOfExceptionList (mkId chan))
 
-    ("351",[_,version,server,comments]) ->
-       Just (RplVersion version server comments)
+    ("351", _:version) ->
+       Just (RplVersion version)
 
     ("352",[_,chan,user,host,server,nick,flags,txt]) ->
-       Just (RplWhoReply (mkId chan) user host server (mkId nick) flags txt) -- trailing is: <hop> <realname>
+       Just (RplWhoReply (mkId chan) user host server (mkId nick) flags txt)
+         -- trailing is: <hop> <realname>
 
     ("353",[_,ty,chan,txt]) ->
       do ty' <- case ty of
@@ -405,7 +417,7 @@ ircMsgToServerMsg ircmsg =
                   "*" -> Just PrivateChannel
                   "@" -> Just SecretChannel
                   _   -> Nothing
-         Just (RplNameReply ty' (mkId chan) (filter (not . B.null) (B.split 32 txt)))
+         Just (RplNameReply ty' (mkId chan) (filter (not . B.null) (B8.split ' ' txt)))
 
     ("364",[_,mask,server,info]) -> Just (RplLinks mask server info)
     ("365",[_,mask,_]          ) -> Just (RplEndOfLinks mask)
@@ -432,10 +444,10 @@ ircMsgToServerMsg ircmsg =
     ("376",[_,_]) -> Just RplEndOfMotd
 
     ("379",_:nick:modes:args) ->
-       Just (RplWhoisModes (mkId nick )modes args)
+       Just (RplWhoisModes (mkId nick) modes args)
 
     ("378",[_,nick,txt]) ->
-       Just (RplWhoisHost (mkId nick )txt)
+       Just (RplWhoisHost (mkId nick) txt)
 
     ("381",[_,txt]) ->
          Just (RplYoureOper txt)
@@ -628,6 +640,9 @@ ircMsgToServerMsg ircmsg =
 
     ("716",[_,nick,_]) ->
          Just (Err (mkId nick) ErrTargUmodeG)
+
+    ("723",[_,priv,_]) ->
+         Just (Err "" (ErrNoPrivs priv))
 
     ("717",[_,nick,_]) ->
          Just (RplTargNotify (mkId nick))

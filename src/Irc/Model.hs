@@ -18,12 +18,23 @@ module Irc.Model
   , connId
   , connChanModeTypes
   , connUserModeTypes
+  , connKnock
+  , connNickLen
+  , connExcepts
+  , connInvex
+  , connStatusMsg
+  , connTopicLen
+  , connPhase
+  , connModes
   , connUsers
   , connMyInfo
   , connSasl
   , connUmode
   , connSnoMask
   , defaultIrcConnection
+
+  -- * Phases
+  , Phase(..)
 
   -- * IRC Channel model
   , IrcChannel(..)
@@ -50,15 +61,6 @@ module Irc.Model
   , maskEntryWho
   , maskEntryStamp
 
-  -- * High-level IRC events
-  , IrcMessage(..)
-  , IrcMessageType(..)
-  , mesgType
-  , mesgSender
-  , mesgStamp
-  , mesgMe
-  , mesgModes
-
   -- * User metadata
   , IrcUser(..)
   , usrAway
@@ -76,9 +78,13 @@ module Irc.Model
   , isChannelName
   , isNickName
   , isMyNick
+  , splitStatusMsg
+  , splitModes
+  , unsplitModes
   ) where
 
 import Control.Applicative
+import Control.Monad (guard)
 import Control.Lens
 import Control.Monad (foldM)
 import Control.Monad.Free
@@ -99,6 +105,7 @@ import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
 
 import Irc.Format
+import Irc.Message
 import Irc.Cmd
 import Irc.Core
 import Irc.Core.Prisms
@@ -107,17 +114,25 @@ import Irc.Core.Prisms
 -- channel membership, user and channel modes, and other connection
 -- state.
 data IrcConnection = IrcConnection
-  { _connNick     :: Identifier
+  { _connNick     :: !Identifier
   , _connChannels :: !(Map Identifier IrcChannel)
   , _connId       :: Maybe ByteString
   , _connChanTypes :: [Char]
+  , _connStatusMsg :: [Char]
+  , _connKnock    :: !Bool
+  , _connNickLen  :: !Int
+  , _connExcepts  :: Maybe Char
+  , _connInvex    :: Maybe Char
   , _connUsers    :: !(Map Identifier IrcUser)
-  , _connChanModeTypes :: ModeTypes
-  , _connUserModeTypes :: ModeTypes
+  , _connChanModeTypes :: !ModeTypes
+  , _connUserModeTypes :: !ModeTypes
+  , _connModes    :: !Int
+  , _connTopicLen :: !Int
   , _connMyInfo   :: Maybe (ByteString,ByteString)
   , _connSasl     :: Maybe (ByteString,ByteString)
-  , _connUmode    :: ByteString
-  , _connSnoMask  :: ByteString
+  , _connUmode    :: !ByteString
+  , _connSnoMask  :: !ByteString
+  , _connPhase    :: !Phase
   }
   deriving (Read, Show)
 
@@ -127,15 +142,29 @@ defaultIrcConnection = IrcConnection
   { _connNick      = mkId ""
   , _connChannels  = mempty
   , _connId        = Nothing
-  , _connChanTypes = "#" -- TODO: Use ISupport
+  , _connChanTypes = "#&" -- default per RFC
+  , _connStatusMsg = ""
+  , _connKnock     = False
+  , _connNickLen   = 9
+  , _connExcepts   = Nothing
+  , _connInvex     = Nothing
   , _connUsers     = mempty
-  , _connChanModeTypes = defaultChanModeTypes -- TODO: Use ISupport
+  , _connModes     = 3
+  , _connTopicLen  = 400 -- default is unbounded but message length is bounded
+  , _connChanModeTypes = defaultChanModeTypes
   , _connUserModeTypes = defaultUmodeTypes
   , _connMyInfo    = Nothing
   , _connSasl      = Nothing
   , _connUmode     = ""
   , _connSnoMask   = ""
+  , _connPhase     = RegistrationPhase
   }
+
+data Phase
+  = RegistrationPhase
+  | ActivePhase
+  | SaslPhase
+  deriving (Read, Show, Eq)
 
 -- | Settings that describe how to interpret channel modes
 data ModeTypes = ModeTypes
@@ -200,39 +229,6 @@ data IrcMaskEntry = IrcMaskEntry
   }
   deriving (Read, Show)
 
--- | 'IrcMessage' represents a high-level event to be communicated out
--- to the library user when something changes on a connection.
-data IrcMessage = IrcMessage
-  { _mesgType :: !IrcMessageType
-  , _mesgSender :: !UserInfo
-  , _mesgStamp :: !UTCTime
-  , _mesgMe :: !Bool
-  , _mesgModes :: String
-  }
-  deriving (Read, Show)
-
--- | Event types and associated fields used by 'IrcMessage'.
-data IrcMessageType
-  = PrivMsgType   Text
-  | NoticeMsgType Text
-  | ActionMsgType Text
-  | AwayMsgType   Text
-  | JoinMsgType
-  | KickMsgType   Identifier Text
-  | PartMsgType   Text
-  | QuitMsgType   Text
-  | NickMsgType   Identifier
-  | TopicMsgType  Text
-  | ErrorMsgType  Text
-  | ErrMsgType  IrcError -- Family of various responses
-  | ModeMsgType Bool Char ByteString
-  | InviteMsgType
-  | KnockMsgType
-  | CallerIdMsgType
-  | CallerIdDeliveredMsgType
-  | CtcpMsgType ByteString ByteString -- ^ ctcp command and arguments
-  deriving (Read, Show)
-
 -- | 'IrcUser' is the type of user-level metadata tracked for
 -- the users visible on the current IRC connection.
 data IrcUser = IrcUser
@@ -255,7 +251,6 @@ data Fuzzy a = Known !a | Unknown | None
 
 makeLenses ''IrcConnection
 makeLenses ''IrcChannel
-makeLenses ''IrcMessage
 makeLenses ''IrcUser
 makeLenses ''IrcMaskEntry
 makeLenses ''ModeTypes
@@ -272,7 +267,8 @@ advanceModel msg0 conn =
        Pong server mbMsg ->
          doServerMessage "PONG" (server <> maybe "" (" "<>) mbMsg) conn
 
-       RplWelcome  txt -> doServerMessage "Welcome" txt conn
+       RplWelcome  txt -> doServerMessage "Welcome" txt
+                        $ set connPhase ActivePhase conn
        RplYourHost txt -> doServerMessage "YourHost" txt conn
        RplCreated  txt -> doServerMessage "Created" txt conn
        RplMyInfo host version _ _ _ ->
@@ -283,14 +279,19 @@ advanceModel msg0 conn =
        RplLuserChannels _   -> return conn
        RplLuserMe _         -> return conn
        RplLuserClient _     -> return conn
-       RplLocalUsers _ _    -> return conn
-       RplGlobalUsers _ _   -> return conn
+       RplLocalUsers _      -> return conn
+       RplGlobalUsers _     -> return conn
        RplStatsConn _       -> return conn
        RplLuserUnknown _    -> return conn
-       RplLuserAdminMe _    -> return conn
-       RplLuserAdminLoc1 _  -> return conn
-       RplLuserAdminLoc2 _  -> return conn
-       RplLuserAdminEmail _ -> return conn
+
+       RplLuserAdminMe    txt ->
+         doServerMessage "ADMIN" txt conn
+       RplLuserAdminLoc1  txt ->
+         doServerMessage "ADMIN" txt conn
+       RplLuserAdminLoc2  txt ->
+         doServerMessage "ADMIN" txt conn
+       RplLuserAdminEmail txt ->
+         doServerMessage "ADMIN" txt conn
 
        -- Channel list not implemented
        RplListStart     -> return conn
@@ -428,12 +429,10 @@ advanceModel msg0 conn =
 
        Err target err ->
          do now <- getStamp
-            let mesg = IrcMessage
+            let mesg = defaultIrcMessage
                   { _mesgType    = ErrMsgType err
                   , _mesgSender  = UserInfo "" Nothing Nothing
                   , _mesgStamp   = now
-                  , _mesgMe      = False
-                  , _mesgModes   = ""
                   }
             recordMessage mesg target conn
 
@@ -441,12 +440,10 @@ advanceModel msg0 conn =
          doChannelError chan "Knock delivered" conn
        RplKnock chan who ->
          do now <- getStamp
-            let mesg = IrcMessage
+            let mesg = defaultIrcMessage
                   { _mesgType    = KnockMsgType
                   , _mesgSender  = who
                   , _mesgStamp   = now
-                  , _mesgMe      = False
-                  , _mesgModes   = ""
                   }
             recordMessage mesg chan conn
 
@@ -454,12 +451,10 @@ advanceModel msg0 conn =
          doChannelError chan ("Inviting " <> asUtf8 (idBytes nick)) conn
        Invite who chan ->
          do now <- getStamp
-            let mesg = IrcMessage
+            let mesg = defaultIrcMessage
                   { _mesgType    = InviteMsgType
                   , _mesgSender  = who
                   , _mesgStamp   = now
-                  , _mesgMe      = False
-                  , _mesgModes   = ""
                   }
             recordMessage mesg chan conn
 
@@ -476,8 +471,11 @@ advanceModel msg0 conn =
          doServerMessage "WHOIS" "secure connection" conn
        RplWhoisHost _nick txt ->
          doServerMessage "WHOIS" txt conn
-       RplWhoisIdle _nick idle _signon ->
-         doServerMessage "WHOIS" ("Idle seconds: " <> idle) conn
+       RplWhoisIdle _nick idle signon ->
+         doServerMessage "WHOIS" ("Idle seconds: " <> B8.pack (show idle) <>
+                                  ", Sign-on: " <> maybe "unknown" (B8.pack . show)
+                                                        signon
+                                 ) conn
        RplWhoisAccount nick account ->
          doServerMessage "WHOIS" ("Logged in as: " <> account)
             (set (connUsers . ix nick . usrAccount) (Just account) conn)
@@ -525,25 +523,18 @@ advanceModel msg0 conn =
          doServerMessage "LOGIN" account conn
        RplLoggedOut ->
          doServerMessage "LOGOUT" "" conn
-       RplSaslSuccess ->
-         doServerError "Unexpected SASL Success" conn
-       RplSaslFail ->
-         doServerError "Unexpected SASL Fail" conn
        RplSaslTooLong ->
          doServerError "Unexpected SASL Too Long" conn
        RplSaslAlready ->
          doServerError "Unexpected SASL Already" conn
        RplSaslMechs _ ->
          doServerError "Unexpected SASL Mechanism List" conn
-       Authenticate _ ->
-         doServerError "Unexpected Authenticate" conn
 
-       Error e ->
-         doServerError (asUtf8 e) conn
+       Error e -> doServerError (asUtf8 e) conn
 
-       RplISupport _ -> return conn -- TODO
-       RplVersion version server comments ->
-         doServerMessage "VERSION" (B8.unwords [version,server,comments]) conn
+       RplISupport isupport -> doISupport isupport conn
+       RplVersion version ->
+         doServerMessage "VERSION" (B8.unwords version) conn
 
        RplUmodeGMsg nick mask -> doCallerId nick mask conn
        RplTargNotify nick -> doCallerIdDeliver nick conn
@@ -576,6 +567,101 @@ advanceModel msg0 conn =
        RplStatsULine uline -> doServerMessage "ULINE" (B8.unwords uline) conn
        RplStatsDebug debug -> doServerMessage "STATSDEBUG" (B8.unwords debug) conn
 
+       RplPrivs txt -> doServerMessage "PRIVS" txt conn
+
+       Authenticate msg
+         | view connPhase conn == SaslPhase
+         , msg == "+"
+         , Just (user,pass) <- view connSasl conn ->
+             do sendMessage (authenticateCmd (encodePlainAuthentication user pass))
+                return conn
+         | otherwise ->
+             doServerError "Unexpected Authenticate" conn
+
+       RplSaslSuccess
+         | view connPhase conn == SaslPhase ->
+            do sendMessage capEndCmd
+               doServerMessage "SASL" "Authentication successful"
+                  $ set connPhase RegistrationPhase conn
+         | otherwise ->
+             doServerError "Unexpected SASL Success" conn
+
+       RplSaslFail
+         | view connPhase conn == SaslPhase ->
+            do sendMessage capEndCmd
+               doServerMessage "SASL" "Authentication failed"
+                   $ set connPhase RegistrationPhase conn
+         | otherwise ->
+            doServerError "Unexpected SASL Fail" conn
+
+
+
+
+-- ISUPPORT is defined by
+-- https://tools.ietf.org/html/draft-brocklesby-irc-isupport-03#section-3.14
+doISupport ::
+  [(ByteString,ByteString)] {- ^ [(key,value)] -} ->
+  IrcConnection -> Logic IrcConnection
+doISupport params conn = return (foldl' (flip support) conn params)
+
+support :: (ByteString,ByteString) -> IrcConnection -> IrcConnection
+support ("CHANTYPES",types) = set connChanTypes (B8.unpack types)
+support ("CHANMODES",modes) = updateChanModes (B8.unpack modes)
+support ("STATUSMSG",modes) = set connStatusMsg (B8.unpack modes)
+support ("PREFIX",modes) = updateChanPrefix (B8.unpack modes)
+support ("KNOCK",_) = set connKnock True
+support ("NICKLEN",len) =
+  case B8.readInt len of
+    Just (n,rest) | B.null rest -> set connNickLen n
+    _                           -> id
+
+support ("TOPICLEN",len) =
+  case B8.readInt len of
+    Just (n,rest) | B.null rest -> set connTopicLen n
+    _                           -> id
+
+support ("MODES",str) =
+  case B8.readInt str of
+    Just (n,rest) | B.null rest -> set connModes (max 1 n)
+    _                           -> id
+
+support ("INVEX",mode) =
+  case B8.uncons mode of
+    Nothing    -> set connInvex (Just 'I')
+    Just (m,_) -> set connInvex (Just $! m)
+
+support ("EXCEPTS",mode) =
+  case B8.uncons mode of
+    Nothing    -> set connExcepts (Just 'e')
+    Just (m,_) -> set connExcepts (Just $! m)
+
+support _ = id
+
+updateChanModes ::
+  String {- lists,always,set,never -} ->
+  IrcConnection -> IrcConnection
+updateChanModes modes
+  = over connChanModeTypes
+  $ set modesLists listModes
+  . set modesAlwaysArg alwaysModes
+  . set modesSetArg setModes
+  . set modesNeverArg neverModes
+  where
+  next = over _2 (drop 1) . break (==',')
+  (listModes  ,modes1) = next modes
+  (alwaysModes,modes2) = next modes1
+  (setModes   ,modes3) = next modes2
+  (neverModes ,_)      = next modes3
+
+updateChanPrefix ::
+  String {- e.g. (ov)@+ -} ->
+  IrcConnection -> IrcConnection
+updateChanPrefix [] = id
+updateChanPrefix (_:modes) =
+  set (connChanModeTypes . modesPrefixModes) (zip a b)
+  where
+  (a,b) = over _2 (drop 1) (break (==')') modes)
+
 doAcceptList ::
   [Identifier] {- ^ nicks -} ->
   IrcConnection -> Logic IrcConnection
@@ -592,12 +678,10 @@ doCallerIdDeliver ::
   IrcConnection -> Logic IrcConnection
 doCallerIdDeliver nick conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = CallerIdDeliveredMsgType
            , _mesgSender  = UserInfo nick Nothing Nothing
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordMessage mesg nick conn
 
@@ -608,12 +692,10 @@ doCallerId ::
 doCallerId nick mask conn =
   do stamp <- getStamp
      let (user,host) = B8.break (=='@') mask
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = CallerIdMsgType
            , _mesgSender  = UserInfo nick (Just user) (Just (B8.drop 1 host))
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordMessage mesg nick conn
 
@@ -634,12 +716,10 @@ doAwayReply ::
   IrcConnection -> Logic IrcConnection
 doAwayReply nick message conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = AwayMsgType message
            , _mesgSender  = UserInfo nick Nothing Nothing
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordMessage mesg nick conn
 
@@ -649,12 +729,10 @@ doChannelError ::
   IrcConnection -> Logic IrcConnection
 doChannelError chan reason conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = ErrorMsgType reason
            , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordMessage mesg chan conn
 
@@ -667,19 +745,19 @@ doPrivMsg ::
   IrcConnection -> Logic IrcConnection
 doPrivMsg who chan msg conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let (statusmsg, chan') = splitStatusMsg chan conn
+         mesg = defaultIrcMessage
                 { _mesgType    = ty
                 , _mesgSender  = who
                 , _mesgStamp   = stamp
-                , _mesgMe      = False
-                , _mesgModes   = ""
+                , _mesgStatus  = statusmsg
                 }
          ty = case parseCtcpCommand msg of
                 Nothing                 -> PrivMsgType (asUtf8 msg)
                 Just ("ACTION", action) -> ActionMsgType (asUtf8 action)
-                Just (command , args  ) -> CtcpMsgType command args
+                Just (command , args  ) -> CtcpReqMsgType command args
 
-     recordMessage mesg chan conn
+     recordMessage mesg chan' conn
 
 parseCtcpCommand :: ByteString -> Maybe (ByteString, ByteString)
 parseCtcpCommand msg
@@ -701,12 +779,10 @@ doTopic ::
 doTopic who chan topic conn =
   do stamp <- getStamp
      let topicText = asUtf8 topic
-         m = IrcMessage
+         m = defaultIrcMessage
                 { _mesgType = TopicMsgType topicText
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgModes = ""
-                , _mesgMe = False
                 }
          topicEntry = Just (topicText,renderUserInfo who,stamp)
          conn1 = set (connChannels . ix chan . chanTopic) (Just topicEntry) conn
@@ -721,7 +797,8 @@ doCapLs rawCaps conn =
   offeredCaps = B8.words rawCaps
   supportedCaps = saslSupport
                ++ ["away-notify","account-notify","userhost-in-names",
-                   "extended-join","multi-prefix"]
+                   "extended-join","multi-prefix",
+                   "znc.in/server-time-iso","server-time"]
   saslSupport =
     case view connSasl conn of
       Nothing -> []
@@ -731,36 +808,13 @@ doCapAck ::
   ByteString {- ^ raw, spaces delimited caps list -} ->
   IrcConnection -> Logic IrcConnection
 doCapAck rawCaps conn =
-  do let ackCaps = B8.words rawCaps
-
-     conn' <- case view connSasl conn of
-                Just (user,pass) | "sasl" `elem` ackCaps -> doSasl user pass conn
-                _ -> return conn
-
-     sendMessage capEndCmd
-     return conn'
-
--- | Complete SASL PLAIN authentication
-doSasl ::
-  ByteString {- ^ SASL authentication/authorization name -} ->
-  ByteString {- ^ SASL password -} ->
-  IrcConnection -> Logic IrcConnection
-doSasl user pass conn =
-  do sendMessage (authenticateCmd "PLAIN")
-     Authenticate "+" <- getMessage
-
-     sendMessage (authenticateCmd (encodePlainAuthentication user pass))
-     resp1 <- getMessage
-     case resp1 of
-       RplLoggedIn _account ->
-         do RplSaslSuccess <- getMessage
-            doServerMessage "SASL" "Authentication successful" conn
-
-       RplSaslFail ->
-         do doServerMessage "SASL" "Authentication failed" conn
-
-       _ -> fail "Bad SASL interaction"
-
+  let ackCaps = B8.words rawCaps in
+  case view connSasl conn of
+    Just{} | "sasl" `elem` ackCaps ->
+         do sendMessage (authenticateCmd "PLAIN")
+            return (set connPhase SaslPhase conn)
+    _ -> do sendMessage capEndCmd
+            return conn
 
 encodePlainAuthentication ::
   ByteString {- ^ username -} ->
@@ -786,12 +840,10 @@ doChannelModeIs chan modes args conn =
 doServerError :: Text -> IrcConnection -> Logic IrcConnection
 doServerError err conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
            { _mesgType    = ErrorMsgType err
            , _mesgSender  = UserInfo (mkId "server") Nothing Nothing
            , _mesgStamp   = stamp
-           , _mesgMe      = False
-           , _mesgModes   = ""
            }
      recordFor "" mesg
      return conn
@@ -853,14 +905,13 @@ doChannelModeChanges ms who chan conn0 =
                  (installModeChange settings now who polarity m a))
            (recordMessage modeMsg chan conn)
     where
-    modeMsg = IrcMessage
+    modeMsg = defaultIrcMessage
            { _mesgType   = ModeMsgType polarity m a
            , _mesgSender = who
            , _mesgStamp  = now
            , _mesgModes  = view ( connChannels . ix chan
                                 . chanUsers . ix (userNick who)
                                 ) conn
-           , _mesgMe     = False
            }
 
 installModeChange ::
@@ -901,6 +952,19 @@ installModeChange settings now who polarity mode arg
          else set (chanModes . mapped . at mode)
                   Nothing
 
+unsplitModes ::
+  [(Bool,Char,ByteString)] ->
+  [ByteString]
+unsplitModes modes
+  = B8.pack (foldr combineModeChars (const "") modes True)
+  : [arg | (_,_,arg) <- modes, not (B.null arg)]
+  where
+  combineModeChars (q,m,_) rest p
+    | p == q = m : rest p
+    | q = '+' : m : rest True
+    | otherwise = '-' : m : rest False
+
+
 -- | Split up a mode change command and arguments into individual changes
 -- given a configuration.
 splitModes ::
@@ -909,7 +973,7 @@ splitModes ::
   [ByteString] {- ^ arguments           -} ->
   Maybe [(Bool,Char,ByteString)]
 splitModes icm modes0 =
-  foldr aux (\_ _ -> Just []) (B8.unpack modes0) True
+  foldr aux (\_ args -> [] <$ guard (null args)) (B8.unpack modes0) True
   where
   aux m rec polarity args =
     case m of
@@ -962,12 +1026,10 @@ doNick ::
   IrcConnection -> Logic IrcConnection
 doNick who newnick conn =
   do stamp <- getStamp
-     let m = IrcMessage
+     let m = defaultIrcMessage
                 { _mesgType = NickMsgType newnick
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgModes = ""
-                , _mesgMe = False
                 }
 
      let conn1 | isMyNick (userNick who) conn =
@@ -1003,12 +1065,10 @@ doPart ::
   IrcConnection -> Logic IrcConnection
 doPart who chan reason conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
                 { _mesgType = PartMsgType (asUtf8 reason)
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgMe = False
-                , _mesgModes = ""
                 }
          removeUser = set (chanUsers . at (userNick who)) Nothing
 
@@ -1036,12 +1096,10 @@ doKick ::
   IrcConnection -> Logic IrcConnection
 doKick who chan tgt reason conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
                 { _mesgType = KickMsgType tgt (asUtf8 reason)
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgModes = ""
-                , _mesgMe = False
                 }
 
      let conn1 = set (connChannels . ix chan . chanUsers . at tgt)
@@ -1085,12 +1143,10 @@ doQuit ::
   IrcConnection -> Logic IrcConnection
 doQuit who reason conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
+     let mesg = defaultIrcMessage
                 { _mesgType = QuitMsgType (asUtf8 reason)
                 , _mesgSender = who
                 , _mesgStamp = stamp
-                , _mesgMe = False
-                , _mesgModes = ""
                 }
 
      iforOf (connChannels . itraversed)
@@ -1134,12 +1190,10 @@ doJoinChannel who acct chan conn =
                    Unknown -> id
 
      -- record join event
-         m = IrcMessage
+         m = defaultIrcMessage
                { _mesgType = JoinMsgType
                , _mesgSender = who
                , _mesgStamp = stamp
-               , _mesgMe = False
-               , _mesgModes = ""
                }
      recordMessage m chan conn3
 
@@ -1159,16 +1213,20 @@ doNotifyChannel ::
   ByteString ->
   IrcConnection ->
   Logic IrcConnection
+
 doNotifyChannel who chan msg conn =
   do stamp <- getStamp
-     let mesg = IrcMessage
-               { _mesgType = NoticeMsgType (asUtf8 msg)
+     let (statusmsg, chan') = splitStatusMsg chan conn
+     let ty = case parseCtcpCommand msg of
+                Nothing                 -> NoticeMsgType (asUtf8 msg)
+                Just (command , args  ) -> CtcpRspMsgType command args
+     let mesg = defaultIrcMessage
+               { _mesgType = ty
                , _mesgSender = who
                , _mesgStamp = stamp
-               , _mesgMe = False
-               , _mesgModes = ""
+               , _mesgStatus = statusmsg
                }
-     recordMessage mesg chan conn
+     recordMessage mesg chan' conn
 
 doServerMessage ::
   ByteString {- ^ who -} ->
@@ -1176,12 +1234,10 @@ doServerMessage ::
   IrcConnection -> Logic IrcConnection
 doServerMessage who txt conn =
   do stamp <- getStamp
-     let m = IrcMessage
+     let m = defaultIrcMessage
                { _mesgType    = PrivMsgType (asUtf8 txt)
                , _mesgSender  = UserInfo (mkId who) Nothing Nothing
                , _mesgStamp   = stamp
-               , _mesgMe      = False
-               , _mesgModes   = ""
                }
      recordFor "" m
      return conn
@@ -1297,3 +1353,11 @@ isNickName c conn =
   case B8.uncons (idBytes c) of
     Just (x,_) -> not (x `elem` view connChanTypes conn)
     _ -> False -- probably shouldn't happen
+
+splitStatusMsg :: Identifier -> IrcConnection -> (String,Identifier)
+splitStatusMsg target conn = aux [] (idBytes target)
+  where
+  aux acc bs =
+    case B8.uncons bs of
+      Just (x,xs) | x `elem` view connStatusMsg conn -> aux (x:acc) xs
+      _ -> (reverse acc, mkId bs)

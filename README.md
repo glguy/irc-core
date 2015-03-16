@@ -1,8 +1,6 @@
 My IRC client
 =============
 
-This client has fewer features than the one you're using now. You probably don't want to use it.
-
 ![](https://raw.githubusercontent.com/wiki/glguy/irc-core/images/screenshot.png)
 
 Library
@@ -24,30 +22,35 @@ Client Features
 * Support for rendering/inputing colors and formatting
 * Haskell source code highlighting (/hs)
 * Write your modifications in Haskell!
-* Chanserv automation (automatically requests op from chanserv for privileged commands)
+* Chanserv automation (automatically requests op from chanserv for privileged commands), automatically deop after 5 minutes of not performing privileged commands.
 * Command syntax highlighting with hints.
 * Each user's nick is assigned a consistent color, when a user's nick is rendered in a chat message it uses that same color.
+* Support for /STATUSMSG/ messages
 
-No SSL?
-=======
+TLS
+===
 
-I haven't implemented SSL support, but you can use a tool like socat(1) to get an SSL connection to your favorite IRC server
+I've added TLS support. You can enable it with the `-t` flag. Note that Freenode (and other networks) will allow you to authenticate to NickServ via a client certificate. This is configurable via `--tls-client-cert`.
 
-```
-$ socat TCP-LISTEN:6697,fork,reuseaddr OPENSSL-CONNECT:chat.freenode.net:6697,verify=0
-```
+[Identifying with CERTFP](https://freenode.net/certfp/)
 
 Startup
 =======
 
 ```
 glirc <options> SERVER
-  -p PORT  --port=PORT  IRC Server Port
-  -n NICK  --nick=NICK  Nickname
-  -u USER  --user=USER  Username
-  -r REAL  --real=REAL  Real Name
-           --sasl-user=USER SASL Username
-  -h       --help       Show help
+  -p PORT      --port=PORT             IRC Server Port
+  -n NICK      --nick=NICK             Nickname
+  -u USER      --user=USER             Username
+  -r REAL      --real=REAL             Real Name
+  -  USER      --sasl-user=USER        SASL username
+  -d FILE      --debug=FILE            Debug log filename
+  -i USERINFO  --userinfo=USERINFO     CTCP USERINFO Response
+  -t           --tls                   Enable TLS
+               --tls-client-cert=PATH  Path to PEM encoded client certificate
+               --tls-client-key=PATH   Path to PEM encoded client key
+               --tls-insecure          Disable server certificate verification
+  -h           --help                  Show help
 
 Environment variables
 IRCPASSWORD=<your irc password>
@@ -63,9 +66,11 @@ Commands
 * `/bans` - Show known bans for current channel. Note: Request bans list with `/quote mode <channel> +b`
 * `/channel <channel>` - switch to a user message window
 * `/channelinfo` - Show information for the current channel
+* `/ctcp <command> <params>` - Send CTCP command to current window
 * `/clear` - Clear all messages for the current channel
 * `/help <topic>` - Request help from the server
 * `/hs <haskell source code>` - Send syntax highlighted source code as a message to the current channel
+* `/type <haskell type>` - Send syntax highlighted Haskell type with polarity checking
 * `/ignore <nick>` - Toggle ignoring a user by nickname.
 * `/join <channel>` - join a new channel (optional key argument)
 * `/kick <nick> <msg>` - Kick a user from the current channel
@@ -84,6 +89,17 @@ Commands
 * `/topic <topic>` - Change the topic for the current channel
 * `/umode <mode>` - Set modes on yourself
 * `/whois <nick>` - Query the server for information about a user
+* `/whowas <nick>` - Query the server for information about a user who recently disconnected.
+* `/stats <letter>` - Request server stat information, try `/help stats` on Freenode first.
+* `/admin` - Request some basic admin contact information
+* `/away <message>` - Toggle current away status
+* `/time` - Request server time
+* `/oper` - Enter your OPER credentials
+* `/accept` - Add user to the "accept list", try `/help accept` on Freenode
+* `/unaccept` - Remove a user from the "accept list"
+* `/acceptlist` - List users on accept lists
+* `/knock` - Request an /invite/ to a restricted channel
+* `/invite <nick>` - Invite the given user to the current channel
 
 Keyboard Shortcuts
 ==================

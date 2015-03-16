@@ -6,7 +6,6 @@ import Control.Lens
 import Data.Monoid
 import Data.Foldable (toList)
 import Data.List (stripPrefix)
-import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Data.Time (UTCTime, formatTime)
 import Graphics.Vty.Image
@@ -15,6 +14,7 @@ import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Text as Text
 
 import Irc.Format
+import Irc.Message
 import Irc.Model
 import Irc.Core
 
@@ -35,6 +35,7 @@ detailedImageForState !st
   renderOne x =
       timestamp <|>
       string (withForeColor defAttr tyColor) (ty ++ " ") <|>
+      statusMsgImage (view mesgStatus x) <|>
       renderFullUsermask (view mesgSender x) <|>
       string (withForeColor defAttr blue) (": ") <|>
       cleanText content
@@ -51,7 +52,8 @@ detailedImageForState !st
        PrivMsgType txt          -> (blue   , "Priv", txt)
        TopicMsgType txt         -> (yellow , "Topc", txt)
        ActionMsgType txt        -> (blue   , "Actn", txt)
-       CtcpMsgType cmd txt      -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
+       CtcpRspMsgType cmd txt   -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
+       CtcpReqMsgType cmd txt   -> (yellow , "Ctcp", asUtf8 (cmd <> " " <> txt))
        AwayMsgType txt          -> (yellow , "Away", txt)
        NoticeMsgType txt        -> (blue   , "Note", txt)
        KickMsgType who txt      -> (red    , "Kick", asUtf8 (idBytes who) <> " - " <> txt)
@@ -117,12 +119,14 @@ compressedImageForState !st = renderOne (activeMessages st)
     mbImg =
        case view mesgType msg of
          PrivMsgType _ | visible -> Just $
+           statusMsgImage (view mesgStatus msg) <|>
            views mesgModes modePrefix msg <|>
            formatNick (view mesgMe msg) nick <|>
            string (withForeColor defAttr blue) (": ") <|>
            colored
 
          NoticeMsgType _ | visible -> Just $
+           statusMsgImage (view mesgStatus msg) <|>
            string (withForeColor defAttr red) "! " <|>
            views mesgModes modePrefix msg <|>
            identImg (withForeColor defAttr red) nick <|>
@@ -130,11 +134,21 @@ compressedImageForState !st = renderOne (activeMessages st)
            colored
 
          ActionMsgType _ | visible -> Just $
+           statusMsgImage (view mesgStatus msg) <|>
            string (withForeColor defAttr blue) "* " <|>
            views mesgModes modePrefix msg <|>
            identImg (withForeColor defAttr blue) nick <|>
            char defAttr ' ' <|>
            colored
+
+         CtcpRspMsgType cmd params | visible -> Just $
+           string (withForeColor defAttr red) "C " <|>
+           views mesgModes modePrefix msg <|>
+           identImg (withForeColor defAttr blue) nick <|>
+           char defAttr ' ' <|>
+           cleanText (asUtf8 cmd) <|>
+           char defAttr ' ' <|>
+           cleanText (asUtf8 params)
 
          KickMsgType who reason -> Just $
            views mesgModes modePrefix msg <|>
@@ -195,7 +209,7 @@ compressedImageForState !st = renderOne (activeMessages st)
         visible = not (view (contains who) ignores)
         metaAttr = withForeColor defAttr brightBlack
     in case view mesgType msg of
-         CtcpMsgType{} ->
+         CtcpReqMsgType{} ->
            renderMeta
              (img <|>
               char (withForeColor defAttr brightBlue) 'C' <|>
@@ -249,8 +263,16 @@ compressedImageForState !st = renderOne (activeMessages st)
 
   modePrefix modes =
     string (withForeColor defAttr blue)
-           (mapMaybe (`lookup` prefixes) modes)
+    [ prefix | (mode,prefix) <- prefixes, mode `elem` modes]
 
+
+statusMsgImage :: String -> Image
+statusMsgImage status
+  | null status = emptyImage
+  | otherwise =
+           char defAttr '(' <|>
+           string (withForeColor defAttr brightRed) status <|>
+           string defAttr ") "
 
 
 errorMessage :: IrcError -> Text
@@ -315,4 +337,5 @@ errorMessage e =
     ErrTooManyKnocks          -> "Too many knocks"
     ErrChanOpen               -> "Knock unnecessary"
     ErrTargUmodeG             -> "Message ignored by +g mode"
+    ErrNoPrivs priv           -> "Oper privilege required: " <> asUtf8 priv
     ErrMlockRestricted m ms   -> "Mode '" <> Text.singleton m <> "' in locked set \"" <> asUtf8 ms <> "\""

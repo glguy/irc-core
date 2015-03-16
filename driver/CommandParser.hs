@@ -7,12 +7,14 @@ module CommandParser
   , pNick
   , pRemaining
   , pRemainingNoSp
+  , pRemainingNoSpLimit
   , pToken
   , pValidToken
   , pTarget
   , pChar
   , pSatisfy
   , pHaskell
+  , pAnyChar
   , commandsParser
   ) where
 
@@ -58,6 +60,12 @@ instance Alternative Parser where
       (_,ry@(_,_,Just{})) -> ry
       (rx,_) -> rx
 
+pAnyChar :: Parser Char
+pAnyChar = pValidToken "character" $ \t ->
+  case t of
+    [x] -> Just x
+    _   -> Nothing
+
 pValidToken :: String -> (String -> Maybe a) -> Parser a
 pValidToken name validate = Parser $ \s ->
   let (w,s1) = span (==' ') s
@@ -80,6 +88,15 @@ pRemaining = Parser (\s -> ("", stringWithControls defAttr s, Just s))
 
 pRemainingNoSp :: Parser String
 pRemainingNoSp = fmap (dropWhile isSpace) pRemaining
+
+pRemainingNoSpLimit :: Int -> Parser String
+pRemainingNoSpLimit len =
+  Parser (\s ->
+    let (w,s') = span (==' ') s
+        (a,b) = splitAt len (dropWhile isSpace s')
+    in if null b then ("", stringWithControls defAttr (w++a), Just a)
+                 else ("", stringWithControls defAttr (w++a) Vty.<|>
+                           stringWithControls (withForeColor defAttr red) b, Nothing))
 
 pChannel :: ClientState -> Parser Identifier
 pChannel st = pValidToken "channel" $ \chan ->

@@ -16,6 +16,7 @@ import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Char
 import Data.Foldable (for_, traverse_)
+import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
@@ -23,7 +24,7 @@ import Data.Text (Text)
 import Data.Time
 import Data.Traversable (for)
 import Graphics.Vty
-import Network
+import Network.Connection
 import System.IO
 import System.IO.Error (isEOFError)
 import qualified Data.ByteString as B
@@ -36,25 +37,33 @@ import qualified Data.Text.Encoding as Text
 import Irc.Core
 import Irc.Cmd
 import Irc.Format
+import Irc.Message
 import Irc.Model
 import Irc.RateLimit
 
-import ImageUtils
+import ClientState
+import Connection (connect, getRawIrcLine)
 import CommandArgs
 import CommandParser
-import ClientState
+import CtcpHandler
+import ImageUtils
+import Views.BanList
 import Views.Channel
 import Views.ChannelInfo
-import Views.BanList
+import HaskellHighlighter (highlightType)
 import qualified EditBox as Edit
+
+data SendType = SendCtcp String | SendPriv | SendNotice | SendAction
+makePrisms ''SendType
+
+deopWaitDuration :: NominalDiffTime
+deopWaitDuration = 5*60 -- seconds
 
 main :: IO ()
 main = do
   args <- getCommandArgs
 
-  h    <- connectTo (view cmdArgServer args) (PortNumber (fromIntegral (view cmdArgPort args)))
-  hSetNewlineMode h NewlineMode { inputNL = CRLF, outputNL = CRLF }
-  hSetEncoding h utf8
+  h <- connect args
 
   hErr <- for (view cmdArgDebug args) $ \fn ->
             do hErr <- openFile fn WriteMode
@@ -98,22 +107,24 @@ main = do
          , _clientHighlights      = mempty
          , _clientMessages        = mempty
          , _clientNickColors      = defaultNickColors
-         , _clientAutomation      = []
+         , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop]
+         , _clientTimers          = mempty
+         , _clientUserInfo        = Text.encodeUtf8 (Text.pack (view cmdArgUserInfo args))
          }
 
-initializeConnection :: CommandArgs -> Handle -> IO ()
+initializeConnection :: CommandArgs -> Connection -> IO ()
 initializeConnection args h =
-  do B.hPut h capLsCmd
-     traverse_ (B.hPut h . passCmd . toUtf8) (view cmdArgPassword args)
-     B.hPut h (nickCmd (views cmdArgNick toId args))
-     B.hPut h (userCmd (views cmdArgUser toUtf8 args)
+  do connectionPut h capLsCmd
+     traverse_ (connectionPut h . passCmd . toUtf8) (view cmdArgPassword args)
+     connectionPut h (nickCmd (views cmdArgNick toId args))
+     connectionPut h (userCmd (views cmdArgUser toUtf8 args)
                        (views cmdArgReal toUtf8 args))
   where
 
       toUtf8 = Text.encodeUtf8 . Text.pack
       toId = mkId . B8.pack
 
-driver :: Vty -> TChan Event -> TChan MsgFromServer -> ClientState -> IO ()
+driver :: Vty -> TChan Event -> TChan (UTCTime, MsgFromServer) -> ClientState -> IO ()
 driver vty vtyEventChan ircMsgChan st0 =
   do let (scroll', pic) = picForState st0
          st1 = set clientScrollPos scroll' st0
@@ -121,11 +132,24 @@ driver vty vtyEventChan ircMsgChan st0 =
      e <- readEitherTChan vtyEventChan ircMsgChan
      case e of
        Left vtyEvent -> processVtyEvent st1 vtyEvent
-       Right msg     -> processIrcMsg st1 msg
+       Right (time,msg) -> processIrcMsg st1 time msg
 
   where
-  continue = driver vty vtyEventChan ircMsgChan
+  -- processVtyEvent and processIrcMsg jump here
+  continue = considerTimers
            . resetCurrentChannelMessages
+  considerTimers st =
+
+    do now <- getCurrentTime
+       case nextTimerEvent now st of
+         Nothing -> driver vty vtyEventChan ircMsgChan st
+         Just (e,st') -> processTimerEvent e st'
+
+  processTimerEvent e st =
+    case e of
+      DropOperator chan ->
+        do clientSend (modeCmd chan ["-o",views (clientConnection.connNick) idBytes st]) st
+           considerTimers st
 
   processVtyEvent st event =
     case event of
@@ -146,14 +170,12 @@ driver vty vtyEventChan ircMsgChan st0 =
 
       _ -> continue st
 
-  processIrcMsg st msg =
-    do now <- getCurrentTime
-
-       let m :: IO (Either String IrcConnection, ClientState)
+  processIrcMsg st time msg =
+    do let m :: IO (Either String IrcConnection, ClientState)
            m = flip runStateT st
-             $ runLogic now
-                        (interpretLogicOp ircMsgChan)
-                        (advanceModel msg (view clientConnection st))
+             $ retract
+             $ hoistFree (interpretLogicOp ircMsgChan)
+             $ runLogic time (advanceModel msg (view clientConnection st))
 
        res <- m
        case res of
@@ -161,10 +183,10 @@ driver vty vtyEventChan ircMsgChan st0 =
                             continue st'
          (Right conn',st') -> continue (set clientConnection conn' st')
 
-interpretLogicOp :: TChan MsgFromServer -> LogicOp a -> StateT ClientState IO a
+interpretLogicOp :: TChan (UTCTime, MsgFromServer) -> LogicOp a -> StateT ClientState IO a
 
 interpretLogicOp ircMsgChan (Expect k) =
-  do fmap k (liftIO (atomically (readTChan ircMsgChan)))
+  do fmap (k.snd) (liftIO (atomically (readTChan ircMsgChan)))
 
 interpretLogicOp _ (Emit bytes r) =
   do st <- get
@@ -253,30 +275,41 @@ doSendMessageCurrent sendType st =
       doSendMessage sendType c (Text.pack (clientInput st)) st
     _ -> return st
 
-data SendType = SendPriv | SendNotice | SendAction
 
 doSendMessage :: SendType -> Identifier -> Text -> ClientState -> IO ClientState
-doSendMessage _ _ message st
-  | Text.null message = return st
+
+doSendMessage sendType _ message st
+  | Text.null message && hasn't _SendCtcp sendType = return st
+
 doSendMessage sendType target message st =
   do let bs = case sendType of
                 SendPriv -> privMsgCmd target (Text.encodeUtf8 message)
                 SendAction -> privMsgCmd target ("\SOHACTION " <>
                                                  Text.encodeUtf8 message <> "\SOH")
                 SendNotice -> noticeCmd target (Text.encodeUtf8 message)
+                SendCtcp cmd -> ctcpRequestCmd target
+                                 (Text.encodeUtf8 (Text.pack (map toUpper cmd)))
+                                 (Text.encodeUtf8 message)
      clientSend bs st
      now <- getCurrentTime
-     let myNick = view (clientConnection . connNick) st
-         myModes = view (clientConnection . connChannels . ix target . chanUsers . ix myNick) st
-     return (addMessage target (fakeMsg now myModes) (clearInput st))
+     let myNick = view connNick conn
+         myModes = view (connChannels . ix target' . chanUsers . ix myNick) conn
+     return (addMessage target' (fakeMsg now myModes) (clearInput st))
 
   where
+  conn = view clientConnection st
+
+  (statusmsg, target') = splitStatusMsg target conn
+
   fakeMsg now modes = IrcMessage
     { _mesgSender = who
+    , _mesgStatus = statusmsg
     , _mesgType = case sendType of
                     SendPriv   -> PrivMsgType   message
                     SendNotice -> NoticeMsgType message
                     SendAction -> ActionMsgType message
+                    SendCtcp cmd -> CtcpReqMsgType (Text.encodeUtf8 (Text.pack cmd))
+                                                   (Text.encodeUtf8 message)
     , _mesgStamp = now
     , _mesgModes = modes
     , _mesgMe = True
@@ -333,6 +366,10 @@ commandEvent st = commandsParser (clientInput st)
     (\target msg -> doSendMessage SendPriv target (Text.pack msg) st)
     <$> pTarget <*> pRemainingNoSp)
 
+  , ("ctcp",
+    (\command params -> doSendMessage (SendCtcp command) (focusedName st) (Text.pack params) st)
+    <$> pToken "command" <*> pRemainingNoSp)
+
     -- carefully preserve whitespace after the command
   , ("hs",
     (\src ->
@@ -341,6 +378,16 @@ commandEvent st = commandsParser (clientInput st)
         ChannelFocus c -> doSendMessage SendPriv c msg st
         _ -> return st)
     <$> pHaskell)
+
+  , ("type",
+    (\msg ->
+      case highlightType msg of
+        Nothing -> return st
+        Just x  ->
+          case view clientFocus st of
+            ChannelFocus c -> doSendMessage SendPriv c (Text.pack x) st
+            _ -> return st)
+    <$> pRemainingNoSp)
 
     -- raw
   , ("quote",
@@ -363,12 +410,7 @@ commandEvent st = commandsParser (clientInput st)
     <$> pRemainingNoSp)
 
   , ("mode",
-    (\args ->
-       case focusedChan st of
-         Nothing -> return st
-         Just chan ->
-           doWithOps chan (\evSt ->
-             evSt <$ clientSend (modeCmd chan (map toB (words args))) evSt) st')
+    (\args -> doMode (Text.encodeUtf8 (Text.pack args)) st)
     <$> pRemainingNoSp)
 
   , ("kick",
@@ -392,9 +434,8 @@ commandEvent st = commandsParser (clientInput st)
   , ("invite",
     (\nick ->
        case focusedChan st of
-         Nothing -> return st
-         Just chan ->
-           doInvite nick chan st)
+         Nothing   -> return st
+         Just chan -> doInvite nick chan st)
     <$> pNick st)
 
   , ("knock",
@@ -420,7 +461,7 @@ commandEvent st = commandsParser (clientInput st)
         case focusedChan st of
           Nothing -> return st
           Just chan -> doTopicCmd chan (toB rest) st')
-    <$> pRemainingNoSp)
+    <$> pRemainingNoSpLimit (view (clientConnection.connTopicLen) st))
 
   , ("ignore",
     (\u -> return (over (clientIgnores . contains u) not st'))
@@ -445,10 +486,7 @@ commandEvent st = commandsParser (clientInput st)
 
   , ("acceptlist", pure (doAccept True (Just "*") st))
 
-  , ("gc", length (show (view clientConnection st)) `seq` pure (return st'))
-
-  , ("nick",
-    (\nick -> st' <$ clientSend (nickCmd nick) st')
+  , ("nick", doNick st
     <$> pNick st)
 
   , ("away",
@@ -482,7 +520,52 @@ commandEvent st = commandsParser (clientInput st)
     (\mbServer -> st' <$ clientSend (timeCmd (fmap (Text.encodeUtf8 . Text.pack) mbServer)) st')
     <$> optional (pToken "server"))
 
+  , ("admin",
+    (\mbServer -> st' <$ clientSend (adminCmd (fmap (Text.encodeUtf8 . Text.pack) mbServer)) st')
+    <$> optional (pToken "server"))
+
+  , ("stats",
+    (\letter mbTarget ->
+        st' <$ clientSend (statsCmd letter (fmap (Text.encodeUtf8 . Text.pack) mbTarget)) st')
+    <$> pAnyChar <*> optional (pToken "target"))
+
+  , ("oper",
+    (\user pass -> st' <$ clientSend (operCmd (Text.encodeUtf8 (Text.pack user))
+                                              (Text.encodeUtf8 (Text.pack pass))) st')
+    <$> pToken "username" <*> pToken "password")
+
   ]
+
+doNick ::
+  ClientState ->
+  Identifier {- ^ new nickname -} ->
+  IO ClientState
+doNick st nick
+  | B8.length (idBytes nick) > view (clientConnection . connNickLen) st
+  = return st
+
+  | view (clientConnection.connPhase) st /= ActivePhase =
+      let st' = set (clientConnection.connNick) nick st in
+      clearInput st' <$ clientSend (nickCmd nick) st'
+
+  | otherwise =
+      clearInput st <$ clientSend (nickCmd nick) st
+
+doMode ::
+  ByteString {- mode change -} ->
+  ClientState -> IO ClientState
+doMode args st = fromMaybe (return st) $
+  do chan         <- focusedChan st
+     modes:params <- Just (B8.words args)
+     parsedModes  <- splitModes (view (clientConnection.connChanModeTypes) st)
+                        modes params
+     let modeChunks = chunksOf (view (clientConnection.connModes) st) parsedModes
+     return $
+       doWithOps chan (\evSt ->
+         do for_ modeChunks $ \modeChunk ->
+              clientSend (modeCmd chan (unsplitModes modeChunk)) evSt
+            return evSt)
+         (clearInput st)
 
 doAccept ::
   Bool {- ^ add to list -} ->
@@ -514,11 +597,13 @@ doKnock ::
   Identifier {- ^ channel  -} ->
   ClientState -> IO ClientState
 doKnock chan st
-  | has (clientConnection . connChannels . ix chan) st  -- don't knock channels you're in
-    || not (isChannelName chan (view clientConnection st)) -- only knock channels
-    = return st
+  | not available || not isChannel || inChannel = return st
   | otherwise = do clientSend (knockCmd chan) st
                    return (clearInput st)
+  where
+  available = view (clientConnection . connKnock) st
+  inChannel = has (clientConnection . connChannels . ix chan) st
+  isChannel = isChannelName chan (view clientConnection st)
 
 doInvite ::
   Identifier {- ^ nickname -} ->
@@ -711,28 +796,30 @@ dividerImage :: ClientState -> Image
 dividerImage st
   = extendToWidth (nickPart <|> channelPart)
   where
+  conn = view clientConnection st
+
+  myNick = view connNick conn
+
   channelPart =
     ifoldr (\i x xs -> drawOne i x <|> xs)
            emptyImage
            (fullMessageLists st <> extraDefaults)
 
+  -- e.g. glguy(+Zi)
   nickPart =
-    identImg defAttr (view (clientConnection . connNick) st) <|>
+    identImg defAttr myNick <|>
     string defAttr "(+" <|>
-    utf8Bytestring' defAttr (view (clientConnection . connUmode) st) <|>
+    utf8Bytestring' defAttr (view connUmode conn) <|>
     char defAttr ')'
 
   drawOne :: Identifier -> MessageList -> Image
   drawOne i seen
     | focusedName st == i =
         string defAttr "─(" <|>
+        string (withForeColor defAttr blue) focusedChanPrefixes <|>
         utf8Bytestring'
           (withForeColor defAttr green)
           (identToBytes i) <|>
-        string defAttr ")"
-    | focusedName st == i =
-        string defAttr "─(" <|>
-        identImg (withForeColor defAttr green) i <|>
         string defAttr ")"
     | views mlNewMessages (>0) seen =
         string defAttr "─[" <|>
@@ -745,6 +832,13 @@ dividerImage st
         string defAttr "]"
     | otherwise =
         string defAttr "─o"
+
+  -- e.g. [('o','@'),('v','+')]
+  prefixMapping = view (connChanModeTypes . modesPrefixModes) conn
+  myFocusedModes = view (connChannels . ix (focusedName st) . chanUsers . ix myNick) conn
+
+  -- allow prefixMapping to dictate the ordering
+  focusedChanPrefixes = [ prefix | (mode,prefix) <- prefixMapping, mode `elem` myFocusedModes ]
 
   -- deal with the fact that the server window uses the "" identifier
   identToBytes x
@@ -767,39 +861,45 @@ dividerImage st
 -- Event loops
 ------------------------------------------------------------------------
 
-sendLoop :: TChan ByteString -> Handle -> IO ()
+sendLoop :: TChan ByteString -> Connection -> IO ()
 sendLoop queue h =
   do r <- newRateLimit 2 5
      forever $
        do x <- atomically (readTChan queue)
           tickRateLimit r
-          B.hPut h x
+          connectionPut h x
 
-socketLoop :: TChan MsgFromServer -> Handle -> Maybe Handle -> IO ()
+socketLoop :: TChan (UTCTime, MsgFromServer) -> Connection -> Maybe Handle -> IO ()
 socketLoop chan h hErr =
   forever (atomically . writeTChan chan =<< getOne h hErr)
   `catches`
    [ Handler $ \ioe ->
-        let msg = if isEOFError ioe
+      do let msg = if isEOFError ioe
                     then "Connection terminated"
                     else Text.encodeUtf8 (Text.pack (show ioe))
-        in atomically (writeTChan chan (Error msg))
+         now <- getCurrentTime
+         atomically (writeTChan chan (now, Error msg))
    , Handler $ \(SomeException e) ->
-        atomically (writeTChan chan (Error (Text.encodeUtf8 (Text.pack (show e)))))
+        do now <- getCurrentTime
+           atomically (writeTChan chan (now, Error (Text.encodeUtf8 (Text.pack (show e)))))
    ]
 
 vtyEventLoop :: TChan Event -> Vty -> IO a
 vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)
 
-getOne :: Handle -> Maybe Handle -> IO MsgFromServer
+getOne :: Connection -> Maybe Handle -> IO (UTCTime, MsgFromServer)
 getOne h hErr =
-    do xs <- ircGetLine h
+    do xs <- getRawIrcLine h
        case parseRawIrcMsg xs of
          Nothing -> debug xs >> getOne h hErr
          Just msg ->
            case ircMsgToServerMsg msg of
-             Just x -> debug x >> return x
              Nothing -> debug msg >> getOne h hErr
+             Just x -> do t <- case msgTime msg of
+                                 Nothing -> getCurrentTime
+                                 Just t  -> return t
+                          debug x
+                          return (t,x)
   where
   debug x = for_ hErr (`hPrint` x)
 
@@ -874,19 +974,20 @@ doWithOps ::
   (ClientState -> IO ClientState) {- ^ privileged operation -} ->
   ClientState -> IO ClientState
 doWithOps chan privop st
-    | alreadyOp = finishUp False st
+    | initiallyOp = finishUp st
     | otherwise = getOpFirst
 
   where
-  myNick = view (clientConnection . connNick) st
+  conn = view clientConnection st
+  myNick = view connNick conn
 
-  alreadyOp =
-    elemOf ( clientConnection
-           . connChannels . ix chan
+  -- was I op when the command was entered
+  initiallyOp =
+    elemOf ( connChannels . ix chan
            . chanUsers . ix myNick
            . folded)
            'o'
-           st
+           conn
 
   handler = EventHandler
     { _evName = "Get op for privop"
@@ -894,19 +995,32 @@ doWithOps chan privop st
          case view mesgType evMsg of
            ModeMsgType True 'o' modeNick
              | mkId modeNick == myNick
-             , evTgt    == chan -> finishUp True evSt
+             , evTgt    == chan -> finishUp evSt
            _ -> return (over clientAutomation (cons handler) evSt)
     }
 
-  finishUp deop st1 =
-    do st2 <- privop st1
-       when deop $
-         clientSend (modeCmd chan ["-o",idDenote myNick]) st2
-       return st2
+  finishUp st1 = privop =<< installTimer st1
 
   getOpFirst =
     do clientSend (privMsgCmd "chanserv" ("op " <> idDenote chan)) st
        return (over clientAutomation (cons handler) st)
+
+  computeDeopTime =
+    do now <- getCurrentTime
+       return (addUTCTime deopWaitDuration now)
+
+  installTimer st0
+    | deopScheduled chan st0 || not initiallyOp =
+         do time <- computeDeopTime
+            return $ addTimerEvent time (DropOperator chan)
+                   $ filterTimerEvents (/= DropOperator chan) st0
+    | otherwise = return st0
+
+-- | Predicate to determine if a deop is scheduled to happen
+deopScheduled ::
+  Identifier {- ^ channel -} ->
+  ClientState -> Bool
+deopScheduled = elemOf (clientTimers . folded . folded . _DropOperator)
 
 doAutoKickBan ::
   Identifier {- ^ channel -} ->
@@ -925,3 +1039,19 @@ doAutoKickBan chan nick reason st =
   banMask = fromMaybe nickMask
           $ previews (folded . usrAccount . folded) ("$a:"<>) usr
     `mplus` previews (folded . usrHost    . folded) ("*!*@"<>) usr
+
+-- | Cancel any pending deop timer if I'm deopped
+cancelDeopTimerOnDeop :: EventHandler
+cancelDeopTimerOnDeop = EventHandler
+  { _evName = "cancel deop timer on deop"
+  , _evOnEvent = \evTgt evMsg evSt ->
+      let evSt' = reschedule evSt in
+      case view mesgType evMsg of
+        ModeMsgType False 'o' modeNick
+          | mkId modeNick == view (clientConnection.connNick) evSt ->
+                return $ filterTimerEvents (/= DropOperator evTgt) evSt'
+
+        _ -> return evSt'
+  }
+  where
+  reschedule = over clientAutomation (cons cancelDeopTimerOnDeop)
