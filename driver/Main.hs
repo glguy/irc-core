@@ -488,10 +488,7 @@ commandEvent st = commandsParser (clientInput st)
 
   , ("acceptlist", pure (doAccept True (Just "*") st))
 
-  , ("nick",
-    (\nick -> if B8.length (idBytes nick) > view (clientConnection . connNickLen) st
-                then return st
-                else st' <$ clientSend (nickCmd nick) st')
+  , ("nick", doNick st
     <$> pNick st)
 
   , ("away",
@@ -540,6 +537,21 @@ commandEvent st = commandsParser (clientInput st)
     <$> pToken "username" <*> pToken "password")
 
   ]
+
+doNick ::
+  ClientState ->
+  Identifier {- ^ new nickname -} ->
+  IO ClientState
+doNick st nick
+  | B8.length (idBytes nick) > view (clientConnection . connNickLen) st
+  = return st
+
+  | view (clientConnection.connPhase) st /= ActivePhase =
+      let st' = set (clientConnection.connNick) nick st in
+      clearInput st' <$ clientSend (nickCmd nick) st'
+
+  | otherwise =
+      clearInput st <$ clientSend (nickCmd nick) st
 
 doMode ::
   ByteString {- mode change -} ->

@@ -23,6 +23,7 @@ module Irc.Model
   , connInvex
   , connStatusMsg
   , connTopicLen
+  , connPhase
   , connModes
   , connUsers
   , connMyInfo
@@ -30,6 +31,9 @@ module Irc.Model
   , connUmode
   , connSnoMask
   , defaultIrcConnection
+
+  -- * Phases
+  , Phase(..)
 
   -- * IRC Channel model
   , IrcChannel(..)
