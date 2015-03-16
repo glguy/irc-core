@@ -890,18 +890,21 @@ vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)
 getOne :: Connection -> Maybe Handle -> IO (UTCTime, MsgFromServer)
 getOne h hErr =
     do xs <- getRawIrcLine h
+       let debug x = for_ hErr (`hPrint` x)
        case parseRawIrcMsg xs of
-         Nothing -> debug xs >> getOne h hErr
+         Nothing ->
+           do debug xs
+              t <- getCurrentTime
+              return (t,Error ("Parse: " <> xs))
          Just msg ->
-           case ircMsgToServerMsg msg of
-             Nothing -> debug msg >> getOne h hErr
-             Just x -> do t <- case msgTime msg of
-                                 Nothing -> getCurrentTime
-                                 Just t  -> return t
-                          debug x
-                          return (t,x)
-  where
-  debug x = for_ hErr (`hPrint` x)
+           do t <- maybe getCurrentTime return (msgTime msg)
+              case ircMsgToServerMsg msg of
+                Nothing ->
+                  do debug msg
+                     return (t,Error ("Unknown: " <> xs))
+                Just x ->
+                  do debug x
+                     return (t,x)
 
 readEitherTChan :: TChan a -> TChan b -> IO (Either a b)
 readEitherTChan a b =

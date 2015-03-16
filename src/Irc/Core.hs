@@ -75,6 +75,7 @@ data MsgFromServer
   | RplAway Identifier ByteString -- ^ 301 nick away_message
   | RplUserHost [ByteString] -- ^ 302 *(user hosts)
   | RplIsOn [Identifier] -- ^ 303 *(nick)
+  | RplSyntax ByteString -- ^ (inspircd) 304 text
   | RplUnAway -- ^ 305
   | RplNowAway -- ^ 306
   | RplWhoisUser Identifier ByteString ByteString ByteString -- ^ 311 nick user host realname
@@ -325,6 +326,9 @@ ircMsgToServerMsg ircmsg =
 
     ("303",[_,txt]) ->
        Just (RplIsOn (map mkId (filter (not . B.null) (B8.split ' ' txt))))
+
+    ("304",[_,txt]) ->
+       Just (RplSyntax txt)
 
     ("305",[_,_]) ->
        Just RplUnAway

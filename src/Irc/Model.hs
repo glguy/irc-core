@@ -488,6 +488,8 @@ advanceModel msg0 conn =
        RplEndOfWhois _nick ->
          doServerMessage "WHOIS" "--END--" conn
 
+       RplSyntax txt ->
+         doServerMessage "SYNTAX" txt conn
        RplAway nick message ->
          doAwayReply nick (asUtf8 message) conn
        RplUnAway ->
