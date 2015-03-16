@@ -21,7 +21,7 @@ import CommandArgs
 getRawIrcLine :: Connection -> IO ByteString
 getRawIrcLine h =
   do b <- connectionGetLine 1024 h
-     return (if B8.null then b else B8.init b)
+     return (if B8.null b then b else B8.init b)
         -- empty lines will still fail, just later and nicely
 
 buildConnectionParams :: CommandArgs -> IO ConnectionParams

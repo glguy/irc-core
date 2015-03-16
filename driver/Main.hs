@@ -173,9 +173,9 @@ driver vty vtyEventChan ircMsgChan st0 =
   processIrcMsg st time msg =
     do let m :: IO (Either String IrcConnection, ClientState)
            m = flip runStateT st
-             $ retract
-             $ hoistFree (interpretLogicOp ircMsgChan)
-             $ runLogic time (advanceModel msg (view clientConnection st))
+             $ runLogic time
+                  (interpretLogicOp ircMsgChan)
+                  (advanceModel msg (view clientConnection st))
 
        res <- m
        case res of

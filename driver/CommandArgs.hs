@@ -94,7 +94,7 @@ optDescrs =
   , Option "n" [ "nick"]      (ReqArg (set cmdArgNick) "NICK") "Nickname"
   , Option "u" [ "user"]      (ReqArg (set cmdArgUser) "USER") "Username"
   , Option "r" [ "real"]      (ReqArg (set cmdArgReal) "REAL") "Real Name"
-  , Option " "  ["sasl-user"] (ReqArg (set cmdArgSaslUser) "USER") "SASL username"
+  , Option ""  ["sasl-user"] (ReqArg (set cmdArgSaslUser) "USER") "SASL username"
   , Option "d" [ "debug"]     (ReqArg (set cmdArgDebug . Just) "FILE") "Debug log filename"
   , Option "i" [ "userinfo"]  (ReqArg (set cmdArgUserInfo) "USERINFO") "CTCP USERINFO Response"
   , Option "t" [ "tls"]       (NoArg  (set cmdArgTls True)) "Enable TLS"
