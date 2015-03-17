@@ -80,7 +80,10 @@ Commands
 * `/msg <nick> <message>` - send a private message
 * `/nick <nick>` - Change your nickname
 * `/notice <nick> <message>` - send a notice message
-* `/op` - Request ops from chanserv on the current channel
+* `/op <nicks>` - Op nicks in the channel, self when no nicks given
+* `/deop <nicks>` - Deop nicks in the channel, self when no nicks given
+* `/voice <nicks>` - Voice nicks in the channel, self when no nicks given
+* `/devoice <nicks>` - Devoice nicks in the channel, self when no nicks given
 * `/part <message>` - part the current channel with the given message
 * `/query <nick>` - switch to a user message window
 * `/quote <raw client command>` - send a client command verbatim

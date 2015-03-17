@@ -16,6 +16,7 @@ module CommandParser
   , pHaskell
   , pAnyChar
   , commandsParser
+  , many'
   ) where
 
 import Data.Char
@@ -149,3 +150,14 @@ commandsParser input cmds =
   where
   (cmd,rest) = break (==' ') (drop 1 input)
   matchCommand (c,cs,_) = cmd `elem` c:cs
+
+-- | Many parser that works in this infinite model
+-- NOTE: MUST BE END OF PARSER!
+many' :: Parser a -> Parser [a]
+many' p = [] <$ pEnd
+      <|> liftA2 (:) p (many' p)
+
+pEnd :: Parser ()
+pEnd = Parser (\s ->
+          if all isSpace s then ("", string defAttr s, Just ())
+                           else (s , emptyImage      , Nothing))

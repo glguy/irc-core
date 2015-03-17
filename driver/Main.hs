@@ -16,6 +16,7 @@ import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Char
 import Data.Foldable (for_, traverse_)
+import Data.List (delete, nub)
 import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
@@ -507,13 +508,10 @@ commandEvent st = commandsParser (clientInput st)
     (\whomask -> st' <$ clientSend (whoCmd (toB whomask)) st')
     <$> pToken "mask")
 
-  , ("op", [],
-    (\args ->
-       case focusedChan st of
-        Nothing -> return st
-        Just chan ->
-          doChanservOpCmd chan (map B8.pack (words args)) st')
-    <$> pRemainingNoSp)
+  , ("op"     , [], doOp st      <$> many' (pNick st))
+  , ("deop"   , [], doDeop st    <$> many' (pNick st))
+  , ("voice"  , [], doVoice st   <$> many' (pNick st))
+  , ("devoice", [], doDevoice st <$> many' (pNick st))
 
   , ("akb", [],
     (\nick reason ->
@@ -627,14 +625,6 @@ doInvite nick chan st
   where
   go st' = st' <$ clientSend (inviteCmd nick chan) st'
 
-doChanservOpCmd ::
-  Identifier   {- ^ channel -} ->
-  [ByteString] {- ^ optional arguments -} ->
-  ClientState -> IO ClientState
-doChanservOpCmd chan args st =
-  do clientSend (privMsgCmd (mkId "chanserv")
-                            (B8.unwords ("op":idBytes chan:args))) st
-     return st
 
 doChannelInfoCmd ::
   ClientState -> IO ClientState
@@ -985,7 +975,14 @@ doWithOps ::
   Identifier {- ^ channel -} ->
   (ClientState -> IO ClientState) {- ^ privileged operation -} ->
   ClientState -> IO ClientState
-doWithOps chan privop st
+doWithOps = doWithOps' False
+
+doWithOps' ::
+  Bool {- ^ permanent change -} ->
+  Identifier {- ^ channel -} ->
+  (ClientState -> IO ClientState) {- ^ privileged operation -} ->
+  ClientState -> IO ClientState
+doWithOps' perm chan privop st
     | initiallyOp = finishUp st
     | otherwise = getOpFirst
 
@@ -994,12 +991,7 @@ doWithOps chan privop st
   myNick = view connNick conn
 
   -- was I op when the command was entered
-  initiallyOp =
-    elemOf ( connChannels . ix chan
-           . chanUsers . ix myNick
-           . folded)
-           'o'
-           conn
+  initiallyOp = nickHasModeInChannel myNick 'o' chan conn
 
   handler = EventHandler
     { _evName = "Get op for privop"
@@ -1022,10 +1014,17 @@ doWithOps chan privop st
        return (addUTCTime deopWaitDuration now)
 
   installTimer st0
+
+    | perm && deopScheduled chan st0 =
+         return $ filterTimerEvents (/= DropOperator chan) st0
+
+    | perm = return st0
+
     | deopScheduled chan st0 || not initiallyOp =
          do time <- computeDeopTime
             return $ addTimerEvent time (DropOperator chan)
                    $ filterTimerEvents (/= DropOperator chan) st0
+
     | otherwise = return st0
 
 -- | Predicate to determine if a deop is scheduled to happen
@@ -1067,3 +1066,95 @@ cancelDeopTimerOnDeop = EventHandler
   }
   where
   reschedule = over clientAutomation (cons cancelDeopTimerOnDeop)
+
+doOp :: ClientState -> [Identifier] -> IO ClientState
+doOp st nicks
+  | Just chan <- focusedChan st =
+
+      doWithOps'
+        (null nicks || myNick `elem` nicks) -- permanent?
+        chan
+        (massModeChange True 'o' chan (nub (delete myNick nicks)))
+        (clearInput st)
+
+  | otherwise = return st
+
+  where
+  myNick = view (clientConnection.connNick) st
+
+
+doDeop :: ClientState -> [Identifier] -> IO ClientState
+doDeop st nicks
+  | Just chan <- focusedChan st =
+
+      doWithOps
+        chan
+        (massModeChange False 'o' chan nicks')
+        (clearInput st)
+
+  | otherwise = return st
+
+  where
+  -- deop myself last
+  nicks'
+    | null nicks = [myNick]
+    | myNick `elem` nicks = nub (delete myNick nicks) ++ [myNick]
+    | otherwise = nicks
+
+  myNick = view (clientConnection.connNick) st
+
+doVoice :: ClientState -> [Identifier] -> IO ClientState
+doVoice st nicks
+  | Just chan <- focusedChan st =
+      doWithOps
+        chan
+        (massModeChange True 'v' chan nicks')
+        (clearInput st)
+  | otherwise = return st
+  where
+  nicks'
+    | null nicks = [view (clientConnection.connNick) st]
+    | otherwise  = nub nicks
+
+doDevoice :: ClientState -> [Identifier] -> IO ClientState
+doDevoice st nicks
+  | Just chan <- focusedChan st =
+      doWithOps
+        chan
+        (massModeChange False 'v' chan nicks')
+        (clearInput st)
+  | otherwise = return st
+  where
+  nicks'
+    | null nicks = [view (clientConnection.connNick) st]
+    | otherwise  = nub nicks
+
+massModeChange ::
+  Bool       {- ^ polarity -} ->
+  Char       {- ^ mode     -} ->
+  Identifier {- ^ channel  -} ->
+  [Identifier] {- ^ nicks -} ->
+  ClientState -> IO ClientState
+massModeChange polarity mode chan nicks st =
+  do let nickChunks = chunksOf (view (clientConnection.connModes) st) nicks
+     for_ nickChunks $ \nickChunk ->
+       clientSend (modeCmd chan (modeArg (length nickChunk) : map idBytes nickChunk)) st
+     return st
+  where
+  polarityBs
+    | polarity  = B8.empty
+    | otherwise = B8.singleton '-'
+
+  modeArg n = polarityBs <> B8.replicate n mode
+
+nickHasModeInChannel ::
+  Identifier {- ^ nick    -} ->
+  Char       {- ^ mode    -} ->
+  Identifier {- ^ channel -} ->
+  IrcConnection -> Bool
+nickHasModeInChannel nick mode chan conn =
+  elemOf ( connChannels . ix chan
+         . chanUsers    . ix nick
+         . folded)
+         mode
+         conn
