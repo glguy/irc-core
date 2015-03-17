@@ -459,10 +459,7 @@ commandEvent st = commandsParser (clientInput st)
     <$> pNick st)
 
   , ("topic",
-    (\rest ->
-        case focusedChan st of
-          Nothing -> return st
-          Just chan -> doTopicCmd chan (toB rest) st')
+    (\rest -> doTopicCmd (toB rest) st) -- TODO: the limit should check bytes not chars
     <$> pRemainingNoSpLimit (view (clientConnection.connTopicLen) st))
 
   , ("ignore",
@@ -668,16 +665,19 @@ doMasksCmd mode st
   | otherwise = return st
 
 doTopicCmd ::
-  Identifier {- ^ channel -} ->
   ByteString {- ^ new topic -} ->
   ClientState -> IO ClientState
-doTopicCmd chan topic st =
-  case preview (clientConnection . connChannels . ix chan . chanModes . folded) st of
-    -- check if it's known that the mode isn't +t
-    Just modes | hasn't (ix 't') modes -> go st
-    _                                  -> doWithOps chan go st
-  where
-  go st' = st' <$ clientSend (topicCmd chan topic) st'
+doTopicCmd topic st
+  | not (B8.null topic)
+  , Just chan <- focusedChan st =
+     let go st' = st' <$ clientSend (topicCmd chan topic) st' in
+     case preview (clientConnection . connChannels . ix chan . chanModes . folded) st of
+       -- check if it's known that the mode isn't +t
+       Just modes | hasn't (ix 't') modes -> go (clearInput st)
+       _                                  -> doWithOps chan go (clearInput st)
+  | otherwise = return st
+
+
 
 doJoinCmd :: Identifier -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
