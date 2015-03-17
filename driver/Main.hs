@@ -231,6 +231,7 @@ keyEvent k ms st =
     (KPageDown, _      ) -> more $ scrollDown st
     (KChar 'n', [MCtrl]) -> more $ nextFocus st
     (KChar 'p', [MCtrl]) -> more $ prevFocus st
+    (KChar c  , [MMeta]) | Just i <- jumpNumber c -> more $ jumpFocus i st
     (KBS      , _      ) -> more $ changeInput Edit.backspace st
     (KChar 'd', [MCtrl]) -> more $ changeInput Edit.delete st
     (KDel     , _      ) -> more $ changeInput Edit.delete st
@@ -257,6 +258,11 @@ keyEvent k ms st =
     (KEnter   , []     ) -> snd (inputLogic st)
     _                    -> more st
 
+-- | Map keyboard numbers 1-9,0 to the numbers 0-9
+jumpNumber :: Char -> Maybe Int
+jumpNumber '0' = Just 9
+jumpNumber c | '1' <= c, c <= '9' = Just (ord c - ord '1')
+jumpNumber _ = Nothing
 
 -- TODO: Don't scroll off the end of the channel
 

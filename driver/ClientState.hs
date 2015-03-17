@@ -128,6 +128,13 @@ nextFocus = incrementFocus nextInSorted
 prevFocus :: ClientState -> ClientState
 prevFocus = incrementFocus prevInSorted
 
+-- | Jump to a zero-based index in the set of focus targets.
+jumpFocus :: Int -> ClientState -> ClientState
+jumpFocus i = incrementFocus $ \current targets ->
+  if 0 <= i && i < Set.size targets
+    then Set.elemAt i targets
+    else current
+
 -- | 'incrementFocus' allows moving forward and backward through
 -- a sorted list of channel names and query windows. Information
 -- windows like mask lists and info lists will always transition
