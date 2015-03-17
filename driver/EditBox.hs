@@ -10,6 +10,7 @@ module EditBox
   , killHome
   , killEnd
   , killWord
+  , paste
   , left
   , right
   , leftWord
@@ -30,6 +31,7 @@ data EditBox = EditBox
   , _pos     :: !Int
   , _history :: [String]
   , _historyPos :: !Int
+  , _yankBuffer :: String
   }
   deriving (Read, Show)
 
@@ -41,7 +43,13 @@ empty = EditBox
   , _pos     = 0
   , _history = []
   , _historyPos = -1
+  , _yankBuffer = ""
   }
+
+updateYankBuffer :: String -> EditBox -> EditBox
+updateYankBuffer str
+  | null str  = id
+  | otherwise = set yankBuffer str
 
 success :: EditBox -> EditBox
 success e
@@ -102,23 +110,33 @@ end e
 
 killEnd :: EditBox -> EditBox
 killEnd e
-  = over content (take (view pos e)) e
+  = set content keep
+  $ updateYankBuffer kill e
+  where
+  (keep,kill) = splitAt (view pos e) (view content e)
 
 killHome :: EditBox -> EditBox
 killHome e
-  = home
-  $ over content (drop (view pos e)) e
-
-killWord :: EditBox -> EditBox
-killWord e
-  = set pos (length a')
-  $ set content (a'++b) e
+  = set content keep
+  $ set pos 0
+  $ updateYankBuffer kill e
   where
-  (a,b) = splitAt (view pos e) (view content e)
-  a' = reverse
-     $ dropWhile (not . isSpace)
-     $ dropWhile isSpace
-     $ reverse a
+  (kill,keep) = splitAt (view pos e) (view content e)
+
+paste :: EditBox -> EditBox
+paste e = insertString (view yankBuffer e) e
+
+killWord :: Bool {- ^ yank -} -> EditBox -> EditBox
+killWord yank e
+  = set pos (length l')
+  $ updateYankBuffer yanked
+  $ set content (l'++r) e
+  where
+  (l,r) = splitAt (view pos e) (view content e)
+  (sp,l1) = span  isSpace (reverse l)
+  (wd,l2) = break isSpace l1
+  l' = reverse l2
+  yanked = reverse (sp++wd)
 
 insert :: Char -> EditBox -> EditBox
 insert c
@@ -145,8 +163,8 @@ leftWord e =
     [] -> set pos 0 e
     (i,_):_ -> set pos (i+1) e
   where
-  search = dropWhile (not . isSpace . snd)
-         $ dropWhile (isSpace . snd)
+  search = dropWhile (isAlphaNum . snd)
+         $ dropWhile (not . isAlphaNum . snd)
          $ reverse
          $ take (view pos e)
          $ zip [0..]
@@ -158,8 +176,8 @@ rightWord e =
     [] -> set pos (views content length e) e
     (i,_):_ -> set pos i e
   where
-  search = dropWhile (not . isSpace . snd)
-         $ dropWhile (isSpace . snd)
+  search = dropWhile (isAlphaNum . snd)
+         $ dropWhile (not . isAlphaNum . snd)
          $ drop (view pos e)
          $ zip [0..]
          $ view content e

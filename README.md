@@ -107,12 +107,14 @@ Keyboard Shortcuts
 * `ESC` quit
 * `^N` next channel
 * `^P` previous channel
+* `M-#` jump to window
 * `^A` beginning of line
 * `^E` end of line
 * `^K` delete to end
 * `^U` delete to beginning
 * `^D` delete at cursor
 * `^W` delete word
+* `^Y` paste from yank buffer
 * `M-F` forward word
 * `M-B` backward word
 * `TAB` nickname completion

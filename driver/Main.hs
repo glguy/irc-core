@@ -245,7 +245,8 @@ keyEvent k ms st =
     (KChar 'e', [MCtrl]) -> more $ changeInput Edit.end st
     (KChar 'u', [MCtrl]) -> more $ changeInput Edit.killHome st
     (KChar 'k', [MCtrl]) -> more $ changeInput Edit.killEnd st
-    (KChar 'w', [MCtrl]) -> more $ changeInput Edit.killWord st
+    (KChar 'y', [MCtrl]) -> more $ changeInput Edit.paste st
+    (KChar 'w', [MCtrl]) -> more $ changeInput (Edit.killWord True) st
     (KChar 'b', [MMeta]) -> more $ changeInput Edit.leftWord st
     (KChar 'f', [MMeta]) -> more $ changeInput Edit.rightWord st
     (KChar '\t', []    ) -> more $ tabComplete st
@@ -456,7 +457,7 @@ commandEvent st = commandsParser (clientInput st)
                Just chan -> st' <$ clientSend (partCmd chan (toB msg)) st')
     <$> pRemainingNoSp)
 
-  , ("whois", [],
+  , ("whois", ["wi"],
     (\u -> st' <$ clientSend (whoisCmd u) st')
     <$> pNick st)
 
@@ -937,7 +938,7 @@ tabComplete st = fromMaybe st $
                            $ replaceWith next st
   where
   replaceWith str = over clientEditBox $ \box ->
-    let box1 = Edit.killWord box
+    let box1 = Edit.killWord False box
         str1 | view Edit.pos box1 == 0 = str ++ ": "
              | otherwise               = str
     in Edit.insertString str1 box1
