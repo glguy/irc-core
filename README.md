@@ -91,6 +91,7 @@ Commands
 * `/server` - switch to the server message window
 * `/topic <topic>` - Change the topic for the current channel
 * `/umode <mode>` - Set modes on yourself
+* `/window <number>` - Jump to a window by index
 * `/whois <nick>` - Query the server for information about a user
 * `/whowas <nick>` - Query the server for information about a user who recently disconnected.
 * `/stats <letter>` - Request server stat information, try `/help stats` on Freenode first.
@@ -111,6 +112,7 @@ Keyboard Shortcuts
 * `^N` next channel
 * `^P` previous channel
 * `M-#` jump to window
+* `M-A` jump to activity
 * `^A` beginning of line
 * `^E` end of line
 * `^K` delete to end

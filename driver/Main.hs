@@ -16,7 +16,7 @@ import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Char
 import Data.Foldable (for_, traverse_)
-import Data.List (delete, nub)
+import Data.List (delete, elemIndex, nub)
 import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
@@ -141,8 +141,8 @@ driver vty vtyEventChan ircMsgChan st0 =
   -- processVtyEvent and processIrcMsg jump here
   continue = considerTimers
            . resetCurrentChannelMessages
-  considerTimers st =
 
+  considerTimers st =
     do now <- getCurrentTime
        case nextTimerEvent now st of
          Nothing -> driver vty vtyEventChan ircMsgChan st
@@ -233,6 +233,7 @@ keyEvent k ms st =
     (KChar 'n', [MCtrl]) -> more $ nextFocus st
     (KChar 'p', [MCtrl]) -> more $ prevFocus st
     (KChar c  , [MMeta]) | Just i <- jumpNumber c -> more $ jumpFocus i st
+    (KChar 'a', [MMeta]) -> more $ jumpActivity st
     (KBS      , _      ) -> more $ changeInput Edit.backspace st
     (KChar 'd', [MCtrl]) -> more $ changeInput Edit.delete st
     (KDel     , _      ) -> more $ changeInput Edit.delete st
@@ -262,9 +263,10 @@ keyEvent k ms st =
 
 -- | Map keyboard numbers 1-9,0 to the numbers 0-9
 jumpNumber :: Char -> Maybe Int
-jumpNumber '0' = Just 9
-jumpNumber c | '1' <= c, c <= '9' = Just (ord c - ord '1')
-jumpNumber _ = Nothing
+jumpNumber c = elemIndex c jumps
+  where
+  jumps = "1234567890qwertyuiop"
+
 
 -- TODO: Don't scroll off the end of the channel
 
@@ -351,6 +353,10 @@ commandEvent st = commandsParser (clientInput st)
   , ("query", [],
     (\user -> return (set clientFocus (ChannelFocus user) st'))
     <$> pNick st)
+
+  , ("window", [],
+    (\n -> return (jumpFocus n st'))
+    <$> pNumber)
 
   , ("channelinfo", [], pure (doChannelInfoCmd st'))
 

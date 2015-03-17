@@ -135,6 +135,20 @@ jumpFocus i = incrementFocus $ \current targets ->
     then Set.elemAt i targets
     else current
 
+-- | Find a channel to jump to that is either marked for mention
+-- or which has new messages
+jumpActivity :: ClientState -> ClientState
+jumpActivity st =
+  case active of
+    []     -> st
+    name:_ -> set clientFocus (ChannelFocus name) st
+  where
+  active =
+    [ name | (name,messages) <- views clientMessages Map.toList st
+           , view mlMentioned messages ] ++
+    [ name | (name,messages) <- views clientMessages Map.toList st
+           , view mlNewMessages messages > 0 ]
+
 -- | 'incrementFocus' allows moving forward and backward through
 -- a sorted list of channel names and query windows. Information
 -- windows like mask lists and info lists will always transition

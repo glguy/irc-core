@@ -15,12 +15,14 @@ module CommandParser
   , pSatisfy
   , pHaskell
   , pAnyChar
+  , pNumber
   , commandsParser
   , many'
   ) where
 
 import Data.Char
 import Data.List (find)
+import Text.Read (readMaybe)
 import Control.Monad
 import Control.Lens
 import Control.Applicative
@@ -161,3 +163,6 @@ pEnd :: Parser ()
 pEnd = Parser (\s ->
           if all isSpace s then ("", string defAttr s, Just ())
                            else (s , emptyImage      , Nothing))
+
+pNumber :: Parser Int
+pNumber = pValidToken "number" readMaybe
