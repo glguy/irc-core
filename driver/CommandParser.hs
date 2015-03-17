@@ -19,6 +19,7 @@ module CommandParser
   ) where
 
 import Data.Char
+import Data.List (find)
 import Control.Monad
 import Control.Lens
 import Control.Applicative
@@ -133,17 +134,18 @@ pHaskell = Parser (\s ->
 
 commandsParser ::
   String ->
-  [(String, Parser a)] ->
+  [(String, [String], Parser a)] ->
   (Image, Maybe a)
 commandsParser input cmds =
-  case lookup cmd cmds of
+  case find matchCommand cmds of
     Just p -> over _1 (\img -> char defAttr '/' Vty.<|>
                                stringWithControls (withForeColor defAttr yellow) cmd Vty.<|>
                                img)
-                      (runParser p rest)
+                      (runParser (view _3 p) rest)
 
     Nothing -> ( char defAttr '/' Vty.<|>
                  stringWithControls (withForeColor defAttr red) (drop 1 input)
                , Nothing)
   where
   (cmd,rest) = break (==' ') (drop 1 input)
+  matchCommand (c,cs,_) = cmd `elem` c:cs

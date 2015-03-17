@@ -329,26 +329,26 @@ commandEvent st = commandsParser (clientInput st)
  toB = Text.encodeUtf8 . Text.pack
 
  exitCommand =
-  ("exit", pure (return Exit))
+  ("exit", [], pure (return Exit))
 
- normalCommands = over (mapped . _2 . mapped . mapped) KeepGoing $
+ normalCommands = over (mapped . _3 . mapped . mapped) KeepGoing $
     -- focus setting
-  [ ("server",
+  [ ("server", [],
     pure (return (set clientFocus (ChannelFocus "") st')))
 
-  , ("channel",
+  , ("channel", [],
     (\chan -> return (set clientFocus (ChannelFocus chan) st'))
     <$> pChannel st)
 
-  , ("query",
+  , ("query", [],
     (\user -> return (set clientFocus (ChannelFocus user) st'))
     <$> pNick st)
 
-  , ("channelinfo", pure (doChannelInfoCmd st'))
+  , ("channelinfo", [], pure (doChannelInfoCmd st'))
 
-  , ("bans", pure (doMasksCmd 'b' st))
+  , ("bans", [], pure (doMasksCmd 'b' st))
 
-  , ("masks",
+  , ("masks", [],
     (\mode -> doMasksCmd mode st)
     <$> pValidToken "mode" (\m ->
             case m of
@@ -356,24 +356,24 @@ commandEvent st = commandsParser (clientInput st)
               _ -> Nothing))
 
     -- chat
-  , ("me",
+  , ("me", [],
     (\msg -> doAction msg st)
     <$> pRemainingNoSp)
 
-  , ("notice",
+  , ("notice", [],
     (\target msg -> doSendMessage SendNotice target (Text.pack msg) st)
     <$> pTarget <*> pRemainingNoSp)
 
-  , ("msg",
+  , ("msg", [],
     (\target msg -> doSendMessage SendPriv target (Text.pack msg) st)
     <$> pTarget <*> pRemainingNoSp)
 
-  , ("ctcp",
+  , ("ctcp", [],
     (\command params -> doSendMessage (SendCtcp command) (focusedName st) (Text.pack params) st)
     <$> pToken "command" <*> pRemainingNoSp)
 
     -- carefully preserve whitespace after the command
-  , ("hs",
+  , ("hs", [],
     (\src ->
       let msg = Text.pack src in
       case view clientFocus st of
@@ -381,7 +381,7 @@ commandEvent st = commandsParser (clientInput st)
         _ -> return st)
     <$> pHaskell)
 
-  , ("type",
+  , ("type", [],
     (\msg ->
       case highlightType msg of
         Nothing -> return st
@@ -392,30 +392,30 @@ commandEvent st = commandsParser (clientInput st)
     <$> pRemainingNoSp)
 
     -- raw
-  , ("quote",
+  , ("quote", [],
     (\rest -> doQuote rest st')
     <$> pRemainingNoSp)
 
-  , ("help",
+  , ("help", [],
     (\mbTopic -> st' <$ clientSend (helpCmd (maybe "" toB mbTopic)) st')
     <$> optional (pToken "topic"))
 
     -- channel commands
-  , ("join",
+  , ("join", ["j"],
     (\c key -> doJoinCmd c (fmap toB key) st')
     <$> pChannel st <*> optional (pToken "key"))
 
-  , ("umode",
+  , ("umode", [],
     (\args ->
          st' <$ clientSend (modeCmd (view (clientConnection . connNick) st)
                                     (map toB (words args))) st')
     <$> pRemainingNoSp)
 
-  , ("mode",
+  , ("mode", [],
     (\args -> doMode (Text.encodeUtf8 (Text.pack args)) st)
     <$> pRemainingNoSp)
 
-  , ("kick",
+  , ("kick", [],
     (\nick msg ->
        case focusedChan st of
          Nothing -> return st
@@ -424,7 +424,7 @@ commandEvent st = commandsParser (clientInput st)
              evSt <$ clientSend (kickCmd chan nick (toB msg)) evSt) st')
     <$> pNick st <*> pRemainingNoSp)
 
-  , ("remove",
+  , ("remove", [],
     (\nick msg ->
         case focusedChan st of
           Nothing -> return st
@@ -433,74 +433,74 @@ commandEvent st = commandsParser (clientInput st)
               evSt <$ clientSend (removeCmd chan nick (toB msg)) evSt) st')
     <$> pNick st <*> pRemainingNoSp)
 
-  , ("invite",
+  , ("invite", [],
     (\nick ->
        case focusedChan st of
          Nothing   -> return st
          Just chan -> doInvite nick chan st)
     <$> pNick st)
 
-  , ("knock",
+  , ("knock", [],
     (\chan -> doKnock chan st)
     <$> pChannel st)
 
-  , ("part",
+  , ("part", [],
     (\msg -> case focusedChan st of
                Nothing -> return st
                Just chan -> st' <$ clientSend (partCmd chan (toB msg)) st')
     <$> pRemainingNoSp)
 
-  , ("whois",
+  , ("whois", [],
     (\u -> st' <$ clientSend (whoisCmd u) st')
     <$> pNick st)
 
-  , ("whowas",
+  , ("whowas", [],
     (\u -> st' <$ clientSend (whowasCmd u) st')
     <$> pNick st)
 
-  , ("topic",
+  , ("topic", ["t"],
     (\rest -> doTopicCmd (toB rest) st) -- TODO: the limit should check bytes not chars
     <$> pRemainingNoSpLimit (view (clientConnection.connTopicLen) st))
 
-  , ("ignore",
+  , ("ignore", [],
     (\u -> return (over (clientIgnores . contains u) not st'))
     <$> pNick st)
 
-  , ("highlight",
+  , ("highlight", [],
     (\w ->
        return (over (clientHighlights . contains (ircFoldCase (Text.encodeUtf8 (Text.pack w)))) not st'))
     <$> pRemainingNoSp)
 
-  , ("clear",
+  , ("clear", [],
     (\chan -> return (set (clientMessages . at (fromMaybe (focusedName st) chan)) Nothing st'))
     <$> optional pTarget)
 
-  , ("accept",
+  , ("accept", [],
     (\mbNick -> doAccept True mbNick st)
     <$> optional (pNick st))
 
-  , ("unaccept",
+  , ("unaccept", [],
     (\mbNick -> doAccept False mbNick st)
     <$> optional (pNick st))
 
-  , ("acceptlist", pure (doAccept True (Just "*") st))
+  , ("acceptlist", [], pure (doAccept True (Just "*") st))
 
-  , ("nick", doNick st
+  , ("nick", [], doNick st
     <$> pNick st)
 
-  , ("away",
+  , ("away", [],
     (\rest -> st' <$ clientSend (awayCmd (toB rest)) st')
     <$> pRemainingNoSp)
 
-  , ("quit",
+  , ("quit", [],
     (\rest -> st' <$ clientSend (quitCmd (toB rest)) st')
     <$> pRemainingNoSp)
 
-  , ("who",
+  , ("who", [],
     (\whomask -> st' <$ clientSend (whoCmd (toB whomask)) st')
     <$> pToken "mask")
 
-  , ("op",
+  , ("op", [],
     (\args ->
        case focusedChan st of
         Nothing -> return st
@@ -508,27 +508,27 @@ commandEvent st = commandsParser (clientInput st)
           doChanservOpCmd chan (map B8.pack (words args)) st')
     <$> pRemainingNoSp)
 
-  , ("akb",
+  , ("akb", [],
     (\nick reason ->
        case focusedChan st of
          Nothing -> return st
          Just chan -> doWithOps chan (doAutoKickBan chan nick (Text.pack reason)) st')
     <$> pNick st <*> pRemainingNoSp)
 
-  , ("time",
+  , ("time", [],
     (\mbServer -> st' <$ clientSend (timeCmd (fmap (Text.encodeUtf8 . Text.pack) mbServer)) st')
     <$> optional (pToken "server"))
 
-  , ("admin",
+  , ("admin", [],
     (\mbServer -> st' <$ clientSend (adminCmd (fmap (Text.encodeUtf8 . Text.pack) mbServer)) st')
     <$> optional (pToken "server"))
 
-  , ("stats",
+  , ("stats", [],
     (\letter mbTarget ->
         st' <$ clientSend (statsCmd letter (fmap (Text.encodeUtf8 . Text.pack) mbTarget)) st')
     <$> pAnyChar <*> optional (pToken "target"))
 
-  , ("oper",
+  , ("oper", [],
     (\user pass -> st' <$ clientSend (operCmd (Text.encodeUtf8 (Text.pack user))
                                               (Text.encodeUtf8 (Text.pack pass))) st')
     <$> pToken "username" <*> pToken "password")
