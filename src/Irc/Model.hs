@@ -81,6 +81,8 @@ module Irc.Model
   , splitStatusMsg
   , splitModes
   , unsplitModes
+  , nickHasModeInChannel
+  , channelHasMode
   ) where
 
 import Control.Applicative
@@ -1367,3 +1369,23 @@ splitStatusMsg target conn = aux [] (idBytes target)
     case B8.uncons bs of
       Just (x,xs) | x `elem` view connStatusMsg conn -> aux (x:acc) xs
       _ -> (reverse acc, mkId bs)
+
+nickHasModeInChannel ::
+  Identifier {- ^ nick    -} ->
+  Char       {- ^ mode    -} ->
+  Identifier {- ^ channel -} ->
+  IrcConnection -> Bool
+nickHasModeInChannel nick mode chan =
+  elemOf ( connChannels . ix chan
+         . chanUsers    . ix nick
+         . folded)
+         mode
+
+channelHasMode ::
+  Identifier {- ^ channel -} ->
+  Char       {- ^ mode    -} ->
+  IrcConnection -> Bool
+channelHasMode chan mode =
+  has ( connChannels . ix chan
+      . chanModes . folded . ix mode
+      )

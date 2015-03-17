@@ -96,6 +96,7 @@ executable glirc
                  EditBox
                  HaskellHighlighter
                  ImageUtils
+                 Moderation
                  Views.BanList
                  Views.Channel
                  Views.ChannelInfo

@@ -16,7 +16,7 @@ import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Char
 import Data.Foldable (for_, traverse_)
-import Data.List (delete, elemIndex, nub)
+import Data.List (elemIndex)
 import Data.List.Split (chunksOf)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
@@ -48,6 +48,7 @@ import CommandArgs
 import CommandParser
 import CtcpHandler
 import ImageUtils
+import Moderation
 import Views.BanList
 import Views.Channel
 import Views.ChannelInfo
@@ -56,9 +57,6 @@ import qualified EditBox as Edit
 
 data SendType = SendCtcp String | SendPriv | SendNotice | SendAction
 makePrisms ''SendType
-
-deopWaitDuration :: NominalDiffTime
-deopWaitDuration = 5*60 -- seconds
 
 main :: IO ()
 main = do
@@ -429,30 +427,11 @@ commandEvent st = commandsParser (clientInput st)
     (\args -> doMode (Text.encodeUtf8 (Text.pack args)) st)
     <$> pRemainingNoSp)
 
-  , ("kick", [],
-    (\nick msg ->
-       case focusedChan st of
-         Nothing -> return st
-         Just chan ->
-           doWithOps chan (\evSt ->
-             evSt <$ clientSend (kickCmd chan nick (toB msg)) evSt) st')
-    <$> pNick st <*> pRemainingNoSp)
+  , ("kick", [], doKick st <$> pNick st <*> (Text.pack <$> pRemainingNoSp))
 
-  , ("remove", [],
-    (\nick msg ->
-        case focusedChan st of
-          Nothing -> return st
-          Just chan ->
-            doWithOps chan (\evSt ->
-              evSt <$ clientSend (removeCmd chan nick (toB msg)) evSt) st')
-    <$> pNick st <*> pRemainingNoSp)
+  , ("remove", [], doRemove st <$> pNick st <*> (Text.pack <$> pRemainingNoSp))
 
-  , ("invite", [],
-    (\nick ->
-       case focusedChan st of
-         Nothing   -> return st
-         Just chan -> doInvite nick chan st)
-    <$> pNick st)
+  , ("invite", [], doInvite st <$> pNick st)
 
   , ("knock", [],
     (\chan -> doKnock chan st)
@@ -615,23 +594,6 @@ doKnock chan st
   inChannel = has (clientConnection . connChannels . ix chan) st
   isChannel = isChannelName chan (view clientConnection st)
 
-doInvite ::
-  Identifier {- ^ nickname -} ->
-  Identifier {- ^ channel  -} ->
-  ClientState -> IO ClientState
-doInvite nick chan st
-
-  -- 'g' is the "FREEINVITE" mode, don't check for ops
-  | has (clientConnection . connChannels . ix chan . chanModes . folded . ix 'g') st = go (clearInput st)
-
-  -- it's an error to invite someone already in channel
-  | has (clientConnection . connChannels . ix chan . chanUsers . ix nick) st = return st
-
-  | otherwise = doWithOps chan go (clearInput st)
-  where
-  go st' = st' <$ clientSend (inviteCmd nick chan) st'
-
-
 doChannelInfoCmd ::
   ClientState -> IO ClientState
 doChannelInfoCmd st
@@ -666,21 +628,6 @@ doMasksCmd mode st
      return (set clientFocus (MaskListFocus mode chan) (clearInput st))
 
   | otherwise = return st
-
-doTopicCmd ::
-  ByteString {- ^ new topic -} ->
-  ClientState -> IO ClientState
-doTopicCmd topic st
-  | not (B8.null topic)
-  , Just chan <- focusedChan st =
-     let go st' = st' <$ clientSend (topicCmd chan topic) st' in
-     case preview (clientConnection . connChannels . ix chan . chanModes . folded) st of
-       -- check if it's known that the mode isn't +t
-       Just modes | hasn't (ix 't') modes -> go (clearInput st)
-       _                                  -> doWithOps chan go (clearInput st)
-  | otherwise = return st
-
-
 
 doJoinCmd :: Identifier -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
@@ -971,196 +918,3 @@ defaultNickColors :: [Color]
 defaultNickColors =
   [cyan, magenta, green, yellow, blue,
    brightCyan, brightMagenta, brightGreen, brightBlue]
-
-
--- | Perform a privileged operation. If the connection doesn't
--- already have +o on the channel it will be requested from
--- ChanServ and the privileged operation will be scheduled to
--- run when the connection gets +o.
-doWithOps ::
-  Identifier {- ^ channel -} ->
-  (ClientState -> IO ClientState) {- ^ privileged operation -} ->
-  ClientState -> IO ClientState
-doWithOps = doWithOps' False
-
-doWithOps' ::
-  Bool {- ^ permanent change -} ->
-  Identifier {- ^ channel -} ->
-  (ClientState -> IO ClientState) {- ^ privileged operation -} ->
-  ClientState -> IO ClientState
-doWithOps' perm chan privop st
-    | initiallyOp = finishUp st
-    | otherwise = getOpFirst
-
-  where
-  conn = view clientConnection st
-  myNick = view connNick conn
-
-  -- was I op when the command was entered
-  initiallyOp = nickHasModeInChannel myNick 'o' chan conn
-
-  handler = EventHandler
-    { _evName = "Get op for privop"
-    , _evOnEvent = \evTgt evMsg evSt ->
-         case view mesgType evMsg of
-           ModeMsgType True 'o' modeNick
-             | mkId modeNick == myNick
-             , evTgt    == chan -> finishUp evSt
-           _ -> return (over clientAutomation (cons handler) evSt)
-    }
-
-  finishUp st1 = privop =<< installTimer st1
-
-  getOpFirst =
-    do clientSend (privMsgCmd "chanserv" ("op " <> idDenote chan)) st
-       return (over clientAutomation (cons handler) st)
-
-  computeDeopTime =
-    do now <- getCurrentTime
-       return (addUTCTime deopWaitDuration now)
-
-  installTimer st0
-
-    | perm && deopScheduled chan st0 =
-         return $ filterTimerEvents (/= DropOperator chan) st0
-
-    | perm = return st0
-
-    | deopScheduled chan st0 || not initiallyOp =
-         do time <- computeDeopTime
-            return $ addTimerEvent time (DropOperator chan)
-                   $ filterTimerEvents (/= DropOperator chan) st0
-
-    | otherwise = return st0
-
--- | Predicate to determine if a deop is scheduled to happen
-deopScheduled ::
-  Identifier {- ^ channel -} ->
-  ClientState -> Bool
-deopScheduled = elemOf (clientTimers . folded . folded . _DropOperator)
-
-doAutoKickBan ::
-  Identifier {- ^ channel -} ->
-  Identifier {- ^ nick    -} ->
-  Text       {- ^ reason  -} ->
-  ClientState -> IO ClientState
-doAutoKickBan chan nick reason st =
-  -- TODO: Look up account name or hostname!
-  do clientSend (modeCmd chan ["+b",banMask]) st
-     clientSend (kickCmd chan nick (Text.encodeUtf8 reason)) st
-     return st
-
-  where
-  usr  = view (clientConnection . connUsers . at nick) st
-  nickMask = idDenote nick <> "!*@*"
-  banMask = fromMaybe nickMask
-          $ previews (folded . usrAccount . folded) ("$a:"<>) usr
-    `mplus` previews (folded . usrHost    . folded) ("*!*@"<>) usr
-
--- | Cancel any pending deop timer if I'm deopped
-cancelDeopTimerOnDeop :: EventHandler
-cancelDeopTimerOnDeop = EventHandler
-  { _evName = "cancel deop timer on deop"
-  , _evOnEvent = \evTgt evMsg evSt ->
-      let evSt' = reschedule evSt in
-      case view mesgType evMsg of
-        ModeMsgType False 'o' modeNick
-          | mkId modeNick == view (clientConnection.connNick) evSt ->
-                return $ filterTimerEvents (/= DropOperator evTgt) evSt'
-
-        _ -> return evSt'
-  }
-  where
-  reschedule = over clientAutomation (cons cancelDeopTimerOnDeop)
-
-doOp :: ClientState -> [Identifier] -> IO ClientState
-doOp st nicks
-  | Just chan <- focusedChan st =
-
-      doWithOps'
-        (null nicks || myNick `elem` nicks) -- permanent?
-        chan
-        (massModeChange True 'o' chan (nub (delete myNick nicks)))
-        (clearInput st)
-
-  | otherwise = return st
-
-  where
-  myNick = view (clientConnection.connNick) st
-
-
-doDeop :: ClientState -> [Identifier] -> IO ClientState
-doDeop st nicks
-  | Just chan <- focusedChan st =
-
-      doWithOps
-        chan
-        (massModeChange False 'o' chan nicks')
-        (clearInput st)
-
-  | otherwise = return st
-
-  where
-  -- deop myself last
-  nicks'
-    | null nicks = [myNick]
-    | myNick `elem` nicks = nub (delete myNick nicks) ++ [myNick]
-    | otherwise = nicks
-
-  myNick = view (clientConnection.connNick) st
-
-doVoice :: ClientState -> [Identifier] -> IO ClientState
-doVoice st nicks
-  | Just chan <- focusedChan st =
-      doWithOps
-        chan
-        (massModeChange True 'v' chan nicks')
-        (clearInput st)
-  | otherwise = return st
-  where
-  nicks'
-    | null nicks = [view (clientConnection.connNick) st]
-    | otherwise  = nub nicks
-
-doDevoice :: ClientState -> [Identifier] -> IO ClientState
-doDevoice st nicks
-  | Just chan <- focusedChan st =
-      doWithOps
-        chan
-        (massModeChange False 'v' chan nicks')
-        (clearInput st)
-  | otherwise = return st
-  where
-  nicks'
-    | null nicks = [view (clientConnection.connNick) st]
-    | otherwise  = nub nicks
-
-massModeChange ::
-  Bool       {- ^ polarity -} ->
-  Char       {- ^ mode     -} ->
-  Identifier {- ^ channel  -} ->
-  [Identifier] {- ^ nicks -} ->
-  ClientState -> IO ClientState
-massModeChange polarity mode chan nicks st =
-  do let nickChunks = chunksOf (view (clientConnection.connModes) st) nicks
-     for_ nickChunks $ \nickChunk ->
-       clientSend (modeCmd chan (modeArg (length nickChunk) : map idBytes nickChunk)) st
-     return st
-  where
-  polarityBs
-    | polarity  = B8.empty
-    | otherwise = B8.singleton '-'
-
-  modeArg n = polarityBs <> B8.replicate n mode
-
-nickHasModeInChannel ::
-  Identifier {- ^ nick    -} ->
-  Char       {- ^ mode    -} ->
-  Identifier {- ^ channel -} ->
-  IrcConnection -> Bool
-nickHasModeInChannel nick mode chan conn =
-  elemOf ( connChannels . ix chan
-         . chanUsers    . ix nick
-         . folded)
-         mode
-         conn
