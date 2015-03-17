@@ -67,7 +67,12 @@ library
                        Irc.Format
                        Irc.RateLimit
 
-  build-depends:       base             >= 4.7      && < 4.8,
+  -- Note: GHC 7.8.4 fixes a bug that can cause IRC.Core
+  -- to use an absurd amount of RAM when compiling.
+  -- The base >= 4.7.0.2 is to protect people from finding
+  -- this out the hard way.
+  build-depends:       base             >= 4.7.0.2  && < 4.8,
+
                        attoparsec       >= 0.12.1.2 && < 0.13,
                        bytestring       >= 0.10     && < 0.11,
                        base64-bytestring>= 1.0.0.1  && < 1.1,
