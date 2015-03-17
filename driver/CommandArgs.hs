@@ -12,7 +12,7 @@ import Control.Lens
 data CommandArgs = CommandArgs
   { _cmdArgNick     :: String
   , _cmdArgServer   :: String
-  , _cmdArgPort     :: Int
+  , _cmdArgPort     :: Maybe Int
   , _cmdArgPassword :: Maybe String
   , _cmdArgHelp     :: Bool
   , _cmdArgReal     :: String
@@ -39,7 +39,7 @@ initialCommandArgs = CommandArgs
   , _cmdArgServer   = ""
   , _cmdArgUser     = ""
   , _cmdArgReal     = ""
-  , _cmdArgPort     = 6667
+  , _cmdArgPort     = Nothing
   , _cmdArgPassword = Nothing
   , _cmdArgHelp     = False
   , _cmdArgSaslUser = ""
@@ -90,7 +90,7 @@ help =
 
 optDescrs :: [OptDescr (CommandArgs -> CommandArgs)]
 optDescrs =
-  [ Option "p" [ "port"]      (ReqArg (set cmdArgPort . read) "PORT") "IRC Server Port"
+  [ Option "p" [ "port"]      (ReqArg (set cmdArgPort . Just . read) "PORT") "IRC Server Port"
   , Option "n" [ "nick"]      (ReqArg (set cmdArgNick) "NICK") "Nickname"
   , Option "u" [ "user"]      (ReqArg (set cmdArgUser) "USER") "Username"
   , Option "r" [ "real"]      (ReqArg (set cmdArgReal) "REAL") "Real Name"

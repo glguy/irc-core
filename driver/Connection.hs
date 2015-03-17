@@ -9,6 +9,7 @@ import Data.X509          (CertificateChain(..))
 import Data.X509.File     (readSignedObject, readKeyFile)
 import Data.X509.Validation (validateDefault)
 import Network.Connection
+import Network.Socket     (PortNumber)
 import Network.TLS
 import Network.TLS.Extra  (ciphersuite_strong)
 import System.X509        (getSystemCertificateStore)
@@ -31,10 +32,18 @@ buildConnectionParams args =
                      else return Nothing
      return ConnectionParams
        { connectionHostname  = view cmdArgServer args
-       , connectionPort      = fromIntegral (view cmdArgPort args)
+       , connectionPort      = ircPort args
        , connectionUseSecure = useSecure
        , connectionUseSocks  = Nothing
        }
+
+ircPort :: CommandArgs -> PortNumber
+ircPort args =
+  case view cmdArgPort args of
+    Just p -> fromIntegral p
+    Nothing | view cmdArgTls args -> 6697
+            | otherwise           -> 6667
+
 
 
 buildTlsSettings :: CommandArgs -> IO TLSSettings

@@ -1290,7 +1290,11 @@ splitNamesReplyName modeMap = aux []
 
 -- | Execute the 'Logic' value using a given operation for sending and
 -- recieving IRC messages.
-runLogic :: (Functor m,Monad m) => UTCTime -> (forall a. LogicOp a -> m a) -> Logic a -> m (Either String a)
+runLogic :: (Functor m,Monad m) =>
+  UTCTime ->
+  (forall r. LogicOp r -> m r) ->
+  Logic a ->
+  m (Either String a)
 runLogic now ops (Logic f)
   = retract
   $ hoistFree ops
