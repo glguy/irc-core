@@ -68,10 +68,10 @@ main = do
 
   vtyEventChan <- atomically newTChan
   recvChan     <- atomically newTChan
-  _ <- forkIO (vtyEventLoop vtyEventChan vty)
 
   withVty $ \vty ->
-    do let initialSaslCredential =
+    do _ <- forkIO (vtyEventLoop vtyEventChan vty)
+       let initialSaslCredential =
              fmap (\pass -> (views cmdArgSaslUser B8.pack args
                             ,                     B8.pack pass
                             )) (view cmdArgSaslPass args)
@@ -127,8 +127,6 @@ startIrcConnection ::
   Maybe Handle                   {- ^ error log        -} ->
   IO ClientConnection
 startIrcConnection recvChan settings nick user real pass sasl hErr =
-  handle (writeErrorsTo recvChan) $
-
   do h            <- connect settings
      sendChan     <- atomically newTChan
      sendThreadId <- forkIO (sendLoop sendChan h)
@@ -146,8 +144,6 @@ startIrcConnection recvChan settings nick user real pass sasl hErr =
        , _ccRecvThread     = recvThreadId
        , _ccSendThread     = sendThreadId
        }
-
-writeErrorsTo :: TChan (UTCTime, MsgFromServer) -> IO ()
 
 serverSettingsForArgs :: CommandArgs -> ServerSettings
 serverSettingsForArgs args = ServerSettings
