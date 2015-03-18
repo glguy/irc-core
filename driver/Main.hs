@@ -301,6 +301,7 @@ keyEvent k ms st =
     (KChar 'c', [MCtrl]) -> more $ changeInput (Edit.insert '\^C') st
     (KChar ']', [MCtrl]) -> more $ changeInput (Edit.insert '\^]') st
     (KChar '_', [MCtrl]) -> more $ changeInput (Edit.insert '\^_') st
+    (KChar 'o', [MCtrl]) -> more $ changeInput (Edit.insert '\^O') st
     (KChar 'v', [MCtrl]) -> more $ changeInput (Edit.insert '\^V') st
     (KChar c  , []     ) -> more $ changeInput (Edit.insert c) st
     (KEnter   , []     ) -> snd (inputLogic st)

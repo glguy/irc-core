@@ -133,3 +133,4 @@ Keyboard Shortcuts
 * `^V` reverse video
 * `^_` underline
 * `^]` italic
+* `^O` reset formatting
