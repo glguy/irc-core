@@ -90,9 +90,10 @@ library
 executable glirc
   main-is: Main.hs
   other-modules: ClientState
-                 CtcpHandler
                  CommandArgs
                  CommandParser
+                 Connection
+                 CtcpHandler
                  EditBox
                  HaskellHighlighter
                  ImageUtils
