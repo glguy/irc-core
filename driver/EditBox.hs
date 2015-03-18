@@ -129,7 +129,7 @@ paste e = insertString (view yankBuffer e) e
 killWord :: Bool {- ^ yank -} -> EditBox -> EditBox
 killWord yank e
   = set pos (length l')
-  $ updateYankBuffer yanked
+  $ sometimesUpdateYank
   $ set content (l'++r) e
   where
   (l,r) = splitAt (view pos e) (view content e)
@@ -137,6 +137,10 @@ killWord yank e
   (wd,l2) = break isSpace l1
   l' = reverse l2
   yanked = reverse (sp++wd)
+
+  sometimesUpdateYank
+    | yank = updateYankBuffer yanked
+    | otherwise = id
 
 insert :: Char -> EditBox -> EditBox
 insert c
