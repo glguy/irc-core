@@ -1,6 +1,8 @@
 My IRC client
 =============
 
+[![Build Status](https://secure.travis-ci.org/glguy/irc-core.svg)](http://travis-ci.org/glguy/irc-core)
+
 ![](https://raw.githubusercontent.com/wiki/glguy/irc-core/images/screenshot.png)
 
 Library
