@@ -28,6 +28,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
+import Irc.Core
 import Irc.Format
 import Irc.Message
 import Irc.Model
@@ -43,12 +44,14 @@ data ClientConnection = ClientConnection
   , _ccSendChan       :: TChan ByteString
   , _ccConnection     :: IrcConnection
   , _ccRecvThread     :: ThreadId
+  , _ccSendThread     :: ThreadId
   }
 
 data ClientState = ClientState
   -- stuff that will need to be split out for mutiple
   -- servers
   { _clientServer0    :: ClientConnection
+  , _clientRecvChan   :: TChan (UTCTime, MsgFromServer)
   , _clientErrors     :: Maybe Handle
   , _clientFocus      :: Focus
   , _clientDetailView :: !Bool

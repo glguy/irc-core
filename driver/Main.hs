@@ -60,37 +60,37 @@ makePrisms ''SendType
 main :: IO ()
 main = do
   args <- getCommandArgs
-  let settings0 = serverSettingsForArgs args
-  h <- connect settings0
 
   hErr <- for (view cmdArgDebug args) $ \fn ->
             do hErr <- openFile fn WriteMode
                hSetBuffering hErr NoBuffering
                return hErr
 
-  initializeConnection args h
-
   vtyEventChan <- atomically newTChan
-  socketChan   <- atomically newTChan
-  sendChan     <- atomically newTChan
+  recvChan     <- atomically newTChan
+  _ <- forkIO (vtyEventLoop vtyEventChan vty)
 
-  cfg <- standardIOConfig
-  bracket (mkVty cfg) shutdown $ \vty ->
-    do recvThreadId <- forkIO (socketLoop socketChan h hErr)
-       _ <- forkIO (vtyEventLoop vtyEventChan vty)
-       _ <- forkIO (sendLoop sendChan h)
+  withVty $ \vty ->
+    do let initialSaslCredential =
+             fmap (\pass -> (views cmdArgSaslUser B8.pack args
+                            ,                     B8.pack pass
+                            )) (view cmdArgSaslPass args)
 
-       let server0 = ClientConnection
-             { _ccServerSettings = settings0
-             , _ccSendChan       = sendChan
-             , _ccConnection     = connectionForArgs args
-             , _ccRecvThread     = recvThreadId
-             }
+       server0 <- startIrcConnection
+                    recvChan
+                    (serverSettingsForArgs args)
+                    (views cmdArgNick (mkId.B8.pack) args)
+                    (views cmdArgUser B8.pack args)
+                    (views cmdArgReal B8.pack args)
+                    (views cmdArgPassword (fmap B8.pack) args)
+                    initialSaslCredential
+                    hErr
 
        (width,height) <- displayBounds (outputIface vty)
        zone <- getCurrentTimeZone
-       driver vty vtyEventChan socketChan ClientState
+       driver vty vtyEventChan recvChan ClientState
          { _clientServer0         = server0
+         , _clientRecvChan        = recvChan
          , _clientErrors          = hErr
          , _clientFocus           = ChannelFocus ""
          , _clientDetailView      = False
@@ -111,6 +111,44 @@ main = do
          , _clientTimeZone        = zone
          }
 
+withVty :: (Vty -> IO a) -> IO a
+withVty k =
+  do cfg <- standardIOConfig
+     bracket (mkVty cfg) shutdown k
+
+startIrcConnection ::
+  TChan (UTCTime, MsgFromServer) ->
+  ServerSettings                 {- ^ network parameters -} ->
+  Identifier                     {- ^ initial nickname -} ->
+  ByteString                     {- ^ username         -} ->
+  ByteString                     {- ^ realname         -} ->
+  Maybe ByteString               {- ^ server password  -} ->
+  Maybe (ByteString, ByteString) {- ^ SASL credentials -} ->
+  Maybe Handle                   {- ^ error log        -} ->
+  IO ClientConnection
+startIrcConnection recvChan settings nick user real pass sasl hErr =
+  handle (writeErrorsTo recvChan) $
+
+  do h            <- connect settings
+     sendChan     <- atomically newTChan
+     sendThreadId <- forkIO (sendLoop sendChan h)
+     recvThreadId <- forkIO (socketLoop recvChan h hErr)
+
+     initializeConnection pass nick user real h
+
+     return ClientConnection
+       { _ccServerSettings = settings
+       , _ccSendChan       = sendChan
+       , _ccConnection     = defaultIrcConnection
+                               { _connNick = nick
+                               , _connSasl = sasl
+                               }
+       , _ccRecvThread     = recvThreadId
+       , _ccSendThread     = sendThreadId
+       }
+
+writeErrorsTo :: TChan (UTCTime, MsgFromServer) -> IO ()
+
 serverSettingsForArgs :: CommandArgs -> ServerSettings
 serverSettingsForArgs args = ServerSettings
   { _ssHostName      = view cmdArgServer args
@@ -121,27 +159,17 @@ serverSettingsForArgs args = ServerSettings
   , _ssTlsClientKey  = view cmdArgTlsClientKey args
   }
 
-connectionForArgs :: CommandArgs -> IrcConnection
-connectionForArgs args =
-  defaultIrcConnection
-    { _connNick = views cmdArgNick toId args
-    , _connSasl = fmap (\p -> (views cmdArgSaslUser B8.pack args,B8.pack p))
-                       (view cmdArgSaslPass args)
-    }
-  where
-  toId = mkId . B8.pack
-
-
-initializeConnection :: CommandArgs -> Connection -> IO ()
-initializeConnection args h =
+initializeConnection ::
+  Maybe ByteString {- ^ server password -} ->
+  Identifier {- ^ nickname        -} ->
+  ByteString {- ^ username        -} ->
+  ByteString {- ^ realname        -} ->
+  Connection -> IO ()
+initializeConnection pass nick user real h =
   do connectionPut h capLsCmd
-     traverse_ (connectionPut h . passCmd . toUtf8) (view cmdArgPassword args)
-     connectionPut h (nickCmd (views cmdArgNick toId args))
-     connectionPut h (userCmd (views cmdArgUser toUtf8 args)
-                       (views cmdArgReal toUtf8 args))
-  where
-  toUtf8 = Text.encodeUtf8 . Text.pack
-  toId = mkId . B8.pack
+     traverse_ (connectionPut h . passCmd) pass
+     connectionPut h (nickCmd nick)
+     connectionPut h (userCmd user real)
 
 driver :: Vty -> TChan Event -> TChan (UTCTime, MsgFromServer) -> ClientState -> IO ()
 driver vty vtyEventChan ircMsgChan st0 =
