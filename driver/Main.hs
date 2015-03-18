@@ -52,7 +52,6 @@ import Moderation
 import Views.BanList
 import Views.Channel
 import Views.ChannelInfo
-import HaskellHighlighter (highlightType)
 import qualified EditBox as Edit
 
 data SendType = SendCtcp String | SendPriv | SendNotice | SendAction
@@ -417,16 +416,6 @@ commandEvent st = commandsParser (clientInput st)
         ChannelFocus c -> doSendMessage SendPriv c msg st
         _ -> return st)
     <$> pHaskell)
-
-  , ("type", [],
-    (\msg ->
-      case highlightType msg of
-        Nothing -> return st
-        Just x  ->
-          case view clientFocus st of
-            ChannelFocus c -> doSendMessage SendPriv c (Text.pack x) st
-            _ -> return st)
-    <$> pRemainingNoSp)
 
     -- raw
   , ("quote", [],
