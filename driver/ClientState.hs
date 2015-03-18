@@ -20,7 +20,6 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (TimeZone, UTCTime)
 import Graphics.Vty.Image
-import Network.Socket (HostName, PortNumber)
 import System.IO (Handle)
 import qualified Data.ByteString as B
 import qualified Data.Map as Map

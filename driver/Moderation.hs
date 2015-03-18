@@ -6,11 +6,10 @@ import Control.Applicative
 import Control.Lens
 import Data.ByteString (ByteString)
 import Data.Foldable (for_)
-import Data.Functor
 import Data.Maybe (fromMaybe)
 import Data.Time
 import Data.Text (Text)
-import Data.List (nub, delete, elemIndex)
+import Data.List (nub, delete)
 import Data.List.Split (chunksOf)
 import Data.Monoid
 import qualified Data.ByteString.Char8 as B8
