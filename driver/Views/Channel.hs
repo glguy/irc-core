@@ -261,7 +261,7 @@ compressedImageForState !st = renderOne (activeMessages st)
              ++ renderOne ((msg,colored):msgs)
 
 
-  conn = view clientConnection st
+  conn = view (clientServer0 . ccConnection) st
 
   prefixes = view (connChanModeTypes . modesPrefixModes) conn
 

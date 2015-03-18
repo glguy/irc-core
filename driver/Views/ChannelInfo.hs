@@ -15,7 +15,10 @@ import Irc.Model
 
 channelInfoImage :: Identifier -> ClientState -> [Image]
 channelInfoImage chan st =
-  case view (clientConnection . connChannels . at chan) st of
+
+  let conn = view (clientServer0 . ccConnection) st in
+
+  case view (connChannels . at chan) conn of
     Nothing -> [string (withForeColor defAttr red) "Unknown channel"]
     Just channel -> topicLines
                  ++ creationLines
@@ -56,7 +59,7 @@ channelInfoImage chan st =
                         cleanText (asUtf8 url)
                       ]
 
-      prefixes = view (clientConnection . connChanModeTypes . modesPrefixModes) st
+      prefixes = view (connChanModeTypes . modesPrefixModes) conn
       modePrefix modes =
         string (withForeColor defAttr blue)
         [ prefix | (mode,prefix) <- prefixes, mode `elem` modes ]

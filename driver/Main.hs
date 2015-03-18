@@ -43,7 +43,7 @@ import Irc.Model
 import Irc.RateLimit
 
 import ClientState
-import Connection (connect, getRawIrcLine)
+import Connection (ServerSettings(..), connect, getRawIrcLine)
 import CommandArgs
 import CommandParser
 import CtcpHandler
@@ -61,15 +61,13 @@ makePrisms ''SendType
 main :: IO ()
 main = do
   args <- getCommandArgs
-
-  h <- connect args
+  let settings0 = serverSettingsForArgs args
+  h <- connect settings0
 
   hErr <- for (view cmdArgDebug args) $ \fn ->
             do hErr <- openFile fn WriteMode
                hSetBuffering hErr NoBuffering
                return hErr
-
-  let toId = mkId . B8.pack
 
   initializeConnection args h
 
@@ -77,23 +75,24 @@ main = do
   socketChan   <- atomically newTChan
   sendChan     <- atomically newTChan
 
-  let conn0 = defaultIrcConnection
-                { _connNick = views cmdArgNick toId args
-                , _connSasl = fmap (\p -> (views cmdArgSaslUser B8.pack args,B8.pack p))
-                                   (view cmdArgSaslPass args)
-                }
-
   cfg <- standardIOConfig
   bracket (mkVty cfg) shutdown $ \vty ->
-    do _ <- forkIO (socketLoop socketChan h hErr)
+    do recvThreadId <- forkIO (socketLoop socketChan h hErr)
        _ <- forkIO (vtyEventLoop vtyEventChan vty)
        _ <- forkIO (sendLoop sendChan h)
+
+       let server0 = ClientConnection
+             { _ccServerSettings = settings0
+             , _ccSendChan       = sendChan
+             , _ccConnection     = connectionForArgs args
+             , _ccRecvThread     = recvThreadId
+             }
+
        (width,height) <- displayBounds (outputIface vty)
        zone <- getCurrentTimeZone
        driver vty vtyEventChan socketChan ClientState
-         { _clientSendChan        = sendChan
+         { _clientServer0         = server0
          , _clientErrors          = hErr
-         , _clientConnection      = conn0
          , _clientFocus           = ChannelFocus ""
          , _clientDetailView      = False
          , _clientTimeView        = True
@@ -113,6 +112,27 @@ main = do
          , _clientTimeZone        = zone
          }
 
+serverSettingsForArgs :: CommandArgs -> ServerSettings
+serverSettingsForArgs args = ServerSettings
+  { _ssHostName      = view cmdArgServer args
+  , _ssPort          = fmap fromIntegral (view cmdArgPort args)
+  , _ssTls           = view cmdArgTls args
+  , _ssTlsInsecure   = view cmdArgTlsInsecure args
+  , _ssTlsClientCert = view cmdArgTlsClientCert args
+  , _ssTlsClientKey  = view cmdArgTlsClientKey args
+  }
+
+connectionForArgs :: CommandArgs -> IrcConnection
+connectionForArgs args =
+  defaultIrcConnection
+    { _connNick = views cmdArgNick toId args
+    , _connSasl = fmap (\p -> (views cmdArgSaslUser B8.pack args,B8.pack p))
+                       (view cmdArgSaslPass args)
+    }
+  where
+  toId = mkId . B8.pack
+
+
 initializeConnection :: CommandArgs -> Connection -> IO ()
 initializeConnection args h =
   do connectionPut h capLsCmd
@@ -121,9 +141,8 @@ initializeConnection args h =
      connectionPut h (userCmd (views cmdArgUser toUtf8 args)
                        (views cmdArgReal toUtf8 args))
   where
-
-      toUtf8 = Text.encodeUtf8 . Text.pack
-      toId = mkId . B8.pack
+  toUtf8 = Text.encodeUtf8 . Text.pack
+  toId = mkId . B8.pack
 
 driver :: Vty -> TChan Event -> TChan (UTCTime, MsgFromServer) -> ClientState -> IO ()
 driver vty vtyEventChan ircMsgChan st0 =
@@ -149,8 +168,10 @@ driver vty vtyEventChan ircMsgChan st0 =
   processTimerEvent e st =
     case e of
       DropOperator chan ->
-        do clientSend (modeCmd chan ["-o",views (clientConnection.connNick) idBytes st]) st
+        do clientSend (modeCmd chan ["-o",views connNick idBytes conn]) st
            considerTimers st
+    where
+    conn = view (clientServer0 . ccConnection) st
 
   processVtyEvent st event =
     case event of
@@ -176,13 +197,16 @@ driver vty vtyEventChan ircMsgChan st0 =
            m = flip runStateT st
              $ runLogic time
                   (interpretLogicOp ircMsgChan)
-                  (advanceModel msg (view clientConnection st))
+                  (advanceModel msg
+                     (view (clientServer0 . ccConnection) st))
 
        res <- m
        case res of
-         (Left e,st') -> do for_ (view clientErrors st) $ \h -> hPutStrLn h ("!!! " ++ e)
-                            continue st'
-         (Right conn',st') -> continue (set clientConnection conn' st')
+         (Left e,st') ->
+           do for_ (view clientErrors st) $ \h -> hPutStrLn h ("!!! " ++ e)
+              continue st'
+         (Right conn',st') ->
+           do continue (set (clientServer0 . ccConnection) conn' st')
 
 interpretLogicOp :: TChan (UTCTime, MsgFromServer) -> LogicOp a -> StateT ClientState IO a
 
@@ -307,7 +331,7 @@ doSendMessage sendType target message st =
      return (addMessage target' (fakeMsg now myModes) (clearInput st))
 
   where
-  conn = view clientConnection st
+  conn = view (clientServer0 . ccConnection) st
 
   (statusmsg, target') = splitStatusMsg target conn
 
@@ -318,16 +342,15 @@ doSendMessage sendType target message st =
                     SendPriv   -> PrivMsgType   message
                     SendNotice -> NoticeMsgType message
                     SendAction -> ActionMsgType message
-                    SendCtcp cmd -> CtcpReqMsgType (Text.encodeUtf8 (Text.pack cmd))
-                                                   (Text.encodeUtf8 message)
+                    SendCtcp cmd -> CtcpReqMsgType
+                                        (Text.encodeUtf8 (Text.pack cmd))
+                                        (Text.encodeUtf8 message)
     , _mesgStamp = now
     , _mesgModes = modes
     , _mesgMe = True
     }
 
-  who = UserInfo (view (clientConnection . connNick) st)
-                 Nothing
-                 Nothing
+  who = UserInfo (view connNick conn) Nothing Nothing
 
 commandEvent :: ClientState -> (Image, Maybe (IO EventResult))
 commandEvent st = commandsParser (clientInput st)
@@ -335,6 +358,7 @@ commandEvent st = commandsParser (clientInput st)
  where
  st' = clearInput st
  toB = Text.encodeUtf8 . Text.pack
+ conn = view (clientServer0 . ccConnection) st
 
  exitCommand =
   ("exit", [], pure (return Exit))
@@ -364,7 +388,8 @@ commandEvent st = commandsParser (clientInput st)
     (\mode -> doMasksCmd mode st)
     <$> pValidToken "mode" (\m ->
             case m of
-              [x] | x `elem` view (clientConnection . connChanModeTypes . modesLists) st -> Just x
+              [x] | x `elem` view (connChanModeTypes . modesLists) conn ->
+                   Just x
               _ -> Nothing))
 
     -- chat
@@ -419,7 +444,7 @@ commandEvent st = commandsParser (clientInput st)
 
   , ("umode", [],
     (\args ->
-         st' <$ clientSend (modeCmd (view (clientConnection . connNick) st)
+         st' <$ clientSend (modeCmd (view connNick conn)
                                     (map toB (words args))) st')
     <$> pRemainingNoSp)
 
@@ -453,7 +478,7 @@ commandEvent st = commandsParser (clientInput st)
 
   , ("topic", ["t"],
     (\rest -> doTopicCmd (toB rest) st) -- TODO: the limit should check bytes not chars
-    <$> pRemainingNoSpLimit (view (clientConnection.connTopicLen) st))
+    <$> pRemainingNoSpLimit (view connTopicLen conn))
 
   , ("ignore", [],
     (\u -> return (over (clientIgnores . contains u) not st'))
@@ -530,15 +555,19 @@ doNick ::
   Identifier {- ^ new nickname -} ->
   IO ClientState
 doNick st nick
-  | B8.length (idBytes nick) > view (clientConnection . connNickLen) st
+  | B8.length (idBytes nick) > view connNickLen conn
   = return st
 
-  | view (clientConnection.connPhase) st /= ActivePhase =
-      let st' = set (clientConnection.connNick) nick st in
-      clearInput st' <$ clientSend (nickCmd nick) st'
+  | view connPhase conn /= ActivePhase =
+      let st' = clearInput
+              $ set (clientServer0 . ccConnection . connNick) nick st in
+      st' <$ clientSend (nickCmd nick) st'
 
   | otherwise =
       clearInput st <$ clientSend (nickCmd nick) st
+
+  where
+  conn = view (clientServer0 . ccConnection) st
 
 doMode ::
   ByteString {- mode change -} ->
@@ -546,15 +575,18 @@ doMode ::
 doMode args st = fromMaybe (return st) $
   do chan         <- focusedChan st
      modes:params <- Just (B8.words args)
-     parsedModes  <- splitModes (view (clientConnection.connChanModeTypes) st)
+     parsedModes  <- splitModes (view connChanModeTypes conn)
                         modes params
-     let modeChunks = chunksOf (view (clientConnection.connModes) st) parsedModes
+     let modeChunks = chunksOf (view connModes conn) parsedModes
      return $
        doWithOps chan (\evSt ->
          do for_ modeChunks $ \modeChunk ->
               clientSend (modeCmd chan (unsplitModes modeChunk)) evSt
             return evSt)
          (clearInput st)
+
+  where
+  conn = view (clientServer0 . ccConnection) st
 
 doAccept ::
   Bool {- ^ add to list -} ->
@@ -564,9 +596,11 @@ doAccept add mbNick st =
   case mbNick of
     Just n -> go n
     Nothing
-      | isNickName (focusedName st) (view clientConnection st) -> go (focusedName st)
+      | isNickName (focusedName st) conn -> go (focusedName st)
       | otherwise -> return st
+
   where
+  conn = view (clientServer0 . ccConnection) st
   go nick =
     do let nickBytes
              | add = idBytes nick
@@ -590,9 +624,10 @@ doKnock chan st
   | otherwise = do clientSend (knockCmd chan) st
                    return (clearInput st)
   where
-  available = view (clientConnection . connKnock) st
-  inChannel = has (clientConnection . connChannels . ix chan) st
-  isChannel = isChannelName chan (view clientConnection st)
+  conn = view (clientServer0 . ccConnection) st
+  available = view connKnock conn
+  inChannel = has (connChannels . ix chan) conn
+  isChannel = isChannelName chan conn
 
 doChannelInfoCmd ::
   ClientState -> IO ClientState
@@ -601,16 +636,16 @@ doChannelInfoCmd st
   | Just chan <- focusedChan st =
 
   do let modesKnown
-           = has ( clientConnection
-           . connChannels . ix chan
-           . chanModes
-           . folded
-           ) st
+           = has ( connChannels . ix chan . chanModes . folded) conn
+
      unless modesKnown $
        clientSend (modeCmd chan []) st
      return (clearInput (set clientFocus (ChannelInfoFocus chan) st))
 
   | otherwise = return st
+
+  where
+  conn = view (clientServer0 . ccConnection) st
 
 doMasksCmd ::
   Char       {- ^ mode    -} ->
@@ -618,16 +653,16 @@ doMasksCmd ::
 doMasksCmd mode st
   | Just chan <- focusedChan st =
   do let masksKnown =
-           has ( clientConnection
-               . connChannels . ix chan
-               . chanMaskLists
-               . ix mode
-               ) st
+           has ( connChannels . ix chan . chanMaskLists . ix mode) conn
+
      unless masksKnown $
        clientSend (modeCmd chan [B8.pack ['+',mode]]) st
      return (set clientFocus (MaskListFocus mode chan) (clearInput st))
 
   | otherwise = return st
+
+  where
+  conn = view (clientServer0 . ccConnection) st
 
 doJoinCmd :: Identifier -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
@@ -645,6 +680,8 @@ doQuote cmd st = st <$ clientSend (Text.encodeUtf8 (Text.pack (cmd ++ "\r\n"))) 
 picForState :: ClientState -> (Int,Picture)
 picForState st = (scroll', pic)
   where
+  conn = view (clientServer0 . ccConnection) st
+
   pic = Picture
     { picCursor = Cursor (min (view clientWidth st - 1)
                               (view (clientEditBox. Edit.pos) st+1))
@@ -700,7 +737,7 @@ picForState st = (scroll', pic)
                           <|> identImg defAttr c
 
   topicbar chan =
-    case preview (clientConnection . connChannels . ix chan . chanTopic . folded . folded . _1) st of
+    case preview (connChannels . ix chan . chanTopic . folded . folded . _1) conn of
       Just topic | not (Text.null topic) -> text' (withForeColor defAttr green) topic
       _ -> char defAttr ' '
 
@@ -748,7 +785,7 @@ dividerImage :: ClientState -> Image
 dividerImage st
   = extendToWidth (nickPart <|> channelPart)
   where
-  conn = view clientConnection st
+  conn = view (clientServer0 . ccConnection) st
 
   myNick = view connNick conn
 
@@ -880,14 +917,16 @@ tabComplete st = fromMaybe st $
                       Just $ set clientTabPattern (Just current)
                            $ replaceWith next st
   where
+  conn = view (clientServer0 . ccConnection) st
+
   replaceWith str = over clientEditBox $ \box ->
     let box1 = Edit.killWord False box
         str1 | view Edit.pos box1 == 0 = str ++ ": "
              | otherwise               = str
     in Edit.insertString str1 box1
 
-  userSet c  = views (clientConnection . connChannels . ix c . chanUsers) Map.keysSet st
-  channelSet = views (clientConnection . connChannels)                    Map.keysSet st
+  userSet c  = views (connChannels . ix c . chanUsers) Map.keysSet conn
+  channelSet = views connChannels                      Map.keysSet conn
 
 currentWord :: ClientState -> String
 currentWord st

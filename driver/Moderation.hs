@@ -46,7 +46,7 @@ doWithOps' perm chan privop st
     | otherwise = getOpFirst
 
   where
-  conn = view clientConnection st
+  conn = view (clientServer0 . ccConnection) st
   myNick = view connNick conn
 
   -- was I op when the command was entered
@@ -104,7 +104,8 @@ doAutoKickBan chan nick reason st =
      return st
 
   where
-  usr  = view (clientConnection . connUsers . at nick) st
+  conn = view (clientServer0 . ccConnection) st
+  usr  = view (connUsers . at nick) conn
   nickMask = idDenote nick <> "!*@*"
   banMask = fromMaybe nickMask
           $ previews (folded . usrAccount . folded) ("$a:"<>) usr
@@ -115,10 +116,12 @@ cancelDeopTimerOnDeop :: EventHandler
 cancelDeopTimerOnDeop = EventHandler
   { _evName = "cancel deop timer on deop"
   , _evOnEvent = \evTgt evMsg evSt ->
-      let evSt' = reschedule evSt in
+      let evSt' = reschedule evSt
+          conn = view (clientServer0 . ccConnection) evSt
+      in
       case view mesgType evMsg of
         ModeMsgType False 'o' modeNick
-          | mkId modeNick == view (clientConnection.connNick) evSt ->
+          | mkId modeNick == view connNick conn ->
                 return $ filterTimerEvents (/= DropOperator evTgt) evSt'
 
         _ -> return evSt'
@@ -139,7 +142,8 @@ doOp st nicks
   | otherwise = return st
 
   where
-  myNick = view (clientConnection.connNick) st
+  conn = view (clientServer0 . ccConnection) st
+  myNick = view connNick conn
 
 
 doDeop :: ClientState -> [Identifier] -> IO ClientState
@@ -160,7 +164,8 @@ doDeop st nicks
     | myNick `elem` nicks = nub (delete myNick nicks) ++ [myNick]
     | otherwise = nicks
 
-  myNick = view (clientConnection.connNick) st
+  conn = view (clientServer0 . ccConnection) st
+  myNick = view connNick conn
 
 doVoice :: ClientState -> [Identifier] -> IO ClientState
 doVoice st nicks
@@ -171,8 +176,9 @@ doVoice st nicks
         (clearInput st)
   | otherwise = return st
   where
+  conn = view (clientServer0 . ccConnection) st
   nicks'
-    | null nicks = [view (clientConnection.connNick) st]
+    | null nicks = [view connNick conn]
     | otherwise  = nub nicks
 
 doDevoice :: ClientState -> [Identifier] -> IO ClientState
@@ -184,8 +190,9 @@ doDevoice st nicks
         (clearInput st)
   | otherwise = return st
   where
+  conn = view (clientServer0 . ccConnection) st
   nicks'
-    | null nicks = [view (clientConnection.connNick) st]
+    | null nicks = [view connNick conn]
     | otherwise  = nub nicks
 
 massModeChange ::
@@ -195,11 +202,12 @@ massModeChange ::
   [Identifier] {- ^ nicks -} ->
   ClientState -> IO ClientState
 massModeChange polarity mode chan nicks st =
-  do let nickChunks = chunksOf (view (clientConnection.connModes) st) nicks
+  do let nickChunks = chunksOf (view connModes conn) nicks
      for_ nickChunks $ \nickChunk ->
        clientSend (modeCmd chan (modeArg (length nickChunk) : map idBytes nickChunk)) st
      return st
   where
+  conn = view (clientServer0 . ccConnection) st
   polarityBs
     | polarity  = B8.empty
     | otherwise = B8.singleton '-'
@@ -213,11 +221,14 @@ doTopicCmd topic st
   | not (B8.null topic)
   , Just chan <- focusedChan st =
      let go st' = st' <$ clientSend (topicCmd chan topic) st' in
-     case preview (clientConnection . connChannels . ix chan . chanModes . folded) st of
+     case preview (connChannels . ix chan . chanModes . folded) conn of
        -- check if it's known that the mode isn't +t
        Just modes | hasn't (ix 't') modes -> go (clearInput st)
        _                                  -> doWithOps chan go (clearInput st)
   | otherwise = return st
+
+  where
+  conn = view (clientServer0 . ccConnection) st
 
 
 doInvite ::
@@ -229,13 +240,14 @@ doInvite st nick =
     Nothing -> return st
     Just chan
       -- 'g' is the "FREEINVITE" mode, don't check for ops
-      | channelHasMode chan 'g' (view clientConnection st) -> go (clearInput st)
+      | channelHasMode chan 'g' conn -> go (clearInput st)
 
       -- it's an error to invite someone already in channel
-      | has (clientConnection . connChannels . ix chan . chanUsers . ix nick) st -> return st
+      | has (connChannels . ix chan . chanUsers . ix nick) conn -> return st
 
       | otherwise -> doWithOps chan go (clearInput st)
       where
+      conn = view (clientServer0 . ccConnection) st
       go st' = st' <$ clientSend (inviteCmd nick chan) st'
 
 

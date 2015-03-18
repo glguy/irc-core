@@ -4,6 +4,7 @@
 
 module ClientState where
 
+import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.DeepSeq (force)
 import Control.Lens
@@ -19,6 +20,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (TimeZone, UTCTime)
 import Graphics.Vty.Image
+import Network.Socket (HostName, PortNumber)
 import System.IO (Handle)
 import qualified Data.ByteString as B
 import qualified Data.Map as Map
@@ -30,14 +32,24 @@ import Irc.Format
 import Irc.Message
 import Irc.Model
 
+import Connection
 import EditBox (EditBox)
 import qualified EditBox as Edit
 import ImageUtils (cleanText, nameHighlighter)
 
+
+data ClientConnection = ClientConnection
+  { _ccServerSettings :: ServerSettings
+  , _ccSendChan       :: TChan ByteString
+  , _ccConnection     :: IrcConnection
+  , _ccRecvThread     :: ThreadId
+  }
+
 data ClientState = ClientState
-  { _clientSendChan   :: TChan ByteString
+  -- stuff that will need to be split out for mutiple
+  -- servers
+  { _clientServer0    :: ClientConnection
   , _clientErrors     :: Maybe Handle
-  , _clientConnection :: IrcConnection
   , _clientFocus      :: Focus
   , _clientDetailView :: !Bool
   , _clientTimeView   :: !Bool
@@ -91,6 +103,8 @@ makeLenses ''MessageList
 makeLenses ''EventHandler
 makePrisms ''Focus
 makePrisms ''TimerEvent
+makeLenses ''ClientConnection
+
 
 resetCurrentChannelMessages :: ClientState -> ClientState
 resetCurrentChannelMessages st =
@@ -176,7 +190,8 @@ clearTabPattern :: ClientState -> ClientState
 clearTabPattern = set clientTabPattern Nothing
 
 clientSend :: ByteString -> ClientState -> IO ()
-clientSend x st = atomically (writeTChan (view clientSendChan st) x)
+clientSend x st =
+  atomically (writeTChan (view (clientServer0.ccSendChan) st) x)
 
 focusedName :: ClientState -> Identifier
 focusedName st =
@@ -191,12 +206,12 @@ focusedChan st =
     ChannelInfoFocus c -> Just c
     MaskListFocus _  c -> Just c
     ChannelFocus     c
-      | isChannelName c (view clientConnection st) -> Just c
+      | isChannelName c (view (clientServer0.ccConnection) st) -> Just c
       | otherwise -> Nothing
 
 addMessage :: Identifier -> IrcMessage -> ClientState -> ClientState
 addMessage target message st
-  | view (clientConnection . connNick) st == target =
+  | view (clientServer0 . ccConnection . connNick) st == target =
       over (clientMessages . at (views mesgSender userNick message))
            (Just . aux . fromMaybe defaultMessageList)
            st
@@ -205,7 +220,7 @@ addMessage target message st
            (Just . aux . fromMaybe defaultMessageList)
            st
   where
-  conn = view clientConnection st
+  conn = view (clientServer0 . ccConnection) st
 
   aux = case views mesgType isRelevant message of
           Nothing -> over mlMessages (cons (message,error "unused colored message"))
@@ -238,7 +253,7 @@ addMessage target message st
 fullMessageLists :: ClientState -> Map Identifier MessageList
 fullMessageLists st
    = view clientMessages st
-  <> views (clientConnection . connChannels)
+  <> views (clientServer0 . ccConnection . connChannels)
            (defaultMessageList <$)
            st
   <> Map.singleton "" defaultMessageList

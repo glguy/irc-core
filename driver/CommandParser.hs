@@ -104,18 +104,18 @@ pRemainingNoSpLimit len =
 
 pChannel :: ClientState -> Parser Identifier
 pChannel st = pValidToken "channel" $ \chan ->
-                do let ident = asIdentifier chan
-                   guard (isChannelName ident (view clientConnection st))
-                   return ident
+  do let ident = asIdentifier chan
+     guard (isChannelName ident (view (clientServer0 . ccConnection) st))
+     return ident
 
 pTarget :: Parser Identifier
 pTarget = pValidToken "target" (Just . asIdentifier)
 
 pNick :: ClientState -> Parser Identifier
 pNick st = pValidToken "nick" $ \nick ->
-                do let ident = asIdentifier nick
-                   guard (isNickName ident (view clientConnection st))
-                   return ident
+  do let ident = asIdentifier nick
+     guard (isNickName ident (view (clientServer0 . ccConnection) st))
+     return ident
 
 asIdentifier :: String -> Identifier
 asIdentifier = mkId . Text.encodeUtf8 . Text.pack
