@@ -9,7 +9,6 @@ module Irc.Format
   , renderRawIrcMsg
   , parseUserInfo
   , renderUserInfo
-  , ircGetLine
   , Identifier
   , mkId
   , idBytes
@@ -27,7 +26,7 @@ import Data.Monoid
 import Data.String
 import Data.Text (Text)
 import Data.Time (UTCTime, parseTime)
-import System.IO (Handle)
+import Data.Traversable (traverse)
 import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as Builder
@@ -118,8 +117,8 @@ maxMiddleParams = 14
 -- invalid messages!
 rawIrcMsgParser :: Parser RawIrcMsg
 rawIrcMsgParser =
-  do time   <- optional timeParser
-     prefix <- optional prefixParser
+  do time   <- guarded (string "@time=") timeParser
+     prefix <- guarded (char ':') prefixParser
      cmd    <- simpleTokenParser
      params <- paramsParser maxMiddleParams
      return RawIrcMsg
@@ -142,10 +141,10 @@ paramsParser n =
            finalParam
 
     | otherwise =
-        do next <- peekChar'
-           case next of
-             ':' -> anyChar *> finalParam
-             _   -> middleParam
+        do mbColon <- optional (char ':')
+           case mbColon of
+             Just{}  -> finalParam
+             Nothing -> middleParam
 
   finalParam =
     do x <- takeByteString
@@ -162,20 +161,18 @@ paramsParser n =
 -- @time=2015-03-04T22:29:04.064Z
 timeParser :: Parser UTCTime
 timeParser =
-  do _         <- string "@time="
-     timeBytes <- simpleTokenParser
+  do timeBytes <- simpleTokenParser
      _         <- char ' '
      case parseIrcTime (B8.unpack timeBytes) of
-       Nothing   -> fail "Bad time string"
-       Just time -> return time
+       Nothing -> fail "Bad server-time format"
+       Just t  -> return t
 
 parseIrcTime :: String -> Maybe UTCTime
 parseIrcTime = parseTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%Z"
 
 prefixParser :: Parser UserInfo
 prefixParser =
-  do _   <- char ':'
-     tok <- simpleTokenParser
+  do tok <- simpleTokenParser
      _   <- char ' '
      return (parseUserInfo tok)
 
@@ -228,13 +225,13 @@ buildParams (x:xs)
   = Builder.word8 32 <> Builder.byteString x <> buildParams xs
 buildParams [] = mempty
 
-ircGetLine :: Handle -> IO ByteString
-ircGetLine h =
-  do b <- B.hGetLine h
-     return $! if not (B.null b) && B8.last b == '\r' then B.init b else b
-
 asUtf8 :: ByteString -> Text
 asUtf8 = Text.decodeUtf8With Text.lenientDecode
+
+-- | When the first parser succeeds require the second parser to succeed.
+-- Otherwise return Nothing
+guarded :: Parser a -> Parser b -> Parser (Maybe b)
+guarded pa pb = traverse (const pb) =<< optional pa
 
 -- | Capitalize a string according to RFC 2812
 -- Latin letters are capitalized and {|}~ are mapped to [\]^
