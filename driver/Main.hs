@@ -747,7 +747,7 @@ picForState st = (scroll', pic)
 
   topicbar chan =
     case preview (connChannels . ix chan . chanTopic . folded . folded . _1) conn of
-      Just topic | not (Text.null topic) -> text' (withForeColor defAttr green) topic
+      Just topic | not (Text.null topic) -> cleanText topic
       _ -> char defAttr ' '
 
 -- | Try to drop the suggested number of elements and then
