@@ -2,6 +2,7 @@
 module ImageUtils where
 
 import Control.Lens
+import Control.Monad (guard)
 import Data.Array
 import Data.ByteString (ByteString)
 import Data.Char (isControl, isAlphaNum)
@@ -78,26 +79,36 @@ ircFormattedText' fmt t = text' (formattingAttr fmt) a <|> rest
 
 colorNumber :: Text -> Maybe (Color, Text)
 colorNumber t =
-  do (f1,t1) <- Text.uncons t
-     (f2,t2) <- Text.uncons t1
-     case [f1,f2] of
-       "00" -> Just (white, t2) -- white
-       "01" -> Just (black, t2) -- black
-       "02" -> Just (blue, t2) -- blue
-       "03" -> Just (green, t2) -- green
-       "04" -> Just (red, t2) -- red
-       "05" -> Just (rgbColor' 127 0 0, t2) -- brown
-       "06" -> Just (rgbColor' 156 0 156, t2) -- purple
-       "07" -> Just (rgbColor' 252 127 0, t2) -- yellow
-       "08" -> Just (yellow, t2) -- yellow
-       "09" -> Just (brightGreen, t2) -- green
-       "10" -> Just (cyan, t2) -- brightBlue
-       "11" -> Just (brightCyan, t2) -- brightCyan
-       "12" -> Just (brightBlue, t2) -- brightBlue
-       "13" -> Just (rgbColor' 255 0 255, t2)  -- brightRed
-       "14" -> Just (rgbColor' 127 127 127, t2)-- brightBlack
-       "15" -> Just (rgbColor' 210 210 210, t2)-- brightWhite
-       _    -> Nothing
+  do (c1,c2,t1) <- splitNumber t
+     case (c1,c2) of
+       ('0','0') -> Just (white                , t1) -- white
+       ('0','1') -> Just (black                , t1) -- black
+       ('0','2') -> Just (blue                 , t1) -- blue
+       ('0','3') -> Just (green                , t1) -- green
+       ('0','4') -> Just (red                  , t1) -- red
+       ('0','5') -> Just (rgbColor' 127 0 0    , t1) -- brown
+       ('0','6') -> Just (rgbColor' 156 0 156  , t1) -- purple
+       ('0','7') -> Just (rgbColor' 252 127 0  , t1) -- yellow
+       ('0','8') -> Just (yellow               , t1) -- yellow
+       ('0','9') -> Just (brightGreen          , t1) -- green
+       ('1','0') -> Just (cyan                 , t1) -- brightBlue
+       ('1','1') -> Just (brightCyan           , t1) -- brightCyan
+       ('1','2') -> Just (brightBlue           , t1) -- brightBlue
+       ('1','3') -> Just (rgbColor' 255 0 255  , t1) -- brightRed
+       ('1','4') -> Just (rgbColor' 127 127 127, t1) -- brightBlack
+       ('1','5') -> Just (rgbColor' 210 210 210, t1) -- brightWhite
+       _         -> Nothing
+
+-- Take up to two digits off the front of a text. If there is only
+-- a single digit pretend like the first digit was a 0
+splitNumber :: Text -> Maybe (Char,Char,Text)
+splitNumber t =
+  do let isNumber x = '0' <= x && x <= '9'
+     (c1,t1) <- Text.uncons t
+     guard (isNumber c1)
+     case Text.uncons t1 of
+       Just (c2,t2) | isNumber c2 -> Just (c1,c2,t2)
+       _                          -> Just ('0',c1,t1)
 
 rgbColor' :: Int -> Int -> Int -> Color
 rgbColor' = rgbColor -- fix the type to Int
