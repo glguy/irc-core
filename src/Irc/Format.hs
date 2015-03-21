@@ -18,6 +18,7 @@ module Irc.Format
   ) where
 
 import Control.Applicative
+import Control.Monad (guard)
 import Data.Attoparsec.ByteString.Char8 as P
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
@@ -180,6 +181,7 @@ prefixParser =
 simpleTokenParser :: Parser ByteString
 simpleTokenParser =
   do xs <- P.takeWhile (/= ' ')
+     guard (not (B8.null xs))
      return $! B8.copy xs
 
 -- | Take the bytes up to the next space delimiter.
