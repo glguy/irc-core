@@ -9,8 +9,11 @@ import Data.Time
 import Data.Version (showVersion)
 import System.Locale
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 
 import ClientState
+import ServerSettings
 import Irc.Format
 import Irc.Message
 import Irc.Cmd
@@ -40,7 +43,8 @@ ctcpHandler = EventHandler
                      clientSend (ctcpResponseCmd sender "VERSION" versionString) st
                    "USERINFO" ->
                      clientSend (ctcpResponseCmd sender "USERINFO"
-                                    (view clientUserInfo st)) st
+                                    (views (clientServer0 . ccServerSettings . ssUserInfo)
+                                           (Text.encodeUtf8 . Text.pack) st)) st
                    "PING" ->
                      clientSend (ctcpResponseCmd sender "PING" params) st
                    "SOURCE" ->

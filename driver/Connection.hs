@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 
+-- | This module is responsible for creating 'Connection' values
+-- for a particular server as specified by its 'ServerSettings'
 module Connection
   ( -- * Settings
     ServerSettings(..)
@@ -29,16 +30,7 @@ import Network.TLS.Extra  (ciphersuite_strong)
 import System.X509        (getSystemCertificateStore)
 import qualified Data.ByteString.Char8 as B8
 
-data ServerSettings = ServerSettings
-  { _ssHostName      :: HostName
-  , _ssPort          :: Maybe PortNumber
-  , _ssTls           :: Bool
-  , _ssTlsInsecure   :: Bool
-  , _ssTlsClientCert :: Maybe FilePath
-  , _ssTlsClientKey  :: Maybe FilePath
-  }
-
-makeLenses ''ServerSettings
+import ServerSettings
 
 -- | This behaves like 'connectionGetLine' but it strips off the @'\r'@
 -- IRC calls for 512 byte packets  I rounded off to 1024.

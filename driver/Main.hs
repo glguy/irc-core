@@ -49,6 +49,7 @@ import CommandParser
 import CtcpHandler
 import ImageUtils
 import Moderation
+import ServerSettings
 import Views.BanList
 import Views.Channel
 import Views.ChannelInfo
@@ -71,21 +72,8 @@ main = do
 
   withVty $ \vty ->
     do _ <- forkIO (vtyEventLoop vtyEventChan vty)
-       let initialSaslCredential =
-             fmap (\pass -> (views cmdArgSaslUser B8.pack args
-                            ,                     B8.pack pass
-                            )) (view cmdArgSaslPass args)
-
-       server0 <- startIrcConnection
-                    recvChan
-                    (serverSettingsForArgs args)
-                    (views cmdArgNick (mkId.B8.pack) args)
-                    (views cmdArgUser B8.pack args)
-                    (views cmdArgReal B8.pack args)
-                    (views cmdArgPassword (fmap B8.pack) args)
-                    initialSaslCredential
-                    hErr
-
+       settings <- initialServerSettings args
+       server0  <- startIrcConnection recvChan settings hErr
        (width,height) <- displayBounds (outputIface vty)
        zone <- getCurrentTimeZone
        driver vty vtyEventChan recvChan ClientState
@@ -107,7 +95,6 @@ main = do
          , _clientNickColors      = defaultNickColors
          , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop]
          , _clientTimers          = mempty
-         , _clientUserInfo        = Text.encodeUtf8 (Text.pack (view cmdArgUserInfo args))
          , _clientTimeZone        = zone
          }
 
@@ -117,20 +104,22 @@ withVty k =
      bracket (mkVty cfg) shutdown k
 
 startIrcConnection ::
-  TChan (UTCTime, MsgFromServer) ->
-  ServerSettings                 {- ^ network parameters -} ->
-  Identifier                     {- ^ initial nickname -} ->
-  ByteString                     {- ^ username         -} ->
-  ByteString                     {- ^ realname         -} ->
-  Maybe ByteString               {- ^ server password  -} ->
-  Maybe (ByteString, ByteString) {- ^ SASL credentials -} ->
-  Maybe Handle                   {- ^ error log        -} ->
+  TChan (UTCTime, MsgFromServer) {- ^ incoming client events -} ->
+  ServerSettings                 {- ^ network parameters     -} ->
+  Maybe Handle                   {- ^ error log              -} ->
   IO ClientConnection
-startIrcConnection recvChan settings nick user real pass sasl hErr =
+startIrcConnection recvChan settings hErr =
   do h            <- connect settings
      sendChan     <- atomically newTChan
      sendThreadId <- forkIO (sendLoop sendChan h)
      recvThreadId <- forkIO (socketLoop recvChan h hErr)
+
+     let utf8Bytes = Text.encodeUtf8 . Text.pack
+         nick = mkId (utf8Bytes (view ssNick settings))
+         user = utf8Bytes (view ssUser settings)
+         real = utf8Bytes (view ssReal settings)
+         sasl = over (mapped.both) utf8Bytes (view ssSaslCredential settings)
+         pass = over mapped        utf8Bytes (view ssPassword settings)
 
      initializeConnection pass nick user real h
 
@@ -144,16 +133,6 @@ startIrcConnection recvChan settings nick user real pass sasl hErr =
        , _ccRecvThread     = recvThreadId
        , _ccSendThread     = sendThreadId
        }
-
-serverSettingsForArgs :: CommandArgs -> ServerSettings
-serverSettingsForArgs args = ServerSettings
-  { _ssHostName      = view cmdArgServer args
-  , _ssPort          = fmap fromIntegral (view cmdArgPort args)
-  , _ssTls           = view cmdArgTls args
-  , _ssTlsInsecure   = view cmdArgTlsInsecure args
-  , _ssTlsClientCert = view cmdArgTlsClientCert args
-  , _ssTlsClientKey  = view cmdArgTlsClientKey args
-  }
 
 initializeConnection ::
   Maybe ByteString {- ^ server password -} ->

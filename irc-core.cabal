@@ -98,6 +98,7 @@ executable glirc
                  HaskellHighlighter
                  ImageUtils
                  Moderation
+                 ServerSettings
                  Views.BanList
                  Views.Channel
                  Views.ChannelInfo
