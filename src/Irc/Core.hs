@@ -26,7 +26,7 @@ data MsgFromServer
   = RplWelcome  ByteString -- ^ 001 "Welcome to the Internet Relay Network \<nick\>!\<user\>\@\<host\>"
   | RplYourHost ByteString -- ^ 002 "Your host is \<servername\>, running version \<ver\>"
   | RplCreated  ByteString -- ^ 003 "This server was created \<date\>"
-  | RplMyInfo   ByteString ByteString ByteString ByteString ByteString -- ^ 004 servername version available-user-modes available-channel-modes
+  | RplMyInfo   ByteString ByteString [ByteString] -- ^ 004 servername version *(modes)
   | RplISupport [(ByteString,ByteString)] -- ^ 005 *(KEY=VALUE)
   | RplSnoMask ByteString -- ^ 008 snomask
   | RplYourId ByteString -- ^ 042 unique-id
@@ -239,8 +239,8 @@ ircMsgToServerMsg ircmsg =
     ("002",[_,txt]) -> Just (RplYourHost txt)
     ("003",[_,txt]) -> Just (RplCreated txt)
 
-    ("004",[_,host,version,umodes,lmodes,cmodes]) ->
-       Just (RplMyInfo host version umodes lmodes cmodes)
+    ("004", _:host:version:modes) ->
+       Just (RplMyInfo host version modes)
 
     ("005",_:params)
       | not (null params) ->

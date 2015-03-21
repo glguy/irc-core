@@ -273,7 +273,7 @@ advanceModel msg0 conn =
                         $ set connPhase ActivePhase conn
        RplYourHost txt -> doServerMessage "YourHost" txt conn
        RplCreated  txt -> doServerMessage "Created" txt conn
-       RplMyInfo host version _ _ _ ->
+       RplMyInfo host version _ ->
          return (set connMyInfo (Just (host,version)) conn)
 
        -- Random uninteresting statistics
