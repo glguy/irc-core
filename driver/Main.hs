@@ -6,7 +6,7 @@
 module Main where
 
 import Control.Applicative hiding ((<|>))
-import Control.Concurrent (forkIO)
+import Control.Concurrent (killThread, forkIO)
 import Control.Concurrent.STM
 import Control.Exception
 import Control.Lens
@@ -541,7 +541,23 @@ commandEvent st = commandsParser (clientInput st)
                                               (Text.encodeUtf8 (Text.pack pass))) st')
     <$> pToken "username" <*> pToken "password")
 
+  , ("reconnect", [], pure (doReconnect st'))
+
   ]
+
+-- Exploratory!
+doReconnect :: ClientState -> IO ClientState
+doReconnect st =
+  do let server0 = view clientServer0 st
+     views ccRecvThread killThread server0
+     views ccSendThread killThread server0
+
+     let settings = view ccServerSettings server0
+         recvChan = view clientRecvChan st
+         hErr     = view clientErrors st
+     server0' <- startIrcConnection recvChan settings hErr
+     let st' = set clientServer0 server0' st
+     return st'
 
 doNick ::
   ClientState ->
