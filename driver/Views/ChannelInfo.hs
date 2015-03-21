@@ -3,6 +3,7 @@ module Views.ChannelInfo where
 import ClientState
 import Control.Lens
 import Data.ByteString (ByteString)
+import Data.List (partition)
 import Data.Map (Map)
 import Data.Monoid
 import Graphics.Vty.Image
@@ -71,8 +72,15 @@ channelInfoImage chan st =
         : [ char defAttr ' ' <|>
             modePrefix modes <|>
             identImg defAttr nick
-          | (nick,modes) <- Map.toList (view chanUsers channel)
+          | (nick,modes) <- reorderUsers (map fst prefixes)
+                          $ Map.toList (view chanUsers channel)
           ]
+
+reorderUsers :: [Char] -> [(Identifier,[Char])] -> [(Identifier,[Char])]
+reorderUsers []     users = users
+reorderUsers (m:ms) users = haves ++ reorderUsers ms havenots
+  where
+  (haves,havenots) = partition (elem m . snd) users
 
 renderModes :: Map Char ByteString -> ByteString
 renderModes modes = B8.pack ('+':modeLetters)

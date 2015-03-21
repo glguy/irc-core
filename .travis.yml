@@ -113,5 +113,5 @@ notifications:
       - "irc.freenode.org#haskell-irc"
     skip_join: true
     template:
-      - "\x0313irc-core\x0f/\x0306%{branch}\x0f \x0314%{commit}\x0f %{message}: \x0302\x1f%{build_url}\x0f"
+      - "\x0313irc-core\x0f/\x0306%{branch}\x0f \x0314%{commit}\x0f %{message} \x0302\x1f%{build_url}\x0f"
 # EOF
