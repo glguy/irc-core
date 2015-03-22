@@ -383,7 +383,7 @@ commandEvent st = commandsParser (clientInput st)
     (\n -> return (jumpFocus n st'))
     <$> pNumber)
 
-  , ("channelinfo", [], pure (doChannelInfoCmd st'))
+  , ("channelinfo", [], pure (doChannelInfoCmd st))
 
   , ("bans", [], pure (doMasksCmd 'b' st))
 

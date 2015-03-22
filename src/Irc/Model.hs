@@ -750,11 +750,13 @@ doPrivMsg ::
 doPrivMsg who chan msg conn =
   do stamp <- getStamp
      let (statusmsg, chan') = splitStatusMsg chan conn
+         modes = view (connChannels . ix chan' . chanUsers . ix (userNick who)) conn
          mesg = defaultIrcMessage
                 { _mesgType    = ty
                 , _mesgSender  = who
                 , _mesgStamp   = stamp
                 , _mesgStatus  = statusmsg
+                , _mesgModes   = modes
                 }
          ty = case parseCtcpCommand msg of
                 Nothing                 -> PrivMsgType (asUtf8 msg)
@@ -783,10 +785,12 @@ doTopic ::
 doTopic who chan topic conn =
   do stamp <- getStamp
      let topicText = asUtf8 topic
+         modes = view (connChannels . ix chan . chanUsers . ix (userNick who)) conn
          m = defaultIrcMessage
                 { _mesgType = TopicMsgType topicText
                 , _mesgSender = who
                 , _mesgStamp = stamp
+                , _mesgModes = modes
                 }
          topicEntry = Just (topicText,renderUserInfo who,stamp)
          conn1 = set (connChannels . ix chan . chanTopic) (Just topicEntry) conn
@@ -1100,10 +1104,12 @@ doKick ::
   IrcConnection -> Logic IrcConnection
 doKick who chan tgt reason conn =
   do stamp <- getStamp
-     let mesg = defaultIrcMessage
+     let modes = view (connChannels . ix chan . chanUsers . ix (userNick who)) conn
+         mesg = defaultIrcMessage
                 { _mesgType = KickMsgType tgt (asUtf8 reason)
                 , _mesgSender = who
                 , _mesgStamp = stamp
+                , _mesgModes = modes
                 }
 
      let conn1 = set (connChannels . ix chan . chanUsers . at tgt)
@@ -1224,11 +1230,13 @@ doNotifyChannel who chan msg conn =
      let ty = case parseCtcpCommand msg of
                 Nothing                 -> NoticeMsgType (asUtf8 msg)
                 Just (command , args  ) -> CtcpRspMsgType command args
-     let mesg = defaultIrcMessage
+         modes = view (connChannels . ix chan' . chanUsers . ix (userNick who)) conn
+         mesg = defaultIrcMessage
                { _mesgType = ty
                , _mesgSender = who
                , _mesgStamp = stamp
                , _mesgStatus = statusmsg
+               , _mesgModes  = modes
                }
      recordMessage mesg chan' conn
 

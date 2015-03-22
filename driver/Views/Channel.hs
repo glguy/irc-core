@@ -131,6 +131,7 @@ compressedImageForState !st = renderOne (activeMessages st)
 
          NoticeMsgType _ | visible -> Just $
            statusMsgImage (view mesgStatus msg) <|>
+           views mesgModes modePrefix msg <|>
            string (withForeColor defAttr red) "! " <|>
            views mesgModes modePrefix msg <|>
            identImg (withForeColor defAttr red) nick <|>
@@ -139,6 +140,7 @@ compressedImageForState !st = renderOne (activeMessages st)
 
          ActionMsgType _ | visible -> Just $
            statusMsgImage (view mesgStatus msg) <|>
+           views mesgModes modePrefix msg <|>
            string (withForeColor defAttr blue) "* " <|>
            views mesgModes modePrefix msg <|>
            identImg (withForeColor defAttr blue) nick <|>
