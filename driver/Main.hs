@@ -676,7 +676,9 @@ doMasksCmd mode st
 doJoinCmd :: Identifier -> Maybe ByteString -> ClientState -> IO ClientState
 doJoinCmd c mbKey st =
   do clientSend (joinCmd c mbKey) st
-     return (set clientFocus (ChannelFocus c) st)
+     -- When joining you can specify more than one channel split on commas
+     let c' = mkId (B8.takeWhile (/=',') (idBytes c))
+     return (set clientFocus (ChannelFocus c') st)
 
 doQuote :: String -> ClientState -> IO ClientState
 doQuote cmd st = st <$ clientSend (Text.encodeUtf8 (Text.pack (cmd ++ "\r\n"))) st
