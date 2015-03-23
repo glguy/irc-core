@@ -156,7 +156,9 @@ jumpActivity :: ClientState -> ClientState
 jumpActivity st =
   case active of
     []     -> st
-    name:_ -> set clientFocus (ChannelFocus name) st
+    name:_ -> clearTabPattern
+            $ set clientScrollPos 0
+            $ set clientFocus (ChannelFocus name) st
   where
   active =
     [ name | (name,messages) <- views clientMessages Map.toList st
