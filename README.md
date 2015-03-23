@@ -34,6 +34,8 @@ TLS
 
 I've added TLS support. You can enable it with the `-t` flag. Note that Freenode (and other networks) will allow you to authenticate to NickServ via a client certificate. This is configurable via `--tls-client-cert`.
 
+I use the `x509-library` for decoding certificates and private key files. This library seems to support PEM formatted files and does not seem to support encrypted private key files. If the key and certificate are both contained in the certificate file the private key command line argument is unnecessary.
+
 [Identifying with CERTFP](https://freenode.net/certfp/)
 
 Startup
