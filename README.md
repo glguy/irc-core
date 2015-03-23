@@ -34,7 +34,7 @@ TLS
 
 I've added TLS support. You can enable it with the `-t` flag. Note that Freenode (and other networks) will allow you to authenticate to NickServ via a client certificate. This is configurable via `--tls-client-cert`.
 
-I use the `x509-library` for decoding certificates and private key files. This library seems to support PEM formatted files and does not seem to support encrypted private key files. If the key and certificate are both contained in the certificate file the private key command line argument is unnecessary.
+I use the `x509-store` for decoding certificates and private key files. This library seems to support PEM formatted files and does not seem to support encrypted private key files. If the key and certificate are both contained in the certificate file the private key command line argument is unnecessary.
 
 [Identifying with CERTFP](https://freenode.net/certfp/)
 
@@ -74,7 +74,6 @@ Commands
 * `/clear` - Clear all messages for the current channel
 * `/help <topic>` - Request help from the server
 * `/hs <haskell source code>` - Send syntax highlighted source code as a message to the current channel
-* `/type <haskell type>` - Send syntax highlighted Haskell type with polarity checking
 * `/ignore <nick>` - Toggle ignoring a user by nickname.
 * `/join <channel>` - join a new channel (optional key argument)
 * `/kick <nick> <msg>` - Kick a user from the current channel
@@ -108,6 +107,7 @@ Commands
 * `/acceptlist` - List users on accept lists
 * `/knock` - Request an /invite/ to a restricted channel
 * `/invite <nick>` - Invite the given user to the current channel
+* `/reconnect` - Reconnect to the current server
 
 Keyboard Shortcuts
 ==================
