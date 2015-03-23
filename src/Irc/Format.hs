@@ -19,6 +19,7 @@ module Irc.Format
 
 import Control.Applicative
 import Control.Monad (guard,when)
+import Data.Array
 import Data.Attoparsec.ByteString.Char8 as P
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
@@ -28,11 +29,13 @@ import Data.String
 import Data.Text (Text)
 import Data.Time (UTCTime, parseTime)
 import Data.Traversable (traverse)
+import Data.Word (Word8)
 import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 
@@ -228,9 +231,6 @@ buildParams (x:xs)
   = Builder.word8 32 <> Builder.byteString x <> buildParams xs
 buildParams [] = mempty
 
-asUtf8 :: ByteString -> Text
-asUtf8 = Text.decodeUtf8With Text.lenientDecode
-
 -- | When the first parser succeeds require the second parser to succeed.
 -- Otherwise return Nothing
 guarded :: Parser a -> Parser b -> Parser (Maybe b)
@@ -255,3 +255,33 @@ casemap = "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\
           \\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\
           \\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\
           \\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff"
+
+-- Try to decode a message as UTF-8. If that fails interpret it as Windows CP1252
+-- This helps deal with clients like XChat that get clever and otherwise misconfigured
+-- clients.
+asUtf8 :: ByteString -> Text
+asUtf8 x = case Text.decodeUtf8' x of
+             Right txt -> txt
+             Left{}    -> decodeCP1252 x
+
+decodeCP1252 :: ByteString -> Text
+decodeCP1252 = Text.pack . map (cp1252!) . B.unpack
+
+cp1252 :: Array Word8 Char
+cp1252 = listArray (0,255)
+  ['\NUL','\SOH','\STX','\ETX','\EOT','\ENQ','\ACK','\a','\b','\t','\n','\v','\f','\r','\SO','\SI',
+   '\DLE','\DC1','\DC2','\DC3','\DC4','\NAK','\SYN','\ETB','\CAN','\EM','\SUB','\ESC','\FS','\GS','\RS','\US',
+   ' ','!','\"','#','$','%','&','\'','(',')','*','+',',','-','.','/',
+   '0','1','2','3','4','5','6','7','8','9',':',';','<','=','>','?',
+   '@','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O',
+   'P','Q','R','S','T','U','V','W','X','Y','Z','[','\\',']','^','_',
+   '`','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o',
+   'p','q','r','s','t','u','v','w','x','y','z','{','|','}','~','\DEL',
+   '\8364','\129','\8218','\402','\8222','\8230','\8224','\8225','\710','\8240','\352','\8249','\338','\141','\381','\143',
+   '\144','\8216','\8217','\8220','\8221','\8226','\8211','\8212','\732','\8482','\353','\8250','\339','\157','\382','\376',
+   '\160','\161','\162','\163','\164','\165','\166','\167','\168','\169','\170','\171','\172','\173','\174','\175',
+   '\176','\177','\178','\179','\180','\181','\182','\183','\184','\185','\186','\187','\188','\189','\190','\191',
+   '\192','\193','\194','\195','\196','\197','\198','\199','\200','\201','\202','\203','\204','\205','\206','\207',
+   '\208','\209','\210','\211','\212','\213','\214','\215','\216','\217','\218','\219','\220','\221','\222','\223',
+   '\224','\225','\226','\227','\228','\229','\230','\231','\232','\233','\234','\235','\236','\237','\238','\239',
+   '\240','\241','\242','\243','\244','\245','\246','\247','\248','\249','\250','\251','\252','\253','\254','\255']
