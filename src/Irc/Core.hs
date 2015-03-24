@@ -146,7 +146,7 @@ data MsgFromServer
   | RplSaslAlready -- ^ 907
   | RplSaslMechs ByteString -- ^ 908 comma-sep-mechs
 
-  | Away UserInfo ByteString
+  | Away UserInfo (Maybe ByteString)
   | Ping ByteString
   | Pong ByteString (Maybe ByteString)
   | Notice  UserInfo Identifier ByteString
@@ -733,7 +733,11 @@ ircMsgToServerMsg ircmsg =
 
     ("AWAY",[txt]) ->
       do who <- msgPrefix ircmsg
-         Just (Away who txt)
+         Just (Away who (Just txt))
+
+    ("AWAY",[]) ->
+      do who <- msgPrefix ircmsg
+         Just (Away who Nothing)
 
     ("QUIT",[txt]) ->
       do who <- msgPrefix ircmsg

@@ -342,8 +342,11 @@ advanceModel msg0 conn =
        Account who acct ->
          return (set (connUsers . ix (userNick who) . usrAccount) acct conn)
 
-       Away who _msg ->
+       Away who Just{} ->
          return (updateUserRecord (userNick who) (set usrAway True) conn)
+
+       Away who Nothing ->
+         return (updateUserRecord (userNick who) (set usrAway False) conn)
 
        RplYourId yourId -> return (set connId (Just yourId) conn)
 
