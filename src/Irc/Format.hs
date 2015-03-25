@@ -215,10 +215,16 @@ parseUserInfo x = UserInfo
 -- format. This command adds the required trailing newline.
 renderRawIrcMsg :: RawIrcMsg -> ByteString
 renderRawIrcMsg m = L.toStrict $ Builder.toLazyByteString $
-  Builder.byteString (msgCommand m)
+     maybe mempty renderPrefix (msgPrefix m)
+  <> Builder.byteString (msgCommand m)
   <> buildParams (msgParams m)
   <> Builder.word8 13
   <> Builder.word8 10
+
+renderPrefix :: UserInfo -> Builder
+renderPrefix u = Builder.char8 ':'
+              <> Builder.byteString (renderUserInfo u)
+              <> Builder.char8 ' '
 
 -- | Build concatenate a list of parameters into a single, space-
 -- delimited bytestring. Use a colon for the last parameter if it contains
