@@ -1,7 +1,12 @@
 -- | This module implements a simple rate limiter based on the
 -- to be used to keep an IRC client from getting kicked due to
 -- flooding. It allows one event per duration with a given threshold.
-module Irc.RateLimit (RateLimit, newRateLimit, tickRateLimit) where
+module Irc.RateLimit
+  ( RateLimit
+  , newRateLimit
+  , newRateLimitDefault
+  , tickRateLimit
+  ) where
 
 import Control.Concurrent
 import Control.Monad
@@ -10,48 +15,47 @@ import Data.Time
 -- | The 'RateLimit' keeps track of rate limit settings as well
 -- as the current state of the limit.
 data RateLimit = RateLimit
-  { rateDebt :: MVar [UTCTime]
-  , rateThreshold :: Int
-  , rateDuration  :: Int
+  { rateStamp     :: !(MVar UTCTime)
+  , rateThreshold :: !Int
+  , ratePenalty   :: !Int
   }
 
--- | Construct a new rate limit with the given duration and threshold.
+-- | Construct a new rate limit with the RFC 2813 specified
+-- 2 second penalty and 10 second threshold
+newRateLimitDefault :: IO RateLimit
+newRateLimitDefault = newRateLimit 2 10
+
+-- | Construct a new rate limit with the given penalty and threshold.
 newRateLimit ::
-  Int {- ^ duration  -} ->
+  Int {- ^ penalty  -} ->
   Int {- ^ threshold -} ->
   IO RateLimit
-newRateLimit duration threshold =
-  do ref <- newMVar []
-
-     unless (duration > 0)
-        (fail "newRateLimit: Duration too small")
+newRateLimit penalty threshold =
+  do unless (penalty > 0)
+        (fail "newRateLimit: Penalty too small")
 
      unless (threshold > 0)
         (fail "newRateLimit: Threshold too small")
 
+     now <- getCurrentTime
+     ref <- newMVar now
+
      return RateLimit
-        { rateDebt = ref
+        { rateStamp     = ref
         , rateThreshold = threshold
-        , rateDuration  = duration
+        , ratePenalty   = penalty
         }
 
 -- | Account for an event in the context of a 'RateLimit'. This command
 -- will block and delay as required to satisfy the current rate. Once
 -- it returns it is safe to proceed with the rate limited action.
 tickRateLimit :: RateLimit -> IO ()
-tickRateLimit r = modifyMVar_ (rateDebt r) $ \debt ->
+tickRateLimit r = modifyMVar_ (rateStamp r) $ \stamp ->
   do now <- getCurrentTime
-     let isActive t = truncate (diffUTCTime now t) < rateDuration r
-         debt' = filter isActive debt
+     let stamp' = fromIntegral (ratePenalty r) `addUTCTime` max stamp now
+         diff   = diffUTCTime stamp' now
+         excess = diff - fromIntegral (rateThreshold r)
 
-     if length debt' < rateThreshold r
-       then return (now:debt')
+     when (excess > 0) (threadDelay (ceiling (1000000 * realToFrac excess)))
 
-       else do let wait = ceiling
-                        $ (1000000 :: Double) -- milliseconds
-                        * ( fromIntegral (rateDuration r)
-                          - realToFrac (diffUTCTime now (last debt'))
-                          )
-               print wait
-               threadDelay wait
-               return (now:init debt')
+     return stamp'

@@ -863,7 +863,7 @@ dividerImage st
 
 sendLoop :: TChan ByteString -> Connection -> IO ()
 sendLoop queue h =
-  do r <- newRateLimit 2 5
+  do r <- newRateLimitDefault
      forever $
        do x <- atomically (readTChan queue)
           tickRateLimit r
