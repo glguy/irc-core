@@ -71,6 +71,8 @@ library
                        Irc.Format
                        Irc.RateLimit
 
+  other-modules:       Irc.Time
+
   -- Note: GHC 7.8.4 fixes a bug that can cause IRC.Core
   -- to use an absurd amount of RAM when compiling.
   -- The base >= 4.7.0.2 is to protect people from finding
