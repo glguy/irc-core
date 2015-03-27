@@ -986,6 +986,13 @@ splitModes ::
 splitModes icm modes0 =
   foldr aux (\_ args -> [] <$ guard (null args)) (B8.unpack modes0) True
   where
+  aux ::
+    Char                                        {- current mode -} ->
+    (Bool -> [ByteString] -> Maybe [(Bool,Char,ByteString)])
+           {- continuation with updated polarity and arguments -} ->
+    Bool                                        {- current polarity -} ->
+    [ByteString]                                {- current arguments -} ->
+    Maybe [(Bool,Char,ByteString)]
   aux m rec polarity args =
     case m of
       '+' -> rec True  args

@@ -58,6 +58,10 @@ description:
 
 extra-source-files: README.md
 
+-- Use time-1.5 and drop old-locale
+flag time15
+  default: True
+
 library
   exposed-modules:     Irc.Core
                        Irc.Core.Prisms
@@ -71,7 +75,7 @@ library
   -- to use an absurd amount of RAM when compiling.
   -- The base >= 4.7.0.2 is to protect people from finding
   -- this out the hard way.
-  build-depends:       base             >= 4.7.0.2  && < 4.8,
+  build-depends:       base             >= 4.7.0.2  && < 4.9,
 
                        array            >= 0.5      && < 0.6,
                        attoparsec       >= 0.12.1.2 && < 0.13,
@@ -81,9 +85,13 @@ library
                        free             >= 4.11     && < 4.12,
                        lens             >= 4.7      && < 4.9,
                        text             >= 1.2.0.4  && < 1.3,
-                       time             >= 1.4.2    && < 1.5,
-                       old-locale       >= 1.0.0.6  && < 1.1,
                        transformers     >= 0.2      && < 0.5
+
+  if flag(time15)
+    build-depends:     time             >= 1.5      && < 1.6
+  else
+    build-depends:     time             >= 1.4.2    && < 1.5,
+                       old-locale       >= 1.0.0.6  && < 1.1
 
   hs-source-dirs:      src
   default-language:    Haskell2010
@@ -116,17 +124,17 @@ executable glirc
                  x509-validation  >= 1.5.1    && < 1.6,
 
                  array            >= 0.5      && < 0.6,
-                 base             >= 4.7      && < 4.8,
+                 base             >= 4.7      && < 4.9,
                  bytestring       >= 0.10.4.0 && < 0.11,
                  containers       >= 0.5      && < 0.6,
-                 deepseq          >= 1.3.0.2  && < 1.4,
+                 deepseq          >= 1.3.0.2  && < 1.5,
                  lens             >= 4.7      && < 4.9,
                  network          >= 2.6.0.2  && < 2.7,
                  old-locale       >= 1.0.0.6  && < 1.1,
                  split            >= 0.2.2    && < 0.3,
                  stm              >= 2.4.4    && < 2.5,
                  text             >= 1.2.0.4  && < 1.3,
-                 time             >= 1.4.2    && < 1.5,
+                 time             >= 1.4.2    && < 1.6,
                  vty              >= 5.2.7    && < 5.3,
                  haskell-lexer    >= 1.0      && < 1.1,
                  transformers     >= 0.2      && < 0.5

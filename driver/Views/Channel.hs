@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Views.Channel (channelImage) where
 
 import Control.Lens
@@ -9,9 +10,14 @@ import Data.List (stripPrefix)
 import Data.Text (Text)
 import Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
 import Graphics.Vty.Image
-import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Text as Text
+
+#if MIN_VERSION_time(1,5,0)
+import Data.Time (defaultTimeLocale)
+#else
+import System.Locale (defaultTimeLocale)
+#endif
 
 import Irc.Format
 import Irc.Message

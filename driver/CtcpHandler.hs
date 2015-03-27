@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 module CtcpHandler (ctcpHandler) where
 
@@ -7,10 +8,15 @@ import Data.ByteString (ByteString)
 import Data.Monoid
 import Data.Time
 import Data.Version (showVersion)
-import System.Locale
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+
+#if MIN_VERSION_time(1,5,0)
+import Data.Time (defaultTimeLocale)
+#else
+import System.Locale (defaultTimeLocale)
+#endif
 
 import ClientState
 import ServerSettings
