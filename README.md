@@ -43,11 +43,12 @@ Startup
 
 ```
 glirc <options> SERVER
+  -c FILENAME  --config=FILENAME       Configuration file path (default ~/.glirc/config
   -p PORT      --port=PORT             IRC Server Port
   -n NICK      --nick=NICK             Nickname
   -u USER      --user=USER             Username
   -r REAL      --real=REAL             Real Name
-  -  USER      --sasl-user=USER        SASL username
+               --sasl-user=USER        SASL username
   -d FILE      --debug=FILE            Debug log filename
   -i USERINFO  --userinfo=USERINFO     CTCP USERINFO Response
   -t           --tls                   Enable TLS
@@ -59,6 +60,30 @@ glirc <options> SERVER
 Environment variables
 IRCPASSWORD=<your irc password>
 SASLPASSWORD=<your sasl password>
+```
+
+Configuration file
+=================
+
+A configuration file can currently be used to provide some default values instead of
+using command line arguments. If any value is missing the default will be used.
+
+Learn more about this file format at [config-value](http://hackage.haskell.org/package/config-value)
+
+```
+debug-file: "debug.txt"
+defaults:
+  port:            6667
+  nick:            "yournick"
+  username:        "yourusername"
+  realname:        "Your real anem"
+  password:        "IRC server password"
+  sasl-username:   "sasl_username"
+  sasl-password:   "sasl_password"
+  userinfo:        "user info string"
+  tls:             yes -- or: no
+  tls-client-cert: "/path/to/cert.pem"
+  tls-client-key:  "/path/to/cert.key"
 ```
 
 Commands

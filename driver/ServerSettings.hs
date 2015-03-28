@@ -3,6 +3,7 @@
 module ServerSettings where
 
 import Control.Lens
+
 import Network.Socket     (HostName, PortNumber)
 
 data ServerSettings = ServerSettings

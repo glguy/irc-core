@@ -28,11 +28,13 @@ import Graphics.Vty
 import Network.Connection
 import System.IO
 import System.IO.Error (isEOFError)
+import qualified Config.Lens as C
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Text.Lens as Text
 import qualified Data.Text.Encoding as Text
 
 import Irc.Core
@@ -62,7 +64,13 @@ main :: IO ()
 main = do
   args <- getCommandArgs
 
-  hErr <- for (view cmdArgDebug args) $ \fn ->
+  let debugFile = view cmdArgDebug args
+                `mplus`
+                  preview ( cmdArgConfigValue
+                          . C.key "debug-file"
+                          . C.text . Text.unpacked) args
+
+  hErr <- for debugFile $ \fn ->
             do hErr <- openFile fn WriteMode
                hSetBuffering hErr NoBuffering
                return hErr

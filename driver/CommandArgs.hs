@@ -1,15 +1,33 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 module CommandArgs where
 
+import Config
+import Config.Lens
+import Control.Applicative
+import Control.Exception
+import Control.Monad (when)
 import Data.Foldable (traverse_)
 import Data.Maybe
+import Data.Text.Lens (unpacked)
 import System.Console.GetOpt
+import System.Directory
 import System.Environment
 import System.Exit
+import System.FilePath
 import System.IO
+import System.IO.Error
 import Control.Lens
+import Config (Value(Sections),parse)
+import qualified Data.ByteString.Lazy as L
 
 import ServerSettings
+
+defaultConfigPath :: IO FilePath
+defaultConfigPath =
+  do dir <- getAppUserDataDirectory "glirc"
+     return (dir </> "config")
 
 data CommandArgs = CommandArgs
   { _cmdArgNick     :: Maybe String
@@ -25,6 +43,8 @@ data CommandArgs = CommandArgs
   , _cmdArgTlsClientCert :: Maybe FilePath
   , _cmdArgTlsClientKey  :: Maybe FilePath
   , _cmdArgTlsInsecure   :: Bool
+  , _cmdArgConfigFile :: Maybe FilePath
+  , _cmdArgConfigValue:: Value
   }
 
 makeLenses ''CommandArgs
@@ -50,6 +70,8 @@ getCommandArgs =
                            , _cmdArgTlsClientCert = Nothing
                            , _cmdArgTlsClientKey  = Nothing
                            , _cmdArgTlsInsecure   = False
+                           , _cmdArgConfigFile    = Nothing
+                           , _cmdArgConfigValue   = Sections []
                            }
                   return (foldl (\acc f -> f acc) r0 fs)
 
@@ -57,9 +79,10 @@ getCommandArgs =
                  do traverse_ (hPutStrLn stderr) errs
                     help
 
-     if view cmdArgHelp r
-        then help
-        else return r
+     when (view cmdArgHelp r) help
+
+     v <- loadConfigValue (view cmdArgConfigFile r)
+     return (set cmdArgConfigValue v r)
 
 help :: IO a
 help =
@@ -70,7 +93,8 @@ help =
 
 optDescrs :: [OptDescr (CommandArgs -> CommandArgs)]
 optDescrs =
-  [ Option "p" [ "port"]     (ReqArg (set cmdArgPort     . Just . read) "PORT") "IRC Server Port"
+  [ Option "c" [ "config"]   (ReqArg (set cmdArgConfigFile . Just) "FILENAME") "Configuration file path (default ~/.glirc/config"
+  , Option "p" [ "port"]     (ReqArg (set cmdArgPort     . Just . read) "PORT") "IRC Server Port"
   , Option "n" [ "nick"]     (ReqArg (set cmdArgNick     . Just) "NICK") "Nickname"
   , Option "u" [ "user"]     (ReqArg (set cmdArgUser     . Just) "USER") "Username"
   , Option "r" [ "real"]     (ReqArg (set cmdArgReal     . Just) "REAL") "Real Name"
@@ -85,24 +109,52 @@ optDescrs =
   ]
 
 initialServerSettings :: CommandArgs -> IO ServerSettings
-initialServerSettings args =
+initialServerSettings !args =
   do env  <- getEnvironment
      let username     = fromMaybe "" (lookup "USER" env)
          password     = lookup "IRCPASSWORD" env
          saslpassword = lookup "SASLPASSWORD" env
          nick         = fromMaybe username (view cmdArgNick args)
+
+         defaultStr  i = preview (key "defaults" . key i . text . unpacked) (view cmdArgConfigValue args)
+         defaultBool i = preview (key "defaults" . key i . bool) (view cmdArgConfigValue args)
+         defaultNum  i = preview (key "defaults" . key i . number) (view cmdArgConfigValue args)
+
      return ServerSettings
        { _ssNick           = nick
-       , _ssUser           = fromMaybe username (view cmdArgUser args)
-       , _ssReal           = fromMaybe username (view cmdArgReal args)
-       , _ssUserInfo       = fromMaybe username (view cmdArgUserInfo args)
-       , _ssPassword       = password
-       , _ssSaslCredential = saslpassword <&> \p ->
-                               (fromMaybe nick (view cmdArgSaslUser args), p)
+       , _ssUser           = fromMaybe username
+                               (view cmdArgUser args <|> defaultStr "username")
+       , _ssReal           = fromMaybe username
+                               (view cmdArgReal args <|> defaultStr "realname")
+       , _ssUserInfo       = fromMaybe username
+                               (view cmdArgUserInfo args <|> defaultStr "userinfo")
+       , _ssPassword       = password <|> defaultStr "password"
+       , _ssSaslCredential = (saslpassword <|> defaultStr "sasl-password")
+                         <&> \p -> (fromMaybe nick (view cmdArgSaslUser args), p)
        , _ssHostName       = view cmdArgServer args
-       , _ssPort           = fmap fromIntegral (view cmdArgPort args)
-       , _ssTls            = view cmdArgTls args
+       , _ssPort           = fromIntegral <$> view cmdArgPort args
+                         <|> fromIntegral <$> defaultNum "port"
+       , _ssTls            = view cmdArgTls args || fromMaybe False (defaultBool "tls")
        , _ssTlsInsecure    = view cmdArgTlsInsecure args
-       , _ssTlsClientCert  = view cmdArgTlsClientCert args
-       , _ssTlsClientKey   = view cmdArgTlsClientKey args
+       , _ssTlsClientCert  = view cmdArgTlsClientCert args <|> defaultStr "tls-client-cert"
+       , _ssTlsClientKey   = view cmdArgTlsClientKey args <|> defaultStr "tls-client-key"
        }
+
+loadConfigValue :: Maybe FilePath -> IO Value
+loadConfigValue mbFp =
+  do fp  <- maybe defaultConfigPath return mbFp
+
+     raw <- case mbFp of
+              Just fp -> L.readFile fp
+              Nothing -> do fp <- defaultConfigPath
+                            L.readFile fp
+                                `catch` \e -> if isDoesNotExistError e
+                                              then return "{}"
+                                              else throwIO e
+     case parse raw of
+       Right v -> return v
+       Left (line,column) ->
+         do hPutStrLn stderr $ "Configuration file parse error on line "
+                            ++ show line ++ ", column "
+                            ++ show column
+            exitFailure
