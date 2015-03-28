@@ -93,7 +93,7 @@ help =
 
 optDescrs :: [OptDescr (CommandArgs -> CommandArgs)]
 optDescrs =
-  [ Option "c" [ "config"]   (ReqArg (set cmdArgConfigFile . Just) "FILENAME") "Configuration file path (default ~/.glirc/config"
+  [ Option "c" [ "config"]   (ReqArg (set cmdArgConfigFile . Just) "FILENAME") "Configuration file path (default ~/.glirc/config)"
   , Option "p" [ "port"]     (ReqArg (set cmdArgPort     . Just . read) "PORT") "IRC Server Port"
   , Option "n" [ "nick"]     (ReqArg (set cmdArgNick     . Just) "NICK") "Nickname"
   , Option "u" [ "user"]     (ReqArg (set cmdArgUser     . Just) "USER") "Username"
@@ -130,7 +130,7 @@ initialServerSettings !args =
                                (view cmdArgUserInfo args <|> defaultStr "userinfo")
        , _ssPassword       = password <|> defaultStr "password"
        , _ssSaslCredential = (saslpassword <|> defaultStr "sasl-password")
-                         <&> \p -> (fromMaybe nick (view cmdArgSaslUser args), p)
+                         <&> \p -> (fromMaybe nick (view cmdArgSaslUser args <|> defaultStr "sasl-username"), p)
        , _ssHostName       = view cmdArgServer args
        , _ssPort           = fromIntegral <$> view cmdArgPort args
                          <|> fromIntegral <$> defaultNum "port"

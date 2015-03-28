@@ -43,7 +43,7 @@ Startup
 
 ```
 glirc <options> SERVER
-  -c FILENAME  --config=FILENAME       Configuration file path (default ~/.glirc/config
+  -c FILENAME  --config=FILENAME       Configuration file path (default ~/.glirc/config)
   -p PORT      --port=PORT             IRC Server Port
   -n NICK      --nick=NICK             Nickname
   -u USER      --user=USER             Username
