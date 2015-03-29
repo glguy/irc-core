@@ -20,7 +20,7 @@ import System.IO
 import System.IO.Error
 import Control.Lens
 import Config (Value(Sections),parse)
-import qualified Data.ByteString.Lazy as L
+import qualified Data.Text.IO as Text
 
 import ServerSettings
 
@@ -145,9 +145,9 @@ loadConfigValue mbFp =
   do fp  <- maybe defaultConfigPath return mbFp
 
      raw <- case mbFp of
-              Just fp -> L.readFile fp
+              Just fp -> Text.readFile fp
               Nothing -> do fp <- defaultConfigPath
-                            L.readFile fp
+                            Text.readFile fp
                                 `catch` \e -> if isDoesNotExistError e
                                               then return "{}"
                                               else throwIO e

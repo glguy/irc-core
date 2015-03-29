@@ -53,6 +53,8 @@ data UserInfo = UserInfo
 -- The "trailing" parameter indicated in the IRC protocol with a leading
 -- colon will appear as the last parameter in the parameter list.
 --
+-- Note that RFC 2812 specifies a maximum of 15 parameters.
+--
 -- @:prefix COMMAND param0 param1 param2 .. paramN@
 data RawIrcMsg = RawIrcMsg
   { msgTime    :: Maybe UTCTime
@@ -66,9 +68,11 @@ data RawIrcMsg = RawIrcMsg
 data Identifier = Identifier ByteString ByteString
   deriving (Read, Show)
 
+-- Equality on normalized 'Identifiers'
 instance Eq Identifier where
   x == y = idDenote x == idDenote y
 
+-- Comparison on normalized 'Identifiers'
 instance Ord Identifier where
   compare x y = compare (idDenote x) (idDenote y)
 
@@ -79,9 +83,12 @@ instance IsString Identifier where
 mkId :: ByteString -> Identifier
 mkId x = Identifier x (ircFoldCase x)
 
+-- | Returns the original 'ByteString' of an 'Identifier'
 idBytes :: Identifier -> ByteString
 idBytes (Identifier x _) = x
 
+-- | Returns the case-normalized 'ByteString' of an 'Identifier'
+-- which is suitable for comparison.
 idDenote :: Identifier -> ByteString
 idDenote (Identifier _ x) = x
 
