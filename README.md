@@ -71,12 +71,15 @@ using command line arguments. If any value is missing the default will be used.
 Learn more about this file format at [config-value](http://hackage.haskell.org/package/config-value)
 
 ```
+-- Optional file to dump raw server messages
 debug-file: "debug.txt"
+
+-- Defaults used when not specified on command line
 defaults:
   port:            6667
   nick:            "yournick"
   username:        "yourusername"
-  realname:        "Your real anem"
+  realname:        "Your real name"
   password:        "IRC server password"
   sasl-username:   "sasl_username"
   sasl-password:   "sasl_password"
@@ -84,6 +87,10 @@ defaults:
   tls:             yes -- or: no
   tls-client-cert: "/path/to/cert.pem"
   tls-client-key:  "/path/to/cert.key"
+
+-- Specify additional certificates beyond the system CAs
+server-certificates:
+  * "/path/to/extra/certificate.pem"
 ```
 
 Commands

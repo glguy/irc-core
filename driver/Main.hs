@@ -28,6 +28,7 @@ import Graphics.Vty
 import Network.Connection
 import System.IO
 import System.IO.Error (isEOFError)
+import qualified Config
 import qualified Config.Lens as C
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
@@ -81,7 +82,8 @@ main = do
   withVty $ \vty ->
     do _ <- forkIO (vtyEventLoop vtyEventChan vty)
        settings <- initialServerSettings args
-       server0  <- startIrcConnection recvChan settings hErr
+       server0  <- startIrcConnection (view cmdArgConfigValue args)
+                     recvChan settings hErr
        (width,height) <- displayBounds (outputIface vty)
        zone <- getCurrentTimeZone
        driver vty vtyEventChan recvChan ClientState
@@ -104,6 +106,7 @@ main = do
          , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop]
          , _clientTimers          = mempty
          , _clientTimeZone        = zone
+         , _clientConfig          = view cmdArgConfigValue args
          }
 
 withVty :: (Vty -> IO a) -> IO a
@@ -112,12 +115,13 @@ withVty k =
      bracket (mkVty cfg) shutdown k
 
 startIrcConnection ::
+  Config.Value                   {- ^ user configuration     -} ->
   TChan (UTCTime, MsgFromServer) {- ^ incoming client events -} ->
   ServerSettings                 {- ^ network parameters     -} ->
   Maybe Handle                   {- ^ error log              -} ->
   IO ClientConnection
-startIrcConnection recvChan settings hErr =
-  do h            <- connect settings
+startIrcConnection config recvChan settings hErr =
+  do h            <- connect config settings
      sendChan     <- atomically newTChan
      sendThreadId <- forkIO (sendLoop sendChan h)
      recvThreadId <- forkIO (socketLoop recvChan h hErr)
@@ -563,7 +567,8 @@ doReconnect st =
      let settings = view ccServerSettings server0
          recvChan = view clientRecvChan st
          hErr     = view clientErrors st
-     server0' <- startIrcConnection recvChan settings hErr
+         config   = view clientConfig st
+     server0' <- startIrcConnection config recvChan settings hErr
      let st' = set clientServer0 server0' st
      return st'
 

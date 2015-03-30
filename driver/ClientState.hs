@@ -21,6 +21,7 @@ import Data.Text (Text)
 import Data.Time (TimeZone, UTCTime)
 import Graphics.Vty.Image
 import System.IO (Handle)
+import qualified Config
 import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -68,6 +69,7 @@ data ClientState = ClientState
   , _clientAutomation :: [EventHandler]
   , _clientTimers     :: Map UTCTime [TimerEvent]
   , _clientTimeZone   :: TimeZone
+  , _clientConfig     :: Config.Value
   }
   -- TODO: split this record into logical pieces
 
