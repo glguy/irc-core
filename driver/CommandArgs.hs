@@ -10,6 +10,7 @@ import Control.Exception
 import Control.Monad (when)
 import Data.Foldable (traverse_)
 import Data.Maybe
+import Data.Text (Text)
 import Data.Text.Lens (unpacked)
 import System.Console.GetOpt
 import System.Directory
@@ -153,8 +154,23 @@ loadConfigValue mbFp =
                                               else throwIO e
      case parse raw of
        Right v -> return v
-       Left (line,column) ->
-         do hPutStrLn stderr $ "Configuration file parse error on line "
-                            ++ show line ++ ", column "
-                            ++ show column
+       Left errMsg ->
+         do hPutStrLn stderr "Configuration file parse error"
+            hPutStrLn stderr (fp ++ ":" ++ errMsg)
             exitFailure
+
+-- | Apply a function to the 'Bool' contained inside the given
+-- 'Value' when it is a @Bool@.
+bool :: Applicative f => (Bool -> f Bool) -> Value -> f Value
+bool = atom . boolAtom
+
+-- | Traverse 'Text' as a boolean when it is @"yes"@ or @"no"@.
+boolAtom :: Applicative f => (Bool -> f Bool) -> Text -> f Text
+boolAtom f "yes" = boolText <$> f True
+boolAtom f "no"  = boolText <$> f False
+boolAtom _ t     = pure t
+
+-- | Map 'True' to @"yes"@ and 'False' to @"no"@
+boolText :: Bool -> Text
+boolText True  = "yes"
+boolText False = "no"
