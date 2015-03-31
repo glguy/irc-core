@@ -81,25 +81,27 @@ configExtraCertificates =
 
 buildTlsSettings :: Config.Value -> ServerSettings -> IO TLSSettings
 buildTlsSettings config args =
-  do store      <- buildCertificateStore config
-     clientCred <- loadClientCredentials args
+  do store <- buildCertificateStore config
 
-     return $ TLSSettings $
-       (defaultParamsClient (view ssHostName args) "")
+     let portString = B8.pack (show (view ssPort args))
+         paramsClient = defaultParamsClient (view ssHostName args) portString
+         validationCache
+           | view ssTlsInsecure args = ValidationCache
+                                         (\_ _ _ -> return ValidationCachePass)
+                                         (\_ _ _ -> return ())
+           | otherwise = exceptionValidationCache []
 
+     return $ TLSSettings paramsClient
        { clientSupported = def
-           { supportedCiphers = ciphersuite_strong }
+           { supportedCiphers           = ciphersuite_strong }
 
        , clientHooks = def
-           { onCertificateRequest = \_ -> return clientCred
-           , onServerCertificate  =
-               if view ssTlsInsecure args
-                  then (\_ _ _ _ -> return [])
-                  else validateDefault
-           }
+           { onCertificateRequest       = \_ -> loadClientCredentials args }
 
        , clientShared = def
-           { sharedCAStore = store }
+           { sharedCAStore              = store
+           , sharedValidationCache      = validationCache
+           }
        }
 
 
