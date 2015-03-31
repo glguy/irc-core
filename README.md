@@ -88,6 +88,15 @@ defaults:
   tls-client-cert: "/path/to/cert.pem"
   tls-client-key:  "/path/to/cert.key"
 
+-- Override the defaults when connecting to specific servers
+servers:
+  * hostname:      "chat.freenode.net"
+    sasl-username: "someuser"
+    sasl-password: "somepass"
+
+  * hostname:      "example.com"
+    port:          7000
+
 -- Specify additional certificates beyond the system CAs
 server-certificates:
   * "/path/to/extra/certificate.pem"

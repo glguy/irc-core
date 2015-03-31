@@ -21,6 +21,7 @@ import System.IO
 import System.IO.Error
 import Control.Lens
 import Config (Value(Sections),parse)
+import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 
 import ServerSettings
@@ -116,30 +117,46 @@ initialServerSettings !args =
          password     = lookup "IRCPASSWORD" env
          saslpassword = lookup "SASLPASSWORD" env
          nick         = fromMaybe username (view cmdArgNick args)
-
-         defaultStr  i = preview (key "defaults" . key i . text . unpacked) (view cmdArgConfigValue args)
-         defaultBool i = preview (key "defaults" . key i . bool) (view cmdArgConfigValue args)
-         defaultNum  i = preview (key "defaults" . key i . number) (view cmdArgConfigValue args)
+         hostTxt      = Text.pack (view cmdArgServer args)
 
      return ServerSettings
        { _ssNick           = nick
        , _ssUser           = fromMaybe username
-                               (view cmdArgUser args <|> defaultStr "username")
+                           $ view cmdArgUser args
+                         <|> defaultStr hostTxt "username" args
+
        , _ssReal           = fromMaybe username
-                               (view cmdArgReal args <|> defaultStr "realname")
+                           $ view cmdArgReal args
+                         <|> defaultStr hostTxt "realname" args
+
        , _ssUserInfo       = fromMaybe username
-                               (view cmdArgUserInfo args <|> defaultStr "userinfo")
-       , _ssPassword       = password <|> defaultStr "password"
-       , _ssSaslCredential = (saslpassword <|> defaultStr "sasl-password")
-                         <&> \p -> (fromMaybe nick (view cmdArgSaslUser args <|> defaultStr "sasl-username"), p)
+                           $ view cmdArgUserInfo args
+                         <|> defaultStr hostTxt "userinfo" args
+
+       , _ssPassword       = password
+                         <|> defaultStr hostTxt "password" args
+
+       , _ssSaslCredential = (saslpassword <|> defaultStr hostTxt "sasl-password" args)
+                         <&> \p -> (fromMaybe nick (view cmdArgSaslUser args
+                                                <|> defaultStr hostTxt "sasl-username" args), p)
+
        , _ssHostName       = view cmdArgServer args
+
        , _ssPort           = fromIntegral <$> view cmdArgPort args
-                         <|> fromIntegral <$> defaultNum "port"
-       , _ssTls            = view cmdArgTls args || fromMaybe False (defaultBool "tls")
+                         <|> fromIntegral <$> defaultNum hostTxt "port" args
+
+       , _ssTls            = view cmdArgTls args
+                          || fromMaybe False (defaultBool hostTxt "tls" args)
+
        , _ssTlsInsecure    = view cmdArgTlsInsecure args
-       , _ssTlsClientCert  = view cmdArgTlsClientCert args <|> defaultStr "tls-client-cert"
-       , _ssTlsClientKey   = view cmdArgTlsClientKey args <|> defaultStr "tls-client-key"
+
+       , _ssTlsClientCert  = view cmdArgTlsClientCert args
+                         <|> defaultStr hostTxt "tls-client-cert" args
+
+       , _ssTlsClientKey   = view cmdArgTlsClientKey args
+                         <|> defaultStr hostTxt "tls-client-key" args
        }
+
 
 loadConfigValue :: Maybe FilePath -> IO Value
 loadConfigValue mbFp =
@@ -174,3 +191,24 @@ boolAtom _ t     = pure t
 boolText :: Bool -> Text
 boolText True  = "yes"
 boolText False = "no"
+
+------------------------------------------------------------------------
+-- Look up settings for a given server from the config
+------------------------------------------------------------------------
+
+hostnameMatch :: Text -> Value -> Bool
+hostnameMatch = elemOf (key "hostname" . text)
+
+configPath :: (Applicative f, Contravariant f) => Text -> Text -> LensLike' f Value Value
+configPath hostname name =
+  failing (key "servers" . list . folded . filtered (hostnameMatch hostname) . key name)
+          (key "defaults" . key name)
+
+defaultStr :: Text -> Text -> CommandArgs -> Maybe String
+defaultStr  hostname i = preview (cmdArgConfigValue . configPath hostname i . text . unpacked)
+
+defaultBool :: Text -> Text -> CommandArgs -> Maybe Bool
+defaultBool hostname i = preview (cmdArgConfigValue . configPath hostname i . bool)
+
+defaultNum :: Text -> Text -> CommandArgs -> Maybe Integer
+defaultNum  hostname i = preview (cmdArgConfigValue . configPath hostname i . number)
