@@ -179,18 +179,16 @@ loadConfigValue mbFp =
 -- | Apply a function to the 'Bool' contained inside the given
 -- 'Value' when it is a @Bool@.
 bool :: Applicative f => (Bool -> f Bool) -> Value -> f Value
-bool = atom . boolAtom
-
--- | Traverse 'Text' as a boolean when it is @"yes"@ or @"no"@.
-boolAtom :: Applicative f => (Bool -> f Bool) -> Text -> f Text
-boolAtom f "yes" = boolText <$> f True
-boolAtom f "no"  = boolText <$> f False
-boolAtom _ t     = pure t
+bool = atom . _Bool
 
 -- | Map 'True' to @"yes"@ and 'False' to @"no"@
-boolText :: Bool -> Text
-boolText True  = "yes"
-boolText False = "no"
+_Bool :: Prism' Atom Bool
+_Bool = prism'
+          (\b -> if b then "yes" else "no")
+          (\a -> case a of
+                   "yes" -> Just True
+                   "no"  -> Just False
+                   _     -> Nothing)
 
 ------------------------------------------------------------------------
 -- Look up settings for a given server from the config
@@ -201,7 +199,7 @@ hostnameMatch = elemOf (key "hostname" . text)
 
 configPath :: (Applicative f, Contravariant f) => Text -> Text -> LensLike' f Value Value
 configPath hostname name =
-  failing (key "servers" . list . folded . filtered (hostnameMatch hostname) . key name)
+  failing (key "servers" . values . filtered (hostnameMatch hostname) . key name)
           (key "defaults" . key name)
 
 defaultStr :: Text -> Text -> CommandArgs -> Maybe String
