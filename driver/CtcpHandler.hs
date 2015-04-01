@@ -6,7 +6,7 @@ import Control.Lens
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Monoid
-import Data.Time
+import Data.Time (formatTime, getZonedTime)
 import Data.Version (showVersion)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Text as Text

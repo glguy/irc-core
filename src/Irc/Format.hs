@@ -18,7 +18,7 @@ module Irc.Format
   ) where
 
 import Control.Applicative
-import Control.Monad (guard,when)
+import Control.Monad (when)
 import Data.Array
 import Data.Attoparsec.ByteString.Char8 as P
 import Data.ByteString (ByteString)
@@ -28,7 +28,6 @@ import Data.Monoid
 import Data.String
 import Data.Text (Text)
 import Data.Time (UTCTime)
-import Data.Traversable (traverse)
 import Data.Word (Word8)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as Builder
@@ -36,7 +35,6 @@ import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
 
 import Irc.Time (myParseTime)
 
@@ -248,7 +246,7 @@ buildParams [] = mempty
 -- | When the first parser succeeds require the second parser to succeed.
 -- Otherwise return Nothing
 guarded :: Parser a -> Parser b -> Parser (Maybe b)
-guarded pa pb = traverse (const pb) =<< optional pa
+guarded pa pb = mapM (const pb) =<< optional pa
 
 -- | Capitalize a string according to RFC 2812
 -- Latin letters are capitalized and {|}~ are mapped to [\]^

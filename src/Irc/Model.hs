@@ -1,11 +1,11 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DeriveFoldable #-}
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 -- | This module implements a high-level view of the state of
 -- the IRC connection. The library user calls 'advanceModel' to
@@ -85,7 +85,6 @@ module Irc.Model
   , channelHasMode
   ) where
 
-import Control.Applicative
 import Control.Monad (guard)
 import Control.Lens
 import Control.Monad (foldM)
@@ -94,7 +93,6 @@ import Control.Monad.Trans.Error
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import Data.Char (toUpper)
-import Data.Foldable (Foldable)
 import Data.List (foldl',find,nub,delete,intersect)
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
@@ -105,6 +103,10 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative
+#endif
 
 import Irc.Format
 import Irc.Message
@@ -249,7 +251,7 @@ defaultIrcUser = IrcUser
   }
 
 data Fuzzy a = Known !a | Unknown | None
-  deriving (Read,Show,Functor,Foldable,Traversable)
+  deriving (Read,Show)
 
 makeLenses ''IrcConnection
 makeLenses ''IrcChannel

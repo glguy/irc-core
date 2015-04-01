@@ -20,7 +20,6 @@ import System.FilePath
 import System.IO
 import System.IO.Error
 import Control.Lens
-import Config (Value(Sections),parse)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 
@@ -160,21 +159,26 @@ initialServerSettings !args =
 
 loadConfigValue :: Maybe FilePath -> IO Value
 loadConfigValue mbFp =
-  do fp  <- maybe defaultConfigPath return mbFp
+  case mbFp of
+    Just fp -> process fp
+    Nothing ->
+      do fp <- defaultConfigPath
+         process fp
+           `catch` \e ->
+           if isDoesNotExistError e
+             then return emptyConfig
+             else throwIO e
+  where
+  emptyConfig = Sections []
 
-     raw <- case mbFp of
-              Just fp -> Text.readFile fp
-              Nothing -> do fp <- defaultConfigPath
-                            Text.readFile fp
-                                `catch` \e -> if isDoesNotExistError e
-                                              then return "{}"
-                                              else throwIO e
-     case parse raw of
-       Right v -> return v
-       Left errMsg ->
-         do hPutStrLn stderr "Configuration file parse error"
-            hPutStrLn stderr (fp ++ ":" ++ errMsg)
-            exitFailure
+  process fp =
+    do raw <- Text.readFile fp
+       case parse raw of
+         Right v -> return v
+         Left errMsg ->
+           do hPutStrLn stderr "Configuration error"
+              hPutStrLn stderr (fp ++ ":" ++ errMsg)
+              exitFailure
 
 -- | Apply a function to the 'Bool' contained inside the given
 -- 'Value' when it is a @Bool@.

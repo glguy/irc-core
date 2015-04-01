@@ -46,7 +46,7 @@ import Irc.Model
 import Irc.RateLimit
 
 import ClientState
-import Connection (ServerSettings(..), connect, getRawIrcLine)
+import Connection (connect, getRawIrcLine)
 import CommandArgs
 import CommandParser
 import CtcpHandler

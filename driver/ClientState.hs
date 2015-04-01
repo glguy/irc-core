@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
@@ -11,7 +12,6 @@ import Control.Lens
 import Control.Monad (foldM, guard)
 import Data.ByteString (ByteString)
 import Data.Char (isControl)
-import Data.Functor
 import Data.Functor.Compose
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
@@ -27,6 +27,10 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+
+#if !MIN_VERSION_base(4,8,0)
+import Data.Functor ((<$))
+#endif
 
 import Irc.Core
 import Irc.Format

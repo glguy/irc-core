@@ -56,6 +56,8 @@ tickRateLimit r = modifyMVar_ (rateStamp r) $ \stamp ->
          diff   = diffUTCTime stamp' now
          excess = diff - fromIntegral (rateThreshold r)
 
-     when (excess > 0) (threadDelay (ceiling (1000000 * realToFrac excess)))
+     when (excess > 0)
+        (threadDelay
+           (ceiling (1000000 * realToFrac excess :: Rational)))
 
      return stamp'

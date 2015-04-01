@@ -1,5 +1,5 @@
 name:                irc-core
-version:             0.1
+version:             1.0
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
 license:             BSD3
@@ -17,13 +17,13 @@ description:
   .
   /Library module breakdown/
   .
-  * "Irc.Format" - Functions for parsing and rendering low-level IRC protocol messages
-  .
   * "Irc.Cmd" - Functions for generating IRC protocol message for client-to-server
   .
   * "Irc.Core" - Functions for parsing low-level IRC messages into mid-level IRC messages
   .
   * "Irc.Core.Prisms" - Prisms for all of the mid-level IRC message constructors
+  .
+  * "Irc.Format" - Functions for parsing and rendering low-level IRC protocol messages
   .
   * "Irc.Message" - High-level IRC event messages for client interpretation
   .
@@ -32,21 +32,31 @@ description:
   .
   * "Irc.RateLimit" - Functions to assist with rate-limiting outgoing client messages
   .
+  * "Irc.Time" - Internal compatibility module for time-1.4 and time-1.5 interop
+  .
   /Library module breakdown/
   .
   * "Main" - Main client module
   .
   * "ClientState" - Types and operations representing the full state of the client
   .
-  * "CtcpHandler" - Event handler for CTCP messages
-  .
   * "CommandArgs" - Types and functions for interpreting the initial client configuration
+  .
+  * "CommandParser" - Types and functions for parsing and pretty printing IRC commands
+  .
+  * "Connection" - Types and functions for establishing a plain and TLS connections
+  .
+  * "CtcpHandler" - Event handler for CTCP messages
   .
   * "EditBox" - Types and functions for managing the input box along the bottom of the client
   .
   * "HaskelHighlighter" - Haskell syntax highlighting support
   .
-  * "ImageUtils" - Functions to support the various views
+  * "ImageUtils" - Functions to support the various view construction
+  .
+  * "Moderation" - Implementation of various IRC channel moderation automation
+  .
+  * "ServerSettings" - Types for defining connection parameters for an IRC server
   .
   * "Views.BanList" - Functions to generate the ban list view
   .
@@ -56,7 +66,8 @@ description:
   .
   See the associated README file for help using the client.
 
-extra-source-files: README.md
+extra-source-files:     README.md
+                        CHANGELOG.md
 
 -- Use time-1.5 and drop old-locale
 flag time15

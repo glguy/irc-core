@@ -25,9 +25,8 @@ import Data.Text.Lens     (unpacked)
 import Data.X509          (CertificateChain(..))
 import Data.X509.CertificateStore (CertificateStore, makeCertificateStore)
 import Data.X509.File     (readSignedObject, readKeyFile)
-import Data.X509.Validation (validateDefault)
 import Network.Connection
-import Network.Socket     (HostName, PortNumber)
+import Network.Socket     (PortNumber)
 import Network.TLS
 import Network.TLS.Extra  (ciphersuite_strong)
 import System.X509        (getSystemCertificateStore)
