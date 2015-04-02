@@ -246,7 +246,11 @@ buildParams [] = mempty
 -- | When the first parser succeeds require the second parser to succeed.
 -- Otherwise return Nothing
 guarded :: Parser a -> Parser b -> Parser (Maybe b)
-guarded pa pb = mapM (const pb) =<< optional pa
+guarded pa pb =
+  do mb <- optional pa
+     case mb of
+       Nothing -> return Nothing
+       Just{}  -> fmap Just pb
 
 -- | Capitalize a string according to RFC 2812
 -- Latin letters are capitalized and {|}~ are mapped to [\]^
