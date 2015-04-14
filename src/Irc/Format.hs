@@ -142,7 +142,7 @@ rawIrcMsgParser =
 -- allows for up to 15 parameters.
 paramsParser :: Int -> Parser [ByteString]
 paramsParser n =
-  do _ <- optional (char ' ') -- Freenode requires this exception
+  do _ <- skipMany (char ' ') -- Freenode requires this exception
      endOfInput $> [] <|> more
   where
   more
