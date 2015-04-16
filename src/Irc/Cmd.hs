@@ -27,6 +27,7 @@ module Irc.Cmd
   , whowasCmd
   , whoCmd
   , pongCmd
+  , pingCmd
   , capLsCmd
   , capReqCmd
   , capEndCmd
@@ -175,6 +176,18 @@ userCmd ::
 userCmd user realname = renderRawIrcMsg outgoingMsg
   { msgCommand = "USER"
   , msgParams = [user,"0","*",realname]
+  }
+
+-- | Construct a PING command. This is used to respond to the PING
+-- command to keep a connection alive.
+--
+-- @PONG token@
+pingCmd ::
+  ByteString {- ^ token -} ->
+  ByteString
+pingCmd token = renderRawIrcMsg outgoingMsg
+  { msgCommand = "PING"
+  , msgParams = [token]
   }
 
 -- | Construct a PONG command. This is used to respond to the PING
