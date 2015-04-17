@@ -68,7 +68,9 @@ channelInfoImage chan st =
       usersLines
         = return
         $ horizCat
-        $ string (withForeColor defAttr green) "Users:"
+        $ string (withForeColor defAttr green) "Users ("
+        : string defAttr (show (Map.size (view chanUsers channel)))
+        : string (withForeColor defAttr green) "):"
         : [ char defAttr ' ' <|>
             modePrefix modes <|>
             identImg defAttr nick
