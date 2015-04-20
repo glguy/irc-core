@@ -231,14 +231,18 @@ addMessage target message st
   where
   conn = view (clientServer0 . ccConnection) st
 
-  isIgnored sender = view (clientIgnores . contains (userNick sender)) st
+  isIgnored nick = view (clientIgnores . contains nick) st
 
   aux = case views mesgType isRelevant message of
-          Just txt | not (isIgnored (view mesgSender message))
-                   -> over mlNewMessages (+1)
-                    . over mlMentioned   (|| mention txt || private)
+          Nothing -> over mlMessages (cons (message,error "unused colored message"))
+          Just txt -> updateMessageCount
                     . over mlMessages (cons (message,coloredImage))
             where
+            updateMessageCount
+              | isIgnored (views mesgSender userNick message) = id
+              | otherwise = over mlNewMessages (+1)
+                          . over mlMentioned   (|| mention txt || private)
+
             !coloredImage
               | Text.any isControl txt = cleanText txt
               | otherwise = force -- avoid holding on to old channel lists
@@ -247,8 +251,6 @@ addMessage target message st
                                 (views (connChannels . ix target . chanUsers) Map.keysSet conn)
                                 (view connNick conn)
                                 (view clientNickColors st)
-
-          _ -> over mlMessages (cons (message,error "unused colored message"))
 
   nickTxt = idDenote (view connNick conn)
 
