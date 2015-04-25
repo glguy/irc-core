@@ -6,7 +6,7 @@ module Views.Channel (channelImage) where
 import Control.Lens
 import Data.Monoid
 import Data.Foldable (toList)
-import Data.List (stripPrefix)
+import Data.List (stripPrefix, intersperse)
 import Data.Text (Text)
 import Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
 import Graphics.Vty.Image
@@ -115,7 +115,7 @@ compressedImageForState !st = renderOne (activeMessages st)
   renderOne ((msg,colored):msgs) =
     case mbImg of
       Just img -> (timestamp <|> img) : renderOne msgs
-      Nothing  -> renderMeta emptyImage ((msg,colored):msgs)
+      Nothing  -> renderMeta ((msg,colored):msgs)
 
     where
     timestamp
@@ -213,59 +213,27 @@ compressedImageForState !st = renderOne (activeMessages st)
     | view clientMetaView st = [x]
     | otherwise              = []
 
-  renderMeta img [] = filterMeta (cropRight width img)
-  renderMeta img ((msg,colored):msgs) =
-    let who = views mesgSender userNick msg
-        visible = not (view (contains who) ignores)
-        metaAttr = withForeColor defAttr brightBlack
-    in case view mesgType msg of
-         CtcpReqMsgType{} ->
-           renderMeta
-             (img <|>
-              char (withForeColor defAttr brightBlue) 'C' <|>
-              identImg metaAttr who <|>
-              char defAttr ' ') msgs
-         JoinMsgType ->
-           renderMeta
-             (img <|>
-              char (withForeColor defAttr green) '+' <|>
-              identImg metaAttr who <|>
-              char defAttr ' ') msgs
-         PartMsgType{} ->
-           renderMeta
-             (img <|>
-              char (withForeColor defAttr red) '-' <|>
-              identImg metaAttr who <|>
-              char defAttr ' ') msgs
-         QuitMsgType{} ->
-           renderMeta
-             (img <|>
-              char (withForeColor defAttr red) 'x' <|>
-              identImg metaAttr who <|>
-              char defAttr ' ') msgs
-         NickMsgType who' ->
-           renderMeta
-             (img <|>
-              identImg metaAttr who <|>
-              char (withForeColor defAttr yellow) '-' <|>
-              identImg metaAttr who' <|>
-              char defAttr ' ') msgs
-         KnockMsgType ->
-           renderMeta
-             (img <|>
-              char (withForeColor defAttr yellow) 'K' <|>
-              identImg metaAttr who <|>
-              char defAttr ' ') msgs
-         _ | not visible ->
-           renderMeta
-             (img <|>
-              char (withForeColor defAttr brightBlack) 'I' <|>
-              identImg metaAttr who <|>
-              char defAttr ' ') msgs
-           | otherwise ->
-             filterMeta (cropRight width img)
-             ++ renderOne ((msg,colored):msgs)
+  renderMeta msgs = filterMeta (cropRight width img)
+                 ++ renderOne rest
+    where
+    (mds,rest) = splitWith (processMeta . fst) msgs
+    mds1 = mergeMetadatas mds
+    img = horizCat (intersperse gap (map renderCompressed mds1))
+    gap = char defAttr ' '
 
+  processMeta msg =
+    case view mesgType msg of
+      CtcpReqMsgType{} -> Just $ SimpleMetadata (char (withForeColor defAttr brightBlue) 'C') who
+      JoinMsgType      -> Just $ SimpleMetadata (char (withForeColor defAttr green) '+') who
+      PartMsgType{}    -> Just $ SimpleMetadata (char (withForeColor defAttr red) '-') who
+      QuitMsgType{}    -> Just $ SimpleMetadata (char (withForeColor defAttr red) 'x') who
+      KnockMsgType     -> Just $ SimpleMetadata (char (withForeColor defAttr yellow) 'K') who
+      NickMsgType who' -> Just $ NickChange who who'
+      _ | not visible  -> Just $ SimpleMetadata (char (withForeColor defAttr yellow) 'I') who
+        | otherwise    -> Nothing
+    where
+    who = views mesgSender userNick msg
+    visible = not (view (contains who) ignores)
 
   conn = view (clientServer0 . ccConnection) st
 
@@ -275,6 +243,20 @@ compressedImageForState !st = renderOne (activeMessages st)
     string (withForeColor defAttr blue)
     [ prefix | (mode,prefix) <- prefixes, mode `elem` modes]
 
+data CompressedMetadata
+  = SimpleMetadata Image Identifier
+  | NickChange Identifier Identifier
+
+renderCompressed :: CompressedMetadata -> Image
+renderCompressed md =
+  case md of
+    SimpleMetadata img who -> img <|> identImg metaAttr who
+    NickChange who who' ->
+      identImg metaAttr who <|>
+      char (withForeColor defAttr yellow) '-' <|>
+      identImg metaAttr who'
+  where
+  metaAttr = withForeColor defAttr brightBlack
 
 statusMsgImage :: String -> Image
 statusMsgImage status
@@ -349,3 +331,17 @@ errorMessage e =
     ErrTargUmodeG             -> "Message ignored by +g mode"
     ErrNoPrivs priv           -> "Oper privilege required: " <> asUtf8 priv
     ErrMlockRestricted m ms   -> "Mode '" <> Text.singleton m <> "' in locked set \"" <> asUtf8 ms <> "\""
+
+splitWith :: (a -> Maybe b) -> [a] -> ([b],[a])
+splitWith f [] = ([],[])
+splitWith f (x:xs) =
+  case f x of
+    Nothing -> ([],x:xs)
+    Just y  -> case splitWith f xs of
+                 (ys,xs') -> (y:ys, xs')
+
+mergeMetadatas :: [CompressedMetadata] -> [CompressedMetadata]
+mergeMetadatas (SimpleMetadata img1 who1 : SimpleMetadata img2 who2 : xs)
+  | who1 == who2      = mergeMetadatas (SimpleMetadata (img1 <|> img2) who1 : xs)
+mergeMetadatas (x:xs) = x : mergeMetadatas xs
+mergeMetadatas []     = []
