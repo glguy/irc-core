@@ -1,3 +1,8 @@
+1.1.0.1
+-------
+* Fix setting default nick in configuration file
+* Dependency version constraint bumps
+
 1.1
 ---
 * Better support for Freenode's trailing spaces
