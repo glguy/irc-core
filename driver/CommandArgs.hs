@@ -115,7 +115,8 @@ initialServerSettings !args =
      let username     = fromMaybe "" (lookup "USER" env)
          password     = lookup "IRCPASSWORD" env
          saslpassword = lookup "SASLPASSWORD" env
-         nick         = fromMaybe username (view cmdArgNick args)
+         nick         = fromMaybe username
+                           (view cmdArgNick args <|> defaultStr hostTxt "nick" args)
          hostTxt      = Text.pack (view cmdArgServer args)
 
      return ServerSettings
