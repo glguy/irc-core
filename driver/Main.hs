@@ -27,7 +27,7 @@ import Data.Traversable (for)
 import Graphics.Vty
 import Network.Connection
 import System.IO
-import System.IO.Error (isEOFError)
+import System.IO.Error (isEOFError, ioeGetErrorString)
 import qualified Config
 import qualified Config.Lens as C
 import qualified Data.ByteString as B
@@ -568,9 +568,14 @@ doReconnect st =
          recvChan = view clientRecvChan st
          hErr     = view clientErrors st
          config   = view clientConfig st
-     server0' <- startIrcConnection config recvChan settings hErr
-     let st' = set clientServer0 server0' st
-     return st'
+     res <- try (startIrcConnection config recvChan settings hErr)
+     case res of
+       Right server0' -> return (set clientServer0 server0' st)
+       Left e -> do
+         now <- getCurrentTime
+         let eUtf8 = Text.encodeUtf8 (Text.pack (ioeGetErrorString e))
+         atomically (writeTChan recvChan (now, Error eUtf8))
+         return st
 
 doNick ::
   ClientState ->
