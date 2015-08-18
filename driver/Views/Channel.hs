@@ -1,17 +1,21 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module Views.Channel (channelImage) where
 
 import Control.Lens
 import Data.Monoid
+import Data.Maybe (fromMaybe)
 import Data.Foldable (toList)
 import Data.List (stripPrefix, intersperse)
 import Data.Text (Text)
+import Data.Text.Encoding (decodeUtf8)
 import Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
 import Graphics.Vty.Image
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Text as Text
+import Text.Regex.TDFA
 
 #if MIN_VERSION_time(1,5,0)
 import Data.Time (defaultTimeLocale)
@@ -88,13 +92,40 @@ renderCompressedTimestamp zone
 
 activeMessages :: ClientState -> [(IrcMessage,Image)]
 activeMessages st =
-  case stripPrefix "/filter " (clientInput st) of
-    Nothing -> toList msgs
-    Just nick -> filter (nickFilter (BS8.pack nick) . fst) (toList msgs)
+  case clientInputFilter st of
+    FilterNick nick -> filter (nickFilter (BS8.pack nick) . fst) (toList msgs)
+    FilterBody text -> filter (bodyFilter text . fst) (toList msgs)
+    NoFilter        -> toList msgs
   where
   msgs = view (clientMessages . ix (focusedName st) . mlMessages) st
   nickFilter nick msg
     = views mesgSender userNick msg == mkId nick
+  bodyFilter :: String -> IrcMessage -> Bool
+  bodyFilter re msg
+    = fromMaybe False (textOfMessage msg =~~ re)
+
+textOfMessage :: IrcMessage -> String
+textOfMessage mesg =
+    let f n = (BS8.unpack $ idBytes $ views mesgSender userNick mesg) <> ": " <> Text.unpack n
+    in f (case mesg ^. mesgType of
+             PrivMsgType   t -> t
+             NoticeMsgType t -> t
+             ActionMsgType t -> t
+             KickMsgType _ t -> t
+             PartMsgType   t -> t
+             QuitMsgType   t -> t
+             TopicMsgType  t -> t
+             ErrorMsgType  t -> t
+             _               -> "")
+
+data InputFilter = FilterNick String | FilterBody String | NoFilter
+
+clientInputFilter :: ClientState -> InputFilter
+clientInputFilter st = go (clientInput st)
+ where
+     go (splitAt 8 -> ("/filter ",nick)) = FilterNick nick
+     go (splitAt 6 -> ("/grep ",   txt)) = FilterBody txt
+     go  _                               = NoFilter
 
 compressedImageForState :: ClientState -> [Image]
 compressedImageForState !st = renderOne (activeMessages st)
