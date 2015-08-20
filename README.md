@@ -150,6 +150,11 @@ Commands
 * `/invite <nick>` - Invite the given user to the current channel
 * `/reconnect` - Reconnect to the current server
 
+Filters
+
+* `/filter` - Filter chat messages by nickname
+* `/grep` - Filter chat messages using a regular expression on the message
+
 Keyboard Shortcuts
 ==================
 

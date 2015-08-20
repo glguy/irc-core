@@ -1,3 +1,7 @@
+1.1.1
+-----
+* Add `/grep` filter command
+
 1.1.0.1
 -------
 * Fix setting default nick in configuration file
