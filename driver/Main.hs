@@ -913,13 +913,13 @@ getOne h hErr =
          Nothing ->
            do debug xs
               t <- getCurrentTime
-              return (t,Error ("Parse: " <> xs))
+              return (t,Error ("Unparsable IRC line: " <> xs))
          Just msg ->
            do t <- maybe getCurrentTime return (msgTime msg)
               case ircMsgToServerMsg msg of
                 Nothing ->
                   do debug msg
-                     return (t,Error ("Unknown: " <> xs))
+                     return (t,Error ("Unhandled IRC line: " <> xs))
                 Just x ->
                   do debug x
                      return (t,x)
