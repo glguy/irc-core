@@ -121,30 +121,49 @@ startIrcConnection ::
   Maybe Handle                   {- ^ error log              -} ->
   IO ClientConnection
 startIrcConnection config recvChan settings hErr =
-  do h            <- connect config settings
-     sendChan     <- atomically newTChan
-     sendThreadId <- forkIO (sendLoop sendChan h)
-     recvThreadId <- forkIO (socketLoop recvChan h hErr)
+  do connectRes <- try (connect config settings)
+     case connectRes of
+       Left e -> connectionFailed e
+       Right h -> connectionSuceeded h
 
-     let utf8Bytes = Text.encodeUtf8 . Text.pack
-         nick = mkId (utf8Bytes (view ssNick settings))
-         user = utf8Bytes (view ssUser settings)
-         real = utf8Bytes (view ssReal settings)
-         sasl = over (mapped.both) utf8Bytes (view ssSaslCredential settings)
-         pass = over mapped        utf8Bytes (view ssPassword settings)
+  where
+  utf8Bytes = Text.encodeUtf8 . Text.pack
+  nick = mkId (utf8Bytes (view ssNick settings))
+  user = utf8Bytes (view ssUser settings)
+  real = utf8Bytes (view ssReal settings)
+  sasl = over (mapped.both) utf8Bytes (view ssSaslCredential settings)
+  pass = over mapped        utf8Bytes (view ssPassword settings)
 
-     initializeConnection pass nick user real h
+  connectionSuceeded h =
+    do sendChan     <- atomically newTChan
+       sendThreadId <- forkIO (sendLoop sendChan h)
+       recvThreadId <- forkIO (socketLoop recvChan h hErr)
+       initializeConnection pass nick user real h
+       return ClientConnection
+         { _ccServerSettings = settings
+         , _ccConnection     = defaultIrcConnection
+                                 { _connNick = nick
+                                 , _connSasl = sasl
+                                 }
+         , _ccSendChan       = Just sendChan
+         , _ccRecvThread     = Just recvThreadId
+         , _ccSendThread     = Just sendThreadId
+         }
 
-     return ClientConnection
-       { _ccServerSettings = settings
-       , _ccSendChan       = sendChan
-       , _ccConnection     = defaultIrcConnection
-                               { _connNick = nick
-                               , _connSasl = sasl
-                               }
-       , _ccRecvThread     = recvThreadId
-       , _ccSendThread     = sendThreadId
-       }
+  connectionFailed (SomeException e) =
+    do let eUtf8 = utf8Bytes (show e)
+       now <- getCurrentTime
+       atomically (writeTChan recvChan (now, Error eUtf8))
+       return ClientConnection
+         { _ccServerSettings = settings
+         , _ccConnection     = defaultIrcConnection
+                                 { _connNick = nick
+                                 , _connSasl = sasl
+                                 }
+         , _ccSendChan       = Nothing
+         , _ccRecvThread     = Nothing
+         , _ccSendThread     = Nothing
+         }
 
 initializeConnection ::
   Maybe ByteString {- ^ server password -} ->
@@ -557,25 +576,18 @@ commandEvent st = commandsParser (clientInput st)
 
   ]
 
--- Exploratory!
 doReconnect :: ClientState -> IO ClientState
 doReconnect st =
   do let server0 = view clientServer0 st
-     views ccRecvThread killThread server0
-     views ccSendThread killThread server0
+     traverse_ killThread (view ccRecvThread server0)
+     traverse_ killThread (view ccSendThread server0)
 
      let settings = view ccServerSettings server0
          recvChan = view clientRecvChan st
          hErr     = view clientErrors st
          config   = view clientConfig st
-     res <- try (startIrcConnection config recvChan settings hErr)
-     case res of
-       Right server0' -> return (set clientServer0 server0' st)
-       Left e -> do
-         now <- getCurrentTime
-         let eUtf8 = Text.encodeUtf8 (Text.pack (ioeGetErrorString e))
-         atomically (writeTChan recvChan (now, Error eUtf8))
-         return st
+     server0' <- startIrcConnection config recvChan settings hErr
+     return (set clientServer0 server0' st)
 
 doNick ::
   ClientState ->

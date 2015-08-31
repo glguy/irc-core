@@ -12,6 +12,7 @@ import Control.Lens
 import Control.Monad (foldM, guard)
 import Data.ByteString (ByteString)
 import Data.Char (isControl)
+import Data.Foldable (for_)
 import Data.Functor.Compose
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
@@ -45,10 +46,10 @@ import ImageUtils (cleanText, nameHighlighter)
 
 data ClientConnection = ClientConnection
   { _ccServerSettings :: ServerSettings
-  , _ccSendChan       :: TChan ByteString
   , _ccConnection     :: IrcConnection
-  , _ccRecvThread     :: ThreadId
-  , _ccSendThread     :: ThreadId
+  , _ccSendChan       :: Maybe (TChan ByteString)
+  , _ccRecvThread     :: Maybe ThreadId
+  , _ccSendThread     :: Maybe ThreadId
   }
 
 data ClientState = ClientState
@@ -200,7 +201,8 @@ clearTabPattern = set clientTabPattern Nothing
 
 clientSend :: ByteString -> ClientState -> IO ()
 clientSend x st =
-  atomically (writeTChan (view (clientServer0.ccSendChan) st) x)
+  for_ (view (clientServer0.ccSendChan) st) $ \chan ->
+    atomically (writeTChan chan x)
 
 focusedName :: ClientState -> Identifier
 focusedName st =
