@@ -908,21 +908,33 @@ vtyEventLoop chan vty = forever (atomically . writeTChan chan =<< nextEvent vty)
 getOne :: Connection -> Maybe Handle -> IO (UTCTime, MsgFromServer)
 getOne h hErr =
     do xs <- getRawIrcLine h
-       let debug x = for_ hErr (`hPrint` x)
        case parseRawIrcMsg xs of
-         Nothing ->
-           do debug xs
-              t <- getCurrentTime
-              return (t,Error ("Unparsable IRC line: " <> xs))
-         Just msg ->
-           do t <- maybe getCurrentTime return (msgTime msg)
-              case ircMsgToServerMsg msg of
-                Nothing ->
-                  do debug msg
-                     return (t,Error ("Unhandled IRC line: " <> xs))
-                Just x ->
-                  do debug x
-                     return (t,x)
+         _ | B.null xs -> connectionClosed
+         Nothing       -> unparsableLine xs
+         Just rawMsg   ->
+           do t <- maybe getCurrentTime return (msgTime rawMsg)
+              case ircMsgToServerMsg rawMsg of
+                Nothing -> unhandledMsg t rawMsg
+                Just msg -> handledMsg t msg
+  where
+  debugPrint x = for_ hErr (`hPrint` x)
+
+  connectionClosed =
+    do t <- getCurrentTime
+       return (t,Error "Connection closed")
+
+  unparsableLine xs =
+    do debugPrint xs
+       t <- getCurrentTime
+       return (t,Error ("Unparsable IRC line: " <> xs))
+
+  unhandledMsg t rawMsg =
+    do debugPrint rawMsg
+       return (t,Error ("Unhandled IRC line: " <> Text.encodeUtf8 (Text.pack (show rawMsg))))
+
+  handledMsg t msg =
+    do debugPrint msg
+       return (t,msg)
 
 readEitherTChan :: TChan a -> TChan b -> IO (Either a b)
 readEitherTChan a b =
