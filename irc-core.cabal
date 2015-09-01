@@ -1,5 +1,5 @@
 name:                irc-core
-version:             1.1.1
+version:             1.1.1.1
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
 license:             BSD3
@@ -127,6 +127,7 @@ executable glirc
                  Views.BanList
                  Views.Channel
                  Views.ChannelInfo
+                 Paths_irc_core
   hs-source-dirs: driver
   ghc-options: -threaded
   build-depends: irc-core,

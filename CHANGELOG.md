@@ -1,3 +1,8 @@
+1.1.1.1
+-------
+* Better error handling
+* Added a stack.yaml
+
 1.1.1
 -----
 * Add `/grep` filter command
