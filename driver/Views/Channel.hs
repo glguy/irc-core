@@ -2,6 +2,15 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(x,y,z) 1
+#endif
+
+#ifndef MIN_VERSION_time
+#define MIN_VERSION_time(x,y,z) 1
+#endif
+
 module Views.Channel (channelImage) where
 
 import Control.Lens
@@ -22,6 +31,10 @@ import Text.Regex.TDFA
 import Data.Time (defaultTimeLocale)
 #else
 import System.Locale (defaultTimeLocale)
+#endif
+
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative ((<$>))
 #endif
 
 import Irc.Format
