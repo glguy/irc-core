@@ -9,6 +9,7 @@ import Data.Monoid
 import Data.Maybe (fromMaybe)
 import Data.Foldable (toList)
 import Data.List (stripPrefix, intersperse)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
@@ -93,13 +94,15 @@ renderCompressedTimestamp zone
 activeMessages :: ClientState -> [(IrcMessage,Image)]
 activeMessages st =
   case clientInputFilter st of
-    FilterNick nick -> filter (nickFilter (BS8.pack nick) . fst) (toList msgs)
+    FilterNicks nicks -> let nickset = Set.fromList (mkId . BS8.pack <$> nicks)
+                         in filter (nicksFilter nickset . fst) (toList msgs)
     FilterBody text -> filter (bodyFilter text . fst) (toList msgs)
     NoFilter        -> toList msgs
   where
   msgs = view (clientMessages . ix (focusedName st) . mlMessages) st
-  nickFilter nick msg
-    = views mesgSender userNick msg == mkId nick
+  nicksFilter nickset msg
+    = views mesgSender userNick msg `Set.member` nickset
+
   bodyFilter :: String -> IrcMessage -> Bool
   bodyFilter re msg
     = fromMaybe False (textOfMessage msg =~~ re)
@@ -118,12 +121,12 @@ textOfMessage mesg =
              ErrorMsgType  t -> t
              _               -> "")
 
-data InputFilter = FilterNick String | FilterBody String | NoFilter
+data InputFilter = FilterNicks [String] | FilterBody String | NoFilter
 
 clientInputFilter :: ClientState -> InputFilter
 clientInputFilter st = go (clientInput st)
  where
-     go (splitAt 8 -> ("/filter ",nick)) = FilterNick nick
+     go (splitAt 8 -> ("/filter ",nicks)) = FilterNicks (words nicks)
      go (splitAt 6 -> ("/grep ",   txt)) = FilterBody txt
      go  _                               = NoFilter
 

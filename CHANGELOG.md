@@ -1,3 +1,7 @@
+1.1.1.2
+-------
+* Support multiple nicknames in `/filter`
+
 1.1.1.1
 -------
 * Better error handling

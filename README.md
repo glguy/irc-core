@@ -152,7 +152,7 @@ Commands
 
 Filters
 
-* `/filter` - Filter chat messages by nickname
+* `/filter` - Filter chat messages by space-delimited set of nicknames
 * `/grep` - Filter chat messages using a regular expression on the message
 
 Keyboard Shortcuts
