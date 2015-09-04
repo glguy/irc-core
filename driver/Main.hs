@@ -27,7 +27,7 @@ import Data.Traversable (for)
 import Graphics.Vty
 import Network.Connection
 import System.IO
-import System.IO.Error (isEOFError, ioeGetErrorString)
+import System.IO.Error (isEOFError)
 import qualified Config
 import qualified Config.Lens as C
 import qualified Data.ByteString as B

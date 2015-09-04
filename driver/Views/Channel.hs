@@ -17,10 +17,9 @@ import Control.Lens
 import Data.Monoid
 import Data.Maybe (fromMaybe)
 import Data.Foldable (toList)
-import Data.List (stripPrefix, intersperse)
+import Data.List (intersperse)
 import qualified Data.Set as Set
 import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8)
 import Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
 import Graphics.Vty.Image
 import qualified Data.ByteString.Char8 as BS8
@@ -109,7 +108,7 @@ activeMessages st =
   case clientInputFilter st of
     FilterNicks nicks -> let nickset = Set.fromList (mkId . BS8.pack <$> nicks)
                          in filter (nicksFilter nickset . fst) (toList msgs)
-    FilterBody text -> filter (bodyFilter text . fst) (toList msgs)
+    FilterBody regex -> filter (bodyFilter regex . fst) (toList msgs)
     NoFilter        -> toList msgs
   where
   msgs = view (clientMessages . ix (focusedName st) . mlMessages) st
@@ -117,8 +116,8 @@ activeMessages st =
     = views mesgSender userNick msg `Set.member` nickset
 
   bodyFilter :: String -> IrcMessage -> Bool
-  bodyFilter re msg
-    = fromMaybe False (textOfMessage msg =~~ re)
+  bodyFilter regex msg
+    = fromMaybe False (textOfMessage msg =~~ regex)
 
 textOfMessage :: IrcMessage -> String
 textOfMessage mesg =
@@ -380,7 +379,7 @@ errorMessage e =
     ErrMlockRestricted m ms   -> "Mode '" <> Text.singleton m <> "' in locked set \"" <> asUtf8 ms <> "\""
 
 splitWith :: (a -> Maybe b) -> [a] -> ([b],[a])
-splitWith f [] = ([],[])
+splitWith _ [] = ([],[])
 splitWith f (x:xs) =
   case f x of
     Nothing -> ([],x:xs)
