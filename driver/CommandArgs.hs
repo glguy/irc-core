@@ -7,11 +7,13 @@ import Config
 import Config.Lens
 import Control.Applicative
 import Control.Exception
-import Control.Monad (when)
+import Control.Monad (when, unless)
 import Data.Foldable (traverse_)
 import Data.Maybe
+import Data.List (foldl')
 import Data.Text (Text)
 import Data.Text.Lens (unpacked)
+import Data.Version (showVersion)
 import System.Console.GetOpt
 import System.Directory
 import System.Environment
@@ -24,6 +26,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 
 import ServerSettings
+import Paths_irc_core
 
 defaultConfigPath :: IO FilePath
 defaultConfigPath =
@@ -35,6 +38,7 @@ data CommandArgs = CommandArgs
   , _cmdArgServer   :: String
   , _cmdArgPort     :: Maybe Int
   , _cmdArgHelp     :: Bool
+  , _cmdArgVersion  :: Bool
   , _cmdArgReal     :: Maybe String
   , _cmdArgUser     :: Maybe String
   , _cmdArgSaslUser :: Maybe String
@@ -50,40 +54,51 @@ data CommandArgs = CommandArgs
 
 makeLenses ''CommandArgs
 
+emptyCommandArgs :: CommandArgs
+emptyCommandArgs = CommandArgs
+  { _cmdArgServer   = ""
+  , _cmdArgReal     = Nothing
+  , _cmdArgUser     = Nothing
+  , _cmdArgNick     = Nothing
+  , _cmdArgUserInfo = Nothing
+
+  , _cmdArgSaslUser = Nothing
+  , _cmdArgPort     = Nothing
+  , _cmdArgHelp     = False
+  , _cmdArgVersion  = False
+  , _cmdArgDebug    = Nothing
+  , _cmdArgTls      = False
+  , _cmdArgTlsClientCert = Nothing
+  , _cmdArgTlsClientKey  = Nothing
+  , _cmdArgTlsInsecure   = False
+  , _cmdArgConfigFile    = Nothing
+  , _cmdArgConfigValue   = Sections []
+  }
+
 getCommandArgs :: IO CommandArgs
 getCommandArgs =
   do args <- getArgs
 
-     r <- case getOpt RequireOrder optDescrs args of
-            (fs, [server], []) ->
-               do let r0 = CommandArgs
-                           { _cmdArgServer   = server
-                           , _cmdArgReal     = Nothing
-                           , _cmdArgUser     = Nothing
-                           , _cmdArgNick     = Nothing
-                           , _cmdArgUserInfo = Nothing
-
-                           , _cmdArgSaslUser = Nothing
-                           , _cmdArgPort     = Nothing
-                           , _cmdArgHelp     = False
-                           , _cmdArgDebug    = Nothing
-                           , _cmdArgTls      = False
-                           , _cmdArgTlsClientCert = Nothing
-                           , _cmdArgTlsClientKey  = Nothing
-                           , _cmdArgTlsInsecure   = False
-                           , _cmdArgConfigFile    = Nothing
-                           , _cmdArgConfigValue   = Sections []
-                           }
-                  return (foldl (\acc f -> f acc) r0 fs)
-
-            (_ , _, errs) ->
-                 do traverse_ (hPutStrLn stderr) errs
-                    help
+     let (flags, servers, errors) = getOpt Permute optDescrs args
+         r = foldl' (\acc f -> f acc) emptyCommandArgs flags
 
      when (view cmdArgHelp r) help
+     when (view cmdArgVersion r) emitVersion
+     unless (null errors) $
+       do traverse_ (hPutStrLn stderr) errors
+          exitFailure
+     server <- case servers of
+       [server] -> return server
+       [] -> do hPutStrLn stderr "Expected server name argument (try --help)"
+                exitFailure
+       _  -> do hPutStrLn stderr "Too many server name arguments (try --help)"
+                exitFailure
 
      v <- loadConfigValue (view cmdArgConfigFile r)
-     return (set cmdArgConfigValue v r)
+
+     return $ set cmdArgServer server
+            $ set cmdArgConfigValue v
+            $ r
 
 help :: IO a
 help =
@@ -91,6 +106,11 @@ help =
      let txt = prog ++ " <options> SERVER"
      hPutStr stderr (usageInfo txt optDescrs)
      exitFailure
+
+emitVersion :: IO a
+emitVersion =
+  do putStrLn ("glirc " ++ showVersion version)
+     exitSuccess
 
 optDescrs :: [OptDescr (CommandArgs -> CommandArgs)]
 optDescrs =
@@ -106,6 +126,7 @@ optDescrs =
   , Option ""  [ "tls-client-cert"] (ReqArg (set cmdArgTlsClientCert . Just) "PATH") "Path to PEM encoded client certificate"
   , Option ""  [ "tls-client-key"] (ReqArg (set cmdArgTlsClientKey . Just) "PATH") "Path to PEM encoded client key"
   , Option ""  [ "tls-insecure"] (NoArg (set cmdArgTlsInsecure True)) "Disable server certificate verification"
+  , Option "v" [ "version"]   (NoArg  (set cmdArgVersion True))   "Show version"
   , Option "h" [ "help"]      (NoArg  (set cmdArgHelp True))   "Show help"
   ]
 
