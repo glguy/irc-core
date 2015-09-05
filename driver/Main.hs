@@ -15,14 +15,17 @@ import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Char
+import Data.Fixed (Centi, Pico, showFixed)
 import Data.Foldable (for_, traverse_)
 import Data.List (elemIndex)
 import Data.List.Split (chunksOf)
+import Data.IORef
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Traversable (for)
 import Graphics.Vty
 import Network.Connection
@@ -86,28 +89,32 @@ main = do
                      recvChan settings hErr
        (width,height) <- displayBounds (outputIface vty)
        zone <- getCurrentTimeZone
-       driver vty vtyEventChan recvChan ClientState
-         { _clientServer0         = server0
-         , _clientRecvChan        = recvChan
-         , _clientErrors          = hErr
-         , _clientFocus           = ChannelFocus ""
-         , _clientDetailView      = False
-         , _clientTimeView        = True
-         , _clientMetaView        = True
-         , _clientEditBox         = Edit.empty
-         , _clientTabPattern      = Nothing
-         , _clientScrollPos       = 0
-         , _clientHeight          = height
-         , _clientWidth           = width
-         , _clientIgnores         = mempty
-         , _clientHighlights      = mempty
-         , _clientMessages        = mempty
-         , _clientNickColors      = defaultNickColors
-         , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop]
-         , _clientTimers          = mempty
-         , _clientTimeZone        = zone
-         , _clientConfig          = view cmdArgConfigValue args
-         }
+
+       let st0 = ClientState
+               { _clientServer0         = server0
+               , _clientRecvChan        = recvChan
+               , _clientErrors          = hErr
+               , _clientFocus           = ChannelFocus ""
+               , _clientDetailView      = False
+               , _clientTimeView        = True
+               , _clientMetaView        = True
+               , _clientEditBox         = Edit.empty
+               , _clientTabPattern      = Nothing
+               , _clientScrollPos       = 0
+               , _clientHeight          = height
+               , _clientWidth           = width
+               , _clientIgnores         = mempty
+               , _clientHighlights      = mempty
+               , _clientMessages        = mempty
+               , _clientNickColors      = defaultNickColors
+               , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop]
+               , _clientTimers          = mempty
+               , _clientTimeZone        = zone
+               , _clientConfig          = view cmdArgConfigValue args
+               }
+       st1 <- schedulePing st0
+
+       driver vty vtyEventChan recvChan st1
 
 withVty :: (Vty -> IO a) -> IO a
 withVty k =
@@ -136,7 +143,8 @@ startIrcConnection config recvChan settings hErr =
 
   connectionSuceeded h =
     do sendChan     <- atomically newTChan
-       sendThreadId <- forkIO (sendLoop sendChan h)
+       connectedRef <- newIORef True
+       sendThreadId <- forkIO (sendLoop connectedRef sendChan h)
        recvThreadId <- forkIO (socketLoop recvChan h hErr)
        initializeConnection pass nick user real h
        return ClientConnection
@@ -145,7 +153,7 @@ startIrcConnection config recvChan settings hErr =
                                  { _connNick = nick
                                  , _connSasl = sasl
                                  }
-         , _ccSendChan       = Just sendChan
+         , _ccSendChan       = Just (connectedRef, sendChan)
          , _ccRecvThread     = Just recvThreadId
          , _ccSendThread     = Just sendThreadId
          }
@@ -200,6 +208,15 @@ driver vty vtyEventChan ircMsgChan st0 =
 
   processTimerEvent e st =
     case e of
+      TransmitPing ->
+        do now <- getCurrentTime
+           let ts = realToFrac (utcTimeToPOSIXSeconds now) :: Pico
+               chopTrailingZeros = True
+               tsStr = B8.pack (showFixed chopTrailingZeros ts)
+           clientSend (pingCmd tsStr) st
+           st' <- schedulePing st
+           considerTimers st'
+
       DropOperator chan ->
         do clientSend (modeCmd chan ["-o",views connNick idBytes conn]) st
            considerTimers st
@@ -261,14 +278,14 @@ interpretLogicOp _ (Record target message r) =
 -- Key Event Handlers!
 ------------------------------------------------------------------------
 
-data EventResult
+data KeyEventResult
   = KeepGoing ClientState
   | Exit
 
 changeInput :: (Edit.EditBox -> Edit.EditBox) -> ClientState -> ClientState
 changeInput f st = clearTabPattern (over clientEditBox f st)
 
-inputLogic :: ClientState -> (Image, IO EventResult)
+inputLogic :: ClientState -> (Image, IO KeyEventResult)
 inputLogic st =
   case clientInput st of
     '/':_ -> case commandEvent st of
@@ -276,7 +293,7 @@ inputLogic st =
                (img, Just m ) -> (img, m)
     txt -> (stringWithControls defAttr txt, fmap KeepGoing (doSendMessageCurrent SendPriv st))
 
-keyEvent :: Key -> [Modifier] -> ClientState -> IO EventResult
+keyEvent :: Key -> [Modifier] -> ClientState -> IO KeyEventResult
 keyEvent k ms st =
   let more = return . KeepGoing in
   case (k,ms) of
@@ -386,7 +403,7 @@ doSendMessage sendType target message st =
 
   who = UserInfo (view connNick conn) Nothing Nothing
 
-commandEvent :: ClientState -> (Image, Maybe (IO EventResult))
+commandEvent :: ClientState -> (Image, Maybe (IO KeyEventResult))
 commandEvent st = commandsParser (clientInput st)
                         (exitCommand : normalCommands)
  where
@@ -824,11 +841,23 @@ textbox st
 
 dividerImage :: ClientState -> Image
 dividerImage st
-  = extendToWidth (nickPart <|> channelPart)
+  = extendToWidth (nickPart <|> channelPart <|> lagPart)
   where
   conn = view (clientServer0 . ccConnection) st
 
   myNick = view connNick conn
+
+  lagPart =
+    case view connPingTime conn of
+      Just s ->
+       let s' = realToFrac s :: Centi -- truncate to two decimal places
+           sStr = showFixed True s' <> "s"
+       in
+                string defAttr "-["
+            <|> string (withForeColor defAttr yellow) sStr
+            <|> string defAttr "]"
+
+      _ -> emptyImage
 
   channelPart =
     ifoldr (\i x xs -> drawOne i x <|> xs)
@@ -891,13 +920,15 @@ dividerImage st
 -- Event loops
 ------------------------------------------------------------------------
 
-sendLoop :: TChan ByteString -> Connection -> IO ()
-sendLoop queue h =
+sendLoop :: IORef Bool -> TChan ByteString -> Connection -> IO ()
+sendLoop connectedRef queue h =
   do r <- newRateLimitDefault
      forever $
        do x <- atomically (readTChan queue)
           tickRateLimit r
           connectionPut h x
+  `catch` \(SomeException _) ->
+      writeIORef connectedRef False -- exit silently
 
 socketLoop :: TChan (UTCTime, MsgFromServer) -> Connection -> Maybe Handle -> IO ()
 socketLoop chan h hErr =
@@ -1010,3 +1041,9 @@ defaultNickColors :: [Color]
 defaultNickColors =
   [cyan, magenta, green, yellow, blue,
    brightCyan, brightMagenta, brightGreen, brightBlue]
+
+schedulePing :: ClientState -> IO ClientState
+schedulePing st =
+  do now <- getCurrentTime
+     let pingTime = addUTCTime 60 now
+     return (addTimerEvent pingTime TransmitPing st)

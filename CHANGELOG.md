@@ -1,6 +1,7 @@
 1.1.1.2
 -------
 * Support multiple nicknames in `/filter`
+* Periodically ping to determine ping-times and keep connection alive.
 
 1.1.1.1
 -------

@@ -9,11 +9,12 @@ import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.DeepSeq (force)
 import Control.Lens
-import Control.Monad (foldM, guard)
+import Control.Monad (foldM, guard, when)
 import Data.ByteString (ByteString)
 import Data.Char (isControl)
 import Data.Foldable (for_)
 import Data.Functor.Compose
+import Data.IORef
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
@@ -47,7 +48,7 @@ import ImageUtils (cleanText, nameHighlighter)
 data ClientConnection = ClientConnection
   { _ccServerSettings :: ServerSettings
   , _ccConnection     :: IrcConnection
-  , _ccSendChan       :: Maybe (TChan ByteString)
+  , _ccSendChan       :: Maybe (IORef Bool, TChan ByteString)
   , _ccRecvThread     :: Maybe ThreadId
   , _ccSendThread     :: Maybe ThreadId
   }
@@ -80,6 +81,7 @@ data ClientState = ClientState
 
 data TimerEvent
   = DropOperator Identifier
+  | TransmitPing
   deriving (Read, Show, Eq)
 
 data MessageList = MessageList
@@ -201,8 +203,9 @@ clearTabPattern = set clientTabPattern Nothing
 
 clientSend :: ByteString -> ClientState -> IO ()
 clientSend x st =
-  for_ (view (clientServer0.ccSendChan) st) $ \chan ->
-    atomically (writeTChan chan x)
+  for_ (view (clientServer0.ccSendChan) st) $ \(connectedRef,chan) ->
+    do connected <- readIORef connectedRef
+       when connected (atomically (writeTChan chan x))
 
 focusedName :: ClientState -> Identifier
 focusedName st =
@@ -306,12 +309,12 @@ nextTimerEvent now = alaf Compose clientTimers aux
   where
   aux :: Map UTCTime [TimerEvent] -> Maybe (TimerEvent, Map UTCTime [TimerEvent])
   aux timers =
-    do ((when,events), timers1) <- Map.minViewWithKey timers
-       guard (when <= now)
+    do ((trigger,events), timers1) <- Map.minViewWithKey timers
+       guard (trigger <= now)
        case events of
          []   -> error "nextTimerEvent: empty entry!"
          [e]  -> return (e, timers1)
-         e:es -> return (e, Map.insert when es timers1)
+         e:es -> return (e, Map.insert trigger es timers1)
 
 filterTimerEvents :: (TimerEvent -> Bool) -> ClientState -> ClientState
 filterTimerEvents p = over clientTimers (Map.mapMaybe aux)
@@ -322,4 +325,4 @@ filterTimerEvents p = over clientTimers (Map.mapMaybe aux)
     where xs' = filter p xs
 
 addTimerEvent :: UTCTime -> TimerEvent -> ClientState -> ClientState
-addTimerEvent when e = over clientTimers (Map.insertWith (++) when [e])
+addTimerEvent trigger e = over clientTimers (Map.insertWith (++) trigger [e])

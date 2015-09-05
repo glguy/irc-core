@@ -31,6 +31,7 @@ module Irc.Model
   , connSasl
   , connUmode
   , connSnoMask
+  , connPingTime
   , defaultIrcConnection
 
   -- * Phases
@@ -93,16 +94,19 @@ import Control.Monad.Trans.Error
 import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import Data.Char (toUpper)
+import Data.Fixed (Pico)
 import Data.List (foldl',find,nub,delete,intersect)
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Text (Text)
 import Data.Time
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as Map
+import Text.Read (readMaybe)
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -137,6 +141,7 @@ data IrcConnection = IrcConnection
   , _connUmode    :: !ByteString
   , _connSnoMask  :: !ByteString
   , _connPhase    :: !Phase
+  , _connPingTime :: Maybe Pico -- No read instance for NominalDiffTime
   }
   deriving (Read, Show)
 
@@ -162,6 +167,7 @@ defaultIrcConnection = IrcConnection
   , _connUmode     = ""
   , _connSnoMask   = ""
   , _connPhase     = RegistrationPhase
+  , _connPingTime  = Nothing
   }
 
 data Phase
@@ -268,8 +274,16 @@ advanceModel msg0 conn =
   case msg0 of
        Ping x -> sendMessage (pongCmd x) >> return conn
 
+       -- Treat numbers as POSIX times when PING was sent
+       Pong _ (Just txt)
+          | Just sec <- readMaybe (B8.unpack txt) ->
+                do now <- getStamp
+                   let past = posixSecondsToUTCTime (realToFrac (sec :: Pico))
+                       delta = realToFrac (now `diffUTCTime` past)
+                   return (set connPingTime (Just delta) conn)
+
        Pong server mbMsg ->
-         doServerMessage "PONG" (server <> maybe "" (" "<>) mbMsg) conn
+         doServerMessage "Pong" (server <> maybe "" (" "<>) mbMsg) conn
 
        RplWelcome  txt -> doServerMessage "Welcome" txt
                         $ set connPhase ActivePhase conn
