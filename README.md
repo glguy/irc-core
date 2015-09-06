@@ -149,6 +149,8 @@ Commands
 * `/knock` - Request an /invite/ to a restricted channel
 * `/invite <nick>` - Invite the given user to the current channel
 * `/reconnect` - Reconnect to the current server
+* `/ping` - Send ping to upload current roundtrip time
+* `/ping <msg>` - Send manually specified ping message
 
 Filters
 

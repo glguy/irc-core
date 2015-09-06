@@ -1,7 +1,9 @@
-1.1.1.2
+1.1.2
 -------
 * Support multiple nicknames in `/filter`
 * Periodically ping to determine ping-times and keep connection alive.
+* Added ping time field to IrcConnection datatype.
+* Add `/ping` command
 
 1.1.1.1
 -------
