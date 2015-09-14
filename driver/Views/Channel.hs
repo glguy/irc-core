@@ -15,7 +15,7 @@ module Views.Channel (channelImage) where
 
 import Control.Lens
 import Data.Monoid
-import Data.Maybe (fromMaybe)
+import Data.Maybe (isJust)
 import Data.Foldable (toList)
 import Data.List (intersperse)
 import qualified Data.Set as Set
@@ -25,6 +25,7 @@ import Graphics.Vty.Image
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Text as Text
 import Text.Regex.TDFA
+import Text.Regex.TDFA.ByteString (compile, execute)
 
 #if MIN_VERSION_time(1,5,0)
 import Data.Time (defaultTimeLocale)
@@ -108,20 +109,23 @@ activeMessages st =
   case clientInputFilter st of
     FilterNicks nicks -> let nickset = Set.fromList (mkId . BS8.pack <$> nicks)
                          in filter (nicksFilter nickset . fst) (toList msgs)
-    FilterBody regex -> filter (bodyFilter regex . fst) (toList msgs)
+    FilterBody regex -> let r = compile defaultCompOpt defaultExecOpt regex
+                        in filter (bodyFilter r . fst) (toList msgs)
     NoFilter        -> toList msgs
   where
   msgs = view (clientMessages . ix (focusedName st) . mlMessages) st
   nicksFilter nickset msg
     = views mesgSender userNick msg `Set.member` nickset
 
-  bodyFilter :: String -> IrcMessage -> Bool
-  bodyFilter regex msg
-    = fromMaybe False (textOfMessage msg =~~ regex)
+  bodyFilter :: Either a Regex -> IrcMessage -> Bool
+  bodyFilter (Left _) _    = True -- regex compilation failed
+  bodyFilter (Right r) msg =
+    let isMatch = either (const True) isJust . execute r
+    in isMatch (textOfMessage msg)
 
-textOfMessage :: IrcMessage -> String
+textOfMessage :: IrcMessage -> BS8.ByteString
 textOfMessage mesg =
-    let f n = (BS8.unpack $ idBytes $ views mesgSender userNick mesg) <> ": " <> Text.unpack n
+    let f n = (idBytes $ views mesgSender userNick mesg) <> BS8.pack ": " <> BS8.pack (Text.unpack n)
     in f (case mesg ^. mesgType of
              PrivMsgType   t -> t
              NoticeMsgType t -> t
@@ -133,13 +137,13 @@ textOfMessage mesg =
              ErrorMsgType  t -> t
              _               -> "")
 
-data InputFilter = FilterNicks [String] | FilterBody String | NoFilter
+data InputFilter = FilterNicks [String] | FilterBody BS8.ByteString | NoFilter
 
 clientInputFilter :: ClientState -> InputFilter
 clientInputFilter st = go (clientInput st)
  where
      go (splitAt 8 -> ("/filter ",nicks)) = FilterNicks (words nicks)
-     go (splitAt 6 -> ("/grep ",   txt)) = FilterBody txt
+     go (splitAt 6 -> ("/grep ",   txt)) = FilterBody (BS8.pack txt)
      go  _                               = NoFilter
 
 compressedImageForState :: ClientState -> [Image]
