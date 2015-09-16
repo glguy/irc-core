@@ -22,8 +22,9 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
 import Graphics.Vty.Image
-import qualified Data.ByteString.Char8 as BS8
+import qualified Data.ByteString as BS
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Text.Regex.TDFA
 import Text.Regex.TDFA.ByteString (compile, execute)
 
@@ -107,7 +108,7 @@ renderCompressedTimestamp zone
 activeMessages :: ClientState -> [(IrcMessage,Image)]
 activeMessages st =
   case clientInputFilter st of
-    FilterNicks nicks -> let nickset = Set.fromList (mkId . BS8.pack <$> nicks)
+    FilterNicks nicks -> let nickset = Set.fromList (mkId . toUtf8 <$> nicks)
                          in filter (nicksFilter nickset . fst) (toList msgs)
     FilterBody regex -> let r = compile defaultCompOpt defaultExecOpt regex
                         in filter (bodyFilter r . fst) (toList msgs)
@@ -123,9 +124,9 @@ activeMessages st =
     let isMatch = either (const True) isJust . execute r
     in isMatch (textOfMessage msg)
 
-textOfMessage :: IrcMessage -> BS8.ByteString
+textOfMessage :: IrcMessage -> BS.ByteString
 textOfMessage mesg =
-    let f n = (idBytes $ views mesgSender userNick mesg) <> BS8.pack ": " <> BS8.pack (Text.unpack n)
+    let f n = idBytes (views mesgSender userNick mesg) <> ": " <> Text.encodeUtf8 n
     in f (case mesg ^. mesgType of
              PrivMsgType   t -> t
              NoticeMsgType t -> t
@@ -137,13 +138,13 @@ textOfMessage mesg =
              ErrorMsgType  t -> t
              _               -> "")
 
-data InputFilter = FilterNicks [String] | FilterBody BS8.ByteString | NoFilter
+data InputFilter = FilterNicks [String] | FilterBody BS.ByteString | NoFilter
 
 clientInputFilter :: ClientState -> InputFilter
 clientInputFilter st = go (clientInput st)
  where
      go (splitAt 8 -> ("/filter ",nicks)) = FilterNicks (words nicks)
-     go (splitAt 6 -> ("/grep ",   txt)) = FilterBody (BS8.pack txt)
+     go (splitAt 6 -> ("/grep ",   txt)) = FilterBody (toUtf8 txt)
      go  _                               = NoFilter
 
 compressedImageForState :: ClientState -> [Image]
@@ -380,7 +381,8 @@ errorMessage e =
     ErrChanOpen               -> "Knock unnecessary"
     ErrTargUmodeG             -> "Message ignored by +g mode"
     ErrNoPrivs priv           -> "Oper privilege required: " <> asUtf8 priv
-    ErrMlockRestricted m ms   -> "Mode '" <> Text.singleton m <> "' in locked set \"" <> asUtf8 ms <> "\""
+    ErrMlockRestricted m ms   -> "Mode '" <> Text.singleton m <> "' in locked set \""
+                                 <> asUtf8 ms <> "\""
 
 splitWith :: (a -> Maybe b) -> [a] -> ([b],[a])
 splitWith _ [] = ([],[])
@@ -395,3 +397,6 @@ mergeMetadatas (SimpleMetadata img1 who1 : SimpleMetadata img2 who2 : xs)
   | who1 == who2      = mergeMetadatas (SimpleMetadata (img1 <|> img2) who1 : xs)
 mergeMetadatas (x:xs) = x : mergeMetadatas xs
 mergeMetadatas []     = []
+
+toUtf8 :: String -> BS.ByteString
+toUtf8 = Text.encodeUtf8 . Text.pack
