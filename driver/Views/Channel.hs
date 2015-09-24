@@ -96,7 +96,7 @@ detailedImageForState !st
 renderTimestamp :: TimeZone -> UTCTime -> Image
 renderTimestamp zone
   = string (withForeColor defAttr brightBlack)
-  . formatTime defaultTimeLocale "%H:%M:%S "
+  . formatTime defaultTimeLocale "%F %H:%M:%S "
   . utcToZonedTime zone
 
 renderCompressedTimestamp :: TimeZone -> UTCTime -> Image
