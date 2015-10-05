@@ -98,6 +98,7 @@ main = do
                , _clientDetailView      = False
                , _clientTimeView        = True
                , _clientMetaView        = True
+               , _clientFullView        = False
                , _clientEditBox         = Edit.empty
                , _clientTabPattern      = Nothing
                , _clientScrollPos       = 0
@@ -296,6 +297,7 @@ keyEvent k ms st =
     (KFun 2   , []     ) -> more $ over clientDetailView not st
     (KFun 3   , []     ) -> more $ over clientTimeView   not st
     (KFun 4   , []     ) -> more $ over clientMetaView   not st
+    (KFun 5   , []     ) -> more $ over clientFullView   not st
     (KPageUp  , _      ) -> more $ scrollUp st
     (KPageDown, _      ) -> more $ scrollDown st
     (KChar 'n', [MCtrl]) -> more $ nextFocus st

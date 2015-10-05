@@ -63,6 +63,7 @@ data ClientState = ClientState
   , _clientDetailView :: !Bool
   , _clientTimeView   :: !Bool
   , _clientMetaView   :: !Bool
+  , _clientFullView   :: !Bool
   , _clientEditBox    :: EditBox
   , _clientTabPattern :: Maybe String
   , _clientScrollPos :: Int

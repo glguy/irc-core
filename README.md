@@ -28,6 +28,7 @@ Client Features
 * Command syntax highlighting with hints.
 * Each user's nick is assigned a consistent color, when a user's nick is rendered in a chat message it uses that same color.
 * Support for /STATUSMSG/ messages
+* Togglable support for merged view of all joined channels (F5).
 
 TLS
 ===
@@ -178,6 +179,7 @@ Keyboard Shortcuts
 * `F2` toggle detailed view
 * `F3` toggle timestamps
 * `F4` toggle compressed metadata
+* `F5` toggle all channel view
 * `Page Up` scroll up
 * `Page Down` scroll down
 * `^B` bold

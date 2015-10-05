@@ -13,20 +13,21 @@
 
 module Views.Channel (channelImage) where
 
-import Control.Lens
-import Data.Monoid
-import Data.Maybe (isJust)
-import Data.Foldable (toList)
-import Data.List (intersperse)
-import qualified Data.Set as Set
-import Data.Text (Text)
-import Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
-import Graphics.Vty.Image
+import           Control.Lens
 import qualified Data.ByteString as BS
+import           Data.Foldable (toList)
+import           Data.List (intersperse)
+import           Data.Maybe (isJust)
+import qualified Data.Map as Map
+import           Data.Monoid
+import qualified Data.Set as Set
+import           Data.Text (Text)
+import           Data.Time (TimeZone, UTCTime, formatTime, utcToZonedTime)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Text.Regex.TDFA
-import Text.Regex.TDFA.ByteString (compile, execute)
+import           Graphics.Vty.Image
+import           Text.Regex.TDFA
+import           Text.Regex.TDFA.ByteString (compile, execute)
 
 #if MIN_VERSION_time(1,5,0)
 import Data.Time (defaultTimeLocale)
@@ -53,13 +54,13 @@ channelImage st
 
 detailedImageForState :: ClientState -> [Image]
 detailedImageForState !st
-  = map renderOne
-  $ map fst
-  $ activeMessages st
+  = [ renderOne chan msg | (chan, msg, _img) <- activeMessages st]
   where
   zone = view clientTimeZone st
-  renderOne x =
+  activeChan = focusedName st
+  renderOne chan x =
       timestamp <|>
+      channel <|>
       string (withForeColor defAttr tyColor) (ty ++ " ") <|>
       statusMsgImage (view mesgStatus x) <|>
       renderFullUsermask (view mesgSender x) <|>
@@ -68,6 +69,12 @@ detailedImageForState !st
     where
     timestamp
       | view clientTimeView st = renderTimestamp zone (view mesgStamp x)
+      | otherwise              = emptyImage
+
+    -- show all channel names in detailed/full view
+    channel
+      | view clientFullView st = identImg (withForeColor defAttr brightBlack) chan
+                              <|> string defAttr " "
       | otherwise              = emptyImage
 
     (tyColor, ty, content) = case view mesgType x of
@@ -105,16 +112,22 @@ renderCompressedTimestamp zone
   . formatTime defaultTimeLocale "[%H:%M] "
   . utcToZonedTime zone
 
-activeMessages :: ClientState -> [(IrcMessage,Image)]
+activeMessages :: ClientState -> [(Identifier,IrcMessage,Image)]
 activeMessages st =
   case clientInputFilter st of
     FilterNicks nicks -> let nickset = Set.fromList (mkId . toUtf8 <$> nicks)
-                         in filter (nicksFilter nickset . fst) (toList msgs)
+                         in filter (nicksFilter nickset . view _2) msgs
     FilterBody regex -> let r = compile defaultCompOpt defaultExecOpt regex
-                        in filter (bodyFilter r . fst) (toList msgs)
-    NoFilter        -> toList msgs
+                        in filter (bodyFilter r . view _2) msgs
+    NoFilter        -> msgs
   where
-  msgs = view (clientMessages . ix (focusedName st) . mlMessages) st
+  focus = focusedName st
+
+  msgs :: [(Identifier,IrcMessage,Image)]
+  msgs | view clientFullView st = interleavedMessages st
+       | otherwise =
+           [ (focus, msg, img) | (msg,img) <- views (clientMessages . ix (focusedName st) . mlMessages) toList st ]
+
   nicksFilter nickset msg
     = views mesgSender userNick msg `Set.member` nickset
 
@@ -152,6 +165,7 @@ compressedImageForState !st = renderOne (activeMessages st)
   where
   zone = view clientTimeZone st
   width = view clientWidth st
+  activeChan = focusedName st
 
   ncolors = views clientNickColors length st
   formatNick me nick = identImg (withForeColor defAttr color) nick
@@ -163,10 +177,10 @@ compressedImageForState !st = renderOne (activeMessages st)
   ignores = view clientIgnores st
 
   renderOne [] = []
-  renderOne ((msg,colored):msgs) =
+  renderOne ((chan,msg,colored):msgs) =
     case mbImg of
-      Just img -> (timestamp <|> img) : renderOne msgs
-      Nothing  -> renderMeta ((msg,colored):msgs)
+      Just img -> (timestamp <|> channel <|> img) : renderOne msgs
+      Nothing  -> renderMeta ((chan,msg,colored):msgs)
 
     where
     timestamp
@@ -176,6 +190,13 @@ compressedImageForState !st = renderOne (activeMessages st)
     nick = views mesgSender userNick msg
 
     visible = not (view (contains nick) ignores)
+
+    -- when in the full monitor view we only show the names of the channels
+    -- next to messages for the unfocused channel
+    channel
+      | chan == activeChan     = emptyImage
+      | otherwise              = identImg (withForeColor defAttr brightBlack) chan
+                              <|> string defAttr " "
 
     mbImg =
        case view mesgType msg of
@@ -264,25 +285,35 @@ compressedImageForState !st = renderOne (activeMessages st)
     | view clientMetaView st = [x]
     | otherwise              = []
 
-  renderMeta msgs = filterMeta (cropRight width img)
+  renderMeta msgs = img
                  ++ renderOne rest
     where
-    (mds,rest) = splitWith (processMeta . fst) msgs
+    (mds,rest) = splitWith processMeta msgs
     mds1 = mergeMetadatas mds
-    img = horizCat (intersperse gap (map renderCompressed mds1))
     gap = char defAttr ' '
 
-  processMeta msg =
+    -- the mds1 can be null in the full view due to dropped metas
+    img | not (null mds1), view clientMetaView st
+                = return -- singleton list
+                $ cropRight width
+                $ horizCat
+                $ intersperse gap
+                $ map renderCompressed mds1
+        | otherwise = []
+
+  processMeta (chan,msg,_) =
     case view mesgType msg of
-      CtcpReqMsgType{} -> Just $ SimpleMetadata (char (withForeColor defAttr brightBlue) 'C') who
-      JoinMsgType      -> Just $ SimpleMetadata (char (withForeColor defAttr green) '+') who
-      PartMsgType{}    -> Just $ SimpleMetadata (char (withForeColor defAttr red) '-') who
-      QuitMsgType{}    -> Just $ SimpleMetadata (char (withForeColor defAttr red) 'x') who
-      KnockMsgType     -> Just $ SimpleMetadata (char (withForeColor defAttr yellow) 'K') who
-      NickMsgType who' -> Just $ NickChange who who'
-      _ | not visible  -> Just $ SimpleMetadata (char (withForeColor defAttr yellow) 'I') who
-        | otherwise    -> Nothing
+      CtcpReqMsgType{} -> keep $ SimpleMetadata (char (withForeColor defAttr brightBlue) 'C') who
+      JoinMsgType      -> keep $ SimpleMetadata (char (withForeColor defAttr green) '+') who
+      PartMsgType{}    -> keep $ SimpleMetadata (char (withForeColor defAttr red) '-') who
+      QuitMsgType{}    -> keep $ SimpleMetadata (char (withForeColor defAttr red) 'x') who
+      KnockMsgType     -> keep $ SimpleMetadata (char (withForeColor defAttr yellow) 'K') who
+      NickMsgType who' -> keep $ NickChange who who'
+      _ | not visible  -> keep $ SimpleMetadata (char (withForeColor defAttr yellow) 'I') who
+        | otherwise    -> Done
     where
+    keep | chan == activeChan = Keep
+         | otherwise          = const Drop
     who = views mesgSender userNick msg
     visible = not (view (contains who) ignores)
 
@@ -384,12 +415,18 @@ errorMessage e =
     ErrMlockRestricted m ms   -> "Mode '" <> Text.singleton m <> "' in locked set \""
                                  <> asUtf8 ms <> "\""
 
-splitWith :: (a -> Maybe b) -> [a] -> ([b],[a])
+data SplitResult a
+  = Drop   -- drop this element but keep processing
+  | Done   -- stop processing
+  | Keep a -- produce an output and keep processing
+
+splitWith :: (a -> SplitResult b) -> [a] -> ([b],[a])
 splitWith _ [] = ([],[])
 splitWith f (x:xs) =
   case f x of
-    Nothing -> ([],x:xs)
-    Just y  -> case splitWith f xs of
+    Done -> ([],x:xs)
+    Drop -> splitWith f xs
+    Keep y  -> case splitWith f xs of
                  (ys,xs') -> (y:ys, xs')
 
 mergeMetadatas :: [CompressedMetadata] -> [CompressedMetadata]
@@ -397,6 +434,40 @@ mergeMetadatas (SimpleMetadata img1 who1 : SimpleMetadata img2 who2 : xs)
   | who1 == who2      = mergeMetadatas (SimpleMetadata (img1 <|> img2) who1 : xs)
 mergeMetadatas (x:xs) = x : mergeMetadatas xs
 mergeMetadatas []     = []
+
+interleavedMessages :: ClientState -> [(Identifier,IrcMessage,Image)]
+interleavedMessages st = merge lists
+  where
+  lists :: [[(Identifier,IrcMessage,Image)]]
+  lists = [ [ (chan, msg, img) | (msg,img) <- view mlMessages msgs ]
+          | (chan,msgs) <- views clientMessages Map.toList st
+          ]
+
+  merge ::
+    [[(Identifier,IrcMessage,Image)]] ->
+    [(Identifier,IrcMessage,Image)]
+  merge []  = []
+  merge [x] = x
+  merge xs  = merge (mergeN1 xs)
+
+  -- merge every two lists into one
+  mergeN1 ::
+    [[(Identifier,IrcMessage,Image)]] ->
+    [[(Identifier,IrcMessage,Image)]]
+  mergeN1 [] = []
+  mergeN1 [x] = [x]
+  mergeN1 (x:y:z) = merge2 x y : mergeN1 z
+
+  -- merge two sorted lists into one
+  merge2 ::
+    [(Identifier,IrcMessage,Image)] ->
+    [(Identifier,IrcMessage,Image)] ->
+    [(Identifier,IrcMessage,Image)]
+  merge2 [] ys = ys
+  merge2 xs [] = xs
+  merge2 (x:xs) (y:ys)
+    | view (_2.mesgStamp) x >= view (_2.mesgStamp) y = x : merge2 xs (y:ys)
+    | otherwise                                      = y : merge2 (x:xs) ys
 
 toUtf8 :: String -> BS.ByteString
 toUtf8 = Text.encodeUtf8 . Text.pack
