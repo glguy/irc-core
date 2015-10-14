@@ -29,6 +29,7 @@ Client Features
 * Each user's nick is assigned a consistent color, when a user's nick is rendered in a chat message it uses that same color.
 * Support for /STATUSMSG/ messages
 * Togglable support for merged view of all joined channels (F5).
+* Run commands upon connection
 
 TLS
 ===
@@ -97,6 +98,9 @@ servers:
 
   * hostname:      "example.com"
     port:          7000
+    connect-cmds:
+      * "JOIN #favoritechannel,#otherchannel"
+      * "PRIVMSG mybot another command"
 
 -- Specify additional certificates beyond the system CAs
 server-certificates:

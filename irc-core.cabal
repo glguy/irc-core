@@ -118,6 +118,7 @@ executable glirc
                  CommandArgs
                  CommandParser
                  Connection
+                 ConnectCmds
                  CtcpHandler
                  EditBox
                  HaskellHighlighter

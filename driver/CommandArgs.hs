@@ -176,6 +176,9 @@ initialServerSettings !args =
 
        , _ssTlsClientKey   = view cmdArgTlsClientKey args
                          <|> defaultStr hostTxt "tls-client-key" args
+
+       , _ssConnectCmds   = toListOf (cmdArgConfigValue . configPath hostTxt "connect-cmds"
+                                     . values . text) args
        }
 
 

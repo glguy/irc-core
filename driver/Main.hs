@@ -48,6 +48,7 @@ import Irc.Message
 import Irc.Model
 import Irc.RateLimit
 
+import ConnectCmds (connectCmds)
 import ClientState
 import Connection (connect, getRawIrcLine)
 import CommandArgs
@@ -108,7 +109,7 @@ main = do
                , _clientHighlights      = mempty
                , _clientMessages        = mempty
                , _clientNickColors      = defaultNickColors
-               , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop]
+               , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop,connectCmds]
                , _clientTimers          = mempty
                , _clientTimeZone        = zone
                , _clientConfig          = view cmdArgConfigValue args

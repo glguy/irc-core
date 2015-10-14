@@ -3,6 +3,7 @@
 module ServerSettings where
 
 import Control.Lens
+import Data.Text
 
 import Network.Socket     (HostName, PortNumber)
 
@@ -19,6 +20,7 @@ data ServerSettings = ServerSettings
   , _ssTlsInsecure   :: Bool
   , _ssTlsClientCert :: Maybe FilePath
   , _ssTlsClientKey  :: Maybe FilePath
+  , _ssConnectCmds   :: [Text]
   }
 
 makeLenses ''ServerSettings
