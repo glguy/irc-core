@@ -57,7 +57,6 @@ detailedImageForState !st
   = [ renderOne chan msg | (chan, msg, _img) <- activeMessages st]
   where
   zone = view clientTimeZone st
-  activeChan = focusedName st
   renderOne chan x =
       timestamp <|>
       channel <|>
@@ -280,10 +279,6 @@ compressedImageForState !st = renderOne (activeMessages st)
            cleanText txt
 
          _ -> Nothing
-
-  filterMeta x
-    | view clientMetaView st = [x]
-    | otherwise              = []
 
   renderMeta msgs = img
                  ++ renderOne rest

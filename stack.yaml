@@ -4,4 +4,4 @@ packages:
 extra-deps:
 - config-value-0.4.0.1
 - vty-5.4.0
-resolver: lts-3.8
+resolver: lts-3.11
