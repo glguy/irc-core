@@ -69,7 +69,6 @@ description:
 
 extra-source-files:     README.md
                         CHANGELOG.md
-                        stack.yaml
 
 -- Use time-1.5 and drop old-locale
 flag time15
