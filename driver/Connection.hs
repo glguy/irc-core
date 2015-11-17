@@ -50,8 +50,8 @@ buildConnectionParams config args =
                      then fmap Just (buildTlsSettings config args)
                      else return Nothing
 
-     let proxySettings = uncurry SockSettingsSimple
-                     <$> view ssSocksProxy args
+     let proxySettings = fmap (uncurry SockSettingsSimple)
+                              (view ssSocksProxy args)
 
      return ConnectionParams
        { connectionHostname  = view ssHostName args
