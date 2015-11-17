@@ -1,3 +1,9 @@
+1.1.3
+-------
+* Support for running commands upon connection
+* Support for SOCKS5 proxy
+* Merge view of all channels (F5)
+
 1.1.2
 -------
 * Support multiple nicknames in `/filter`

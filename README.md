@@ -95,6 +95,8 @@ servers:
   * hostname:      "chat.freenode.net"
     sasl-username: "someuser"
     sasl-password: "somepass"
+    socks-host:    "socks5.example.com"
+    socks-port:    8080 -- defaults to 1080
 
   * hostname:      "example.com"
     port:          7000

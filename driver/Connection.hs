@@ -49,11 +49,15 @@ buildConnectionParams config args =
   do useSecure <- if view ssTls args
                      then fmap Just (buildTlsSettings config args)
                      else return Nothing
+
+     let proxySettings = uncurry SockSettingsSimple
+                     <$> view ssSocksProxy args
+
      return ConnectionParams
        { connectionHostname  = view ssHostName args
        , connectionPort      = ircPort args
        , connectionUseSecure = useSecure
-       , connectionUseSocks  = Nothing
+       , connectionUseSocks  = proxySettings
        }
 
 ircPort :: ServerSettings -> PortNumber

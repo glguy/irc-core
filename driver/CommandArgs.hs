@@ -14,6 +14,7 @@ import Data.List (foldl')
 import Data.Text (Text)
 import Data.Text.Lens (unpacked)
 import Data.Version (showVersion)
+import Network.Socket (PortNumber)
 import System.Console.GetOpt
 import System.Directory
 import System.Environment
@@ -27,6 +28,9 @@ import qualified Data.Text.IO as Text
 
 import ServerSettings
 import Paths_irc_core
+
+defaultSocksPort :: PortNumber
+defaultSocksPort = 1080
 
 defaultConfigPath :: IO FilePath
 defaultConfigPath =
@@ -179,6 +183,11 @@ initialServerSettings !args =
 
        , _ssConnectCmds   = toListOf (cmdArgConfigValue . configPath hostTxt "connect-cmds"
                                      . values . text) args
+
+       , _ssSocksProxy    = do h <- defaultStr hostTxt "socks-host" args
+                               let p = maybe defaultSocksPort fromIntegral
+                                     $ defaultNum hostTxt "socks-port" args
+                               return (h,p)
        }
 
 
