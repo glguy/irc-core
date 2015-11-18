@@ -104,9 +104,10 @@ servers:
       * "JOIN #favoritechannel,#otherchannel"
       * "PRIVMSG mybot another command"
 
--- Specify additional certificates beyond the system CAs
-server-certificates:
-  * "/path/to/extra/certificate.pem"
+    -- Specify additional certificates beyond the system CAs
+    server-certificates:
+      * "/path/to/extra/certificate.pem"
+
 ```
 
 Commands

@@ -22,6 +22,7 @@ data ServerSettings = ServerSettings
   , _ssTlsClientKey  :: Maybe FilePath
   , _ssConnectCmds   :: [Text]
   , _ssSocksProxy    :: Maybe (HostName,PortNumber)
+  , _ssServerCerts   :: [FilePath]
   }
 
 makeLenses ''ServerSettings

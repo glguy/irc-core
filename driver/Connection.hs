@@ -21,7 +21,6 @@ import Data.ByteString    (ByteString)
 import Data.Default.Class (def)
 import Data.Maybe         (fromMaybe)
 import Data.Monoid        ((<>))
-import Data.Text.Lens     (unpacked)
 import Data.X509          (CertificateChain(..))
 import Data.X509.CertificateStore (CertificateStore, makeCertificateStore)
 import Data.X509.File     (readSignedObject, readKeyFile)
@@ -30,8 +29,6 @@ import Network.Socket     (PortNumber)
 import Network.TLS
 import Network.TLS.Extra  (ciphersuite_strong)
 import System.X509        (getSystemCertificateStore)
-import qualified Config
-import qualified Config.Lens as Config
 import qualified Data.ByteString.Char8 as B8
 
 import ServerSettings
@@ -44,10 +41,10 @@ getRawIrcLine h =
      return (if B8.null b then b else B8.init b)
         -- empty lines will still fail, just later and nicely
 
-buildConnectionParams :: Config.Value -> ServerSettings -> IO ConnectionParams
-buildConnectionParams config args =
+buildConnectionParams :: ServerSettings -> IO ConnectionParams
+buildConnectionParams args =
   do useSecure <- if view ssTls args
-                     then fmap Just (buildTlsSettings config args)
+                     then fmap Just (buildTlsSettings args)
                      else return Nothing
 
      let proxySettings = fmap (uncurry SockSettingsSimple)
@@ -67,24 +64,16 @@ ircPort args =
     Nothing | view ssTls args -> 6697
             | otherwise       -> 6667
 
-buildCertificateStore :: Config.Value -> IO CertificateStore
-buildCertificateStore config =
+buildCertificateStore :: ServerSettings -> IO CertificateStore
+buildCertificateStore args =
   do systemStore <- getSystemCertificateStore
-     userCerts   <- traverse readSignedObject (configExtraCertificates config)
+     userCerts   <- traverse readSignedObject (view ssServerCerts args)
      let userStore = makeCertificateStore (concat userCerts)
      return (userStore <> systemStore)
 
-configExtraCertificates :: Config.Value -> [FilePath]
-configExtraCertificates =
-  toListOf $ Config.key "server-certificates"
-           . Config.list
-           . folded
-           . Config.text
-           . unpacked
-
-buildTlsSettings :: Config.Value -> ServerSettings -> IO TLSSettings
-buildTlsSettings config args =
-  do store <- buildCertificateStore config
+buildTlsSettings :: ServerSettings -> IO TLSSettings
+buildTlsSettings args =
+  do store <- buildCertificateStore args
 
      let portString = B8.pack (show (view ssPort args))
          paramsClient = defaultParamsClient (view ssHostName args) portString
@@ -120,8 +109,8 @@ loadClientCredentials args =
            []    -> fail "No private keys found"
            _     -> fail "Too many private keys found"
 
-connect :: Config.Value -> ServerSettings -> IO Connection
-connect config args = do
+connect :: ServerSettings -> IO Connection
+connect args = do
   connectionContext <- initConnectionContext
-  connectionParams  <- buildConnectionParams config args
+  connectionParams  <- buildConnectionParams args
   connectTo connectionContext connectionParams

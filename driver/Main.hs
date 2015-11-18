@@ -31,7 +31,6 @@ import Graphics.Vty
 import Network.Connection
 import System.IO
 import System.IO.Error (isEOFError)
-import qualified Config
 import qualified Config.Lens as C
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
@@ -86,8 +85,7 @@ main = do
   withVty $ \vty ->
     do _ <- forkIO (vtyEventLoop vtyEventChan vty)
        settings <- initialServerSettings args
-       server0  <- startIrcConnection (view cmdArgConfigValue args)
-                     recvChan settings hErr
+       server0  <- startIrcConnection recvChan settings hErr
        (width,height) <- displayBounds (outputIface vty)
        zone <- getCurrentTimeZone
 
@@ -112,7 +110,6 @@ main = do
                , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop,connectCmds]
                , _clientTimers          = mempty
                , _clientTimeZone        = zone
-               , _clientConfig          = view cmdArgConfigValue args
                }
        st1 <- schedulePing st0
 
@@ -124,13 +121,12 @@ withVty k =
      bracket (mkVty cfg) shutdown k
 
 startIrcConnection ::
-  Config.Value                   {- ^ user configuration     -} ->
   TChan (UTCTime, MsgFromServer) {- ^ incoming client events -} ->
   ServerSettings                 {- ^ network parameters     -} ->
   Maybe Handle                   {- ^ error log              -} ->
   IO ClientConnection
-startIrcConnection config recvChan settings hErr =
-  do connectRes <- try (connect config settings)
+startIrcConnection recvChan settings hErr =
+  do connectRes <- try (connect settings)
      case connectRes of
        Left e -> connectionFailed e
        Right h -> connectionSuceeded h
@@ -609,8 +605,7 @@ doReconnect st =
      let settings = view ccServerSettings server0
          recvChan = view clientRecvChan st
          hErr     = view clientErrors st
-         config   = view clientConfig st
-     server0' <- startIrcConnection config recvChan settings hErr
+     server0' <- startIrcConnection recvChan settings hErr
      return (set clientServer0 server0' st)
 
 doNick ::

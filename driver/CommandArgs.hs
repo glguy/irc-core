@@ -188,6 +188,14 @@ initialServerSettings !args =
                                let p = maybe defaultSocksPort fromIntegral
                                      $ defaultNum hostTxt "socks-port" args
                                return (h,p)
+
+       , _ssServerCerts   = toListOf
+                              ( cmdArgConfigValue
+                              . configPath hostTxt "server-certificates"
+                              . failing values id -- allow both list and singleton
+                              . text
+                              . unpacked
+                              ) args
        }
 
 
