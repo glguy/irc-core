@@ -283,7 +283,7 @@ advanceModel msg0 conn =
                    return (set connPingTime (Just delta) conn)
 
        Pong mbServer msg ->
-         doServerMessage "Pong" (maybe "" (" "<>) mbServer <> msg) conn
+         doServerMessage "Pong" (maybe "" (<>" ") mbServer <> msg) conn
 
        RplWelcome  txt -> doServerMessage "Welcome" txt
                         $ set connPhase ActivePhase conn
