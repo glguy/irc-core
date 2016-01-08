@@ -148,7 +148,7 @@ data MsgFromServer
 
   | Away UserInfo (Maybe ByteString)
   | Ping ByteString
-  | Pong ByteString (Maybe ByteString)
+  | Pong (Maybe ByteString) ByteString
   | Notice  UserInfo Identifier ByteString
   | Topic UserInfo Identifier ByteString
   | PrivMsg UserInfo Identifier ByteString
@@ -692,8 +692,8 @@ ircMsgToServerMsg ircmsg =
 
     ("PING",[txt]) -> Just (Ping txt)
 
-    ("PONG",[server    ]) -> Just (Pong server Nothing)
-    ("PONG",[server,txt]) -> Just (Pong server (Just txt))
+    ("PONG",[txt       ]) -> Just (Pong Nothing txt)
+    ("PONG",[server,txt]) -> Just (Pong (Just server) txt)
 
     ("PRIVMSG",[dst,txt]) ->
       do src <- msgPrefix ircmsg
