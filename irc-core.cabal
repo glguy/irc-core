@@ -89,7 +89,7 @@ library
   -- to use an absurd amount of RAM when compiling.
   -- The base >= 4.7.0.2 is to protect people from finding
   -- this out the hard way.
-  build-depends:       base             >= 4.7.0.2  && < 4.9,
+  build-depends:       base             >= 4.7.0.2  && < 4.10,
 
                        array            >= 0.5      && < 0.6,
                        attoparsec       >= 0.12.1.2 && < 0.14,
@@ -99,11 +99,11 @@ library
                        free             >= 4.11     && < 4.13,
                        lens             >= 4.7      && < 4.14,
                        text             >= 1.2.0.4  && < 1.3,
-                       transformers     >= 0.2      && < 0.5,
+                       transformers     >= 0.2      && < 0.6,
                        regex-tdfa       >= 1.2      && < 1.3
 
   if flag(time15)
-    build-depends:     time             >= 1.5      && < 1.6
+    build-depends:     time             >= 1.5      && < 1.7
   else
     build-depends:     time             >= 1.4.2    && < 1.5,
                        old-locale       >= 1.0.0.6  && < 1.1
@@ -141,7 +141,7 @@ executable glirc
                  x509-validation  >= 1.5.1    && < 1.7,
 
                  array            >= 0.5      && < 0.6,
-                 base             >= 4.7      && < 4.9,
+                 base             >= 4.7      && < 4.10,
                  bytestring       >= 0.10.4.0 && < 0.11,
                  containers       >= 0.5      && < 0.6,
                  config-value     >= 0.4      && < 0.5,
@@ -150,14 +150,13 @@ executable glirc
                  filepath         >= 1.3.0.2  && < 1.5,
                  lens             >= 4.7      && < 4.14,
                  network          >= 2.6.0.2  && < 2.7,
-                 old-locale       >= 1.0.0.6  && < 1.1,
                  split            >= 0.2.2    && < 0.3,
                  stm              >= 2.4.4    && < 2.5,
                  text             >= 1.2.0.4  && < 1.3,
-                 time             >= 1.4.2    && < 1.6,
+                 time             >= 1.4.2    && < 1.7,
                  vty              >= 5.2.7    && < 5.5,
                  haskell-lexer    >= 1.0      && < 1.1,
-                 transformers     >= 0.2      && < 0.5,
+                 transformers     >= 0.2      && < 0.6,
                  regex-tdfa       >= 1.2      && < 1.3
   default-language:    Haskell2010
 
