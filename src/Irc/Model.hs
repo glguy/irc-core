@@ -825,7 +825,8 @@ doCapLs rawCaps conn =
   supportedCaps = saslSupport
                ++ ["away-notify","account-notify","userhost-in-names",
                    "extended-join","multi-prefix",
-                   "znc.in/server-time-iso","server-time"]
+                   "znc.in/server-time-iso","server-time",
+                   "znc.in/self-message"]
   saslSupport =
     case view connSasl conn of
       Nothing -> []

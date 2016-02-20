@@ -393,7 +393,7 @@ ircMsgToServerMsg ircmsg =
     ("333",[_,chan,who,time]) ->
        Just (RplTopicWhoTime (mkId chan) who (asTimeStamp time))
 
-    ("341",[_,nick,chan,_]) ->
+    ("341",_:nick:chan:_) ->
        Just (RplInviting (mkId nick) (mkId chan))
 
     ("346",[_,chan,mask,who,time]) ->
