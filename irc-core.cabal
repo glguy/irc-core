@@ -1,5 +1,5 @@
 name:                irc-core
-version:             1.1.3
+version:             1.1.4
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
 license:             BSD3
@@ -11,7 +11,7 @@ category:            Network
 build-type:          Simple
 cabal-version:       >=1.10
 synopsis:            An IRC client library and text client
-tested-with:         GHC == 7.8.4, GHC == 7.10.2
+tested-with:         GHC == 7.8.4, GHC == 7.10.3
 description:
   This package provides an IRC connection library as well as a console-based IRC client
   that uses the library.

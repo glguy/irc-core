@@ -1,3 +1,9 @@
+1.1.4
+-------
+* Support host-specific server-certificate sections
+* Make message parsing more permissive for use with slack irc bridge
+* Fix parsing of INVITE reply message
+
 1.1.3
 -------
 * Support for running commands upon connection
