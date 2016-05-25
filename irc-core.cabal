@@ -134,7 +134,7 @@ executable glirc
 
                  connection       >= 0.2.4    && < 0.3,
                  tls              >= 1.2.16   && < 1.4,
-                 data-default-class >= 0.0.1  && < 0.1,
+                 data-default-class >= 0.0.1  && < 0.2,
                  x509             >= 1.5.0.1  && < 1.7,
                  x509-system      >= 1.5.0    && < 1.7,
                  x509-store       >= 1.5.0    && < 1.7,
