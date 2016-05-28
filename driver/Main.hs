@@ -117,7 +117,10 @@ main = do
                , _clientTimeZone        = zone
                }
        st1 <- schedulePing st0
-       forkIO . void $ dccDownloadManager dccChan
+       let Just outpath = preview ( cmdArgConfigValue . C.key "download-dir"
+                                    . C.text . Text.unpacked ) args
+                          `mplus` (Just "~/")
+       forkIO . void $ dccDownloadLoop outpath dccChan
 
        driver vty vtyEventChan recvChan st1
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 module CtcpHandler ( ctcpHandler
-                   , dccDownloadManager
+                   , dccDownloadLoop
                    ) where
 
 import Control.Lens
@@ -20,6 +20,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Config.Lens as C
 
 #if MIN_VERSION_time(1,5,0)
 import Data.Time (defaultTimeLocale)
@@ -28,6 +29,7 @@ import System.Locale (defaultTimeLocale)
 #endif
 
 import ClientState
+import CommandArgs
 import DCC
 import ServerSettings
 import Irc.Format
@@ -74,11 +76,9 @@ ctcpHandler = EventHandler
                      clientSend (ctcpResponseCmd sender "TIME" (B8.pack resp)) st
                    "DCC" ->
                       let space  = 0x20
-                          chan   = view clientDcc st
-                          (type' : bName : bAddr : bPort : bSize : _) = B.split space params
-                          offer  = DCCOffer bName bAddr bPort bSize
+                          type' : offer = take 5 $ B.split space params
                       in if type' == "SEND"
-                            then atomically $ writeTChan chan go
+                            then atomically $ writeTChan (view clientDcc st) offer
                             else return () -- todo slack: implementar
                    _ -> return ()
 
@@ -87,8 +87,11 @@ ctcpHandler = EventHandler
   }
 
 -- currently a placeholder for a function that also resume downloads
-dccDownloadManager :: TChan DCCOffer -> IO a
-dccDownloadManager tchan =
+dccDownloadLoop :: FilePath -> TChan [B.ByteString] -> IO a
+dccDownloadLoop dir tchan =
   forever $ do
-    t <- atomically $ readTChan tchan
-    forkIO (dcc_recv t)
+    [bName, bAddr, bPort, bSize] <- atomically $ readTChan tchan
+    let fullpath = dir ++ "/" ++ (B8.unpack bName)
+        size     = read (B8.unpack bSize)
+        refinedOffer = DCCOffer fullpath bAddr bPort size
+    forkIO (dcc_recv refinedOffer)

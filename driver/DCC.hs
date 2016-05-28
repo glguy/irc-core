@@ -1,31 +1,30 @@
-{-# language OverloadedStrings #-}
+{-# language OverloadedStrings, EmptyDataDecls, TemplateHaskell #-}
 module DCC where
 
 import           Prelude        hiding (getContents, log)
-import           Control.Applicative
 import           Control.Monad.Trans.Class
-import           Control.Monad.IO.Class
 import           Control.Monad.Trans.State as S
 import           Control.Monad.Trans.Except
 import           Control.Exception     (bracket)
 import           Control.Lens
+import           Data.Functor          (void)
 import           Data.Bits      hiding (complement)
 import           Data.Function         (fix)
-import           Data.Int              (Int64)
 import           Network.BSD
 import           Network.Socket hiding (send, sendTo, recv, recvFrom)
-import qualified Network.Socket            as SS
 import qualified System.IO                 as IO
 import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString           as B
 import qualified Data.ByteString.Char8     as B8
 
--- | ad-hoc structure for not confuse the args
+-- | ad-hoc structure for not confuse the args, only the name is
+-- processes as a Filepath because the C functions underlying expect
+-- Bytestrings and not value as input
 data DCCOffer = DCCOffer
-     { doName :: B.ByteString
-     , doAddr :: B.ByteString
-     , doPort :: B.ByteString
-     , doSize :: B.ByteString
+     { _doName :: FilePath
+     , _doAddr :: B.ByteString
+     , _doPort :: B.ByteString
+     , _doSize :: Int
      }
 
 data DCCError = ParseIPPort
@@ -47,9 +46,14 @@ complement h =
   let (a,b,c,d) = (h .&. 0xFF000000, h .&. 0xFF0000, h .&. 0xFF00, h .&. 0xFF)
    in (rotateR d 8) + (rotateL c 8) + (rotateR b 8) + (rotateL a 8)
 
+-- | given a number forms a bytestring with each digit on a separated Word8
+int2BS :: Int -> B.ByteString
+int2BS n = let go b = rotateR (fromIntegral n :: Word) (b * 8) .&. 0xFF
+            in B.pack . map (fromIntegral . go) $ [0,1,2,3]
+
 -- | Utility function for parsing Port, file size and HostAddress. For this
 -- last one we need Num because we rely on its instance for construction.
-parseBS :: (Num a) => B.ByteString -> Maybe a
+parseBS :: Num a => B.ByteString -> Maybe a
 parseBS = fmap (fromInteger . fst) . B8.readInteger
 
 parseDccIP :: DCCOffer -> ExceptT DCCError IO (DottedIP, IPPort)
@@ -59,20 +63,11 @@ parseDccIP (DCCOffer _ bAddr bPort _)
                   return (dottedIP, B8.unpack bPort)
   | otherwise = throwE ParseIPPort
 
--- todo slack
-newFileHandle :: String -> IO IO.Handle
-newFileHandle name = IO.openFile ("~/" ++ name) IO.WriteMode
-
 newSocket :: AddrInfo -> IO Socket
 newSocket addr = do
      sock <- socket AF_INET Stream defaultProtocol
      connect sock (addrAddress addr)
      return sock
-
--- | given a number forms a bytestring with each digit on a separated Word8
-int2BS :: Word -> B.ByteString
-int2BS n = let go b = rotateR n (b * 8) .&. 0xFF
-            in B.pack . map go $ [0,1,2,3]
 
 partnerInfo :: (DottedIP, IPPort) -> ExceptT DCCError IO AddrInfo
 partnerInfo (dottedIP, ipPort) =
@@ -83,25 +78,24 @@ partnerInfo (dottedIP, ipPort) =
 
 getPackets :: String   -- ^ Name media
            -> Int      -- ^ File size
-           -> AddrInfo
-           -> ExceptT DCCError IO ()
+           -> AddrInfo -> ExceptT DCCError IO ()
 getPackets name totalSize addr =
-  do receivedSize <- lift $ bracket (acquire) (uncurry release)
-                                    (uncurry receive)
+  do receivedSize <- lift $ bracket acquire release receive
      let delta = (totalSize - receivedSize)
      if delta > 0 then throwE (NotFullRecv delta) else return ()
   where
     bufferSize = 4096
 
-    acquire :: IO (IO.Handle, Socket)
-    acquire = (,) <$> newFileHandle name <*> newSocket addr
+    acquire :: IO (IO.Handle,Socket)
+    acquire = (,) <$> (IO.openFile name IO.WriteMode)
+                  <*> newSocket addr
 
-    release :: IO.Handle -> Socket -> IO ()
-    release hdl sock = IO.hClose hdl >> close sock)
+    release :: (IO.Handle,Socket) -> IO ()
+    release (hdl, sock) = IO.hClose hdl >> close sock
 
-    receive :: IO.Handle -> Socket -> IO Int
-    receive hdl sock =
-        flip execState 0 . fix $ \loop -> do
+    receive :: (IO.Handle,Socket) -> IO Int
+    receive (hdl, sock) =
+        flip execStateT 0 . fix $ \loop -> do
             mediaData <- lift (B.recv sock bufferSize)
             if (B.null mediaData)
               then return () -- we only care about the state
@@ -111,11 +105,8 @@ getPackets name totalSize addr =
                              >> B.send sock (int2BS currentSize)
                       loop
 
+-- todo slack. Do something on DCCError
 dcc_recv :: DCCOffer -> IO ()
-dcc_recv offer@(DCCOffer bName _ _ bSize) =
-  let size = read (B8.unpack bSize)
-      name = B8.unpack bName
-   in void . runExceptT $
-          parseDccIP offer
-          >>= partnerInfo
-          >>= liftIO . getPackets name size
+dcc_recv offer@(DCCOffer name _ _ size) =
+   void . runExceptT $
+       parseDccIP offer >>= partnerInfo >>= getPackets name size
