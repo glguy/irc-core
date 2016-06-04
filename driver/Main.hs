@@ -355,6 +355,18 @@ doSendMessageCurrent sendType st =
       doSendMessage sendType c (Text.pack (clientInput st)) st
     _ -> return st
 
+-- Pessimistic maximum length computation for the message part for
+-- privmsg and notice. Note that the need for the limit is because
+-- the server will limit the length of the message sent out to each
+-- client, not just the length of the messages it will recieve.
+computeMaxMessageLength :: Identifier -> String -> Identifier -> Int
+computeMaxMessageLength nick user target
+  = 512
+  - 63 -- max hostname
+  - length (":~!@ PRIVMSG :\r\n"::String)
+  - B8.length (idBytes nick)
+  - length user
+  - B8.length (idBytes target)
 
 doSendMessage :: SendType -> Identifier -> Text -> ClientState -> IO ClientState
 
@@ -363,21 +375,28 @@ doSendMessage sendType _ message st
 
 doSendMessage sendType target message st =
   do let bs = case sendType of
-                SendPriv -> privMsgCmd target (Text.encodeUtf8 message)
-                SendAction -> privMsgCmd target ("\SOHACTION " <>
-                                                 Text.encodeUtf8 message <> "\SOH")
-                SendNotice -> noticeCmd target (Text.encodeUtf8 message)
-                SendCtcp cmd -> ctcpRequestCmd target
+                SendPriv -> map (privMsgCmd target . Text.encodeUtf8) messages
+                                -- long actions aren't split up
+                SendAction -> [privMsgCmd target ("\SOHACTION " <>
+                                                 Text.encodeUtf8 message <> "\SOH")]
+                SendNotice -> map (noticeCmd target . Text.encodeUtf8) messages
+                SendCtcp cmd -> [ctcpRequestCmd target
                                  (Text.encodeUtf8 (Text.pack (map toUpper cmd)))
-                                 (Text.encodeUtf8 message)
-     clientSend bs st
+                                 (Text.encodeUtf8 message)]
+     mapM_ (`clientSend` st) bs
      now <- getCurrentTime
-     let myNick = view connNick conn
-         myModes = view (connChannels . ix target' . chanUsers . ix myNick) conn
+     let myModes = view (connChannels . ix target' . chanUsers . ix myNick) conn
      return (addMessage target' (fakeMsg now myModes) (clearInput st))
 
   where
-  conn = view (clientServer0 . ccConnection) st
+  myNick = view connNick conn
+
+  maxMessageLength =
+    computeMaxMessageLength myNick (view (ccServerSettings.ssUser) ircconn) target
+  messages = Text.chunksOf maxMessageLength message
+
+  ircconn = view clientServer0 st
+  conn = view ccConnection ircconn
 
   (statusmsg, target') = splitStatusMsg target conn
 
