@@ -1,18 +1,18 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-module CtcpHandler ( ctcpHandler
-                   , dccDownloadLoop
-                   ) where
+module CtcpHandler where
 
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
+import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TChan
 import Data.ByteString (ByteString)
 import Data.Monoid
+import Data.Maybe
 import Data.Functor (void)
 import Data.Time (formatTime, getZonedTime)
 import Data.Version (showVersion)
@@ -74,24 +74,46 @@ ctcpHandler = EventHandler
                      now <- getZonedTime
                      let resp = formatTime defaultTimeLocale "%a %d %b %Y %T %Z" now
                      clientSend (ctcpResponseCmd sender "TIME" (B8.pack resp)) st
-                   "DCC" ->
-                      let space  = 0x20
-                          type' : offer = take 5 $ B.split space params
-                      in if type' == "SEND"
-                            then atomically $ writeTChan (view clientDcc st) offer
-                            else return () -- todo slack: implementar
                    _ -> return ()
 
           -- reschedule handler
           return (over clientAutomation (cons ctcpHandler) st)
   }
 
--- currently a placeholder for a function that also resume downloads
-dccDownloadLoop :: FilePath -> TChan [B.ByteString] -> IO a
-dccDownloadLoop dir tchan =
-  forever $ do
-    [bName, bAddr, bPort, bSize] <- atomically $ readTChan tchan
-    let fullpath = dir ++ "/" ++ (B8.unpack bName)
-        size     = read (B8.unpack bSize)
-        refinedOffer = DCCOffer fullpath bAddr bPort size
-    forkIO (dcc_recv refinedOffer)
+dccHandler :: FilePath -> EventHandler
+dccHandler outDir = EventHandler
+  { _evName = "DCC handler"
+  , _evOnEvent = \ident msg st ->
+                   return $ over clientAutomation
+                                 (cons (dccHandler outDir))
+                                 (queueOffer outDir ident msg st)
+  }
+
+queueOffer :: FilePath -> Identifier -> IrcMessage -> ClientState -> ClientState
+queueOffer outDir _ msg st = fromJust $
+    (notIgnored >> isCtcpMsg >>= isDCCcommand >>= storeOffer)
+    <|> Just st
+  where
+    space = 0x20
+    sender = views mesgSender userNick msg
+
+    -- Could be an 'if then else' but the shortcircuit of Maybe is
+    -- clearer. () really could be any type.
+    notIgnored :: Maybe ()
+    notIgnored = if not (view (clientIgnores . contains sender) st)
+                    then Just () else Nothing
+
+    isCtcpMsg :: Maybe (ByteString, ByteString)
+    isCtcpMsg = preview (mesgType . _CtcpReqMsgType) msg
+
+    isDCCcommand :: (ByteString, ByteString) -> Maybe [ByteString]
+    isDCCcommand ("DCC", params)
+      | type' : offer <- take 5 (B.split space params)
+      , type' == "SEND" = Just offer
+    isDCCcommand _ = Nothing
+
+    -- Store the offer until the user accepts it on /dcc accept
+    storeOffer :: [ByteString] -> Maybe ClientState
+    storeOffer offer =
+      pure $ set (clientServer0 . ccHoldDccTrans . at sender)
+                  (Just (parseDccOffer outDir offer)) st

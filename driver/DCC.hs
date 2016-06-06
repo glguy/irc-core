@@ -1,4 +1,4 @@
-{-# language OverloadedStrings, EmptyDataDecls, TemplateHaskell #-}
+{-# language OverloadedStrings, TemplateHaskell #-}
 module DCC where
 
 import           Prelude        hiding (getContents, log)
@@ -27,7 +27,7 @@ data DCCOffer = DCCOffer
      , _doAddr :: B.ByteString
      , _doPort :: B.ByteString
      , _doSize :: Int
-     }
+     } deriving (Show)
 
 data DCCError = ParseIPPort
               | ParseDottedIP
@@ -38,8 +38,17 @@ data DCCError = ParseIPPort
 type DottedIP = String
 type IPPort   = String
 
+-- Smart constructor
+parseDccOffer :: FilePath -> [B.ByteString] -> DCCOffer
+parseDccOffer outDir (bName : bAddr : bPort : bSize : _) =
+    let fullpath = outDir ++ "/" ++ (B8.unpack bName)
+        size     = read (B8.unpack bSize)
+     in DCCOffer fullpath bAddr bPort size
+
 -- Binary utilities
 
+-- todo(slack): Should I consider non x86 platforms? importing Binary
+-- would offload that decision.
 -- | Given a Word32 ie 4 chained bytes (a,b,c,d) return the reverse of
 -- such chain (d,c,b,a). Useful for the network byte order IP on the CTCP
 -- DCC message
@@ -55,7 +64,9 @@ int2BS i | w <- (fromIntegral i :: Word32) =
     B.pack [ (fromIntegral (shiftR w 24) :: Word8)
            , (fromIntegral (shiftR w 16) :: Word8)
            , (fromIntegral (shiftR w  8) :: Word8)
-           , (fromIntegral (w)           :: Word8)]
+           , (fromIntegral w             :: Word8)]
+
+-- Connection processing
 
 -- | Utility function for parsing Port, file size and HostAddress. For this
 -- last one we need Num because we rely on its instance for construction.
@@ -110,7 +121,8 @@ getPackets name totalSize addr =
                        >> B.send sock (int2BS currentSize)
                 loop
 
--- todo slack. Do something on DCCError
+-- Entry point of connection processing
+-- todo(slack). Do something on DCCError
 dcc_recv :: DCCOffer -> IO ()
 dcc_recv offer@(DCCOffer name _ _ size) =
    void . runExceptT $

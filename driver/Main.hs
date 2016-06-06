@@ -5,7 +5,6 @@
 {-# LANGUAGE ViewPatterns #-}
 module Main where
 
-import Data.Functor (void)
 import Control.Applicative hiding ((<|>))
 import Control.Concurrent (killThread, forkIO)
 import Control.Concurrent.STM
@@ -22,7 +21,7 @@ import Data.Foldable (for_, traverse_)
 import Data.List (elemIndex)
 import Data.List.Split (chunksOf)
 import Data.IORef
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
@@ -33,6 +32,7 @@ import Graphics.Vty
 import Network.Connection
 import System.IO
 import System.IO.Error (isEOFError)
+import Data.Bool as Bool
 import qualified Config.Lens as C
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
@@ -77,6 +77,10 @@ main = do
                           . C.key "debug-file"
                           . C.text . Text.unpacked) args
 
+      outDir = fromJust (preview ( cmdArgConfigValue . C.key "download-dir"
+                                 . C.text . Text.unpacked ) args
+                         `mplus` (Just "~"))
+
   hErr <- for debugFile $ \fn ->
             do hErr <- openFile fn WriteMode
                hSetBuffering hErr NoBuffering
@@ -84,7 +88,6 @@ main = do
 
   vtyEventChan <- atomically newTChan
   recvChan     <- atomically newTChan
-  dccChan      <- atomically newTChan
 
   withVty $ \vty ->
     do _ <- forkIO (vtyEventLoop vtyEventChan vty)
@@ -110,17 +113,13 @@ main = do
                , _clientIgnores         = mempty
                , _clientHighlights      = mempty
                , _clientMessages        = mempty
-               , _clientDcc             = dccChan
                , _clientNickColors      = defaultNickColors
-               , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop,connectCmds]
+               , _clientAutomation      = [dccHandler outDir, ctcpHandler
+                                          ,cancelDeopTimerOnDeop,connectCmds]
                , _clientTimers          = mempty
                , _clientTimeZone        = zone
                }
        st1 <- schedulePing st0
-       let Just outpath = preview ( cmdArgConfigValue . C.key "download-dir"
-                                    . C.text . Text.unpacked ) args
-                          `mplus` (Just "~/")
-       forkIO . void $ dccDownloadLoop outpath dccChan
 
        driver vty vtyEventChan recvChan st1
 
@@ -163,6 +162,7 @@ startIrcConnection recvChan settings hErr =
          , _ccSendChan       = Just (connectedRef, sendChan)
          , _ccRecvThread     = Just recvThreadId
          , _ccSendThread     = Just sendThreadId
+         , _ccHoldDccTrans   = Map.empty
          }
 
   connectionFailed (SomeException e) =
@@ -178,6 +178,7 @@ startIrcConnection recvChan settings hErr =
          , _ccSendChan       = Nothing
          , _ccRecvThread     = Nothing
          , _ccSendThread     = Nothing
+         , _ccHoldDccTrans   = Map.empty
          }
 
 initializeConnection ::
@@ -432,7 +433,7 @@ doSendMessage sendType target message st =
 
 commandEvent :: ClientState -> (Image, Maybe (IO KeyEventResult))
 commandEvent st = commandsParser (clientInput st)
-                        (exitCommand : normalCommands)
+                        (exitCommand : dccCommand : normalCommands)
  where
  st' = clearInput st
  toB = Text.encodeUtf8 . Text.pack
@@ -440,6 +441,19 @@ commandEvent st = commandsParser (clientInput st)
 
  exitCommand =
   ("exit", [], pure (return Exit))
+
+ -- todo(slack): I don't know what [String] does
+ dccCommand :: (String, [String], Parser (IO KeyEventResult))
+ dccCommand =
+   let retrieveOffer :: Maybe (IO KeyEventResult)
+       retrieveOffer = do
+         sender <- preview (clientFocus . _ChannelFocus) st'
+         offer  <- view (clientServer0 . ccHoldDccTrans . at sender) st'
+         let st'' = over (clientServer0 . ccHoldDccTrans) (Map.delete sender) st'
+         Just $ forkIO (dcc_recv offer) >> return (KeepGoing st'')
+
+   in ("dcc", [], pValidToken "accept" (Bool.bool Nothing retrieveOffer
+                              . ("accept" ==)) )
 
  normalCommands = over (mapped . _3 . mapped . mapped) KeepGoing $
     -- focus setting

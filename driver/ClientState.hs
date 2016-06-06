@@ -51,6 +51,7 @@ data ClientConnection = ClientConnection
   , _ccSendChan       :: Maybe (IORef Bool, TChan ByteString)
   , _ccRecvThread     :: Maybe ThreadId
   , _ccSendThread     :: Maybe ThreadId
+  , _ccHoldDccTrans   :: Map Identifier DCCOffer
   }
 
 data ClientState = ClientState
@@ -72,7 +73,6 @@ data ClientState = ClientState
   , _clientIgnores :: !(Set Identifier) -- Todo: support mask matching
   , _clientHighlights :: !(Set ByteString)
   , _clientMessages :: !(Map Identifier MessageList)
-  , _clientDcc        :: TChan [ByteString]
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
   , _clientTimers     :: Map UTCTime [TimerEvent]
