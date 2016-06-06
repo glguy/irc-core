@@ -185,7 +185,8 @@ initializeConnection pass nick user real h =
 
 driver :: Vty -> TChan Event -> TChan (UTCTime, MsgFromServer) -> ClientState -> IO ()
 driver vty vtyEventChan ircMsgChan st0 =
-  do let (scroll', pic) = picForState st0
+  do now <- getCurrentTime
+     let (scroll', pic) = picForState now st0
          st1 = set clientScrollPos scroll' st0
      update vty pic
      e <- readEitherTChan vtyEventChan ircMsgChan
@@ -207,9 +208,9 @@ driver vty vtyEventChan ircMsgChan st0 =
   processTimerEvent e st =
     case e of
       TransmitPing ->
-        do sendTimestampPing st
-           st' <- schedulePing st
-           considerTimers st'
+        do st1 <- sendTimestampPing st
+           st2 <- schedulePing st1
+           considerTimers st2
 
       DropOperator chan ->
         do clientSend (modeCmd chan ["-o",views connNick idBytes conn]) st
@@ -606,14 +607,14 @@ commandEvent st = commandsParser (clientInput st)
   , ("reconnect", [], pure (doReconnect st'))
 
   , ("ping", [],
-    (\msg -> st' <$ doPingCmd msg st')
+    (\msg -> doPingCmd msg st')
     <$> pRemainingNoSp)
 
   ]
 
-doPingCmd :: String -> ClientState -> IO ()
+doPingCmd :: String -> ClientState -> IO ClientState
 doPingCmd ""  st = sendTimestampPing st
-doPingCmd msg st = clientSend (pingCmd (Text.encodeUtf8 (Text.pack msg))) st
+doPingCmd msg st = st <$ clientSend (pingCmd (Text.encodeUtf8 (Text.pack msg))) st
 
 doReconnect :: ClientState -> IO ClientState
 doReconnect st =
@@ -756,8 +757,8 @@ doQuote cmd st = st <$ clientSend (Text.encodeUtf8 (Text.pack (cmd ++ "\r\n"))) 
 -- Primary UI rendering
 ------------------------------------------------------------------------
 
-picForState :: ClientState -> (Int,Picture)
-picForState st = (scroll', pic)
+picForState :: UTCTime -> ClientState -> (Int,Picture)
+picForState now st = (scroll', pic)
   where
   conn = view (clientServer0 . ccConnection) st
 
@@ -779,7 +780,7 @@ picForState st = (scroll', pic)
     , mainFocusImage
     ]
 
-  divider = dividerImage st
+  divider = dividerImage now st
 
   -- Pad the main image when it doesn't fill the screen
   -- so that it starts at the bottom of the frame
@@ -860,25 +861,28 @@ textbox st
   beginning = char (withForeColor defAttr brightBlack) '^'
   ending    = char (withForeColor defAttr brightBlack) '$'
 
-dividerImage :: ClientState -> Image
-dividerImage st
+dividerImage :: UTCTime -> ClientState -> Image
+dividerImage now st
   = extendToWidth (nickPart <|> channelPart <|> lagPart)
   where
   conn = view (clientServer0 . ccConnection) st
 
   myNick = view connNick conn
 
-  lagPart =
-    case view connPingTime conn of
-      Just s ->
+  drawLagTime color s =
        let s' = realToFrac s :: Centi -- truncate to two decimal places
            sStr = showFixed True s' <> "s"
        in
                 string defAttr "-["
-            <|> string (withForeColor defAttr yellow) sStr
+            <|> string (withForeColor defAttr color) sStr
             <|> string defAttr "]"
 
-      _ -> emptyImage
+  lagPart =
+    case view connPingTime conn of
+      NoPing        -> emptyImage
+      PingSent when -> drawLagTime red (realToFrac (diffUTCTime now when))
+      PingTime s    -> drawLagTime yellow s
+
 
   channelPart =
     ifoldr (\i x xs -> drawOne i x <|> xs)
@@ -1069,10 +1073,11 @@ schedulePing st =
      let pingTime = addUTCTime 60 now
      return (addTimerEvent pingTime TransmitPing st)
 
-sendTimestampPing :: ClientState -> IO ()
+sendTimestampPing :: ClientState -> IO ClientState
 sendTimestampPing st =
   do now <- getCurrentTime
      let ts = realToFrac (utcTimeToPOSIXSeconds now) :: Pico
          chopTrailingZeros = True
          tsStr = B8.pack (showFixed chopTrailingZeros ts)
      clientSend (pingCmd tsStr) st
+     return $! set (clientServer0.ccConnection.connPingTime) (PingSent now) st

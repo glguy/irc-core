@@ -34,6 +34,9 @@ module Irc.Model
   , connPingTime
   , defaultIrcConnection
 
+  -- * Ping information
+  , PingStatus(..)
+
   -- * Phases
   , Phase(..)
 
@@ -141,8 +144,11 @@ data IrcConnection = IrcConnection
   , _connUmode    :: !ByteString
   , _connSnoMask  :: !ByteString
   , _connPhase    :: !Phase
-  , _connPingTime :: Maybe Pico -- No read instance for NominalDiffTime
+  , _connPingTime :: !PingStatus
   }
+  deriving (Read, Show)
+
+data PingStatus = PingTime Pico | PingSent UTCTime | NoPing
   deriving (Read, Show)
 
 -- | 'IrcConnection' value with everything unspecified
@@ -167,7 +173,7 @@ defaultIrcConnection = IrcConnection
   , _connUmode     = ""
   , _connSnoMask   = ""
   , _connPhase     = RegistrationPhase
-  , _connPingTime  = Nothing
+  , _connPingTime  = NoPing
   }
 
 data Phase
@@ -280,7 +286,7 @@ advanceModel msg0 conn =
                 do now <- getStamp
                    let past = posixSecondsToUTCTime (realToFrac (sec :: Pico))
                        delta = realToFrac (now `diffUTCTime` past)
-                   return (set connPingTime (Just delta) conn)
+                   return (set connPingTime (PingTime delta) conn)
 
        Pong mbServer msg ->
          doServerMessage "Pong" (maybe "" (<>" ") mbServer <> msg) conn
