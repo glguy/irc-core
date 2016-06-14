@@ -19,7 +19,8 @@ import Irc.Format
 data Formatting = Formatting
   { _fmtFore :: Maybe Color
   , _fmtBack :: Maybe Color
-  , _fmtBold, _fmtItalic, _fmtUnderline, _fmtReverse :: !Bool
+  , _fmtBold, _fmtItalic, _fmtUnderline, _fmtReverse
+  , _fmtExplicit :: !Bool
   }
 
 makeLenses ''Formatting
@@ -57,25 +58,42 @@ ircFormattedText' fmt t = text' (formattingAttr fmt) a <|> rest
   where
   (a,b) = Text.break isControl t
 
+  normalFormatting = defaultFormatting { _fmtExplicit = view fmtExplicit fmt }
+
+  explicit img
+    | view fmtExplicit fmt = img
+    | otherwise = emptyImage
+
   rest = case Text.uncons b of
     Nothing -> emptyImage
-    Just ('\x02',xs) -> ircFormattedText' (over fmtBold      not fmt) xs
-    Just ('\x0F',xs) -> ircFormattedText' defaultFormatting           xs
-    Just ('\x16',xs) -> ircFormattedText' (over fmtReverse   not fmt) xs
-    Just ('\x1D',xs) -> ircFormattedText' (over fmtItalic    not fmt) xs
-    Just ('\x1F',xs) -> ircFormattedText' (over fmtUnderline not fmt) xs
-    Just ('\x03',xs)
-      | Just (fore,xs1) <- colorNumber xs ->
-         case Text.uncons xs1 of
-           Just (',',xs2)
-              | Just (back,xs3) <- colorNumber xs2 -> ircFormattedText'
-                                                        (set fmtFore (Just fore)
-                                                        (set fmtBack (Just back) fmt)) xs3
-           _ -> ircFormattedText' (set fmtFore (Just fore)
-                                  (set fmtBack Nothing fmt)) xs1
-      | otherwise -> ircFormattedText' (set fmtFore Nothing (set fmtBack Nothing fmt)) xs
+    Just (b', xs) ->
+      explicit (explicitControlImage b') <|>
+      case b' of
+        '\^B' -> ircFormattedText' (over fmtBold      not fmt) xs
+        '\^O' -> ircFormattedText' normalFormatting            xs
+        '\^V' -> ircFormattedText' (over fmtReverse   not fmt) xs
+        '\^]' -> ircFormattedText' (over fmtItalic    not fmt) xs
+        '\^_' -> ircFormattedText' (over fmtUnderline not fmt) xs
+        '\^C'
+          | Just (fore,xs1) <- colorNumber xs ->
+             case Text.uncons xs1 of
+               Just (',',xs2)
+                  | Just (back,xs3) <- colorNumber xs2 ->
+                      explicit (colorNumbers xs3) <|>
+                      ircFormattedText'
+                        (set fmtFore (Just fore)
+                        (set fmtBack (Just back) fmt)) xs3
 
-    Just (_,xs) -> ircFormattedText' fmt xs
+               _ -> explicit (colorNumbers xs1) <|>
+                    ircFormattedText'
+                      (set fmtFore (Just fore)
+                      (set fmtBack Nothing fmt)) xs1
+
+          | otherwise -> ircFormattedText' (set fmtFore Nothing (set fmtBack Nothing fmt)) xs
+          where
+            colorNumbers t = text' defAttr (Text.take (Text.length xs - Text.length t) xs)
+
+        _ -> ircFormattedText' fmt xs
 
 colorNumber :: Text -> Maybe (Color, Text)
 colorNumber t =
@@ -121,7 +139,11 @@ defaultFormatting = Formatting
   , _fmtItalic    = False
   , _fmtUnderline = False
   , _fmtReverse   = False
+  , _fmtExplicit  = False
   }
+
+explicitFormatting :: Formatting
+explicitFormatting = defaultFormatting { _fmtExplicit = True }
 
 formattingAttr :: Formatting -> Attr
 formattingAttr fmt
@@ -158,12 +180,16 @@ stringWithControls attr xs =
   case break isControl xs of
     (a,[]) -> string attr a
     (a,b:bs) -> string attr a
-            <|> char (withStyle attr reverseVideo)
-                     (controls ! fromEnum b)
+            <|> explicitControlImage b
             <|> stringWithControls attr bs
 
-  where
-  controls = listArray (0,0x1f) ('@':['A'..'Z']++"[\\]^_")
+explicitControlImage :: Char -> Image
+explicitControlImage x =
+  char (withStyle defAttr reverseVideo)
+       (controlNames ! fromEnum x)
+
+controlNames :: Array Int Char
+controlNames = listArray (0,0x1f) ('@':['A'..'Z']++"[\\]^_")
 
 nameHighlighter ::
   ByteString -> Set Identifier -> Identifier -> [Color] -> Image

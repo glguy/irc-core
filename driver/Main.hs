@@ -286,7 +286,9 @@ inputLogic st =
     '/':_ -> case commandEvent st of
                (img, Nothing) -> (img, return (KeepGoing st))
                (img, Just m ) -> (img, m)
-    txt -> (stringWithControls defAttr txt, fmap KeepGoing (doSendMessageCurrent SendPriv st))
+    txt -> ( ircFormattedText' explicitFormatting (Text.pack txt)
+           , fmap KeepGoing (doSendMessageCurrent SendPriv st)
+           )
 
 keyEvent :: Key -> [Modifier] -> ClientState -> IO KeyEventResult
 keyEvent k ms st =

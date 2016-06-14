@@ -1,3 +1,9 @@
+1.1.5
+-------
+* Show effects of control-modifiers inline when composing chat messages
+* Show time since last transmitted ping
+* Automatically split long chat messages
+
 1.1.4
 -------
 * Support host-specific server-certificate sections
