@@ -5,9 +5,11 @@
 {-# LANGUAGE ViewPatterns #-}
 module Main where
 
+import Data.Functor (void)
 import Control.Applicative hiding ((<|>))
 import Control.Concurrent (killThread, forkIO)
 import Control.Concurrent.STM
+import Control.Concurrent.MVar
 import Control.Exception
 import Control.Lens
 import Control.Monad
@@ -53,6 +55,7 @@ import Connection (connect, getRawIrcLine)
 import CommandArgs
 import CommandParser
 import CtcpHandler
+import DCC
 import ImageUtils
 import Moderation
 import ServerSettings
@@ -81,6 +84,7 @@ main = do
 
   vtyEventChan <- atomically newTChan
   recvChan     <- atomically newTChan
+  dccChan      <- atomically newTChan
 
   withVty $ \vty ->
     do _ <- forkIO (vtyEventLoop vtyEventChan vty)
@@ -106,12 +110,14 @@ main = do
                , _clientIgnores         = mempty
                , _clientHighlights      = mempty
                , _clientMessages        = mempty
+               , _clientDcc             = dccChan
                , _clientNickColors      = defaultNickColors
                , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop,connectCmds]
                , _clientTimers          = mempty
                , _clientTimeZone        = zone
                }
        st1 <- schedulePing st0
+       forkIO . void $ dccDownloadManager dccChan
 
        driver vty vtyEventChan recvChan st1
 

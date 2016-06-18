@@ -38,6 +38,7 @@ import Irc.Format
 import Irc.Message
 import Irc.Model
 
+import DCC (DCCOffer)
 import Connection
 import EditBox (EditBox)
 import qualified EditBox as Edit
@@ -71,6 +72,7 @@ data ClientState = ClientState
   , _clientIgnores :: !(Set Identifier) -- Todo: support mask matching
   , _clientHighlights :: !(Set ByteString)
   , _clientMessages :: !(Map Identifier MessageList)
+  , _clientDcc        :: TChan DCCOffer
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
   , _clientTimers     :: Map UTCTime [TimerEvent]

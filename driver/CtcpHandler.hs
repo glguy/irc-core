@@ -1,13 +1,22 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-module CtcpHandler (ctcpHandler) where
+module CtcpHandler ( ctcpHandler
+                   , dccDownloadManager
+                   ) where
 
 import Control.Lens
 import Control.Monad
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.State.Strict
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TChan
 import Data.ByteString (ByteString)
 import Data.Monoid
+import Data.Functor (void)
 import Data.Time (formatTime, getZonedTime)
 import Data.Version (showVersion)
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -19,6 +28,7 @@ import System.Locale (defaultTimeLocale)
 #endif
 
 import ClientState
+import DCC
 import ServerSettings
 import Irc.Format
 import Irc.Message
@@ -62,8 +72,23 @@ ctcpHandler = EventHandler
                      now <- getZonedTime
                      let resp = formatTime defaultTimeLocale "%a %d %b %Y %T %Z" now
                      clientSend (ctcpResponseCmd sender "TIME" (B8.pack resp)) st
+                   "DCC" ->
+                      let space  = 0x20
+                          chan   = view clientDcc st
+                          (type' : bName : bAddr : bPort : bSize : _) = B.split space params
+                          offer  = DCCOffer bName bAddr bPort bSize
+                      in if type' == "SEND"
+                            then atomically $ writeTChan chan go
+                            else return () -- todo slack: implementar
                    _ -> return ()
 
           -- reschedule handler
           return (over clientAutomation (cons ctcpHandler) st)
   }
+
+-- currently a placeholder for a function that also resume downloads
+dccDownloadManager :: TChan DCCOffer -> IO a
+dccDownloadManager tchan =
+  forever $ do
+    t <- atomically $ readTChan tchan
+    forkIO (dcc_recv t)

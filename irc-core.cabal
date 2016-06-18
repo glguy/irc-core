@@ -120,6 +120,7 @@ executable glirc
                  ConnectCmds
                  CtcpHandler
                  EditBox
+                 DCC
                  HaskellHighlighter
                  ImageUtils
                  Moderation
