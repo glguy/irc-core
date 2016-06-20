@@ -84,15 +84,22 @@ dccHandler :: FilePath -> EventHandler
 dccHandler outDir = EventHandler
   { _evName = "DCC handler"
   , _evOnEvent = \ident msg st ->
-                   return $ over clientAutomation
-                                 (cons (dccHandler outDir))
-                                 (queueOffer outDir ident msg st)
+         return $ over clientAutomation (cons (dccHandler outDir))
+                       (queueOffer outDir ident msg st)
   }
+
+-- | We assume ctcpHandler already ran and created the corresponding window.
+userConfirm :: IrcMessage -> ClientState -> ClientState
+userConfirm msg st =
+  let sender = views mesgSender userNick msg
+      questionText = PrivMsgType $ "You have a pending DCC transfer. /dcc"
+                       <> " accept it or /dcc cancel"
+  in addMessage sender (set mesgType questionText defaultIrcMessage) st
 
 queueOffer :: FilePath -> Identifier -> IrcMessage -> ClientState -> ClientState
 queueOffer outDir _ msg st = fromJust $
-    (notIgnored >> isCtcpMsg >>= isDCCcommand >>= storeOffer)
-    <|> Just st
+    (notIgnored >> isCtcpMsg >>= isDCCcommand
+     >>= pure . userConfirm msg . storeOffer) <|> Just st
   where
     space = 0x20
     sender = views mesgSender userNick msg
@@ -113,7 +120,7 @@ queueOffer outDir _ msg st = fromJust $
     isDCCcommand _ = Nothing
 
     -- Store the offer until the user accepts it on /dcc accept
-    storeOffer :: [ByteString] -> Maybe ClientState
+    storeOffer :: [ByteString] -> ClientState
     storeOffer offer =
-      pure $ set (clientServer0 . ccHoldDccTrans . at sender)
-                  (Just (parseDccOffer outDir offer)) st
+      set (clientServer0 . ccHoldDccTrans . at sender)
+          (Just (parseDccOffer outDir offer)) st
