@@ -208,7 +208,8 @@ driver vty vtyEventChan ircMsgChan st0 =
   processTimerEvent e st =
     case e of
       TransmitPing ->
-        do st1 <- sendTimestampPing st
+        do let server = view (clientServer0 . ccServerSettings . ssHostName) st
+           st1 <- doPingCmd  server st
            st2 <- schedulePing st1
            considerTimers st2
 
@@ -610,13 +611,14 @@ commandEvent st = commandsParser (clientInput st)
 
   , ("ping", [],
     (\msg -> doPingCmd msg st')
-    <$> pRemainingNoSp)
+    <$> pToken "server")
 
   ]
 
 doPingCmd :: String -> ClientState -> IO ClientState
-doPingCmd ""  st = sendTimestampPing st
-doPingCmd msg st = st <$ clientSend (pingCmd (Text.encodeUtf8 (Text.pack msg))) st
+doPingCmd msg st =
+  do clientSend (pingCmd (Text.encodeUtf8 (Text.pack msg))) st
+     updatePingTime st
 
 doReconnect :: ClientState -> IO ClientState
 doReconnect st =
@@ -1075,11 +1077,7 @@ schedulePing st =
      let pingTime = addUTCTime 60 now
      return (addTimerEvent pingTime TransmitPing st)
 
-sendTimestampPing :: ClientState -> IO ClientState
-sendTimestampPing st =
+updatePingTime :: ClientState -> IO ClientState
+updatePingTime st =
   do now <- getCurrentTime
-     let ts = realToFrac (utcTimeToPOSIXSeconds now) :: Pico
-         chopTrailingZeros = True
-         tsStr = B8.pack (showFixed chopTrailingZeros ts)
-     clientSend (pingCmd tsStr) st
      return $! set (clientServer0.ccConnection.connPingTime) (PingSent now) st

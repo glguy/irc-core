@@ -280,16 +280,13 @@ advanceModel msg0 conn =
   case msg0 of
        Ping x -> sendMessage (pongCmd x) >> return conn
 
-       -- Treat numbers as POSIX times when PING was sent
-       Pong _ txt
-          | Just sec <- readMaybe (B8.unpack txt) ->
-                do now <- getStamp
-                   let past = posixSecondsToUTCTime (realToFrac (sec :: Pico))
-                       delta = realToFrac (now `diffUTCTime` past)
-                   return (set connPingTime (PingTime delta) conn)
-
-       Pong mbServer msg ->
-         doServerMessage "Pong" (maybe "" (<>" ") mbServer <> msg) conn
+       Pong _ txt ->
+         case view connPingTime conn of
+           PingSent sentTime ->
+             do now <- getStamp
+                let delta = realToFrac (now `diffUTCTime` sentTime)
+                return (set connPingTime (PingTime delta) conn)
+           _ -> return conn
 
        RplWelcome  txt -> doServerMessage "Welcome" txt
                         $ set connPhase ActivePhase conn
