@@ -495,7 +495,7 @@ ircMsgToServerMsg ircmsg =
     ("421",[_,cmd,_]) ->
          Just (Err "" (ErrUnknownCommand cmd))
 
-    ("422",[_,_]) ->
+    ("422",_) ->
          Just (Err "" ErrNoMotd)
 
     ("423",[_,server,_]) ->
