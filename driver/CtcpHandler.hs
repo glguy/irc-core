@@ -12,6 +12,8 @@ import Control.Concurrent.STM
 import Control.Concurrent.STM.TChan
 import Data.ByteString (ByteString)
 import Data.Monoid
+import Data.Map as Map
+import Data.Set as Set
 import Data.Maybe
 import Data.Functor (void)
 import Data.Time (formatTime, getZonedTime)
@@ -80,6 +82,44 @@ ctcpHandler = EventHandler
           return (over clientAutomation (cons ctcpHandler) st)
   }
 
+{-
+scheme of work: We receive a ctcp message of DCC SEND, with dccHandler we
+set up such offer on the data structure
+
+    (Map Identifier (DCCOffer, Maybe Progress))
+
+were it waits until the user goes to the identifier windows
+and issues a /dcc accept to start processing. On this command a new
+thread is launched that downloads the file. To this thread is passed a MVar
+(type Progress) which logs how much data have we gotten. Because reading
+the MVar is a IO action, we set up a read on `ClientState` on
+clientDCCTransfer such that `dccImage` will create a picture based on it.
+The thing is where to set up such values, current alternative seems to do
+another handler.
+-}
+progressHandler :: EventHandler
+progressHandler = EventHandler
+  { _evName = "dcc progress handler"
+  , _evOnEvent = \_ _ st ->
+      over (mapped . clientAutomation) (cons progressHandler)
+      . traverseOf (clientDCCTransfers . traverse) (update . prune) $ st
+  }
+  where
+    update :: Transfer -> IO Transfer
+    update trans
+      | (Ongoing _ _ _ _ mvar) <- trans = do
+            possibleProgress <- tryReadMVar mvar
+            case possibleProgress of
+              Just newValue -> return $ trans { _tcurSize = newValue }
+              Nothing       -> return $ trans
+      | otherwise = return trans
+
+    prune :: Transfer -> Transfer
+    prune trans
+      | (Ongoing name size curSize _ _) <- trans,
+        size == curSize = Finished name size
+      | otherwise       = trans
+
 dccHandler :: FilePath -> EventHandler
 dccHandler outDir = EventHandler
   { _evName = "DCC handler"
@@ -124,3 +164,16 @@ queueOffer outDir _ msg st = fromJust $
     storeOffer offer =
       set (clientServer0 . ccHoldDccTrans . at sender)
           (Just (parseDccOffer outDir offer)) st
+
+retrieveAndStartOffer :: ClientState -> Maybe (IO ClientState)
+retrieveAndStartOffer st = do
+  sender <- preview (clientFocus . _ChannelFocus) st
+  offer  <- view (clientServer0 . ccHoldDccTrans . at sender) st
+  Just $ do
+    mvar     <- newMVar 0
+    threadId <- forkIO (dcc_recv mvar offer)
+    let transfer      = toTransfer offer threadId mvar
+        removeOffer   = over (clientServer0 . ccHoldDccTrans)
+                             (Map.delete sender)
+        storeTransfer = over clientDCCTransfers (cons transfer)
+    return . storeTransfer . removeOffer $ st

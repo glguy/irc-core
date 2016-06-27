@@ -62,6 +62,7 @@ import ServerSettings
 import Views.BanList
 import Views.Channel
 import Views.ChannelInfo
+import Views.DCC
 import qualified EditBox as Edit
 
 data SendType = SendCtcp String | SendPriv | SendNotice | SendAction
@@ -116,6 +117,7 @@ main = do
                , _clientNickColors      = defaultNickColors
                , _clientAutomation      = [dccHandler outDir, ctcpHandler
                                           ,cancelDeopTimerOnDeop,connectCmds]
+               , _clientDCCTransfers    = mempty
                , _clientTimers          = mempty
                , _clientTimeZone        = zone
                }
@@ -445,15 +447,8 @@ commandEvent st = commandsParser (clientInput st)
  -- todo(slack): I don't know what [String] does
  dccCommand :: (String, [String], Parser (IO KeyEventResult))
  dccCommand =
-   let retrieveOffer :: Maybe (IO KeyEventResult)
-       retrieveOffer = do
-         sender <- preview (clientFocus . _ChannelFocus) st'
-         offer  <- view (clientServer0 . ccHoldDccTrans . at sender) st'
-         let st'' = over (clientServer0 . ccHoldDccTrans) (Map.delete sender) st'
-         Just $ forkIO (dcc_recv offer) >> return (KeepGoing st'')
-
-   in ("dcc", [], pValidToken "accept" (Bool.bool Nothing retrieveOffer
-                              . ("accept" ==)) )
+   let aux = fmap (fmap KeepGoing) $ retrieveAndStartOffer st'
+   in ("dcc", [], pValidToken "accept" (Bool.bool Nothing aux . ("accept" ==)) )
 
  normalCommands = over (mapped . _3 . mapped . mapped) KeepGoing $
     -- focus setting
@@ -832,6 +827,7 @@ picForState now st = (scroll', pic)
     case view clientFocus st of
       MaskListFocus mode chan -> banListImage mode chan st
       ChannelInfoFocus chan -> channelInfoImage chan st
+      DCCFocus -> dccImage st
       _ -> channelImage st
 
   titlebar =

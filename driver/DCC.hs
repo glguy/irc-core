@@ -6,12 +6,15 @@ import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State as S
 import           Control.Monad.Trans.Except
 import           Control.Monad         (unless)
+import           Control.Concurrent    (ThreadId)
+import           Control.Concurrent.MVar
 import           Control.Exception     (bracket)
 import           Control.Lens
 import           Data.Functor          (void)
 import           Data.Bits      hiding (complement)
 import           Data.Word
 import           Data.Function         (fix)
+import           System.FilePath
 import           Network.BSD
 import           Network.Socket hiding (send, sendTo, recv, recvFrom)
 import qualified System.IO                 as IO
@@ -29,6 +32,22 @@ data DCCOffer = DCCOffer
      , _doSize :: Int
      } deriving (Show)
 
+data Transfer =
+    Ongoing
+      { _tName     :: FilePath -- Just name, no whole path!
+      , _tSize     :: Int
+      , _tcurSize  :: Int
+      , _threadId  :: ThreadId
+      , _tProgress :: MVar Int }
+  | Finished
+      { _tName :: FilePath
+      , _tSize :: Int }
+
+makeLenses ''Transfer
+
+-- current size of transfer.
+type Progress = MVar Int
+
 data DCCError = ParseIPPort
               | ParseDottedIP
               | FailGetAdrr -- ^ inet_ntoa
@@ -44,6 +63,21 @@ parseDccOffer outDir (bName : bAddr : bPort : bSize : _) =
     let fullpath = outDir ++ "/" ++ (B8.unpack bName)
         size     = read (B8.unpack bSize)
      in DCCOffer fullpath bAddr bPort size
+
+toTransfer :: DCCOffer -> ThreadId -> MVar Int -> Transfer
+toTransfer (DCCOffer name _ _ size) threadId mvar =
+  Ongoing (takeFileName name) size 0 threadId mvar
+
+{-
+  While writing this I realize that this maybe this is a memory leak. So
+  don't refresh too ofter without forcing WHNF
+-}
+refreshCounter :: Transfer -> IO Transfer
+refreshCounter t =
+  case t of
+    Ongoing {_tProgress = mvar} ->
+        flip (set tcurSize) t <$> readMVar mvar
+    _ -> return t
 
 -- Binary utilities
 
@@ -93,10 +127,11 @@ partnerInfo (dottedIP, ipPort) =
    in lift (getAddrInfo (Just hints) (Just dottedIP) (Just ipPort))
       >>= maybe (throwE FailGetAdrr) return . preview folded
 
-getPackets :: FilePath -- ^ Name media
+getPackets :: Progress
+           -> FilePath -- ^ Name media
            -> Int      -- ^ File size
            -> AddrInfo -> ExceptT DCCError IO ()
-getPackets name totalSize addr =
+getPackets mvar name totalSize addr =
   do receivedSize <- lift $ bracket acquire release receive
      let delta = (totalSize - receivedSize)
      if delta > 0 then throwE (NotFullRecv delta) else return ()
@@ -119,11 +154,12 @@ getPackets name totalSize addr =
                 currentSize <- S.get
                 lift $ B.hPut hdl mediaData
                        >> B.send sock (int2BS currentSize)
+                       >> swapMVar mvar currentSize
                 loop
 
 -- Entry point of connection processing
 -- todo(slack). Do something on DCCError
-dcc_recv :: DCCOffer -> IO ()
-dcc_recv offer@(DCCOffer name _ _ size) =
+dcc_recv :: Progress -> DCCOffer -> IO ()
+dcc_recv mvar offer@(DCCOffer name _ _ size) =
    void . runExceptT $
-       parseDccIP offer >>= partnerInfo >>= getPackets name size
+       parseDccIP offer >>= partnerInfo >>= getPackets mvar name size

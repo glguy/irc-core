@@ -75,6 +75,7 @@ data ClientState = ClientState
   , _clientMessages :: !(Map Identifier MessageList)
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
+  , _clientDCCTransfers :: [Transfer]
   , _clientTimers     :: Map UTCTime [TimerEvent]
   , _clientTimeZone   :: TimeZone
   }
@@ -102,6 +103,7 @@ data Focus
   = ChannelFocus Identifier
   | ChannelInfoFocus Identifier
   | MaskListFocus Char Identifier
+  | DCCFocus
   deriving (Eq, Ord, Read, Show)
 
 data EventHandler = EventHandler
