@@ -453,12 +453,14 @@ advanceModel msg0 conn =
 
        Err target err ->
          do now <- getStamp
+            let (statusmsg, target') = splitStatusMsg target conn
             let mesg = defaultIrcMessage
                   { _mesgType    = ErrMsgType err
                   , _mesgSender  = UserInfo "" Nothing Nothing
                   , _mesgStamp   = now
+                  , _mesgStatus  = statusmsg
                   }
-            recordMessage mesg target conn
+            recordMessage mesg target' conn
 
        RplKnockDelivered chan ->
          doChannelError chan "Knock delivered" conn
