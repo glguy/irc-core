@@ -117,6 +117,7 @@ parseDccIP (DCCOffer _ bAddr bPort _)
 newSocket :: AddrInfo -> IO Socket
 newSocket addr = do
      sock <- socket AF_INET Stream defaultProtocol
+     setSocketOption sock NoDelay 1
      connect sock (addrAddress addr)
      return sock
 
@@ -153,7 +154,7 @@ getPackets mvar name totalSize addr =
                 S.modify' (+ (B.length mediaData))
                 currentSize <- S.get
                 lift $ B.hPut hdl mediaData
-                       >> B.send sock (int2BS currentSize)
+                       >> B.sendAll sock (int2BS currentSize)
                        >> swapMVar mvar currentSize
                 loop
 
