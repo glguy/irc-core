@@ -8,7 +8,6 @@ module Main where
 import Control.Applicative hiding ((<|>))
 import Control.Concurrent (killThread, forkIO)
 import Control.Concurrent.STM
-import Control.Concurrent.MVar
 import Control.Exception
 import Control.Lens
 import Control.Monad
@@ -55,7 +54,6 @@ import Connection (connect, getRawIrcLine)
 import CommandArgs
 import CommandParser
 import CtcpHandler
-import DCC
 import ImageUtils
 import Moderation
 import ServerSettings
@@ -116,7 +114,7 @@ main = do
                , _clientMessages        = mempty
                , _clientNickColors      = defaultNickColors
                , _clientAutomation      = [dccHandler outDir, ctcpHandler
-                                          ,cancelDeopTimerOnDeop,connectCmds]
+                                          ,cancelDeopTimerOnDeop, connectCmds]
                , _clientDCCTransfers    = mempty
                , _clientTimers          = mempty
                , _clientTimeZone        = zone
@@ -210,6 +208,8 @@ driver vty vtyEventChan ircMsgChan st0 =
   -- processVtyEvent and processIrcMsg jump here
   continue = considerTimers
            . resetCurrentChannelMessages
+           <=< pruneStaleOffers
+           <=< checkTransfers
 
   considerTimers st =
     do now <- getCurrentTime
@@ -468,6 +468,8 @@ commandEvent st = commandsParser (clientInput st)
     <$> pNumber)
 
   , ("channelinfo", [], pure (doChannelInfoCmd st))
+
+  , ("transfers", [], pure (doDccTransfers st))
 
   , ("bans", [], pure (doMasksCmd 'b' st))
 
@@ -747,6 +749,12 @@ doChannelInfoCmd st
   where
   conn = view (clientServer0 . ccConnection) st
 
+-- todo(slack) just debug
+doDccTransfers :: ClientState -> IO ClientState
+doDccTransfers st
+    | Just chan <- focusedChan st = return $ set clientFocus (DCCFocus chan) st
+    | otherwise = return st
+
 doMasksCmd ::
   Char       {- ^ mode    -} ->
   ClientState -> IO ClientState
@@ -827,7 +835,7 @@ picForState now st = (scroll', pic)
     case view clientFocus st of
       MaskListFocus mode chan -> banListImage mode chan st
       ChannelInfoFocus chan -> channelInfoImage chan st
-      DCCFocus -> dccImage st
+      DCCFocus _ -> dccImage st
       _ -> channelImage st
 
   titlebar =
@@ -838,6 +846,7 @@ picForState now st = (scroll', pic)
                         <|> identImg defAttr c
       MaskListFocus mode c -> string defAttr (maskListTitle mode ++ ": ")
                           <|> identImg defAttr c
+      DCCFocus _ -> string defAttr "DCC progress: "
 
   topicbar chan =
     case preview (connChannels . ix chan . chanTopic . folded . folded . _1) conn of

@@ -15,6 +15,7 @@ import           Data.Bits      hiding (complement)
 import           Data.Word
 import           Data.Function         (fix)
 import           System.FilePath
+import           Data.Time
 import           Network.BSD
 import           Network.Socket hiding (send, sendTo, recv, recvFrom)
 import qualified System.IO                 as IO
@@ -30,6 +31,7 @@ data DCCOffer = DCCOffer
      , _doAddr :: B.ByteString
      , _doPort :: B.ByteString
      , _doSize :: Int
+     , _doTime :: UTCTime
      } deriving (Show)
 
 data Transfer =
@@ -56,28 +58,18 @@ data DCCError = ParseIPPort
 
 type DottedIP = String
 type IPPort   = String
+type FourTuple a = (a, a, a, a)
 
 -- Smart constructor
-parseDccOffer :: FilePath -> [B.ByteString] -> DCCOffer
-parseDccOffer outDir (bName : bAddr : bPort : bSize : _) =
+parseDccOffer :: UTCTime -> FilePath -> FourTuple B.ByteString -> DCCOffer
+parseDccOffer ctime outDir (bName, bAddr, bPort, bSize) =
     let fullpath = outDir ++ "/" ++ (B8.unpack bName)
         size     = read (B8.unpack bSize)
-     in DCCOffer fullpath bAddr bPort size
+     in DCCOffer fullpath bAddr bPort size ctime
 
 toTransfer :: DCCOffer -> ThreadId -> MVar Int -> Transfer
-toTransfer (DCCOffer name _ _ size) threadId mvar =
+toTransfer (DCCOffer name _ _ size _) threadId mvar =
   Ongoing (takeFileName name) size 0 threadId mvar
-
-{-
-  While writing this I realize that this maybe this is a memory leak. So
-  don't refresh too ofter without forcing WHNF
--}
-refreshCounter :: Transfer -> IO Transfer
-refreshCounter t =
-  case t of
-    Ongoing {_tProgress = mvar} ->
-        flip (set tcurSize) t <$> readMVar mvar
-    _ -> return t
 
 -- Binary utilities
 
@@ -108,7 +100,7 @@ parseBS :: Num a => B.ByteString -> Maybe a
 parseBS = fmap (fromInteger . fst) . B8.readInteger
 
 parseDccIP :: DCCOffer -> ExceptT DCCError IO (DottedIP, IPPort)
-parseDccIP (DCCOffer _ bAddr bPort _)
+parseDccIP (DCCOffer _ bAddr bPort _ _)
   | Just addr   <- parseBS bAddr =
         lift $ do dottedIP <- inet_ntoa (complement addr)
                   return (dottedIP, B8.unpack bPort)
@@ -161,6 +153,6 @@ getPackets mvar name totalSize addr =
 -- Entry point of connection processing
 -- todo(slack). Do something on DCCError
 dcc_recv :: Progress -> DCCOffer -> IO ()
-dcc_recv mvar offer@(DCCOffer name _ _ size) =
+dcc_recv mvar offer@(DCCOffer name _ _ size _) =
    void . runExceptT $
        parseDccIP offer >>= partnerInfo >>= getPackets mvar name size

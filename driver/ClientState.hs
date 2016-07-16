@@ -103,7 +103,7 @@ data Focus
   = ChannelFocus Identifier
   | ChannelInfoFocus Identifier
   | MaskListFocus Char Identifier
-  | DCCFocus
+  | DCCFocus Identifier
   deriving (Eq, Ord, Read, Show)
 
 data EventHandler = EventHandler
@@ -197,6 +197,7 @@ incrementFocus f st
     case view clientFocus st of
       ChannelInfoFocus c -> ChannelFocus c
       MaskListFocus _  c -> ChannelFocus c
+      DCCFocus c         -> ChannelFocus c
       ChannelFocus c     -> ChannelFocus (f c focuses)
 
   focuses = Map.keysSet (fullMessageLists st)
@@ -216,12 +217,14 @@ focusedName st =
     ChannelInfoFocus c -> c
     MaskListFocus _  c -> c
     ChannelFocus     c -> c
+    DCCFocus _         -> "DCCWindow"
 
 focusedChan :: ClientState -> Maybe Identifier
 focusedChan st =
   case view clientFocus st of
     ChannelInfoFocus c -> Just c
     MaskListFocus _  c -> Just c
+    DCCFocus         _ -> Nothing
     ChannelFocus     c
       | isChannelName c (view (clientServer0.ccConnection) st) -> Just c
       | otherwise -> Nothing

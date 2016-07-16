@@ -16,9 +16,7 @@ import Irc.Model
 import DCC
 
 dccImage :: ClientState -> [Image]
-dccImage st = undefined
--- dccImage st = foldr (\a acc -> progressImage a : acc) emptyImage
---                     (view clientDCCTransfer st)
+dccImage = map progressImage . view clientDCCTransfers
 
 progressImage :: Transfer -> Image
 progressImage (Ongoing name total current _ _) =
@@ -26,8 +24,9 @@ progressImage (Ongoing name total current _ _) =
     string (withForeColor defAttr blue) (percent total current)
 progressImage (Finished name size) =
     string defAttr name <|>
-    string (withForeColor defAttr green) "100"
+    string (withForeColor defAttr green) " 100"
 
 percent :: Int -> Int -> String
 percent total current =
-  show $ ((fromIntegral current) / (fromIntegral total)) * 100
+  let value = ((fromIntegral current) / (fromIntegral total)) * 100
+  in ' ' : (take 5 . show $ value)
