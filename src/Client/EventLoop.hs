@@ -136,14 +136,7 @@ nickTabCompletion isReversed st
   = fromMaybe st
   $ clientTextBox (wordComplete isReversed completions) st
   where
-    completions = completionList st
-
-completionList :: ClientState -> [Identifier]
-completionList st =
-  case view clientFocus st of
-    ChannelFocus network chan ->
-      views (clientConnections . ix network . csChannels . ix chan . chanUsers) HashMap.keys st
-    _ -> []
+    completions = currentUserList st
 
 tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO ()
 tabCompletion isReversed st =

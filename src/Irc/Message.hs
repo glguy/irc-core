@@ -19,6 +19,7 @@ data IrcMsg
   | Kick Identifier Identifier Identifier Text
   | Topic Identifier Identifier Text
   | Privmsg Identifier Identifier Text
+  | Action Identifier Identifier Text
   | Notice Identifier Identifier Text
   | Mode Identifier Identifier [Text]
   | Cap CapCmd [Text]
@@ -60,7 +61,10 @@ cookIrcMsg msg =
 
     "PRIVMSG" | Just user <- view msgPrefix msg
            , [chan,txt]   <- view msgParams msg ->
-           Privmsg (userNick user) (mkId chan) txt
+
+           case Text.stripSuffix "\^A" =<< Text.stripPrefix "\^AACTION " txt of
+             Just action -> Action  (userNick user) (mkId chan) action
+             Nothing     -> Privmsg (userNick user) (mkId chan) txt
 
     "NOTICE" | Just user <- view msgPrefix msg
            , [chan,txt]    <- view msgParams msg ->
@@ -121,6 +125,8 @@ msgTarget me msg =
     Topic _ chan _ -> TargetWindow chan
     Privmsg src tgt _ | tgt == me -> TargetWindow src
                       | otherwise -> TargetWindow tgt
+    Action  src tgt _ | tgt == me -> TargetWindow src
+                      | otherwise -> TargetWindow tgt
     Notice  src tgt _ | tgt == me -> TargetWindow src
                       | otherwise -> TargetWindow tgt
     Ping{} -> TargetHidden
@@ -140,6 +146,7 @@ msgActor msg =
     Kick x _ _ _  -> Just x
     Topic x _ _   -> Just x
     Privmsg x _ _ -> Just x
+    Action x _ _  -> Just x
     Notice x _ _  -> Just x
     Mode x _ _    -> Just x
     Ping{}        -> Nothing
@@ -160,6 +167,7 @@ ircMsgText msg =
     Kick x _ z r -> Text.unwords [idText x, idText z, r]
     Topic x _ t -> Text.unwords [idText x, t]
     Privmsg x _ t -> Text.unwords [idText x, t]
+    Action x _ t -> Text.unwords [idText x, t]
     Notice x _ t -> Text.unwords [idText x, t]
     Mode x _ xs -> Text.unwords (idText x:xs)
     Ping xs -> Text.unwords xs

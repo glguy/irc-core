@@ -81,8 +81,12 @@ recordChannelMessage network channel msg st =
   over (clientWindows . at focus) (\w -> Just $! addToWindow wl (fromMaybe emptyWindow w)) st
   where
     focus = ChannelFocus network channel'
-    wl = toWindowLine statusModes modes msg
-    modes = computeMsgLineModes network channel' msg st
+    wl = toWindowLine rendParams msg
+    rendParams = MessageRendererParams
+      { rendStatusMsg  = statusModes
+      , rendUserSigils = computeMsgLineModes network channel' msg st
+      , rendNicks      = channelUserList network channel' st
+      }
 
     -- on failure returns mempty/""
     possibleStatusModes = view (clientConnections . ix network . csStatusMsg) st
@@ -99,7 +103,7 @@ recordIrcMessage network target msg st =
                                               (addToWindow wl) st')
                               st chans
       where
-        wl = toWindowLine "" "" msg
+        wl = toWindowLine' msg
         chans =
           case preview (clientConnections . ix network . csChannels) st of
             Nothing -> []
@@ -129,16 +133,19 @@ recordNetworkMessage msg st =
        st
   where
     network = view msgNetwork msg
-    wl = toWindowLine "" "" msg
+    wl = toWindowLine' msg
 
-toWindowLine :: [Char] -> [Char] -> ClientMessage -> WindowLine
-toWindowLine statusModes modes msg = WindowLine
+toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
+toWindowLine params msg = WindowLine
   { _wlBody = view msgBody msg
   , _wlText = views msgBody msgText msg
-  , _wlImage = msgImage localTime statusModes modes (view msgBody msg)
+  , _wlImage = msgImage (views msgTime zonedTimeToLocalTime msg)
+                        params
+                        (view msgBody msg)
   }
-  where
-    localTime = views msgTime zonedTimeToLocalTime msg
+
+toWindowLine' :: ClientMessage -> WindowLine
+toWindowLine' = toWindowLine defaultRenderParams
 
 clientTick :: ClientState -> IO ClientState
 clientTick st =
@@ -170,3 +177,13 @@ retreatFocus cs =
     success  = set clientFocus ?? cs
     oldFocus = view clientFocus cs
     windows  = view clientWindows cs
+
+currentUserList :: ClientState -> [Identifier]
+currentUserList st =
+  case view clientFocus st of
+    ChannelFocus network chan -> channelUserList network chan st
+    _                         -> []
+
+channelUserList :: NetworkName -> Identifier -> ClientState -> [Identifier]
+channelUserList network channel st =
+  views (clientConnections . ix network . csChannels . ix channel . chanUsers) HashMap.keys st

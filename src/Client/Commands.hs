@@ -164,7 +164,7 @@ cmdMe network cs channelId st rest =
          entry = ClientMessage
                     { _msgTime = now
                     , _msgNetwork = network
-                    , _msgBody = IrcBody (Privmsg myNick channelId actionTxt)
+                    , _msgBody = IrcBody (Action myNick channelId (Text.pack rest))
                     }
      sendMsg
        (view csSocket cs)

@@ -1,21 +1,43 @@
 module Client.MessageRenderer
-  ( msgImage
+  ( MessageRendererParams(..)
+  , defaultRenderParams
+  , msgImage
   ) where
 
 import           Client.IdentifierColors
 import           Client.Message
 import           Client.MircFormatting
 import           Control.Lens
+import           Data.Function
 import           Data.Time
 import           Graphics.Vty.Image
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
+import qualified Data.HashSet as HashSet
+import qualified Data.Text as Text
+import           Data.Text (Text)
+import           Data.Char
 
-msgImage :: LocalTime -> [Char] -> [Char] -> MessageBody -> Image
-msgImage when statusMsg modes body =
-  timeImage when <|> statusMsgImage statusMsg <|> bodyImage modes body
+data MessageRendererParams = MessageRendererParams
+  { rendStatusMsg  :: [Char]
+  , rendUserSigils :: [Char]
+  , rendNicks      :: [Identifier]
+  }
+
+defaultRenderParams :: MessageRendererParams
+defaultRenderParams = MessageRendererParams
+  { rendStatusMsg = ""
+  , rendUserSigils = ""
+  , rendNicks = []
+  }
+
+msgImage :: LocalTime -> MessageRendererParams -> MessageBody -> Image
+msgImage when params body =
+  timeImage      when                   <|>
+  statusMsgImage (rendStatusMsg params) <|>
+  bodyImage      (rendUserSigils params) (rendNicks params) body
 
 statusMsgImage :: [Char] -> Image
 statusMsgImage modes
@@ -26,10 +48,10 @@ statusMsgImage modes
   where
     statusMsgColor = withForeColor defAttr red
 
-bodyImage :: [Char] -> MessageBody -> Image
-bodyImage modes body =
+bodyImage :: [Char] -> [Identifier] -> MessageBody -> Image
+bodyImage modes nicks body =
   case body of
-    IrcBody irc  -> ircLineImage modes irc
+    IrcBody irc  -> ircLineImage modes nicks irc
     ErrorBody ex -> string defAttr ("Exception: " ++ show ex)
     ExitBody     -> string defAttr "Thread finished"
 
@@ -38,8 +60,8 @@ timeImage
   = string (withForeColor defAttr brightBlack)
   . formatTime defaultTimeLocale "%R "
 
-ircLineImage :: [Char] -> IrcMsg -> Image
-ircLineImage modes body =
+ircLineImage :: [Char] -> [Identifier] -> IrcMsg -> Image
+ircLineImage modes nicks body =
   case body of
     Nick old new ->
       string (withForeColor defAttr cyan) modes <|>
@@ -77,13 +99,20 @@ ircLineImage modes body =
       string (withForeColor defAttr cyan) modes <|>
       coloredIdentifier src <|>
       string (withForeColor defAttr red) ": " <|>
-      parseIrcText txt
+      parseIrcTextWithNicks nicks txt
 
     Privmsg src _dst txt ->
       string (withForeColor defAttr cyan) modes <|>
       coloredIdentifier src <|>
       string defAttr ": " <|>
-      parseIrcText txt
+      parseIrcTextWithNicks nicks txt
+
+    Action src _dst txt ->
+      string (withForeColor defAttr blue) "* " <|>
+      string (withForeColor defAttr cyan) modes <|>
+      coloredIdentifier src <|>
+      string defAttr " " <|>
+      parseIrcTextWithNicks nicks txt
 
     Ping params ->
       string defAttr "PING" <|>
@@ -135,3 +164,28 @@ coloredIdentifier ident =
 quietIdentifier :: Identifier -> Image
 quietIdentifier ident =
   text' (withForeColor defAttr brightBlack) (idText ident)
+
+parseIrcTextWithNicks :: [Identifier] -> Text -> Image
+parseIrcTextWithNicks nicks txt
+  | Text.any isControl txt = parseIrcText txt
+  | otherwise              = highlightNicks nicks txt
+
+highlightNicks :: [Identifier] -> Text -> Image
+highlightNicks nicks txt = horizCat (highlight1 <$> txtParts)
+  where
+    nickSet = HashSet.fromList nicks
+    txtParts = Text.groupBy ((==) `on` isNickLetter) txt
+    highlight1 txt
+      | HashSet.member txtId nickSet = coloredIdentifier txtId
+      | otherwise                    = text' defAttr txt
+      where
+        txtId = mkId txt
+
+-- nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
+-- letter     =  %x41-5A / %x61-7A       ; A-Z / a-z
+-- digit      =  %x30-39                 ; 0-9
+-- special    =  %x5B-60 / %x7B-7D
+isNickLetter :: Char -> Bool
+isNickLetter x = '0' <= x && x <= '9'
+              || 'A' <= x && x <= '}'
+              || '-' == x
