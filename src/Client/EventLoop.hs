@@ -4,7 +4,6 @@ module Client.EventLoop
   ( eventLoop
   ) where
 
-import           Client.ChannelState
 import           Client.Commands
 import           Client.ConnectionState
 import           Client.Event
@@ -14,6 +13,7 @@ import           Client.State
 import           Client.WordCompletion
 import           Control.Concurrent
 import           Control.Lens
+import           Data.List
 import           Data.Time
 import           Data.Foldable
 import           Data.Maybe
@@ -23,7 +23,7 @@ import           Irc.Message
 import           Irc.RawIrcMsg
 import qualified Client.EditBox     as Edit
 import qualified Data.Text as Text
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Map as Map
 
 eventLoop :: ClientState -> IO ()
 eventLoop st0 =
@@ -129,7 +129,17 @@ doKey key modifier st =
     (KBackTab  , []    ) -> tabCompletion True  st
     (KEnter   , []     ) -> execute st
     (KChar c  , []     ) -> changeInput $ Edit.insert c
+    (KChar c  , [MMeta]) | Just i <- elemIndex c "1234567890qwertyuiop" ->
+                            eventLoop (jumpFocus i st)
     _                    -> eventLoop st
+
+jumpFocus :: Int -> ClientState -> ClientState
+jumpFocus i st
+  | 0 <= i, i < Map.size windows = set clientFocus focus st
+  | otherwise                    = st
+  where
+    windows = view clientWindows st
+    (focus,_) = Map.elemAt i windows
 
 nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> ClientState
 nickTabCompletion isReversed st
