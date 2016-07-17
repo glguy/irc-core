@@ -11,6 +11,12 @@ category:            Network
 build-type:          Simple
 extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
+tested-with:         GHC==8.0.1
+
+source-repository head
+  type: git
+  location: git://github.com/glguy/irc-core.git
+  branch: v2
 
 executable glirc2
   main-is:             Main.hs
