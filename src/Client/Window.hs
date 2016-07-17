@@ -19,6 +19,12 @@ data Window = Window
   , _winMention  :: !Bool
   }
 
+data WindowLineImportance
+  = WLBoring
+  | WLNormal
+  | WLImportant
+  deriving (Eq, Show)
+
 makeLenses ''Window
 makeLenses ''WindowLine
 
@@ -29,9 +35,12 @@ emptyWindow = Window
   , _winMention  = False
   }
 
-addToWindow :: WindowLine -> Window -> Window
-addToWindow msg = over winMessages (cons msg)
-                . over winUnread   (+1)
+addToWindow :: WindowLineImportance -> WindowLine -> Window -> Window
+addToWindow importance msg win = Window
+    { _winMessages = msg : _winMessages win
+    , _winUnread   = _winUnread win + (if importance == WLBoring then 0 else 1)
+    , _winMention  = _winMention win || importance == WLImportant
+    }
 
 windowSeen :: Window -> Window
 windowSeen = set winUnread 0

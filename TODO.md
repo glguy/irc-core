@@ -6,3 +6,4 @@
 * scrolling
 * complete processing of reply/error codes
 * structured command argument processing
+* Jump to window/activity keys

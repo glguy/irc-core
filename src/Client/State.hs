@@ -16,6 +16,7 @@ import           Data.Hashable
 import           Data.List
 import           Data.Maybe
 import           Data.Map (Map)
+import           Data.Monoid
 import           Data.Time
 import           GHC.Generics
 import           Graphics.Vty
@@ -32,7 +33,21 @@ data ClientFocus
  = Unfocused
  | NetworkFocus NetworkName
  | ChannelFocus NetworkName Identifier
-  deriving (Eq, Ord, Generic)
+  deriving (Eq, Generic)
+
+-- | Unfocused first, followed by focuses sorted by network.
+-- Within the same network the network focus comes first and
+-- then the channels are ordered by channel identifier
+instance Ord ClientFocus where
+  compare Unfocused            Unfocused            = EQ
+  compare (NetworkFocus x)     (NetworkFocus y    ) = compare x y
+  compare (ChannelFocus x1 x2) (ChannelFocus y1 y2) = compare x1 y1 <> compare x2 y2
+
+  compare Unfocused _         = LT
+  compare _         Unfocused = GT
+
+  compare (NetworkFocus x  ) (ChannelFocus y _) = compare x y <> LT
+  compare (ChannelFocus x _) (NetworkFocus y  ) = compare x y <> GT
 
 instance Hashable ClientFocus
 
@@ -78,7 +93,7 @@ initialClientState cfg cxt vty events =
 
 recordChannelMessage :: NetworkName -> Identifier -> ClientMessage -> ClientState -> ClientState
 recordChannelMessage network channel msg st =
-  over (clientWindows . at focus) (\w -> Just $! addToWindow wl (fromMaybe emptyWindow w)) st
+  over (clientWindows . at focus) (\w -> Just $! addToWindow importance wl (fromMaybe emptyWindow w)) st
   where
     focus = ChannelFocus network channel'
     wl = toWindowLine rendParams msg
@@ -91,6 +106,32 @@ recordChannelMessage network channel msg st =
     -- on failure returns mempty/""
     possibleStatusModes = view (clientConnections . ix network . csStatusMsg) st
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
+    importance = msgImportance msg st
+
+msgImportance :: ClientMessage -> ClientState -> WindowLineImportance
+msgImportance msg st =
+  let network = view msgNetwork msg
+      me      = preview (clientConnections . ix network . csNick) st
+      isMe x  = Just x == me
+      checkTxt txt = case me of
+                       Just me' | me' `elem` (mkId <$> nickSplit txt) -> WLImportant
+                       _ -> WLNormal
+  in
+  case view msgBody msg of
+    ExitBody    -> WLImportant
+    ErrorBody _ -> WLImportant
+    IrcBody irc ->
+      case irc of
+        Privmsg _ _ txt -> checkTxt txt
+        Notice _ _  txt -> checkTxt txt
+        Action _ _  txt -> checkTxt txt
+        Part who _ | isMe who  -> WLImportant
+                   | otherwise -> WLBoring
+        Kick _ _ kicked _ | isMe kicked -> WLImportant
+                          | otherwise   -> WLNormal
+        Error{}         -> WLImportant
+        Reply{}         -> WLNormal
+        _               -> WLBoring
 
 recordIrcMessage :: NetworkName -> MessageTarget -> ClientMessage -> ClientState -> ClientState
 recordIrcMessage network target msg st =
@@ -100,7 +141,7 @@ recordIrcMessage network target msg st =
     TargetWindow chan -> recordChannelMessage network chan msg st
     TargetUser user -> foldl' (\st' chan -> overStrict
                                               (clientWindows . ix (ChannelFocus network chan))
-                                              (addToWindow wl) st')
+                                              (addToWindow WLBoring wl) st')
                               st chans
       where
         wl = toWindowLine' msg
@@ -129,7 +170,7 @@ computeLineModes network channel user =
 recordNetworkMessage :: ClientMessage -> ClientState -> ClientState
 recordNetworkMessage msg st =
   over (clientWindows . at (NetworkFocus network))
-       (\w -> Just $! addToWindow wl (fromMaybe emptyWindow w))
+       (\w -> Just $! addToWindow (msgImportance msg st) wl (fromMaybe emptyWindow w))
        st
   where
     network = view msgNetwork msg

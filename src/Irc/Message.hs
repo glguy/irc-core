@@ -1,13 +1,14 @@
 {-# Language OverloadedStrings #-}
 module Irc.Message where
 
-import Irc.Identifier
-import Irc.RawIrcMsg
-import Irc.UserInfo
-import Data.Text (Text)
-import Data.Text.Read as Text
-import Data.Text as Text
-import Control.Lens
+import           Control.Lens
+import           Data.Function
+import           Data.Text (Text)
+import           Data.Text as Text
+import           Data.Text.Read as Text
+import           Irc.Identifier
+import           Irc.RawIrcMsg
+import           Irc.UserInfo
 
 data IrcMsg
   = UnknownMsg RawIrcMsg
@@ -16,12 +17,12 @@ data IrcMsg
   | Join Identifier Identifier
   | Part Identifier Identifier
   | Quit Identifier Text
-  | Kick Identifier Identifier Identifier Text
-  | Topic Identifier Identifier Text
-  | Privmsg Identifier Identifier Text
-  | Action Identifier Identifier Text
-  | Notice Identifier Identifier Text
-  | Mode Identifier Identifier [Text]
+  | Kick Identifier Identifier Identifier Text -- ^ kicker channel kickee comment
+  | Topic Identifier Identifier Text -- ^ user channel topic
+  | Privmsg Identifier Identifier Text -- ^ source target txt
+  | Action Identifier Identifier Text -- ^ source target txt
+  | Notice Identifier Identifier Text -- ^ source target txt
+  | Mode Identifier Identifier [Text] -- ^ source target txt
   | Cap CapCmd [Text]
   | Ping [Text]
   | Pong [Text]
@@ -174,3 +175,15 @@ ircMsgText msg =
     Pong xs -> Text.unwords xs
     Cap _ xs -> Text.unwords xs
     Error t -> t
+
+-- nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
+-- letter     =  %x41-5A / %x61-7A       ; A-Z / a-z
+-- digit      =  %x30-39                 ; 0-9
+-- special    =  %x5B-60 / %x7B-7D
+isNickChar :: Char -> Bool
+isNickChar x = '0' <= x && x <= '9'
+              || 'A' <= x && x <= '}'
+              || '-' == x
+
+nickSplit :: Text -> [Text]
+nickSplit = Text.groupBy ((==) `on` isNickChar)

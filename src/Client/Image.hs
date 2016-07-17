@@ -6,6 +6,7 @@ import           Client.MircFormatting
 import           Client.State
 import           Client.Window
 import           Control.Lens
+import           Data.List
 import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
 import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier, idText)
@@ -58,10 +59,29 @@ horizDividerImage st
     content = horizCat
       [ myNickImage st
       , parens defAttr (focusImage st)
+      , activityImage st
       ]
 
 parens :: Attr -> Image -> Image
 parens attr i = char attr '(' <|> i <|> char attr ')'
+
+activityImage :: ClientState -> Image
+activityImage st
+  | null indicators = emptyImage
+  | otherwise       = string defAttr "─[" <|>
+                      horizCat (intersperse (char defAttr ',') indicators) <|>
+                      string defAttr "]"
+  where
+    windows = views clientWindows Map.elems st
+    indicators = aux (zip [1::Int ..] windows)
+    aux [] = []
+    aux ((i,w):ws)
+      | view winUnread w == 0 = aux ws
+      | otherwise = string (withForeColor defAttr color) (show i) : aux ws
+      where
+        color | view winMention w = red
+              | otherwise        = green
+      
 
 myNickImage :: ClientState -> Image
 myNickImage st =

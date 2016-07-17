@@ -8,6 +8,7 @@ module Irc.Identifier
 import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as B
 import qualified Data.ByteString.Char8 as B8
+import           Data.Function
 import           Data.Hashable         (Hashable (hashWithSalt))
 import           Data.Text             (Text)
 import qualified Data.Text.Encoding    as Text
@@ -18,11 +19,11 @@ data Identifier = Identifier Text ByteString
 
 -- Equality on normalized 'Identifiers'
 instance Eq Identifier where
-  x == y = idDenote x == idDenote y
+  (==) = (==) `on` idDenote
 
 -- Comparison on normalized 'Identifiers'
 instance Ord Identifier where
-  compare x y = compare (idDenote x) (idDenote y)
+  compare = compare `on` idDenote
 
 instance Hashable Identifier where
   hashWithSalt s = hashWithSalt s . idDenote

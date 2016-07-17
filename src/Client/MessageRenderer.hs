@@ -174,18 +174,9 @@ highlightNicks :: [Identifier] -> Text -> Image
 highlightNicks nicks txt = horizCat (highlight1 <$> txtParts)
   where
     nickSet = HashSet.fromList nicks
-    txtParts = Text.groupBy ((==) `on` isNickLetter) txt
+    txtParts = nickSplit txt
     highlight1 txt
       | HashSet.member txtId nickSet = coloredIdentifier txtId
       | otherwise                    = text' defAttr txt
       where
         txtId = mkId txt
-
--- nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
--- letter     =  %x41-5A / %x61-7A       ; A-Z / a-z
--- digit      =  %x30-39                 ; 0-9
--- special    =  %x5B-60 / %x7B-7D
-isNickLetter :: Char -> Bool
-isNickLetter x = '0' <= x && x <= '9'
-              || 'A' <= x && x <= '}'
-              || '-' == x
