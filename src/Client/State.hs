@@ -237,3 +237,6 @@ channelUserList network channel st =
 changeFocus :: ClientFocus -> ClientState -> ClientState
 changeFocus focus = set clientScroll 0
                   . set clientFocus focus
+
+windowNames :: [Char]
+windowNames = "1234567890qwertyuiop"

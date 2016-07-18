@@ -115,7 +115,7 @@ activityImage st
                       string defAttr "]"
   where
     windows = views clientWindows Map.elems st
-    winNames = "1234567890qwertyuiop" ++ repeat '?'
+    winNames = windowNames ++ repeat '?'
     indicators = aux (zip winNames windows)
     aux [] = []
     aux ((i,w):ws)
@@ -124,7 +124,7 @@ activityImage st
       where
         color | view winMention w = red
               | otherwise        = green
-      
+
 
 myNickImage :: ClientState -> Image
 myNickImage st =

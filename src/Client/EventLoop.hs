@@ -12,11 +12,13 @@ import           Client.Message
 import           Client.State
 import           Client.WordCompletion
 import           Control.Concurrent
+import           Control.Exception
 import           Control.Lens
 import           Data.List
 import           Data.Time
 import           Data.Foldable
 import           Data.Maybe
+import           Data.ByteString (ByteString)
 import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message
@@ -31,111 +33,142 @@ eventLoop st0 =
   do st1 <- clientTick st0
      let vty = view clientVty st
          inQueue = view clientEvents st
-         more f = eventLoop (f st)
          (pic, st) = clientPicture st1
 
      update vty pic
 
      event <- readChan inQueue
      case event of
-       VtyEvent (EvKey k modifier) -> doKey k modifier st
+       TimerEvent                    -> eventLoop st
+       VtyEvent vtyEvent             -> doVtyEvent vtyEvent st
+       NetworkLine network time line -> doNetworkLine network time line st
+       NetworkError network time ex  -> doNetworkError network time ex st
+       NetworkClose network time     -> doNetworkClose network time st
 
-       NetworkLine network time line
-         | Just cs <- preview (clientConnections . ix network) st ->
-         case parseRawIrcMsg (asUtf8 line) of
-           Nothing ->
-             do let msg = ClientMessage
-                           { _msgTime = time
-                           , _msgNetwork = network
-                           , _msgBody = ErrorBody ("Malformed message: " ++ show line)
-                           }
-                more $ recordNetworkMessage msg
 
-           Just raw ->
-             do let irc = cookIrcMsg raw
-                    time' = case view msgServerTime raw of
-                              Nothing -> time
-                              Just stime -> utcToZonedTime (zonedTimeZone time) stime
-                    msg = ClientMessage
-                            { _msgTime = time'
-                            , _msgNetwork = network
-                            , _msgBody = IrcBody irc
-                            }
-                    myNick = view csNick cs
-                    target = msgTarget myNick irc
+doNetworkClose :: NetworkName -> ZonedTime -> ClientState -> IO ()
+doNetworkClose network time st =
+  do let msg = ClientMessage
+                 { _msgTime = time
+                 , _msgNetwork = network
+                 , _msgBody = ExitBody
+                 }
+     eventLoop $ recordNetworkMessage msg
+               $ set (clientConnections . at (view msgNetwork msg)) Nothing st
 
-                -- record messages *before* applying the changes
-                let (msgs, st')
-                       = traverseOf
-                           (clientConnections . ix network)
-                           (applyMessage time irc)
-                       $ recordIrcMessage network target msg
-                       $ st
 
-                traverse_ (sendMsg (view csSocket cs)) msgs
-                eventLoop st'
+doNetworkError :: NetworkName -> ZonedTime -> SomeException -> ClientState -> IO ()
+doNetworkError network time ex st =
+  do let msg = ClientMessage
+                 { _msgTime = time
+                 , _msgNetwork = network
+                 , _msgBody = ErrorBody (show ex)
+                 }
+     eventLoop $ recordNetworkMessage msg
+               $ set (clientConnections . at (view msgNetwork msg)) Nothing st
 
-       NetworkError network time ex ->
-                do let msg = ClientMessage
-                               { _msgTime = time
-                               , _msgNetwork = network
-                               , _msgBody = ErrorBody (show ex)
-                               }
-                   more $ recordNetworkMessage msg
-                        . set (clientConnections . at (view msgNetwork msg)) Nothing
-
-       NetworkClose network time ->
+doNetworkLine :: NetworkName -> ZonedTime -> ByteString -> ClientState -> IO ()
+doNetworkLine network time line st =
+  case preview (clientConnections . ix network) st of
+    Nothing -> eventLoop st -- really shouldn't happen
+    Just cs ->
+      case parseRawIrcMsg (asUtf8 line) of
+        Nothing ->
           do let msg = ClientMessage
-                         { _msgTime = time
+                        { _msgTime = time
+                        , _msgNetwork = network
+                        , _msgBody = ErrorBody ("Malformed message: " ++ show line)
+                        }
+             eventLoop (recordNetworkMessage msg st)
+
+        Just raw ->
+          do let irc = cookIrcMsg raw
+                 time' = case view msgServerTime raw of
+                           Nothing -> time
+                           Just stime -> utcToZonedTime (zonedTimeZone time) stime
+                 msg = ClientMessage
+                         { _msgTime = time'
                          , _msgNetwork = network
-                         , _msgBody = ExitBody
+                         , _msgBody = IrcBody irc
                          }
-             more $ recordNetworkMessage msg
-                  . set (clientConnections . at (view msgNetwork msg)) Nothing
+                 myNick = view csNick cs
+                 target = msgTarget myNick irc
 
-       VtyEvent (EvResize w h) -> more $ set clientWidth w
-                                       . set clientHeight h
-       _ -> eventLoop st
+             -- record messages *before* applying the changes
+             let (msgs, st')
+                    = traverseOf
+                        (clientConnections . ix network)
+                        (applyMessage time irc)
+                    $ recordIrcMessage network target msg
+                    $ st
 
+             traverse_ (sendMsg (view csSocket cs)) msgs
+             eventLoop st'
+
+doVtyEvent :: Event -> ClientState -> IO ()
+doVtyEvent vtyEvent st =
+  case vtyEvent of
+    EvKey k modifier -> doKey k modifier st
+    EvResize w h     -> eventLoop $ set clientWidth w
+                                  $ set clientHeight h st
+    _                -> eventLoop st
 
 doKey :: Key -> [Modifier] -> ClientState -> IO ()
 doKey key modifier st =
   let changeInput f = eventLoop (over clientTextBox f st) in
-  case (key,modifier) of
-    (KBS      , []     ) -> changeInput Edit.backspace
-    (KChar 'd', [MCtrl]) -> changeInput Edit.delete
-    (KDel     , []     ) -> changeInput Edit.delete
-    (KLeft    , []     ) -> changeInput Edit.left
-    (KRight   , []     ) -> changeInput Edit.right
-    (KHome    , []     ) -> changeInput Edit.home
-    (KEnd     , []     ) -> changeInput Edit.end
-    (KChar 'a', [MCtrl]) -> changeInput Edit.home
-    (KChar 'e', [MCtrl]) -> changeInput Edit.end
-    (KChar 'u', [MCtrl]) -> changeInput Edit.killHome
-    (KChar 'k', [MCtrl]) -> changeInput Edit.killEnd
-    (KChar 'y', [MCtrl]) -> changeInput Edit.paste
-    (KChar 'w', [MCtrl]) -> changeInput $ Edit.killWord True
-    (KChar 'b', [MMeta]) -> changeInput Edit.leftWord
-    (KChar 'f', [MMeta]) -> changeInput Edit.rightWord
-    (KChar 'b', [MCtrl]) -> changeInput $ Edit.insert '\^B'
-    (KChar 'c', [MCtrl]) -> changeInput $ Edit.insert '\^C'
-    (KChar ']', [MCtrl]) -> changeInput $ Edit.insert '\^]'
-    (KChar '_', [MCtrl]) -> changeInput $ Edit.insert '\^_'
-    (KChar 'o', [MCtrl]) -> changeInput $ Edit.insert '\^O'
-    (KChar 'v', [MCtrl]) -> changeInput $ Edit.insert '\^V'
-    (KChar 'p', [MCtrl]) -> eventLoop $ retreatFocus st
-    (KChar 'n', [MCtrl]) -> eventLoop $ advanceFocus st
-    (KUp      , _      ) -> changeInput $ \ed -> maybe ed id $ Edit.earlier ed
-    (KDown    , _      ) -> changeInput $ \ed -> maybe ed id $ Edit.later ed
-    (KChar '\t', []    ) -> tabCompletion False st
-    (KBackTab  , []    ) -> tabCompletion True  st
-    (KEnter   , []     ) -> execute st
-    (KChar c  , []     ) -> changeInput $ Edit.insert c
-    (KChar c  , [MMeta]) | Just i <- elemIndex c "1234567890qwertyuiop" ->
+  case modifier of
+    [MCtrl] ->
+      case key of
+        KChar 'd' -> changeInput Edit.delete
+        KChar 'a' -> changeInput Edit.home
+        KChar 'e' -> changeInput Edit.end
+        KChar 'u' -> changeInput Edit.killHome
+        KChar 'k' -> changeInput Edit.killEnd
+        KChar 'y' -> changeInput Edit.paste
+        KChar 'w' -> changeInput (Edit.killWord True)
+        KChar 'b' -> changeInput (Edit.insert '\^B')
+        KChar 'c' -> changeInput (Edit.insert '\^C')
+        KChar ']' -> changeInput (Edit.insert '\^]')
+        KChar '_' -> changeInput (Edit.insert '\^_')
+        KChar 'o' -> changeInput (Edit.insert '\^O')
+        KChar 'v' -> changeInput (Edit.insert '\^V')
+        KChar 'p' -> eventLoop (retreatFocus st)
+        KChar 'n' -> eventLoop (advanceFocus st)
+        KChar 'l' -> refreshClient st
+        _         -> eventLoop st
+
+    [MMeta] ->
+      case key of
+        KChar 'b' -> changeInput Edit.leftWord
+        KChar 'f' -> changeInput Edit.rightWord
+        KChar c   | Just i <- elemIndex c windowNames ->
                             eventLoop (jumpFocus i st)
-    (KPageUp  , []     ) -> eventLoop (pageUp st)
-    (KPageDown, []     ) -> eventLoop (pageDown st)
-    _                    -> eventLoop st
+        _ -> eventLoop st
+
+    [] -> -- no modifier
+      case key of
+        KBS        -> changeInput Edit.backspace
+        KDel       -> changeInput Edit.delete
+        KLeft      -> changeInput Edit.left
+        KRight     -> changeInput Edit.right
+        KHome      -> changeInput Edit.home
+        KEnd       -> changeInput Edit.end
+        KUp        -> changeInput $ \ed -> maybe ed id $ Edit.earlier ed
+        KDown      -> changeInput $ \ed -> maybe ed id $ Edit.later ed
+        KEnter     -> execute st
+        KPageUp    -> eventLoop (pageUp st)
+        KPageDown  -> eventLoop (pageDown st)
+        KBackTab   -> tabCompletion True  st
+        KChar '\t' -> tabCompletion False st
+        KChar c    -> changeInput (Edit.insert c)
+        _          -> eventLoop st
+
+    _ -> eventLoop st -- unsupported modifier
+
+refreshClient :: ClientState -> IO ()
+refreshClient st =
+  do refresh (view clientVty st)
+     eventLoop st
 
 pageUp :: ClientState -> ClientState
 pageUp st = over clientScroll (+ scrollAmount st) st
