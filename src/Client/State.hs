@@ -22,6 +22,7 @@ import           GHC.Generics
 import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message
+import           Irc.UserInfo
 import           LensUtils
 import           Network.Connection
 import qualified Client.EditBox as Edit
@@ -127,8 +128,8 @@ msgImportance msg st =
         Privmsg _ _ txt -> checkTxt txt
         Notice _ _  txt -> checkTxt txt
         Action _ _  txt -> checkTxt txt
-        Part who _ _ | isMe who  -> WLImportant
-                     | otherwise -> WLBoring
+        Part who _ _ | isMe (userNick who) -> WLImportant
+                     | otherwise           -> WLBoring
         Kick _ _ kicked _ | isMe kicked -> WLImportant
                           | otherwise   -> WLNormal
         Error{}         -> WLImportant
@@ -160,7 +161,7 @@ splitStatusMsgModes possible ident = (Text.unpack modes, mkId ident')
 computeMsgLineModes :: NetworkName -> Identifier -> ClientMessage -> ClientState -> [Char]
 computeMsgLineModes network channel msg st =
   case msgActor =<< preview (msgBody . _IrcBody) msg of
-    Just user -> computeLineModes network channel user st
+    Just user -> computeLineModes network channel (userNick user) st
     Nothing   -> []
 
 computeLineModes :: NetworkName -> Identifier -> Identifier -> ClientState -> [Char]

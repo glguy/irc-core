@@ -19,6 +19,7 @@ import           Irc.Identifier
 import           Irc.Message
 import           Irc.Modes
 import           Irc.RawIrcMsg (RawIrcMsg, rawIrcMsg, renderRawIrcMsg)
+import           Irc.UserInfo
 import           LensUtils
 
 data ConnectionState = ConnectionState
@@ -75,23 +76,23 @@ applyMessage msgWhen msg cs =
     Ping args -> ([pongMsg args], cs)
     Join user chan ->
            noReply
-         $ overChannel chan (joinChannel user)
-         $ createOnJoin user chan cs
+         $ overChannel chan (joinChannel (userNick user))
+         $ createOnJoin (userNick user) chan cs
 
     Quit user _reason ->
            noReply
-         $ overChannels (partChannel user) cs
+         $ overChannels (partChannel (userNick user)) cs
 
     Part user chan _mbreason ->
            noReply
-         $ if user == view csNick cs
+         $ if userNick user == view csNick cs
              then set (csChannels . at chan) Nothing cs
-             else overChannel chan (partChannel user) cs
+             else overChannel chan (partChannel (userNick user)) cs
 
     Nick oldNick newNick ->
            noReply
-         $ updateMyNick oldNick newNick
-         $ overChannels (nickChange oldNick newNick) cs
+         $ updateMyNick (userNick oldNick) newNick
+         $ overChannels (nickChange (userNick oldNick) newNick) cs
 
     Kick _kicker chan nick _reason ->
            noReply (overChannel chan (partChannel nick) cs)
@@ -101,12 +102,12 @@ applyMessage msgWhen msg cs =
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
     _                      -> noReply cs
 
-doTopic :: ZonedTime -> Identifier -> Identifier -> Text -> ConnectionState -> ConnectionState
+doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> ConnectionState -> ConnectionState
 doTopic when user chan topic =
   overChannel chan (setTopic topic . set chanTopicProvenance (Just $! prov))
   where
     prov = TopicProvenance
-             { _topicAuthor = idText user
+             { _topicAuthor = user
              , _topicTime   = zonedTimeToUTC when
              }
 
@@ -117,7 +118,7 @@ doRpl RPL_TOPIC [_me,chan,topic] = overChannel (mkId chan) (setTopic topic)
 doRpl RPL_TOPICWHOTIME [_me,chan,who,whenTxt]
   | Right (whenSecs, "") <- Text.decimal whenTxt =
     let prov = TopicProvenance
-                 { _topicAuthor = who
+                 { _topicAuthor = parseUserInfo who
                  , _topicTime = posixSecondsToUTCTime (fromInteger whenSecs)
                  }
     in setStrict (csChannels . ix (mkId chan) . chanTopicProvenance) (Just $! prov)

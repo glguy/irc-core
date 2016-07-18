@@ -11,6 +11,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
 import           Irc.Identifier
+import           Irc.UserInfo
 
 data ChannelState = ChannelState
   { _chanTopic :: !Text
@@ -22,7 +23,7 @@ data ChannelState = ChannelState
   deriving Show
 
 data TopicProvenance = TopicProvenance
-  { _topicAuthor :: !Text
+  { _topicAuthor :: !UserInfo
   , _topicTime   :: !UTCTime
   }
   deriving Show

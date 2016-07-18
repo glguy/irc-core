@@ -14,16 +14,16 @@ import           Irc.UserInfo
 data IrcMsg
   = UnknownMsg RawIrcMsg
   | Reply Int [Text]
-  | Nick Identifier Identifier
-  | Join Identifier Identifier
-  | Part Identifier Identifier (Maybe Text)
-  | Quit Identifier Text
-  | Kick Identifier Identifier Identifier Text -- ^ kicker channel kickee comment
-  | Topic Identifier Identifier Text -- ^ user channel topic
-  | Privmsg Identifier Identifier Text -- ^ source target txt
-  | Action Identifier Identifier Text -- ^ source target txt
-  | Notice Identifier Identifier Text -- ^ source target txt
-  | Mode Identifier Identifier [Text] -- ^ source target txt
+  | Nick UserInfo Identifier
+  | Join UserInfo Identifier
+  | Part UserInfo Identifier (Maybe Text)
+  | Quit UserInfo Text
+  | Kick UserInfo Identifier Identifier Text -- ^ kicker channel kickee comment
+  | Topic UserInfo Identifier Text -- ^ user channel topic
+  | Privmsg UserInfo Identifier Text -- ^ source target txt
+  | Action UserInfo Identifier Text -- ^ source target txt
+  | Notice UserInfo Identifier Text -- ^ source target txt
+  | Mode UserInfo Identifier [Text] -- ^ source target txt
   | Cap CapCmd [Text]
   | Ping [Text]
   | Pong [Text]
@@ -65,41 +65,41 @@ cookIrcMsg msg =
            , [chan,txt]   <- view msgParams msg ->
 
            case Text.stripSuffix "\^A" =<< Text.stripPrefix "\^AACTION " txt of
-             Just action -> Action  (userNick user) (mkId chan) action
-             Nothing     -> Privmsg (userNick user) (mkId chan) txt
+             Just action -> Action  user (mkId chan) action
+             Nothing     -> Privmsg user (mkId chan) txt
 
     "NOTICE" | Just user <- view msgPrefix msg
            , [chan,txt]    <- view msgParams msg ->
-           Notice (userNick user) (mkId chan) txt
+           Notice user (mkId chan) txt
 
     "JOIN" | Just user <- view msgPrefix msg
            , chan:_    <- view msgParams msg ->
 
-           Join (userNick user) (mkId chan)
+           Join user (mkId chan)
 
     "QUIT" | Just user <- view msgPrefix msg
            , [reason]  <- view msgParams msg ->
-           Quit (userNick user) reason
+           Quit user reason
 
     "PART" | Just user    <- view msgPrefix msg
            , chan:reasons <- view msgParams msg ->
-           Part (userNick user) (mkId chan) (listToMaybe reasons)
+           Part user (mkId chan) (listToMaybe reasons)
 
     "NICK"  | Just user <- view msgPrefix msg
             , newNick:_ <- view msgParams msg ->
-           Nick (userNick user) (mkId newNick)
+           Nick user (mkId newNick)
 
     "KICK"  | Just user <- view msgPrefix msg
             , [chan,nick,reason] <- view msgParams msg ->
-           Kick (userNick user) (mkId chan) (mkId nick) reason
+           Kick user (mkId chan) (mkId nick) reason
 
     "TOPIC" | Just user <- view msgPrefix msg
             , [chan,topic] <- view msgParams msg ->
-            Topic (userNick user) (mkId chan) topic
+            Topic user (mkId chan) topic
 
     "MODE"  | Just user <- view msgPrefix msg
             , target:modes <- view msgParams msg ->
-            Mode (userNick user) (mkId target) modes
+            Mode user (mkId target) modes
 
     "ERROR" | [reason] <- view msgParams msg ->
             Error reason
@@ -115,28 +115,28 @@ data MessageTarget
 msgTarget :: Identifier -> IrcMsg -> MessageTarget
 msgTarget me msg =
   case msg of
-    UnknownMsg{} -> TargetNetwork
-    Reply{} -> TargetNetwork
-    Nick user _ -> TargetUser user
-    Mode _ tgt _ | tgt == me -> TargetNetwork
-                 | otherwise -> TargetWindow tgt
-    Join _ chan -> TargetWindow chan
-    Part _ chan _ -> TargetWindow chan
-    Quit user _ -> TargetUser user
-    Kick _ chan _ _ -> TargetWindow chan
-    Topic _ chan _ -> TargetWindow chan
-    Privmsg src tgt _ | tgt == me -> TargetWindow src
+    UnknownMsg{}                  -> TargetNetwork
+    Reply{}                       -> TargetNetwork
+    Nick user _                   -> TargetUser (userNick user)
+    Mode _ tgt _ | tgt == me      -> TargetNetwork
+                 | otherwise      -> TargetWindow tgt
+    Join _ chan                   -> TargetWindow chan
+    Part _ chan _                 -> TargetWindow chan
+    Quit user _                   -> TargetUser (userNick user)
+    Kick _ chan _ _               -> TargetWindow chan
+    Topic _ chan _                -> TargetWindow chan
+    Privmsg src tgt _ | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
-    Action  src tgt _ | tgt == me -> TargetWindow src
+    Action  src tgt _ | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
-    Notice  src tgt _ | tgt == me -> TargetWindow src
+    Notice  src tgt _ | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
-    Ping{} -> TargetHidden
-    Pong{} -> TargetNetwork
-    Error{} -> TargetNetwork
-    Cap{} -> TargetNetwork
+    Ping{}                        -> TargetHidden
+    Pong{}                        -> TargetNetwork
+    Error{}                       -> TargetNetwork
+    Cap{}                         -> TargetNetwork
 
-msgActor :: IrcMsg -> Maybe Identifier
+msgActor :: IrcMsg -> Maybe UserInfo
 msgActor msg =
   case msg of
     UnknownMsg{}  -> Nothing
@@ -159,23 +159,22 @@ msgActor msg =
 ircMsgText :: IrcMsg -> Text
 ircMsgText msg =
   case msg of
-    UnknownMsg raw ->
-        Text.unwords (view msgCommand raw : view msgParams raw)
-    Reply n xs -> Text.unwords (Text.pack (show n) : xs)
-    Nick x y -> Text.unwords [idText x, idText y]
-    Join x _ -> idText x
-    Part x _ _ -> idText x
-    Quit x y -> Text.unwords [idText x, y]
-    Kick x _ z r -> Text.unwords [idText x, idText z, r]
-    Topic x _ t -> Text.unwords [idText x, t]
-    Privmsg x _ t -> Text.unwords [idText x, t]
-    Action x _ t -> Text.unwords [idText x, t]
-    Notice x _ t -> Text.unwords [idText x, t]
-    Mode x _ xs -> Text.unwords (idText x:xs)
-    Ping xs -> Text.unwords xs
-    Pong xs -> Text.unwords xs
-    Cap _ xs -> Text.unwords xs
-    Error t -> t
+    UnknownMsg raw -> Text.unwords (view msgCommand raw : view msgParams raw)
+    Reply n xs     -> Text.unwords (Text.pack (show n) : xs)
+    Nick x y       -> Text.unwords [renderUserInfo x, idText y]
+    Join x _       -> renderUserInfo x
+    Part x _ _     -> renderUserInfo x
+    Quit x y       -> Text.unwords [renderUserInfo x, y]
+    Kick x _ z r   -> Text.unwords [renderUserInfo x, idText z, r]
+    Topic x _ t    -> Text.unwords [renderUserInfo x, t]
+    Privmsg x _ t  -> Text.unwords [renderUserInfo x, t]
+    Action x _ t   -> Text.unwords [renderUserInfo x, t]
+    Notice x _ t   -> Text.unwords [renderUserInfo x, t]
+    Mode x _ xs    -> Text.unwords (renderUserInfo x:xs)
+    Ping xs        -> Text.unwords xs
+    Pong xs        -> Text.unwords xs
+    Cap _ xs       -> Text.unwords xs
+    Error t        -> t
 
 -- nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
 -- letter     =  %x41-5A / %x61-7A       ; A-Z / a-z

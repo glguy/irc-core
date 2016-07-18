@@ -21,6 +21,7 @@ import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
+import           Irc.UserInfo
 import qualified Client.EditBox     as Edit
 import qualified Data.Text as Text
 import qualified Data.Map as Map
@@ -187,7 +188,7 @@ executeChat msg st =
           do now <- getZonedTime
              let msgTxt = Text.pack msg
                  ircMsg = rawIrcMsg "PRIVMSG" [idText channel, msgTxt]
-                 myNick = view csNick conn
+                 myNick = UserInfo (view csNick conn) Nothing Nothing
                  entry = ClientMessage
                             { _msgTime = now
                             , _msgNetwork = network

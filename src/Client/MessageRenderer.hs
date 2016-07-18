@@ -66,52 +66,52 @@ ircLineImage modes nicks body =
   case body of
     Nick old new ->
       string (withForeColor defAttr cyan) modes <|>
-      quietIdentifier old <|>
+      quietIdentifier (userNick old) <|>
       string defAttr " became " <|>
       string (withForeColor defAttr cyan) modes <|>
       quietIdentifier new
 
     Join nick _chan ->
       char (withForeColor defAttr green) '+' <|>
-      quietIdentifier nick
+      quietIdentifier (userNick nick)
 
     Part nick _chan _mbreason ->
       char (withForeColor defAttr red) '-' <|>
-      quietIdentifier nick
+      quietIdentifier (userNick nick)
 
     Quit nick _reason ->
       char (withForeColor defAttr red) 'x' <|>
-      quietIdentifier nick
+      quietIdentifier (userNick nick)
 
     Kick kicker _channel kickee reason ->
       string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier kicker <|>
+      coloredIdentifier (userNick kicker) <|>
       string defAttr " kicked " <|>
       coloredIdentifier kickee <|>
       string defAttr ": " <|>
       parseIrcText reason
 
     Topic src _dst txt ->
-      coloredIdentifier src <|>
+      coloredIdentifier (userNick src) <|>
       string defAttr " changed topic to " <|>
       parseIrcText txt
 
     Notice src _dst txt ->
       string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier src <|>
+      coloredIdentifier (userNick src) <|>
       string (withForeColor defAttr red) ": " <|>
       parseIrcTextWithNicks nicks txt
 
     Privmsg src _dst txt ->
       string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier src <|>
+      coloredIdentifier (userNick src) <|>
       string defAttr ": " <|>
       parseIrcTextWithNicks nicks txt
 
     Action src _dst txt ->
       string (withForeColor defAttr blue) "* " <|>
       string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier src <|>
+      coloredIdentifier (userNick src) <|>
       string defAttr " " <|>
       parseIrcTextWithNicks nicks txt
 
@@ -147,7 +147,7 @@ ircLineImage modes nicks body =
 
     Mode nick _chan params ->
       string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier nick <|>
+      coloredIdentifier (userNick nick) <|>
       string defAttr " set mode: " <|>
       horizCat [char (withForeColor defAttr blue) '·' <|>
                 text' defAttr m | m <- params]
@@ -185,7 +185,7 @@ highlightNicks nicks txt = horizCat (highlight1 <$> txtParts)
 metadataImg :: IrcMsg -> Maybe (Image, Identifier)
 metadataImg msg =
   case msg of
-    Quit who _   -> Just (char (withForeColor defAttr red  ) 'x', who)
-    Part who _ _ -> Just (char (withForeColor defAttr red  ) '-', who)
-    Join who _   -> Just (char (withForeColor defAttr green) '+', who)
+    Quit who _   -> Just (char (withForeColor defAttr red  ) 'x', userNick who)
+    Part who _ _ -> Just (char (withForeColor defAttr red  ) '-', userNick who)
+    Join who _   -> Just (char (withForeColor defAttr green) '+', userNick who)
     _            -> Nothing

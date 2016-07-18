@@ -24,6 +24,7 @@ import           Data.Time
 import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.Message
+import           Irc.UserInfo
 import qualified Client.EditBox as Edit
 
 data CommandResult
@@ -160,7 +161,7 @@ cmdMe :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -
 cmdMe network cs channelId st rest =
   do now <- getZonedTime
      let actionTxt = Text.pack ("\^AACTION " ++ rest ++ "\^A")
-         myNick = view csNick cs
+         myNick = UserInfo (view csNick cs) Nothing Nothing
          entry = ClientMessage
                     { _msgTime = now
                     , _msgNetwork = network
@@ -181,7 +182,7 @@ cmdMsg network cs st rest =
          targetTxts = Text.split (==',') (Text.pack targetsStr)
          targetIds  = mkId <$> targetTxts
          msgTxt = Text.pack msgStr
-         myNick = view csNick cs
+         myNick = UserInfo (view csNick cs) Nothing Nothing
          entries = [ (targetId,
                       ClientMessage
                       { _msgTime = now
