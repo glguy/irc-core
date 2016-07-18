@@ -75,14 +75,11 @@ focusNetwork Unfocused = Nothing
 focusNetwork (NetworkFocus network) = Just network
 focusNetwork (ChannelFocus network _) = Just network
 
-initialClientState ::
-  Configuration ->
-  ConnectionContext ->
-  Vty ->
-  IO ClientState
-initialClientState cfg cxt vty =
+initialClientState :: Configuration -> Vty -> IO ClientState
+initialClientState cfg vty =
   do (width,height) <- displayBounds (outputIface vty)
-     events <- atomically newTChan
+     cxt            <- initConnectionContext
+     events         <- atomically newTChan
      return ClientState
         { _clientWindows           = _Empty # ()
         , _clientTextBox           = Edit.empty
