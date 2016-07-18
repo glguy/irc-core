@@ -205,7 +205,7 @@ cmdConnect st rest =
   case words rest of
     [network] ->
       do st' <- addConnection network $ consumeInput st
-         commandContinue $ set clientFocus (NetworkFocus (Text.pack network)) st'
+         commandContinue $ changeFocus (NetworkFocus (Text.pack network)) st'
     _ -> commandContinue st
 
 cmdFocus :: ClientState -> String -> IO CommandResult
@@ -214,13 +214,13 @@ cmdFocus st rest =
     [network] ->
       let focus = NetworkFocus (Text.pack network) in
       commandContinue
-        $ set clientFocus focus
+        $ changeFocus focus
         $ consumeInput st
 
     [network,channel] ->
       let focus = ChannelFocus (Text.pack network) (mkId (Text.pack channel)) in
       commandContinue
-        $ set clientFocus focus
+        $ changeFocus focus
         $ consumeInput st
 
     _ -> commandContinue st
@@ -297,7 +297,7 @@ cmdJoin network cs st rest =
         do let channelId = mkId (Text.pack (takeWhile (/=',') channelTxt))
            sendMsg (view csSocket cs) $ rawIrcMsg "JOIN" (Text.pack <$> ws)
            commandContinue
-               $ set clientFocus (ChannelFocus network channelId)
+               $ changeFocus (ChannelFocus network channelId)
                $ consumeInput st
   in case ws of
        [channelTxt]   -> doJoin channelTxt

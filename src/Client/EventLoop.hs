@@ -27,12 +27,13 @@ import qualified Data.Map as Map
 
 eventLoop :: ClientState -> IO ()
 eventLoop st0 =
-  do st <- clientTick st0
+  do st1 <- clientTick st0
      let vty = view clientVty st
          inQueue = view clientEvents st
          more f = eventLoop (f st)
+         (pic, st) = clientPicture st1
 
-     update vty (clientPicture st)
+     update vty pic
 
      event <- readChan inQueue
      case event of
@@ -131,11 +132,22 @@ doKey key modifier st =
     (KChar c  , []     ) -> changeInput $ Edit.insert c
     (KChar c  , [MMeta]) | Just i <- elemIndex c "1234567890qwertyuiop" ->
                             eventLoop (jumpFocus i st)
+    (KPageUp  , []     ) -> eventLoop (pageUp st)
+    (KPageDown, []     ) -> eventLoop (pageDown st)
     _                    -> eventLoop st
+
+pageUp :: ClientState -> ClientState
+pageUp st = over clientScroll (+ scrollAmount st) st
+
+pageDown :: ClientState -> ClientState
+pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
+
+scrollAmount :: ClientState -> Int
+scrollAmount st = max 1 (view clientHeight st - 2)
 
 jumpFocus :: Int -> ClientState -> ClientState
 jumpFocus i st
-  | 0 <= i, i < Map.size windows = set clientFocus focus st
+  | 0 <= i, i < Map.size windows = changeFocus focus st
   | otherwise                    = st
   where
     windows = view clientWindows st

@@ -61,6 +61,7 @@ data ClientState = ClientState
   , _clientFocus :: !ClientFocus
   , _clientConnectionContext :: !ConnectionContext
   , _clientConfig :: !Configuration
+  , _clientScroll :: !Int
   }
 
 makeLenses ''ClientState
@@ -89,6 +90,7 @@ initialClientState cfg cxt vty events =
         , _clientFocus             = Unfocused
         , _clientConnectionContext = cxt
         , _clientConfig            = cfg
+        , _clientScroll            = 0
         }
 
 recordChannelMessage :: NetworkName -> Identifier -> ClientMessage -> ClientState -> ClientState
@@ -203,7 +205,8 @@ advanceFocus cs =
       | Just ((k,_),_) <- Map.minViewWithKey l -> success k
       | otherwise                              -> cs
   where
-    success  = set clientFocus ?? cs
+    success x = set clientScroll 0
+              $ set clientFocus x cs
     oldFocus = view clientFocus cs
     windows  = view clientWindows cs
 
@@ -215,7 +218,8 @@ retreatFocus cs =
       | Just ((k,_),_) <- Map.maxViewWithKey r -> success k
       | otherwise                              -> cs
   where
-    success  = set clientFocus ?? cs
+    success x = set clientScroll 0
+              $ set clientFocus x cs
     oldFocus = view clientFocus cs
     windows  = view clientWindows cs
 
@@ -228,3 +232,7 @@ currentUserList st =
 channelUserList :: NetworkName -> Identifier -> ClientState -> [Identifier]
 channelUserList network channel st =
   views (clientConnections . ix network . csChannels . ix channel . chanUsers) HashMap.keys st
+
+changeFocus :: ClientFocus -> ClientState -> ClientState
+changeFocus focus = set clientScroll 0
+                  . set clientFocus focus

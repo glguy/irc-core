@@ -14,31 +14,45 @@ import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as Text
 
-clientPicture :: ClientState -> Picture
-clientPicture st =
-  (picForImage (clientImage st)) { picCursor = cursor }
+clientPicture :: ClientState -> (Picture, ClientState)
+clientPicture st = (pic, st')
     where
+      (img, st') = clientImage st
+      pic0 = picForImage img
+      pic  = pic0 { picCursor = cursor }
       cursor = Cursor (min (view clientWidth st - 1)
                            (view (clientTextBox . Edit.pos) st+1))
                       (view clientHeight st - 1)
 
-clientImage :: ClientState -> Image
-clientImage st = vertCat
-   [ messagePane st
-   , horizDividerImage st
-   , textboxImage st
-   ]
+clientImage :: ClientState -> (Image, ClientState)
+clientImage st = (img, st')
+  where
+    (mp, st') = messagePane st
+    img = vertCat
+            [ mp
+            , horizDividerImage st
+            , textboxImage st
+            ]
 
-messagePane :: ClientState -> Image
-messagePane st = assemble emptyImage (view wlImage <$> messages)
+messagePane :: ClientState -> (Image, ClientState)
+messagePane st = (img, st')
   where
     -- Failure returns empty list due to monoid instance on [a]
     messages = view (clientWindows . ix (view clientFocus st) . winMessages) st
 
-    assemble acc _ | imageHeight acc >= h = cropTop h acc
-    assemble acc [] = pad 0 (h - imageHeight acc) 0 0 acc
+    vimg = assemble emptyImage (view wlImage <$> messages)
+    vimg1 = cropBottom h vimg 
+    img   = pad 0 (h - imageHeight vimg1) 0 0 vimg1
+
+    overscroll = vh - imageHeight vimg
+    st' = over clientScroll (max 0 . subtract overscroll) st
+
+    assemble acc _ | imageHeight acc >= vh = cropTop vh acc
+    assemble acc [] = acc
     assemble acc (x:xs) = assemble (lineWrap w x <-> acc) xs
 
+    scroll = view clientScroll st
+    vh = h + scroll
     h = view clientHeight st - 2
     w = view clientWidth st
 
