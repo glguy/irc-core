@@ -2,6 +2,7 @@
 module DCC where
 
 import           Prelude        hiding (getContents, log)
+import           Control.Applicative   ((<$>), (<*>))
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State as S
 import           Control.Monad.Trans.Except
