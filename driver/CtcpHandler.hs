@@ -5,10 +5,8 @@ module CtcpHandler where
 import Control.Lens
 import Control.Monad
 import Control.Applicative
-import Control.Concurrent
 import Data.ByteString (ByteString)
 import Data.Monoid
-import Data.Map as Map
 import Data.Maybe
 import Data.Time
 import Data.Version (showVersion)
@@ -74,34 +72,6 @@ ctcpHandler = EventHandler
           return (over clientAutomation (cons ctcpHandler) st)
   }
 
--- ideally this would be in DCC but hs-boot files are a pain
--- time limit between offer and acceptance of connection 90s.
-pruneStaleOffers :: ClientState -> IO ClientState
-pruneStaleOffers st =
-  do now <- getCurrentTime
-     let cond offer = diffUTCTime now (_doTime offer) < 90
-     return $ over (clientServer0 . ccHoldDccTrans) (Map.filter cond) st
-
--- traverseOf means more clarity(?)
-checkTransfers :: ClientState -> IO ClientState
-checkTransfers = traverseOf (clientDCCTransfers . traverse)
-                               (update . graduate)
-  where
-    update :: Transfer -> IO Transfer
-    update trans
-      | (Ongoing _ _ _ _ mvar) <- trans = do
-            possibleProgress <- tryReadMVar mvar
-            case possibleProgress of
-              Just newValue -> return $ trans { _tcurSize = newValue }
-              Nothing       -> return $ trans
-      | otherwise = return trans
-
-    graduate :: Transfer -> Transfer
-    graduate trans
-      | (Ongoing name size curSize _ _) <- trans,
-        size == curSize = Finished name size
-      | otherwise       = trans
-
 dccHandler :: FilePath -> EventHandler
 dccHandler outDir = EventHandler
   { _evName = "DCC handler"
@@ -109,14 +79,6 @@ dccHandler outDir = EventHandler
          return $ over clientAutomation (cons (dccHandler outDir))
                        (queueOffer outDir ident msg st)
   }
-
--- todo(slack): better message to the user (this is a hack)
--- | We assume ctcpHandler already ran and created the corresponding window.
-userConfirm :: Identifier -> ClientState -> ClientState
-userConfirm sender st =
-  let questionText = PrivMsgType $ "You have a pending DCC transfer. /dcc"
-                       <> " accept it or /dcc cancel"
-  in addMessage sender (set mesgType questionText defaultIrcMessage) st
 
 queueOffer :: FilePath -> Identifier -> IrcMessage
            -> ClientState -> ClientState
@@ -149,15 +111,11 @@ queueOffer outDir _ msg st = fromJust $
       set (clientServer0 . ccHoldDccTrans . at sender)
           (Just (parseDccOffer ctime outDir offer)) st
 
-retrieveAndStartOffer :: ClientState -> Maybe (IO ClientState)
-retrieveAndStartOffer st = do
-  sender <- preview (clientFocus . _ChannelFocus) st
-  offer  <- view (clientServer0 . ccHoldDccTrans . at sender) st
-  Just $ do
-    mvar     <- newMVar 0
-    threadId <- forkIO (dcc_recv mvar offer)
-    let transfer      = toTransfer offer threadId mvar
-        removeOffer   = over (clientServer0 . ccHoldDccTrans)
-                             (Map.delete sender)
-        storeTransfer = over clientDCCTransfers (cons transfer)
-    return . storeTransfer . removeOffer $ st
+-- todo(slack): better message to the user (this is a hack)
+-- | We assume ctcpHandler already ran and created the corresponding window.
+userConfirm :: Identifier -> ClientState -> ClientState
+userConfirm sender st =
+  let questionText =
+        PrivMsgType $ "You have a pending DCC transfer. Issue "
+                       <>  "/dcc accept or /dcc cancel"
+  in addMessage sender (set mesgType questionText defaultIrcMessage) st

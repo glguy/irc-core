@@ -31,7 +31,6 @@ import Graphics.Vty
 import Network.Connection
 import System.IO
 import System.IO.Error (isEOFError)
-import Data.Bool as Bool
 import qualified Config.Lens as C
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
@@ -209,7 +208,7 @@ driver vty vtyEventChan ircMsgChan st0 =
   continue = considerTimers
            . resetCurrentChannelMessages
            <=< pruneStaleOffers
-           <=< checkTransfers
+           <=< updateTransfers
 
   considerTimers st =
     do now <- getCurrentTime
@@ -444,11 +443,16 @@ commandEvent st = commandsParser (clientInput st)
  exitCommand =
   ("exit", [], pure (return Exit))
 
- -- todo(slack): I don't know what [String] does
  dccCommand :: (String, [String], Parser (IO KeyEventResult))
  dccCommand =
-   let aux = fmap (fmap KeepGoing) $ retrieveAndStartOffer st'
-   in ("dcc", [], pValidToken "accept" (Bool.bool Nothing aux . ("accept" ==)) )
+   let popAndLaunch = fmap (fmap KeepGoing) $ startOffer st'
+       justPop      = fmap (fmap KeepGoing) $ cancelOffer st'
+       cmdBranch a = case a of
+                       "accept" -> popAndLaunch
+                       "cancel" -> justPop
+                       _        -> Nothing
+
+    in ("dcc", [], pValidToken "(accept|cancel)" cmdBranch )
 
  normalCommands = over (mapped . _3 . mapped . mapped) KeepGoing $
     -- focus setting
