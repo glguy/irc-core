@@ -5,10 +5,12 @@ import           Client.ConnectionState
 import           Client.MircFormatting
 import           Client.State
 import           Client.Window
+import           Client.MessageRenderer
 import           Control.Lens
 import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
 import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier, idText)
+import           Client.Message
 import qualified Client.EditBox as Edit
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
@@ -40,7 +42,7 @@ messagePane st = (img, st')
     -- Failure returns empty list due to monoid instance on [a]
     messages = view (clientWindows . ix (view clientFocus st) . winMessages) st
 
-    vimg = assemble emptyImage (view wlImage <$> messages)
+    vimg = assemble emptyImage (windowLinesToImages messages)
     vimg1 = cropBottom h vimg 
     img   = pad 0 (h - imageHeight vimg1) 0 0 vimg1
 
@@ -55,6 +57,33 @@ messagePane st = (img, st')
     vh = h + scroll
     h = view clientHeight st - 2
     w = view clientWidth st
+
+windowLinesToImages :: [WindowLine] -> [Image]
+windowLinesToImages wwls =
+  case wwls of
+    [] -> []
+    wl:wls
+      | Just (img,ident) <- metadataWindowLine wl -> windowLinesToImagesMd img ident wls
+      | otherwise -> view wlImage wl : windowLinesToImages wls
+
+windowLinesToImagesMd :: Image -> Identifier -> [WindowLine] -> [Image]
+windowLinesToImagesMd acc who wwls =
+  case wwls of
+    wl:wls
+      | Just (img,ident) <- metadataWindowLine wl ->
+          if who == ident
+            then windowLinesToImagesMd (acc <|> img) who wls
+            else windowLinesToImagesMd (finish <|> char defAttr ' ' <|> img) ident wls
+    _ -> finish : windowLinesToImages wwls
+  where
+    finish = acc <|> quietIdentifier who
+
+
+metadataWindowLine :: WindowLine -> Maybe (Image, Identifier)
+metadataWindowLine wl =
+  case view wlBody wl of
+    IrcBody irc -> metadataImg irc
+    _           -> Nothing
 
 lineWrap :: Int -> Image -> Image
 lineWrap w img

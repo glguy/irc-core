@@ -127,8 +127,8 @@ msgImportance msg st =
         Privmsg _ _ txt -> checkTxt txt
         Notice _ _  txt -> checkTxt txt
         Action _ _  txt -> checkTxt txt
-        Part who _ | isMe who  -> WLImportant
-                   | otherwise -> WLBoring
+        Part who _ _ | isMe who  -> WLImportant
+                     | otherwise -> WLBoring
         Kick _ _ kicked _ | isMe kicked -> WLImportant
                           | otherwise   -> WLNormal
         Error{}         -> WLImportant

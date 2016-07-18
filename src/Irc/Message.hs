@@ -3,6 +3,7 @@ module Irc.Message where
 
 import           Control.Lens
 import           Data.Function
+import           Data.Maybe
 import           Data.Text (Text)
 import           Data.Text as Text
 import           Data.Text.Read as Text
@@ -15,7 +16,7 @@ data IrcMsg
   | Reply Int [Text]
   | Nick Identifier Identifier
   | Join Identifier Identifier
-  | Part Identifier Identifier
+  | Part Identifier Identifier (Maybe Text)
   | Quit Identifier Text
   | Kick Identifier Identifier Identifier Text -- ^ kicker channel kickee comment
   | Topic Identifier Identifier Text -- ^ user channel topic
@@ -80,9 +81,9 @@ cookIrcMsg msg =
            , [reason]  <- view msgParams msg ->
            Quit (userNick user) reason
 
-    "PART" | Just user <- view msgPrefix msg
-           , chan:_    <- view msgParams msg ->
-           Part (userNick user) (mkId chan)
+    "PART" | Just user    <- view msgPrefix msg
+           , chan:reasons <- view msgParams msg ->
+           Part (userNick user) (mkId chan) (listToMaybe reasons)
 
     "NICK"  | Just user <- view msgPrefix msg
             , newNick:_ <- view msgParams msg ->
@@ -120,7 +121,7 @@ msgTarget me msg =
     Mode _ tgt _ | tgt == me -> TargetNetwork
                  | otherwise -> TargetWindow tgt
     Join _ chan -> TargetWindow chan
-    Part _ chan -> TargetWindow chan
+    Part _ chan _ -> TargetWindow chan
     Quit user _ -> TargetUser user
     Kick _ chan _ _ -> TargetWindow chan
     Topic _ chan _ -> TargetWindow chan
@@ -142,7 +143,7 @@ msgActor msg =
     Reply{}       -> Nothing
     Nick x _      -> Just x
     Join x _      -> Just x
-    Part x _      -> Just x
+    Part x _ _    -> Just x
     Quit x _      -> Just x
     Kick x _ _ _  -> Just x
     Topic x _ _   -> Just x
@@ -163,7 +164,7 @@ ircMsgText msg =
     Reply n xs -> Text.unwords (Text.pack (show n) : xs)
     Nick x y -> Text.unwords [idText x, idText y]
     Join x _ -> idText x
-    Part x _ -> idText x
+    Part x _ _ -> idText x
     Quit x y -> Text.unwords [idText x, y]
     Kick x _ z r -> Text.unwords [idText x, idText z, r]
     Topic x _ t -> Text.unwords [idText x, t]

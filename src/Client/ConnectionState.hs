@@ -82,7 +82,7 @@ applyMessage msgWhen msg cs =
            noReply
          $ overChannels (partChannel user) cs
 
-    Part user chan ->
+    Part user chan _mbreason ->
            noReply
          $ if user == view csNick cs
              then set (csChannels . at chan) Nothing cs

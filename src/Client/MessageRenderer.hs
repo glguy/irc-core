@@ -2,13 +2,14 @@ module Client.MessageRenderer
   ( MessageRendererParams(..)
   , defaultRenderParams
   , msgImage
+  , metadataImg
+  , quietIdentifier
   ) where
 
 import           Client.IdentifierColors
 import           Client.Message
 import           Client.MircFormatting
 import           Control.Lens
-import           Data.Function
 import           Data.Time
 import           Graphics.Vty.Image
 import           Irc.Identifier
@@ -74,7 +75,7 @@ ircLineImage modes nicks body =
       char (withForeColor defAttr green) '+' <|>
       quietIdentifier nick
 
-    Part nick _chan ->
+    Part nick _chan _mbreason ->
       char (withForeColor defAttr red) '-' <|>
       quietIdentifier nick
 
@@ -175,8 +176,16 @@ highlightNicks nicks txt = horizCat (highlight1 <$> txtParts)
   where
     nickSet = HashSet.fromList nicks
     txtParts = nickSplit txt
-    highlight1 txt
-      | HashSet.member txtId nickSet = coloredIdentifier txtId
-      | otherwise                    = text' defAttr txt
+    highlight1 part
+      | HashSet.member partId nickSet = coloredIdentifier partId
+      | otherwise                     = text' defAttr part
       where
-        txtId = mkId txt
+        partId = mkId part
+
+metadataImg :: IrcMsg -> Maybe (Image, Identifier)
+metadataImg msg =
+  case msg of
+    Quit who _   -> Just (char (withForeColor defAttr red  ) 'x', who)
+    Part who _ _ -> Just (char (withForeColor defAttr red  ) '-', who)
+    Join who _   -> Just (char (withForeColor defAttr green) '+', who)
+    _            -> Nothing
