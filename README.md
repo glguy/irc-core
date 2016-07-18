@@ -165,6 +165,12 @@ Filters
 * `/filter` - Filter chat messages by space-delimited set of nicknames
 * `/grep` - Filter chat messages using a regular expression on the message
 
+DCC commands
+
+* `/transfers` - Show the DCC Offers and the ongoing progress
+* `/dcc accept` - On the sender window starts the download
+* `/dcc cancel` - as above but drops the offer and informs the sender with xdcc cancel
+
 Keyboard Shortcuts
 ==================
 
