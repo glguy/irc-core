@@ -104,7 +104,7 @@ data Focus
   = ChannelFocus Identifier
   | ChannelInfoFocus Identifier
   | MaskListFocus Char Identifier
-  | DCCFocus Identifier
+  | DCCFocus Focus
   deriving (Eq, Ord, Read, Show)
 
 data EventHandler = EventHandler
@@ -198,7 +198,7 @@ incrementFocus f st
     case view clientFocus st of
       ChannelInfoFocus c -> ChannelFocus c
       MaskListFocus _  c -> ChannelFocus c
-      DCCFocus c         -> ChannelFocus c
+      DCCFocus oldFocus  -> oldFocus
       ChannelFocus c     -> ChannelFocus (f c focuses)
 
   focuses = Map.keysSet (fullMessageLists st)

@@ -1,30 +1,39 @@
-module Views.DCC where
+module Views.DCC (dccImage) where
+
+import qualified Data.Map as Map
+import System.FilePath
+import Data.Text.Encoding
+import Control.Lens
+import Graphics.Vty.Image
 
 import ClientState
-import Control.Lens
-import Data.ByteString (ByteString)
-import Data.List (partition)
-import Data.Map (Map)
-import Data.Monoid
-import Graphics.Vty.Image
-import ImageUtils
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.Map as Map
-
-import Irc.Format
-import Irc.Model
 import DCC
 
-dccImage :: ClientState -> [Image]
-dccImage = map progressImage . view clientDCCTransfers
+import Irc.Format
 
-progressImage :: Transfer -> Image
-progressImage (Ongoing name total current _ _) =
+dccImage :: ClientState -> [Image]
+dccImage st =
+  concat [ map transferImg . view clientDCCTransfers $ st
+         , map offerImg . Map.assocs . view (clientServer0 . ccHoldDccTrans) $ st
+         ]
+
+offerImg :: (Identifier, DCCOffer) -> Image
+offerImg (ident, offer) =
+  string defAttr (takeFileName $ _doName offer)
+  <|> char defAttr ' '
+  <|> string (withForeColor defAttr red) (show $ _doSize offer `div` (1024^2))
+  <|> string defAttr "Mb"
+  <|> string defAttr " from "
+  <|> text' defAttr (decodeUtf8 (idBytes ident))
+
+transferImg :: Transfer -> Image
+transferImg (Ongoing name total current _ _) =
     string defAttr name <|>
     string (withForeColor defAttr blue) (percent total current)
-progressImage (Finished name size) =
+transferImg (Finished name _) =
     string defAttr name <|>
-    string (withForeColor defAttr green) " 100"
+    char defAttr ' ' <|>
+    string (withForeColor defAttr green) "100"
 
 percent :: Int -> Int -> String
 percent total current =

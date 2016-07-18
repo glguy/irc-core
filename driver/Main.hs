@@ -753,11 +753,11 @@ doChannelInfoCmd st
   where
   conn = view (clientServer0 . ccConnection) st
 
--- todo(slack) just debug
 doDccTransfers :: ClientState -> IO ClientState
-doDccTransfers st
-    | Just chan <- focusedChan st = return $ set clientFocus (DCCFocus chan) st
-    | otherwise = return st
+doDccTransfers st =
+  case view clientFocus st of
+    DCCFocus _ -> return $ st   -- No DCCFocus (DCCFocus (..))
+    oldFocus -> return $ set clientFocus (DCCFocus oldFocus) st
 
 doMasksCmd ::
   Char       {- ^ mode    -} ->

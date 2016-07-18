@@ -128,6 +128,7 @@ executable glirc
                  Views.BanList
                  Views.Channel
                  Views.ChannelInfo
+                 Views.DCC
                  Paths_irc_core
   hs-source-dirs: driver
   ghc-options: -threaded
