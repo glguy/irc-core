@@ -7,3 +7,5 @@
 * jump to activity
 * split long messages
 * detailed view
+* channel mask list view
+* channel userlist view

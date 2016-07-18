@@ -6,12 +6,12 @@ module Client.EventLoop
 
 import           Client.Commands
 import           Client.ConnectionState
-import           Client.Event
 import           Client.Image
 import           Client.Message
+import           Client.NetworkConnection
 import           Client.State
 import           Client.WordCompletion
-import           Control.Concurrent
+import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
 import           Data.List
@@ -28,22 +28,37 @@ import qualified Client.EditBox     as Edit
 import qualified Data.Text as Text
 import qualified Data.Map as Map
 
+
+data ClientEvent
+  = VtyEvent Event
+  | NetworkEvent NetworkEvent
+
+
+getEvent :: ClientState -> IO ClientEvent
+getEvent st = atomically $
+  asum [ VtyEvent     <$> readTChan vtyEventChannel
+       , NetworkEvent <$> readTChan (view clientEvents st)
+       ]
+  where
+    vtyEventChannel = _eventChannel (inputIface (view clientVty st))
+
+
 eventLoop :: ClientState -> IO ()
 eventLoop st0 =
   do st1 <- clientTick st0
      let vty = view clientVty st
-         inQueue = view clientEvents st
          (pic, st) = clientPicture st1
 
      update vty pic
 
-     event <- readChan inQueue
+     event <- getEvent st
      case event of
-       TimerEvent                    -> eventLoop st
        VtyEvent vtyEvent             -> doVtyEvent vtyEvent st
-       NetworkLine network time line -> doNetworkLine network time line st
-       NetworkError network time ex  -> doNetworkError network time ex st
-       NetworkClose network time     -> doNetworkClose network time st
+       NetworkEvent networkEvent ->
+         case networkEvent of
+           NetworkLine network time line -> doNetworkLine network time line st
+           NetworkError network time ex  -> doNetworkError network time ex st
+           NetworkClose network time     -> doNetworkClose network time st
 
 
 doNetworkClose :: NetworkName -> ZonedTime -> ClientState -> IO ()
@@ -109,8 +124,12 @@ doVtyEvent :: Event -> ClientState -> IO ()
 doVtyEvent vtyEvent st =
   case vtyEvent of
     EvKey k modifier -> doKey k modifier st
-    EvResize w h     -> eventLoop $ set clientWidth w
-                                  $ set clientHeight h st
+    EvResize{} -> -- ignore event parameters due to raw TChan use
+      do let vty = view clientVty st
+         refresh vty
+         (w,h) <- displayBounds (outputIface vty)
+         eventLoop $ set clientWidth w
+                   $ set clientHeight h st
     _                -> eventLoop st
 
 doKey :: Key -> [Modifier] -> ClientState -> IO ()

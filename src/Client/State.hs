@@ -4,12 +4,12 @@ module Client.State where
 
 import           Client.ChannelState
 import           Client.ConnectionState
-import           Client.Event
 import           Client.Message
 import           Client.Window
 import           Client.Configuration
 import           Client.MessageRenderer
-import           Control.Concurrent.Chan
+import           Client.NetworkConnection
+import           Control.Concurrent.STM
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import           Data.Hashable
@@ -57,7 +57,7 @@ data ClientState = ClientState
   , _clientTextBox     :: !Edit.EditBox
   , _clientConnections :: !(HashMap NetworkName ConnectionState)
   , _clientWidth, _clientHeight :: !Int
-  , _clientEvents :: !(Chan ClientEvent)
+  , _clientEvents :: !(TChan NetworkEvent)
   , _clientVty :: !Vty
   , _clientFocus :: !ClientFocus
   , _clientConnectionContext :: !ConnectionContext
@@ -77,9 +77,12 @@ focusNetwork (ChannelFocus network _) = Just network
 
 initialClientState ::
   Configuration ->
-  ConnectionContext -> Vty -> Chan ClientEvent -> IO ClientState
-initialClientState cfg cxt vty events =
+  ConnectionContext ->
+  Vty ->
+  IO ClientState
+initialClientState cfg cxt vty =
   do (width,height) <- displayBounds (outputIface vty)
+     events <- atomically newTChan
      return ClientState
         { _clientWindows           = _Empty # ()
         , _clientTextBox           = Edit.empty

@@ -2,11 +2,13 @@
 
 module Client.NetworkConnection
   ( NetworkConnection(..)
+  , NetworkEvent(..)
   , createConnection
   , send
   ) where
 
 import Control.Concurrent
+import Control.Concurrent.STM
 import Control.Concurrent.Async
 import Control.Exception
 import Control.Monad
@@ -16,7 +18,6 @@ import Network.Connection
 import qualified Data.ByteString as B
 
 import Irc.RateLimit
-import Client.Event
 import Client.Message
 import Client.Connect
 import Client.ServerSettings
@@ -24,6 +25,11 @@ import Client.ServerSettings
 data NetworkConnection = NetworkConnection
   { connOutQueue :: !(Chan ByteString)
   }
+
+data NetworkEvent
+  = NetworkLine !NetworkName !ZonedTime !ByteString
+  | NetworkError !NetworkName !ZonedTime !SomeException
+  | NetworkClose !NetworkName !ZonedTime
 
 instance Show NetworkConnection where
   showsPrec p _ = showParen (p > 10)
@@ -36,7 +42,7 @@ createConnection ::
   NetworkName ->
   ConnectionContext ->
   ServerSettings ->
-  Chan ClientEvent ->
+  TChan NetworkEvent ->
   IO NetworkConnection
 createConnection network cxt settings inQueue =
    do outQueue <- newChan
@@ -53,19 +59,19 @@ createConnection network cxt settings inQueue =
     recordFailure :: SomeException -> IO ()
     recordFailure ex =
       do now <- getZonedTime
-         writeChan inQueue (NetworkError network now ex)
+         atomically (writeTChan inQueue (NetworkError network now ex))
 
     recordNormalExit :: IO ()
     recordNormalExit =
       do now <- getZonedTime
-         writeChan inQueue (NetworkClose network now)
+         atomically (writeTChan inQueue (NetworkClose network now))
 
 
 startConnection ::
   NetworkName ->
   ConnectionContext ->
   ServerSettings ->
-  Chan ClientEvent ->
+  TChan NetworkEvent ->
   Chan ByteString ->
   IO ()
 startConnection network cxt settings onInput outQueue =
@@ -90,10 +96,10 @@ sendLoop h outQueue rate =
 ircMaxMessageLength :: Int
 ircMaxMessageLength = 512
 
-receiveLoop :: NetworkName -> Connection -> Chan ClientEvent -> IO ()
+receiveLoop :: NetworkName -> Connection -> TChan NetworkEvent -> IO ()
 receiveLoop network h inQueue =
   do msg <- connectionGetLine ircMaxMessageLength h
      unless (B.null msg) $
        do now <- getZonedTime
-          writeChan inQueue (NetworkLine network now (B.init msg))
+          atomically (writeTChan inQueue (NetworkLine network now (B.init msg)))
           receiveLoop network h inQueue
