@@ -6,6 +6,18 @@
 * structured command argument processing
 * jump to activity
 * split long messages
-* detailed view
 * channel mask list view
 * channel userlist view
+* ignore list
+
+detailed view
+-----------
+* show full userinfo
+* show date
+
+moderation
+----------
+
+* remove command
+* temporary bans
+* automatic chanserv op requests
