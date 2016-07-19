@@ -17,7 +17,6 @@ import           Data.List
 import           Data.Maybe
 import           Data.Map (Map)
 import           Data.Monoid
-import           Data.Time
 import           GHC.Generics
 import           Graphics.Vty
 import           Irc.Identifier

@@ -119,6 +119,7 @@ commands = HashMap.fromList
   , ("invite" , ChannelCommand cmdInvite noChannelTab)
   , ("topic"  , ChannelCommand cmdTopic  tabTopic    )
   , ("kick"   , ChannelCommand cmdKick   noChannelTab)
+  , ("remove" , ChannelCommand cmdRemove noChannelTab)
   , ("me"     , ChannelCommand cmdMe     noChannelTab)
   , ("part"   , ChannelCommand cmdPart   noChannelTab)
   ]
@@ -289,6 +290,15 @@ cmdKick _ cs channelId st rest =
                   "" -> []
                   msg -> [Text.pack msg]
      sendMsg (view csSocket cs) $ rawIrcMsg "KICK" (idText channelId : Text.pack who : msgs)
+     commandContinue $ consumeInput st
+
+cmdRemove :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdRemove _ cs channelId st rest =
+  do let (who,reason) = nextWord rest
+         msgs = case dropWhile isSpace reason of
+                  "" -> []
+                  msg -> [Text.pack msg]
+     sendMsg (view csSocket cs) $ rawIrcMsg "REMOVE" (idText channelId : Text.pack who : msgs)
      commandContinue $ consumeInput st
 
 cmdJoin :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult

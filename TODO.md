@@ -10,14 +10,8 @@
 * channel userlist view
 * ignore list
 
-detailed view
------------
-* show full userinfo
-* show date
-
 moderation
 ----------
 
-* remove command
 * temporary bans
 * automatic chanserv op requests
