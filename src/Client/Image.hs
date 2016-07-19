@@ -37,22 +37,27 @@ clientImage st = (img, st')
     (mp, st') = messagePane st
     img = vertCat
             [ mp
-            , horizDividerImage st
-            , textboxImage st
+            , horizDividerImage st'
+            , textboxImage st'
             ]
 
 messagePaneImages :: ClientState -> [Image]
 messagePaneImages !st =
   case (view clientFocus st, view clientSubfocus st) of
     (ChannelFocus network channel, FocusUsers) ->
-      userListImages network channel st
+      userListImages matcher network channel st
     (ChannelFocus network channel, FocusMasks mode) ->
-      maskListImages mode network channel st
+      maskListImages matcher mode network channel st
 
     -- subfocuses only make sense for channels
     _ -> windowLineProcessor focusedMessages
   where
-    focusedMessages = view (clientWindows . ix (view clientFocus st) . winMessages) st
+    matcher = clientMatcher st
+
+    focusedMessages
+        = filter (views wlText matcher)
+        $ view (clientWindows . ix (view clientFocus st) . winMessages) st
+
     windowLineProcessor
       | view clientDetailView st = map (view wlFullImage)
       | otherwise                = windowLinesToImages . filter (not . isNoisy)
@@ -71,6 +76,7 @@ messagePane st = (img, st')
     img   = pad 0 (h - imageHeight vimg1) 0 0 vimg1
 
     overscroll = vh - imageHeight vimg
+
     st' = over clientScroll (max 0 . subtract overscroll) st
 
     assemble acc _ | imageHeight acc >= vh = cropTop vh acc
@@ -126,10 +132,21 @@ horizDividerImage st
       [ myNickImage st
       , parens defAttr (focusImage st)
       , activityImage st
+      , scrollImage st
       ]
 
 parens :: Attr -> Image -> Image
 parens attr i = char attr '(' <|> i <|> char attr ')'
+
+scrollImage :: ClientState -> Image
+scrollImage st =
+  case view clientScroll st of
+    0 -> emptyImage
+    scroll -> horizCat
+      [ string defAttr "─("
+      , string (withForeColor defAttr red) "scroll"
+      , string defAttr ")"
+      ]
 
 activityImage :: ClientState -> Image
 activityImage st
@@ -209,8 +226,9 @@ textboxImage st
   beginning = char (withForeColor defAttr brightBlack) '^'
   ending    = char (withForeColor defAttr brightBlack) '$'
 
-userListImages :: NetworkName -> Identifier -> ClientState -> [Image]
-userListImages network channel st =
+userListImages ::
+  (Text -> Bool) -> NetworkName -> Identifier -> ClientState -> [Image]
+userListImages matcher network channel st =
     [horizCat (intersperse gap (map renderUser usersList))]
   where
     renderUser (ident, sigils) =
@@ -219,22 +237,47 @@ userListImages network channel st =
 
     gap = char defAttr ' '
 
-    usersList = sortBy (comparing fst) (HashMap.toList usersHashMap)
+    matcher' (ident,sigils) = matcher (Text.pack sigils `Text.append` idText ident)
+
+    usersList = sortBy (comparing fst)
+              $ filter matcher'
+              $ HashMap.toList usersHashMap
+
     usersHashMap =
       view ( clientConnections . ix network
            . csChannels        . ix channel
            . chanUsers ) st
 
-maskListImages :: Char -> NetworkName -> Identifier -> ClientState -> [Image]
-maskListImages mode network channel st
+maskListImages ::
+  (Text -> Bool) -> Char -> NetworkName -> Identifier -> ClientState -> [Image]
+maskListImages matcher mode network channel st
   | null entryList = [string (withForeColor defAttr red) "No masks"]
-  | otherwise = [ text' defAttr user <|> char defAttr ' ' <|>
-                  text' defAttr who  <|> char defAttr ' ' <|>
-                  string defAttr (formatTime defaultTimeLocale "%F %T" when)
-                | (user, (who,when)) <- entryList ]
+  | otherwise      = images
   where
-    entryList = sortBy (comparing (snd . snd)) (HashMap.toList entries)
+    matcher' (x,(y,_)) = matcher x || matcher y
+
+    entryList = sortBy (comparing (snd . snd))
+              $ filter matcher'
+              $ HashMap.toList entries
+
     entries = view ( clientConnections . ix network
                    . csChannels        . ix channel
                    . chanList mode
                    ) st
+
+    renderWhen = formatTime defaultTimeLocale " %F %T"
+
+    (masks, whoWhens) = unzip entryList
+    maskImages       = text' defAttr <$> masks
+    maskColumnWidth  = maximum (imageWidth <$> maskImages) + 1
+    paddedMaskImages = resizeWidth maskColumnWidth <$> maskImages
+    width            = max 1 (view clientWidth st)
+
+    images = [ cropLine $ mask <|>
+                          text' defAttr who <|>
+                          string defAttr (renderWhen when)
+             | (mask, (who, when)) <- zip paddedMaskImages whoWhens ]
+
+    cropLine img
+      | imageWidth img > width = cropRight width img
+      | otherwise              = img

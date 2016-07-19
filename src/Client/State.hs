@@ -15,6 +15,9 @@ import           Data.List
 import           Data.Maybe
 import           Data.Map (Map)
 import           Data.Monoid
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.ICU as ICU
 import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message
@@ -24,7 +27,6 @@ import           Network.Connection
 import qualified Client.EditBox as Edit
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 
 data ClientFocus
  = Unfocused
@@ -127,7 +129,9 @@ msgImportance msg st =
   case view msgBody msg of
     ExitBody    -> WLImportant
     ErrorBody _ -> WLImportant
-    IrcBody irc ->
+    IrcBody irc
+      | squelchIrcMsg irc -> WLBoring
+      | otherwise ->
       case irc of
         Privmsg _ _ txt -> checkTxt txt
         Notice _ _  txt -> checkTxt txt
@@ -254,3 +258,10 @@ changeSubfocus focus
 
 windowNames :: [Char]
 windowNames = "1234567890qwertyuiop"
+
+clientMatcher :: ClientState -> Text -> Bool
+clientMatcher st =
+  case stripPrefix "/grep " (clientInput st) of
+    Just reStr | not (null reStr), Right r <- ICU.regex' [] (Text.pack reStr) ->
+          isJust . ICU.find r
+    _ -> const True

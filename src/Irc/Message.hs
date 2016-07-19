@@ -163,7 +163,7 @@ ircMsgText msg =
     Reply n xs     -> Text.unwords (Text.pack (show n) : xs)
     Nick x y       -> Text.unwords [renderUserInfo x, idText y]
     Join x _       -> renderUserInfo x
-    Part x _ _     -> renderUserInfo x
+    Part x _ mb    -> Text.unwords (renderUserInfo x : maybeToList mb)
     Quit x y       -> Text.unwords [renderUserInfo x, y]
     Kick x _ z r   -> Text.unwords [renderUserInfo x, idText z, r]
     Topic x _ t    -> Text.unwords [renderUserInfo x, t]
