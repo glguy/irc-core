@@ -6,9 +6,8 @@
 * structured command argument processing
 * jump to activity
 * split long messages
-* channel mask list view
-* channel userlist view
 * ignore list
+* clear window
 
 moderation
 ----------

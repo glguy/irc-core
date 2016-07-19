@@ -1,5 +1,4 @@
 {-# Language TemplateHaskell #-}
-{-# Language DeriveGeneric #-}
 module Client.State where
 
 import           Client.ChannelState
@@ -12,12 +11,10 @@ import           Client.NetworkConnection
 import           Control.Concurrent.STM
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
-import           Data.Hashable
 import           Data.List
 import           Data.Maybe
 import           Data.Map (Map)
 import           Data.Monoid
-import           GHC.Generics
 import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message
@@ -31,9 +28,15 @@ import qualified Data.Text as Text
 
 data ClientFocus
  = Unfocused
- | NetworkFocus NetworkName
- | ChannelFocus NetworkName Identifier
-  deriving (Eq, Generic)
+ | NetworkFocus !NetworkName
+ | ChannelFocus !NetworkName !Identifier
+  deriving Eq
+
+data ClientSubfocus
+  = FocusMessages
+  | FocusUsers
+  | FocusMasks !Char
+  deriving Eq
 
 -- | Unfocused first, followed by focuses sorted by network.
 -- Within the same network the network focus comes first and
@@ -49,8 +52,6 @@ instance Ord ClientFocus where
   compare (NetworkFocus x  ) (ChannelFocus y _) = compare x y <> LT
   compare (ChannelFocus x _) (NetworkFocus y  ) = compare x y <> GT
 
-instance Hashable ClientFocus
-
 data ClientState = ClientState
   { _clientWindows     :: !(Map ClientFocus Window)
   , _clientTextBox     :: !Edit.EditBox
@@ -63,6 +64,7 @@ data ClientState = ClientState
   , _clientConfig :: !Configuration
   , _clientScroll :: !Int
   , _clientDetailView :: !Bool
+  , _clientSubfocus :: !ClientSubfocus
   }
 
 makeLenses ''ClientState
@@ -93,6 +95,7 @@ initialClientState cfg vty =
         , _clientConfig            = cfg
         , _clientScroll            = 0
         , _clientDetailView        = False
+        , _clientSubfocus          = FocusMessages
         }
 
 recordChannelMessage :: NetworkName -> Identifier -> ClientMessage -> ClientState -> ClientState
@@ -199,30 +202,34 @@ consumeInput :: ClientState -> ClientState
 consumeInput = over clientTextBox Edit.success
 
 advanceFocus :: ClientState -> ClientState
-advanceFocus cs =
+advanceFocus st
+  | view clientSubfocus st /= FocusMessages = changeSubfocus FocusMessages st
+  | otherwise =
   case Map.split oldFocus windows of
     (l,r)
       | Just ((k,_),_) <- Map.minViewWithKey r -> success k
       | Just ((k,_),_) <- Map.minViewWithKey l -> success k
-      | otherwise                              -> cs
+      | otherwise                              -> st
   where
     success x = set clientScroll 0
-              $ set clientFocus x cs
-    oldFocus = view clientFocus cs
-    windows  = view clientWindows cs
+              $ set clientFocus x st
+    oldFocus = view clientFocus st
+    windows  = view clientWindows st
 
 retreatFocus :: ClientState -> ClientState
-retreatFocus cs =
+retreatFocus st
+  | view clientSubfocus st /= FocusMessages = changeSubfocus FocusMessages st
+  | otherwise =
   case Map.split oldFocus windows of
     (l,r)
       | Just ((k,_),_) <- Map.maxViewWithKey l -> success k
       | Just ((k,_),_) <- Map.maxViewWithKey r -> success k
-      | otherwise                              -> cs
+      | otherwise                              -> st
   where
     success x = set clientScroll 0
-              $ set clientFocus x cs
-    oldFocus = view clientFocus cs
-    windows  = view clientWindows cs
+              $ set clientFocus x st
+    oldFocus = view clientFocus st
+    windows  = view clientWindows st
 
 currentUserList :: ClientState -> [Identifier]
 currentUserList st =
@@ -235,8 +242,15 @@ channelUserList network channel st =
   views (clientConnections . ix network . csChannels . ix channel . chanUsers) HashMap.keys st
 
 changeFocus :: ClientFocus -> ClientState -> ClientState
-changeFocus focus = set clientScroll 0
-                  . set clientFocus focus
+changeFocus focus
+  = set clientScroll 0
+  . set clientFocus focus
+  . set clientSubfocus FocusMessages
+
+changeSubfocus :: ClientSubfocus -> ClientState -> ClientState
+changeSubfocus focus
+  = set clientScroll 0
+  . set clientSubfocus focus
 
 windowNames :: [Char]
 windowNames = "1234567890qwertyuiop"

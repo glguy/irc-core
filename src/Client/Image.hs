@@ -7,14 +7,18 @@ import           Client.State
 import           Client.Window
 import           Client.MessageRenderer
 import           Control.Lens
+import           Data.List
+import           Data.Ord
 import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
 import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier, idText)
 import           Client.Message
 import qualified Client.EditBox as Edit
 import qualified Data.Map.Strict as Map
+import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Data.Time
 
 clientPicture :: ClientState -> (Picture, ClientState)
 clientPicture st = (pic, st')
@@ -36,17 +40,26 @@ clientImage st = (img, st')
             , textboxImage st
             ]
 
+messagePaneImages :: ClientState -> [Image]
+messagePaneImages st =
+  case (view clientFocus st, view clientSubfocus st) of
+    (ChannelFocus network channel, FocusUsers) ->
+      userListImages network channel st
+    (ChannelFocus network channel, FocusMasks mode) ->
+      maskListImages mode network channel st
+    -- subfocuses only make sense for channels
+    (focus, _) -> windowLineProcessor
+                $ view (clientWindows . ix focus . winMessages) st
+      where
+        windowLineProcessor
+          | view clientDetailView st = map (view wlFullImage)
+          | otherwise                = windowLinesToImages
+
 messagePane :: ClientState -> (Image, ClientState)
 messagePane st = (img, st')
   where
-    -- Failure returns empty list due to monoid instance on [a]
-    messages = view (clientWindows . ix (view clientFocus st) . winMessages) st
-
-    windowLineProcessor
-      | view clientDetailView st = map (view wlFullImage)
-      | otherwise                = windowLinesToImages
-
-    vimg = assemble emptyImage (windowLineProcessor messages)
+    images = messagePaneImages st
+    vimg = assemble emptyImage images
     vimg1 = cropBottom h vimg
     img   = pad 0 (h - imageHeight vimg1) 0 0 vimg1
 
@@ -188,3 +201,33 @@ textboxImage st
 
   beginning = char (withForeColor defAttr brightBlack) '^'
   ending    = char (withForeColor defAttr brightBlack) '$'
+
+userListImages :: NetworkName -> Identifier -> ClientState -> [Image]
+userListImages network channel st =
+    [horizCat (intersperse gap (map renderUser usersList))]
+  where
+    renderUser (ident, sigils) =
+      string (withForeColor defAttr cyan) sigils <|>
+      text' defAttr (idText ident)
+
+    gap = char defAttr ' '
+
+    usersList = sortBy (comparing fst) (HashMap.toList usersHashMap)
+    usersHashMap =
+      view ( clientConnections . ix network
+           . csChannels        . ix channel
+           . chanUsers ) st
+
+maskListImages :: Char -> NetworkName -> Identifier -> ClientState -> [Image]
+maskListImages mode network channel st
+  | null entryList = [string (withForeColor defAttr red) "No masks"]
+  | otherwise = [ text' defAttr user <|> char defAttr ' ' <|>
+                  text' defAttr who  <|> char defAttr ' ' <|>
+                  string defAttr (formatTime defaultTimeLocale "%F %T" when)
+                | (user, (who,when)) <- entryList ]
+  where
+    entryList = sortBy (comparing (snd . snd)) (HashMap.toList entries)
+    entries = view ( clientConnections . ix network
+                   . csChannels        . ix channel
+                   . chanList mode
+                   ) st

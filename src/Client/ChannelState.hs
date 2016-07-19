@@ -18,7 +18,7 @@ data ChannelState = ChannelState
   , _chanTopicProvenance :: !(Maybe TopicProvenance)
   , _chanUsers :: !(HashMap Identifier String)
   , _chanModes :: !(Map Char Text)
-  , _chanLists :: !(Map Char (HashSet Text))
+  , _chanLists :: !(Map Char (HashMap Text (Text, UTCTime)))
   }
   deriving Show
 
@@ -40,7 +40,7 @@ newChannel = ChannelState
   , _chanLists = Map.empty
   }
 
-chanList :: Functor f => Char -> LensLike' f ChannelState (HashSet Text)
+chanList :: Functor f => Char -> LensLike' f ChannelState (HashMap Text (Text, UTCTime))
 chanList mode = chanLists . at mode . non' _Empty
 
 joinChannel :: Identifier -> ChannelState -> ChannelState

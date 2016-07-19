@@ -25,6 +25,7 @@ import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.Message
 import           Irc.UserInfo
+import           Irc.Modes
 import qualified Client.EditBox as Edit
 
 data CommandResult
@@ -122,6 +123,9 @@ commands = HashMap.fromList
   , ("remove" , ChannelCommand cmdRemove noChannelTab)
   , ("me"     , ChannelCommand cmdMe     noChannelTab)
   , ("part"   , ChannelCommand cmdPart   noChannelTab)
+
+  , ("users"  , ChannelCommand cmdUsers  noChannelTab)
+  , ("masks"  , ChannelCommand cmdMasks  noChannelTab)
   ]
 
 noClientTab :: Bool -> ClientCommand
@@ -282,6 +286,19 @@ tabTopic _ _ cs channelId st rest
         commandContinue (over clientTextBox textBox st)
 
   | otherwise = commandContinue st
+
+cmdUsers :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdUsers _ _ _ st _ = commandContinue
+                    $ changeSubfocus FocusUsers
+                    $ consumeInput st
+
+cmdMasks :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdMasks _ cs _ st rest =
+  case words rest of
+    [[mode]] | mode `elem` view (csModeTypes . modesLists) cs ->
+        commandContinue $ changeSubfocus (FocusMasks mode)
+                        $ consumeInput st
+    _ -> commandContinue st
 
 cmdKick :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdKick _ cs channelId st rest =

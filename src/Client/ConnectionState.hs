@@ -38,6 +38,7 @@ data ConnectionState = ConnectionState
 data Transaction
   = NoTransaction
   | WhoTransaction [Text]
+  | BanTransaction [(Text,(Text,UTCTime))]
   deriving Show
 
 makeLenses ''ConnectionState
@@ -96,9 +97,9 @@ applyMessage msgWhen msg cs =
 
     Kick _kicker chan nick _reason ->
            noReply (overChannel chan (partChannel nick) cs)
-    Reply code args        -> noReply (doRpl code args cs)
+    Reply code args        -> noReply (doRpl msgWhen code args cs)
     Cap cmd params         -> doCap cmd params cs
-    Mode _ target (modes:params)  -> noReply (doMode target modes params cs)
+    Mode who target (modes:params)  -> noReply (doMode msgWhen who target modes params cs)
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
     _                      -> noReply cs
 
@@ -111,45 +112,95 @@ doTopic when user chan topic =
              , _topicTime   = zonedTimeToUTC when
              }
 
-doRpl :: Int -> [Text] -> ConnectionState -> ConnectionState
-doRpl RPL_NOTOPIC (_me:chan:_) =
+doRpl :: ZonedTime -> Int -> [Text] -> ConnectionState -> ConnectionState
+doRpl _ RPL_NOTOPIC (_me:chan:_) =
   overChannel (mkId chan) (setTopic "" . set chanTopicProvenance Nothing)
-doRpl RPL_TOPIC [_me,chan,topic] = overChannel (mkId chan) (setTopic topic)
-doRpl RPL_TOPICWHOTIME [_me,chan,who,whenTxt]
+doRpl _ RPL_TOPIC [_me,chan,topic] = overChannel (mkId chan) (setTopic topic)
+doRpl _ RPL_TOPICWHOTIME [_me,chan,who,whenTxt]
   | Right (whenSecs, "") <- Text.decimal whenTxt =
     let prov = TopicProvenance
                  { _topicAuthor = parseUserInfo who
                  , _topicTime = posixSecondsToUTCTime (fromInteger whenSecs)
                  }
     in setStrict (csChannels . ix (mkId chan) . chanTopicProvenance) (Just $! prov)
-doRpl RPL_ISUPPORT params = isupport params
-doRpl RPL_NAMREPLY [_me,_sym,_tgt,x] =
+doRpl _ RPL_ISUPPORT params = isupport params
+
+doRpl _ RPL_NAMREPLY [_me,_sym,_tgt,x] =
            over csTransaction
                 (\t -> let xs = currentWhoList t
                        in xs `seq` WhoTransaction (x:xs))
-doRpl RPL_ENDOFNAMES [_me,tgt,_txt] = loadWhoList (mkId tgt)
-doRpl RPL_CHANNELMODEIS (_me:chan:modes:args)
-  = doMode chanId modes args
+doRpl _ RPL_ENDOFNAMES [_me,tgt,_txt] = loadWhoList (mkId tgt)
+
+doRpl _ RPL_BANLIST (_me:_tgt:mask:who:when:_) =
+           over csTransaction
+                (\t -> let xs = currentBanList t
+                           whenSecs = either (const 0) fst (Text.decimal when)
+                       in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
+
+doRpl _ RPL_ENDOFBANLIST (_me:tgt:_) = \cs ->
+           set csTransaction NoTransaction
+         $ setStrict (csChannels . ix (mkId tgt) . chanList 'b')
+                     (HashMap.fromList (currentBanList (view csTransaction cs)))
+                     cs
+
+doRpl _ RPL_QUIETLIST (_me:_tgt:_q:mask:who:when:_) =
+           over csTransaction
+                (\t -> let xs = currentBanList t
+                           whenSecs = either (const 0) fst (Text.decimal when)
+                       in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
+
+doRpl _ RPL_ENDOFQUIETLIST (_me:tgt:_) = \cs ->
+           set csTransaction NoTransaction
+         $ setStrict (csChannels . ix (mkId tgt) . chanList 'q')
+                     (HashMap.fromList (currentBanList (view csTransaction cs)))
+                     cs
+
+doRpl _ RPL_INVITELIST (_me:_tgt:mask:who:when:_) =
+           over csTransaction
+                (\t -> let xs = currentBanList t
+                           whenSecs = either (const 0) fst (Text.decimal when)
+                       in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
+
+doRpl _ RPL_ENDOFINVITELIST (_me:tgt:_) = \cs ->
+           set csTransaction NoTransaction
+         $ setStrict (csChannels . ix (mkId tgt) . chanList 'I')
+                     (HashMap.fromList (currentBanList (view csTransaction cs)))
+                     cs
+
+doRpl _ RPL_EXCEPTLIST (_me:_tgt:mask:who:when:_) =
+           over csTransaction
+                (\t -> let xs = currentBanList t
+                           whenSecs = either (const 0) fst (Text.decimal when)
+                       in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
+
+doRpl _ RPL_ENDOFEXCEPTLIST (_me:tgt:_) = \cs ->
+           set csTransaction NoTransaction
+         $ setStrict (csChannels . ix (mkId tgt) . chanList 'e')
+                     (HashMap.fromList (currentBanList (view csTransaction cs)))
+                     cs
+
+doRpl when RPL_CHANNELMODEIS (_me:chan:modes:args)
+  = doMode when (UserInfo (mkId "*") Nothing Nothing) chanId modes args
   . set (csChannels . ix chanId . chanModes) Map.empty
   where chanId = mkId chan
 
-doRpl _ _ = id
+doRpl _ _ _ = id
 
 
-doMode :: Identifier -> Text -> [Text] -> ConnectionState -> ConnectionState
-doMode target modes args cs
+doMode :: ZonedTime -> UserInfo -> Identifier -> Text -> [Text] -> ConnectionState -> ConnectionState
+doMode when who target modes args cs
   | view csNick cs == target
   , Just xs <- splitModes defaultUmodeTypes modes args =
         doMyModes xs cs
 
   | isChannelIdentifier cs target
   , Just xs <- splitModes (view csModeTypes cs) modes args =
-        doChannelModes target xs cs
+        doChannelModes when who target xs cs
 
-doMode _ _ _ cs = cs -- ignore bad mode command
+doMode _ _ _ _ _ cs = cs -- ignore bad mode command
 
-doChannelModes :: Identifier -> [(Bool, Char, Text)] -> ConnectionState -> ConnectionState
-doChannelModes chan changes cs = overChannel chan applyChannelModes cs
+doChannelModes :: ZonedTime -> UserInfo -> Identifier -> [(Bool, Char, Text)] -> ConnectionState -> ConnectionState
+doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
   where
     modeTypes = view csModeTypes cs
     sigilMap  = view modesPrefixModes modeTypes
@@ -165,7 +216,9 @@ doChannelModes chan changes cs = overChannel chan applyChannelModes cs
                c
 
       | mode `elem` listModes =
-        setStrict (chanList mode . contains arg) polarity c
+        let entry | polarity = Just (renderUserInfo who, zonedTimeToUTC when)
+                  | otherwise = Nothing
+        in setStrict (chanList mode . at arg) entry c
 
       | polarity  = set (chanModes . at mode) (Just arg) c
       | otherwise = set (chanModes . at mode) Nothing    c
@@ -249,6 +302,12 @@ currentWhoList :: Transaction -> [Text]
 currentWhoList t =
   case t of
     WhoTransaction xs -> xs
+    _                 -> []
+
+currentBanList :: Transaction -> [(Text,(Text,UTCTime))]
+currentBanList t =
+  case t of
+    BanTransaction xs -> xs
     _                 -> []
 
 loadWhoList :: Identifier -> ConnectionState -> ConnectionState

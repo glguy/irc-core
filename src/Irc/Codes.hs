@@ -1256,6 +1256,12 @@ pattern RPL_TESTLINE                = 725
 pattern RPL_NOTESTLINE              :: Int
 pattern RPL_NOTESTLINE              = 726
 
+pattern RPL_QUIETLIST               :: Int
+pattern RPL_QUIETLIST               = 728
+
+pattern RPL_ENDOFQUIETLIST          :: Int
+pattern RPL_ENDOFQUIETLIST          = 729
+
 pattern RPL_XINFO                   :: Int
 pattern RPL_XINFO                   = 771
 
