@@ -1,3 +1,4 @@
+{-# Language BangPatterns #-}
 module Client.Image (clientPicture) where
 
 import           Client.ChannelState
@@ -41,19 +42,25 @@ clientImage st = (img, st')
             ]
 
 messagePaneImages :: ClientState -> [Image]
-messagePaneImages st =
+messagePaneImages !st =
   case (view clientFocus st, view clientSubfocus st) of
     (ChannelFocus network channel, FocusUsers) ->
       userListImages network channel st
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel st
+
     -- subfocuses only make sense for channels
-    (focus, _) -> windowLineProcessor
-                $ view (clientWindows . ix focus . winMessages) st
-      where
-        windowLineProcessor
-          | view clientDetailView st = map (view wlFullImage)
-          | otherwise                = windowLinesToImages
+    _ -> windowLineProcessor focusedMessages
+  where
+    focusedMessages = view (clientWindows . ix (view clientFocus st) . winMessages) st
+    windowLineProcessor
+      | view clientDetailView st = map (view wlFullImage)
+      | otherwise                = windowLinesToImages . filter (not . isNoisy)
+
+    isNoisy msg =
+      case view wlBody msg of
+        IrcBody irc -> squelchIrcMsg irc
+        _           -> False
 
 messagePane :: ClientState -> (Image, ClientState)
 messagePane st = (img, st')

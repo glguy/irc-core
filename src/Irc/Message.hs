@@ -116,7 +116,6 @@ msgTarget :: Identifier -> IrcMsg -> MessageTarget
 msgTarget me msg =
   case msg of
     UnknownMsg{}                  -> TargetNetwork
-    Reply{}                       -> TargetNetwork
     Nick user _                   -> TargetUser (userNick user)
     Mode _ tgt _ | tgt == me      -> TargetNetwork
                  | otherwise      -> TargetWindow tgt
@@ -135,6 +134,7 @@ msgTarget me msg =
     Pong{}                        -> TargetNetwork
     Error{}                       -> TargetNetwork
     Cap{}                         -> TargetNetwork
+    Reply {}                      -> TargetNetwork
 
 msgActor :: IrcMsg -> Maybe UserInfo
 msgActor msg =

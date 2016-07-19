@@ -187,6 +187,36 @@ doRpl when RPL_CHANNELMODEIS (_me:chan:modes:args)
 doRpl _ _ _ = id
 
 
+-- | These replies are interpreted by the client and should only be shown
+-- in the detailed view. Any reply interpreted by 'doRpl' should be
+-- listed here.
+squelchReply :: Int -> Bool
+squelchReply rpl =
+  case rpl of
+    RPL_NAMREPLY        -> True
+    RPL_ENDOFNAMES      -> True
+    RPL_BANLIST         -> True
+    RPL_ENDOFBANLIST    -> True
+    RPL_INVITELIST      -> True
+    RPL_ENDOFINVITELIST -> True
+    RPL_EXCEPTLIST      -> True
+    RPL_ENDOFEXCEPTLIST -> True
+    RPL_QUIETLIST       -> True
+    RPL_ENDOFQUIETLIST  -> True
+    RPL_CHANNELMODEIS   -> True
+    RPL_TOPIC           -> True
+    RPL_TOPICWHOTIME    -> True
+    RPL_NOTOPIC         -> True
+    _                   -> False
+
+-- | Return 'True' for messages that should be hidden outside of
+-- full detail view. These messages are interpreted by the client
+-- so the user shouldn't need to see them directly to get the
+-- relevant information.
+squelchIrcMsg :: IrcMsg -> Bool
+squelchIrcMsg (Reply rpl _) = squelchReply rpl
+squelchIrcMsg _             = False
+
 doMode :: ZonedTime -> UserInfo -> Identifier -> Text -> [Text] -> ConnectionState -> ConnectionState
 doMode when who target modes args cs
   | view csNick cs == target
