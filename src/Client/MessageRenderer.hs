@@ -89,6 +89,7 @@ ircLineImage rm sigils nicks body =
   in
   case body of
     Nick old new ->
+      detail (string quietAttr "nick ") <|>
       string (withForeColor defAttr cyan) sigils <|>
       coloredUserInfo rm old <|>
       string defAttr " became " <|>
