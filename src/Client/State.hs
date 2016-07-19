@@ -63,6 +63,7 @@ data ClientState = ClientState
   , _clientConnectionContext :: !ConnectionContext
   , _clientConfig :: !Configuration
   , _clientScroll :: !Int
+  , _clientDetailView :: !Bool
   }
 
 makeLenses ''ClientState
@@ -92,6 +93,7 @@ initialClientState cfg vty =
         , _clientConnectionContext = cxt
         , _clientConfig            = cfg
         , _clientScroll            = 0
+        , _clientDetailView        = False
         }
 
 recordChannelMessage :: NetworkName -> Identifier -> ClientMessage -> ClientState -> ClientState
@@ -181,11 +183,10 @@ recordNetworkMessage msg st =
 
 toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
 toWindowLine params msg = WindowLine
-  { _wlBody = view msgBody msg
-  , _wlText = views msgBody msgText msg
-  , _wlImage = msgImage (views msgTime zonedTimeToLocalTime msg)
-                        params
-                        (view msgBody msg)
+  { _wlBody      = view msgBody msg
+  , _wlText      = views msgBody msgText msg
+  , _wlImage     = msgImage         (view msgTime msg) params (view msgBody msg)
+  , _wlFullImage = detailedMsgImage (view msgTime msg) params (view msgBody msg)
   }
 
 toWindowLine' :: ClientMessage -> WindowLine

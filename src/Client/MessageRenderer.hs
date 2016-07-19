@@ -2,6 +2,7 @@ module Client.MessageRenderer
   ( MessageRendererParams(..)
   , defaultRenderParams
   , msgImage
+  , detailedMsgImage
   , metadataImg
   , quietIdentifier
   ) where
@@ -34,11 +35,19 @@ defaultRenderParams = MessageRendererParams
   , rendNicks = []
   }
 
-msgImage :: LocalTime -> MessageRendererParams -> MessageBody -> Image
-msgImage when params body =
-  timeImage      when                   <|>
-  statusMsgImage (rendStatusMsg params) <|>
-  bodyImage      (rendUserSigils params) (rendNicks params) body
+msgImage :: ZonedTime -> MessageRendererParams -> MessageBody -> Image
+msgImage when params body = horizCat
+  [ timeImage when
+  , statusMsgImage (rendStatusMsg params)
+  , bodyImage NormalRender (rendUserSigils params) (rendNicks params) body
+  ]
+
+detailedMsgImage :: ZonedTime -> MessageRendererParams -> MessageBody -> Image
+detailedMsgImage when params body = horizCat
+  [ datetimeImage when
+  , statusMsgImage (rendStatusMsg params)
+  , bodyImage DetailedRender (rendUserSigils params) (rendNicks params) body
+  ]
 
 statusMsgImage :: [Char] -> Image
 statusMsgImage modes
@@ -49,69 +58,93 @@ statusMsgImage modes
   where
     statusMsgColor = withForeColor defAttr red
 
-bodyImage :: [Char] -> [Identifier] -> MessageBody -> Image
-bodyImage modes nicks body =
+bodyImage :: RenderMode -> [Char] -> [Identifier] -> MessageBody -> Image
+bodyImage rm modes nicks body =
   case body of
-    IrcBody irc  -> ircLineImage modes nicks irc
+    IrcBody irc  -> ircLineImage rm modes nicks irc
     ErrorBody ex -> string defAttr ("Exception: " ++ show ex)
     ExitBody     -> string defAttr "Thread finished"
 
-timeImage :: LocalTime -> Image
+timeImage :: ZonedTime -> Image
 timeImage
   = string (withForeColor defAttr brightBlack)
   . formatTime defaultTimeLocale "%R "
 
-ircLineImage :: [Char] -> [Identifier] -> IrcMsg -> Image
-ircLineImage modes nicks body =
+datetimeImage :: ZonedTime -> Image
+datetimeImage
+  = string (withForeColor defAttr brightBlack)
+  . formatTime defaultTimeLocale "%F %T "
+
+data RenderMode = NormalRender | DetailedRender
+
+quietAttr :: Attr
+quietAttr = withForeColor defAttr brightBlack
+
+ircLineImage :: RenderMode -> [Char] -> [Identifier] -> IrcMsg -> Image
+ircLineImage rm sigils nicks body =
+  let detail img =
+        case rm of
+          NormalRender -> emptyImage
+          DetailedRender -> img
+  in
   case body of
     Nick old new ->
-      string (withForeColor defAttr cyan) modes <|>
-      quietIdentifier (userNick old) <|>
+      string (withForeColor defAttr cyan) sigils <|>
+      coloredUserInfo rm old <|>
       string defAttr " became " <|>
-      string (withForeColor defAttr cyan) modes <|>
-      quietIdentifier new
+      coloredIdentifier new
 
     Join nick _chan ->
-      char (withForeColor defAttr green) '+' <|>
-      quietIdentifier (userNick nick)
+      string quietAttr "join " <|>
+      coloredUserInfo rm nick
 
-    Part nick _chan _mbreason ->
-      char (withForeColor defAttr red) '-' <|>
-      quietIdentifier (userNick nick)
+    Part nick _chan mbreason ->
+      string quietAttr "part " <|>
+      coloredUserInfo rm nick <|>
+      foldMap (\reason -> string quietAttr " (" <|>
+                          parseIrcText reason <|>
+                          string quietAttr ")") mbreason
 
-    Quit nick _reason ->
-      char (withForeColor defAttr red) 'x' <|>
-      quietIdentifier (userNick nick)
+    Quit nick reason ->
+      string quietAttr "quit "   <|>
+      coloredUserInfo rm nick   <|>
+      string quietAttr " ("   <|>
+      parseIrcText reason <|>
+      string quietAttr ")"
 
     Kick kicker _channel kickee reason ->
-      string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier (userNick kicker) <|>
+      detail (string quietAttr "kick ") <|>
+      string (withForeColor defAttr cyan) sigils <|>
+      coloredUserInfo rm kicker <|>
       string defAttr " kicked " <|>
       coloredIdentifier kickee <|>
       string defAttr ": " <|>
       parseIrcText reason
 
     Topic src _dst txt ->
-      coloredIdentifier (userNick src) <|>
+      coloredUserInfo rm src <|>
       string defAttr " changed topic to " <|>
       parseIrcText txt
 
     Notice src _dst txt ->
-      string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier (userNick src) <|>
+      detail (string quietAttr "note ") <|>
+      string (withForeColor defAttr cyan) sigils <|>
+      coloredUserInfo rm src <|>
       string (withForeColor defAttr red) ": " <|>
       parseIrcTextWithNicks nicks txt
 
     Privmsg src _dst txt ->
-      string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier (userNick src) <|>
+      detail (string quietAttr "chat ") <|>
+      string (withForeColor defAttr cyan) sigils <|>
+      coloredUserInfo rm src <|>
       string defAttr ": " <|>
       parseIrcTextWithNicks nicks txt
 
     Action src _dst txt ->
+      detail (string quietAttr "chat ") <|>
       string (withForeColor defAttr blue) "* " <|>
-      string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier (userNick src) <|>
+      string (withForeColor defAttr cyan) sigils <|>
+      coloredUserInfo rm src <|>
       string defAttr " " <|>
       parseIrcTextWithNicks nicks txt
 
@@ -135,7 +168,7 @@ ircLineImage modes nicks body =
                 parseIrcText p | p <- params]
 
     UnknownMsg irc ->
-      maybe emptyImage prefixImage (view msgPrefix irc) <|>
+      maybe emptyImage (coloredUserInfo rm) (view msgPrefix irc) <|>
       text' defAttr (view msgCommand irc) <|>
       horizCat [char (withForeColor defAttr blue) '·' <|>
                 parseIrcText p | p <- view msgParams irc]
@@ -146,21 +179,24 @@ ircLineImage modes nicks body =
                 text' defAttr a | a <- args]
 
     Mode nick _chan params ->
-      string (withForeColor defAttr cyan) modes <|>
-      coloredIdentifier (userNick nick) <|>
+      detail (string quietAttr "mode ") <|>
+      string (withForeColor defAttr cyan) sigils <|>
+      coloredUserInfo rm nick <|>
       string defAttr " set mode: " <|>
       horizCat [char (withForeColor defAttr blue) '·' <|>
                 text' defAttr m | m <- params]
 
-prefixImage :: UserInfo -> Image
-prefixImage userInfo =
-  let nick = userNick userInfo in
-  coloredIdentifier nick
-  <|> string defAttr ": "
-
 coloredIdentifier :: Identifier -> Image
 coloredIdentifier ident =
   text' (withForeColor defAttr (identifierColor ident)) (idText ident)
+
+coloredUserInfo :: RenderMode -> UserInfo -> Image
+coloredUserInfo NormalRender ui = coloredIdentifier (userNick ui)
+coloredUserInfo DetailedRender ui = horizCat
+  [ coloredIdentifier (userNick ui)
+  , foldMap (\user -> char defAttr '!' <|> text' quietAttr user) (userName ui)
+  , foldMap (\host -> char defAttr '@' <|> text' quietAttr host) (userHost ui)
+  ]
 
 quietIdentifier :: Identifier -> Image
 quietIdentifier ident =

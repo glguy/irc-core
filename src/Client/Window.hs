@@ -8,9 +8,10 @@ import Graphics.Vty.Image (Image)
 import Data.Text (Text)
 
 data WindowLine = WindowLine
-  { _wlBody  :: MessageBody
-  , _wlText  :: Text
-  , _wlImage :: Image
+  { _wlBody      :: !MessageBody
+  , _wlText      :: !Text
+  , _wlImage     :: !Image
+  , _wlFullImage :: !Image
   }
 
 data Window = Window

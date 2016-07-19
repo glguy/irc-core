@@ -180,6 +180,7 @@ doKey key modifier st =
         KBackTab   -> tabCompletion True  st
         KChar '\t' -> tabCompletion False st
         KChar c    -> changeInput (Edit.insert c)
+        KFun 2     -> eventLoop (over clientDetailView not st)
         _          -> eventLoop st
 
     _ -> eventLoop st -- unsupported modifier

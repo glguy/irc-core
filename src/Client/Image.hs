@@ -42,8 +42,12 @@ messagePane st = (img, st')
     -- Failure returns empty list due to monoid instance on [a]
     messages = view (clientWindows . ix (view clientFocus st) . winMessages) st
 
-    vimg = assemble emptyImage (windowLinesToImages messages)
-    vimg1 = cropBottom h vimg 
+    windowLineProcessor
+      | view clientDetailView st = map (view wlFullImage)
+      | otherwise                = windowLinesToImages
+
+    vimg = assemble emptyImage (windowLineProcessor messages)
+    vimg1 = cropBottom h vimg
     img   = pad 0 (h - imageHeight vimg1) 0 0 vimg1
 
     overscroll = vh - imageHeight vimg
