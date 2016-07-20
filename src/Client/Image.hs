@@ -139,10 +139,9 @@ parens :: Attr -> Image -> Image
 parens attr i = char attr '(' <|> i <|> char attr ')'
 
 scrollImage :: ClientState -> Image
-scrollImage st =
-  case view clientScroll st of
-    0 -> emptyImage
-    scroll -> horizCat
+scrollImage st
+  | 0 == view clientScroll st = emptyImage
+  | otherwise = horizCat
       [ string defAttr "─("
       , string (withForeColor defAttr red) "scroll"
       , string defAttr ")"

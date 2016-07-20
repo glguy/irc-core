@@ -83,7 +83,7 @@ nextWord = splitWord . dropWhile isSpace
 -- position for tab-completion
 executeCommand :: Maybe Bool -> String -> ClientState -> IO CommandResult
 
-executeCommand (Just isReversed) str st
+executeCommand (Just isReversed) _ st
   | Just st' <- commandNameCompletion isReversed st = commandContinue st'
 
 executeCommand tabCompleteReversed str st =
@@ -138,9 +138,6 @@ commands = HashMap.fromList
 
 noClientTab :: Bool -> ClientCommand
 noClientTab _ st _ = commandContinue st
-
-noNetworkTab :: Bool -> NetworkCommand
-noNetworkTab _ _ _ st _ = commandContinue st
 
 noChannelTab :: Bool -> ChannelCommand
 noChannelTab _ _ _ _ st _ = commandContinue st

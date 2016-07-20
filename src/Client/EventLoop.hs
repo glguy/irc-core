@@ -10,7 +10,6 @@ import           Client.Image
 import           Client.Message
 import           Client.NetworkConnection
 import           Client.State
-import           Client.WordCompletion
 import           Client.Window
 import           Control.Concurrent.STM
 import           Control.Exception
@@ -19,7 +18,6 @@ import           Control.Monad
 import           Data.List
 import           Data.Time
 import           Data.Foldable
-import           Data.Maybe
 import           Data.ByteString (ByteString)
 import           Graphics.Vty
 import           Irc.Identifier
