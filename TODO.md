@@ -5,7 +5,6 @@
 * structured command argument processing
 * split long messages
 * ignore list
-* clear window
 * configurable colors
 
 moderation

@@ -13,6 +13,7 @@ import           Client.NetworkConnection
 import           Client.ServerSettings
 import           Client.ChannelState
 import           Client.State
+import           Client.Window
 import           Client.WordCompletion
 import           Control.Lens
 import           Control.Monad
@@ -115,6 +116,7 @@ commands = HashMap.fromList
   [ ("connect", ClientCommand cmdConnect noClientTab)
   , ("exit"   , ClientCommand cmdExit    noClientTab)
   , ("focus"  , ClientCommand cmdFocus   simpleClientTab)
+  , ("clear"  , ClientCommand cmdClear   noClientTab)
 
   , ("quote"  , NetworkCommand cmdQuote  simpleNetworkTab)
   , ("join"   , NetworkCommand cmdJoin   simpleNetworkTab)
@@ -156,6 +158,35 @@ simpleChannelTab isReversed _ _ _ st _ =
 
 cmdExit :: ClientState -> String -> IO CommandResult
 cmdExit _ _ = return CommandQuit
+
+-- | When used on a channel that the user is currently
+-- joined to this command will clear the messages but
+-- preserve the window. When used on a window that the
+-- user is not joined to this command will delete the window.
+cmdClear :: ClientState -> String -> IO CommandResult
+cmdClear st _
+  = commandContinue
+  $ windowEffect
+  $ consumeInput st
+  where
+    windowEffect
+      | isActive  = clearWindow
+      | otherwise = deleteWindow
+
+    deleteWindow = advanceFocus . setWindow Nothing
+    clearWindow  =                setWindow (Just emptyWindow)
+
+    setWindow = set (clientWindows . at (view clientFocus st))
+
+    isActive =
+      case view clientFocus st of
+        Unfocused -> False
+        NetworkFocus network ->
+            has (clientConnections . ix network) st
+        ChannelFocus network channel ->
+            has ( clientConnections . ix network
+                . csChannels        . ix channel) st
+
 
 cmdQuote :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdQuote _ cs st rest =
