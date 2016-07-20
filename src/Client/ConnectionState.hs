@@ -144,7 +144,7 @@ applyMessage msgWhen msg cs =
 
     Kick _kicker chan nick _reason ->
            noReply (overChannel chan (partChannel nick) cs)
-    Reply RPL_WELCOME _    -> (onConnectCmds cs, cs)
+    Reply RPL_WELCOME (me:_) -> (onConnectCmds cs, set csNick (mkId me) cs)
     Reply code args        -> noReply (doRpl msgWhen code args cs)
     Cap cmd params         -> doCap cmd params cs
     Mode who target (modes:params)  -> noReply (doMode msgWhen who target modes params cs)

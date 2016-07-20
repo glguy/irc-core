@@ -170,7 +170,7 @@ ircMsgText msg =
     Privmsg x _ t  -> Text.unwords [renderUserInfo x, t]
     Action x _ t   -> Text.unwords [renderUserInfo x, t]
     Notice x _ t   -> Text.unwords [renderUserInfo x, t]
-    Mode x _ xs    -> Text.unwords (renderUserInfo x:xs)
+    Mode x _ xs    -> Text.unwords (renderUserInfo x:"set mode":xs)
     Ping xs        -> Text.unwords xs
     Pong xs        -> Text.unwords xs
     Cap _ xs       -> Text.unwords xs

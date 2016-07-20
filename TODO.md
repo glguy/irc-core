@@ -6,7 +6,6 @@
 * ignore list
 * configurable colors
 * reconnect command
-* handle nick in use correctly
 
 moderation
 ----------
