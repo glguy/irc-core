@@ -5,7 +5,7 @@ import           Control.Lens
 import           Data.Function
 import           Data.Maybe
 import           Data.Text (Text)
-import           Data.Text as Text
+import qualified Data.Text as Text
 import           Data.Text.Read as Text
 import           Irc.Identifier
 import           Irc.RawIrcMsg
@@ -187,3 +187,20 @@ isNickChar x = '0' <= x && x <= '9'
 
 nickSplit :: Text -> [Text]
 nickSplit = Text.groupBy ((==) `on` isNickChar)
+
+-- Maximum length computation for the message part for
+-- privmsg and notice. Note that the need for the limit is because
+-- the server will limit the length of the message sent out to each
+-- client, not just the length of the messages it will recieve.
+--
+-- Note that the length is on the *encoded message* which is UTF-8
+-- The calculation isn't using UTF-8 on the userinfo part because
+-- I'm assuming that the channel name and userinfo are all ASCII
+--
+-- :my!user@info PRIVMSG #channel :messagebody\r\n
+computeMaxMessageLength :: UserInfo -> Text -> Int
+computeMaxMessageLength myUserInfo target
+  = 512 -- max IRC command
+  - Text.length (renderUserInfo myUserInfo)
+  - length (": PRIVMSG  :\r\n"::String)
+  - Text.length target

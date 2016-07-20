@@ -63,7 +63,7 @@ addConnection host st =
             (view clientEvents st)
 
      let cs = newConnectionState settings c
-     sendMsg c capLsMsg
+     traverse_ (sendMsg cs) (initialMessages cs)
 
      return $! set (clientConnections . at network) (Just cs) st
 
@@ -190,24 +190,11 @@ cmdClear st _
 
 cmdQuote :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdQuote _ cs st rest =
-  case parseQuote rest of
+  case parseRawIrcMsg (Text.pack rest) of
     Nothing  -> commandContinue st
     Just raw ->
-      do sendMsg (view csSocket cs) raw
+      do sendMsg cs raw
          commandContinue (consumeInput st)
-
-parseQuote :: String -> Maybe RawIrcMsg
-parseQuote str =
-  case Text.pack <$> toArgList str of
-    cmd:args -> Just (rawIrcMsg cmd args)
-    _        -> Nothing
-
-toArgList :: String -> [String]
-toArgList xs =
-  case dropWhile isSpace xs of
-    ':':final -> [final]
-    ""        -> []
-    xs1 | (arg,xs2) <- splitWord xs1 -> arg : toArgList xs2
 
 -- | Implementation of @/me@
 cmdMe :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
@@ -220,9 +207,7 @@ cmdMe network cs channelId st rest =
                     , _msgNetwork = network
                     , _msgBody = IrcBody (Action myNick channelId (Text.pack rest))
                     }
-     sendMsg
-       (view csSocket cs)
-       (rawIrcMsg "PRIVMSG" [idText channelId, actionTxt])
+     sendMsg cs (rawIrcMsg "PRIVMSG" [idText channelId, actionTxt])
      commandContinue
        $ recordChannelMessage network channelId entry
        $ consumeInput st
@@ -245,7 +230,7 @@ cmdMsg network cs st rest =
                    | targetId <- targetIds ]
 
      for_ targetTxts $ \targetTxt ->
-       sendMsg (view csSocket cs) (rawIrcMsg "PRIVMSG" [targetTxt, msgTxt])
+       sendMsg cs (rawIrcMsg "PRIVMSG" [targetTxt, msgTxt])
 
      let st' = foldl' (\acc (targetId, entry) ->
                          recordChannelMessage network targetId entry acc)
@@ -281,12 +266,12 @@ cmdFocus st rest =
 
 cmdWhois :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdWhois _ cs st rest =
-  do sendMsg (view csSocket cs) (rawIrcMsg "WHOIS" (Text.pack <$> words rest))
+  do sendMsg cs (rawIrcMsg "WHOIS" (Text.pack <$> words rest))
      commandContinue (consumeInput st)
 
 cmdWhowas :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdWhowas _ cs st rest =
-  do sendMsg (view csSocket cs) (rawIrcMsg "WHOWAS" (Text.pack <$> words rest))
+  do sendMsg cs (rawIrcMsg "WHOWAS" (Text.pack <$> words rest))
      commandContinue (consumeInput st)
 
 cmdMode :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
@@ -296,7 +281,7 @@ cmdNick :: NetworkName -> ConnectionState -> ClientState -> String -> IO Command
 cmdNick _ cs st rest =
   case words rest of
     [nick] ->
-      do sendMsg (view csSocket cs) (rawIrcMsg "NICK" [Text.pack nick])
+      do sendMsg cs (rawIrcMsg "NICK" [Text.pack nick])
          commandContinue (consumeInput st)
     _ -> commandContinue st
 
@@ -305,14 +290,14 @@ cmdPart _ cs channelId st rest =
   do let msgs = case dropWhile isSpace rest of
                   ""  -> []
                   msg -> [Text.pack msg]
-     sendMsg (view csSocket cs) (rawIrcMsg "PART" (idText channelId : msgs))
+     sendMsg cs (rawIrcMsg "PART" (idText channelId : msgs))
      commandContinue (consumeInput st)
 
 cmdInvite :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdInvite _ cs channelId st rest =
   case words rest of
     [nick] ->
-      do sendMsg (view csSocket cs) (rawIrcMsg "INVITE" [Text.pack nick, idText channelId])
+      do sendMsg cs (rawIrcMsg "INVITE" [Text.pack nick, idText channelId])
          commandContinue (consumeInput st)
     _ -> commandContinue st
 
@@ -321,7 +306,7 @@ cmdTopic _ cs channelId st rest =
   do let topics = case dropWhile isSpace rest of
                     ""    -> []
                     topic -> [Text.pack topic]
-     sendMsg (view csSocket cs) (rawIrcMsg "TOPIC" (idText channelId : topics))
+     sendMsg cs (rawIrcMsg "TOPIC" (idText channelId : topics))
      commandContinue (consumeInput st)
 
 tabTopic :: Bool -> NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
@@ -354,7 +339,7 @@ cmdKick _ cs channelId st rest =
          msgs = case dropWhile isSpace reason of
                   "" -> []
                   msg -> [Text.pack msg]
-     sendMsg (view csSocket cs) $ rawIrcMsg "KICK" (idText channelId : Text.pack who : msgs)
+     sendMsg cs $ rawIrcMsg "KICK" (idText channelId : Text.pack who : msgs)
      commandContinue $ consumeInput st
 
 cmdRemove :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
@@ -363,7 +348,7 @@ cmdRemove _ cs channelId st rest =
          msgs = case dropWhile isSpace reason of
                   "" -> []
                   msg -> [Text.pack msg]
-     sendMsg (view csSocket cs) $ rawIrcMsg "REMOVE" (idText channelId : Text.pack who : msgs)
+     sendMsg cs $ rawIrcMsg "REMOVE" (idText channelId : Text.pack who : msgs)
      commandContinue $ consumeInput st
 
 cmdJoin :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
@@ -371,7 +356,7 @@ cmdJoin network cs st rest =
   let ws = words rest
       doJoin channelTxt =
         do let channelId = mkId (Text.pack (takeWhile (/=',') channelTxt))
-           sendMsg (view csSocket cs) $ rawIrcMsg "JOIN" (Text.pack <$> ws)
+           sendMsg cs $ rawIrcMsg "JOIN" (Text.pack <$> ws)
            commandContinue
                $ changeFocus (ChannelFocus network channelId)
                $ consumeInput st
@@ -386,7 +371,7 @@ cmdQuit _ cs st rest =
   do let msgs = case dropWhile isSpace rest of
                   ""  -> []
                   msg -> [Text.pack msg]
-     sendMsg (view csSocket cs) (rawIrcMsg "QUIT" msgs)
+     sendMsg cs (rawIrcMsg "QUIT" msgs)
      commandContinue (consumeInput st)
 
 modeCommand :: [Text] -> ConnectionState -> ClientState -> IO CommandResult
@@ -394,17 +379,14 @@ modeCommand modes cs st =
   case view clientFocus st of
 
     NetworkFocus _ ->
-      do sendMsg (view csSocket cs) (rawIrcMsg "MODE" (idText (view csNick cs) : modes))
+      do sendMsg cs (rawIrcMsg "MODE" (idText (view csNick cs) : modes))
          commandContinue (consumeInput st)
 
     ChannelFocus _ chan ->
-          do sendMsg conn (rawIrcMsg "MODE" (idText chan : modes))
+          do sendMsg cs (rawIrcMsg "MODE" (idText chan : modes))
              commandContinue (consumeInput st)
 
     _ -> commandContinue st
-
-  where
-    conn = view csSocket cs
 
 commandNameCompletion :: Bool -> ClientState -> Maybe ClientState
 commandNameCompletion isReversed st =

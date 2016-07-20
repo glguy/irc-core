@@ -56,4 +56,3 @@ loadDefaultServerSettings =
        , _ssSocksPort     = 1080
        , _ssServerCerts   = []
        }
-      

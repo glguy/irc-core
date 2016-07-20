@@ -6,7 +6,6 @@ import           Data.HashMap.Strict
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
 import           Data.Map.Strict (Map)
-import           Data.HashSet
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time

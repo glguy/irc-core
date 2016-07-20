@@ -7,10 +7,15 @@ import           Client.ServerSettings
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.ByteString as B
 import qualified Data.Map.Strict as Map
+import           Data.Bits
+import           Data.Foldable
 import           Data.List
+import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Read as Text
 import           Data.Time
 import           Data.Time.Clock.POSIX
@@ -18,13 +23,12 @@ import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.Modes
-import           Irc.RawIrcMsg (RawIrcMsg, rawIrcMsg, renderRawIrcMsg)
+import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
 
 data ConnectionState = ConnectionState
   { _csChannels     :: !(HashMap Identifier ChannelState)
-  , _csNick         :: !Identifier
   , _csSocket       :: !NetworkConnection
   , _csModeTypes    :: !ModeTypes
   , _csChannelTypes :: ![Char]
@@ -32,6 +36,7 @@ data ConnectionState = ConnectionState
   , _csModes        :: ![Char]
   , _csStatusMsg    :: ![Char]
   , _csSettings     :: !ServerSettings
+  , _csUserInfo     :: !UserInfo
   }
   deriving Show
 
@@ -43,15 +48,57 @@ data Transaction
 
 makeLenses ''ConnectionState
 
-sendMsg :: NetworkConnection -> RawIrcMsg -> IO ()
-sendMsg c msg = send c (renderRawIrcMsg msg)
+csNick :: Lens' ConnectionState Identifier
+csNick = csUserInfo . uiNick
+
+sendMsg :: ConnectionState -> RawIrcMsg -> IO ()
+sendMsg cs msg =
+  case (view msgCommand msg, view msgParams msg) of
+    ("PRIVMSG", [tgt,txt]) -> multiline "PRIVMSG" tgt txt
+    ("NOTICE",  [tgt,txt]) -> multiline "NOTICE"  tgt txt
+    _ -> transmit msg
+  where
+    transmit = send (view csSocket cs) . renderRawIrcMsg
+
+    multiline cmd tgt txt =
+      for_ txtChunks $ \txtChunk ->
+        transmit $ rawIrcMsg cmd [tgt, txtChunk]
+      where
+        txtChunks = utf8ChunksOf maxContentLen txt
+        maxContentLen = computeMaxMessageLength (view csUserInfo cs) tgt
+
+-- This is an approximation for splitting the text. It doesn't
+-- understand combining characters. A correct implementation
+-- probably needs to use icu, but its going to take some work
+-- to use that library to do this.
+utf8ChunksOf :: Int -> Text -> [Text]
+utf8ChunksOf n txt
+  | B.length enc <= n = [txt] -- fast/common case
+  | otherwise         = search 0 0 txt info
+  where
+    isBeginning b = b .&. 0xc0 /= 0x80
+
+    enc = Text.encodeUtf8 txt
+
+    beginnings = B.findIndices isBeginning enc
+
+    info = zip3 [0..] -- charIndex
+                beginnings
+                (drop 1 beginnings ++ [B.length enc])
+
+    search startByte startChar currentTxt xs =
+      case dropWhile (\(_,_,byteLen) -> byteLen-startByte <= n) xs of
+        [] -> [currentTxt]
+        (charIx,byteIx,_):xs' ->
+          case Text.splitAt (charIx - startChar) currentTxt of
+            (a,b) -> a : search byteIx charIx b xs'
 
 newConnectionState ::
   ServerSettings ->
   NetworkConnection ->
   ConnectionState
 newConnectionState settings sock = ConnectionState
-  { _csNick         = mkId (view ssNick settings)
+  { _csUserInfo     = UserInfo (mkId (view ssNick settings)) Nothing Nothing
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
   , _csChannelTypes = "#&"
@@ -78,7 +125,7 @@ applyMessage msgWhen msg cs =
     Join user chan ->
            noReply
          $ overChannel chan (joinChannel (userNick user))
-         $ createOnJoin (userNick user) chan cs
+         $ createOnJoin user chan cs
 
     Quit user _reason ->
            noReply
@@ -97,11 +144,16 @@ applyMessage msgWhen msg cs =
 
     Kick _kicker chan nick _reason ->
            noReply (overChannel chan (partChannel nick) cs)
+    Reply RPL_WELCOME _    -> (onConnectCmds cs, cs)
     Reply code args        -> noReply (doRpl msgWhen code args cs)
     Cap cmd params         -> doCap cmd params cs
     Mode who target (modes:params)  -> noReply (doMode msgWhen who target modes params cs)
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
     _                      -> noReply cs
+
+onConnectCmds :: ConnectionState -> [RawIrcMsg]
+onConnectCmds cs =
+  mapMaybe parseRawIrcMsg (view (csSettings . ssConnectCmds) cs)
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> ConnectionState -> ConnectionState
 doTopic when user chan topic =
@@ -276,21 +328,21 @@ doCap :: CapCmd -> [Text] -> ConnectionState -> ([RawIrcMsg], ConnectionState)
 doCap cmd args cs =
   case (cmd,args) of
     (CapLs,[capsTxt])
-      | null reqCaps -> (initialMessages cs, cs)
+      | null reqCaps -> ([capEndMsg], cs)
       | otherwise -> ([capReqMsg reqCaps], cs)
       where
         caps = Text.words capsTxt
         reqCaps = intersect supportedCaps caps
 
-    (CapAck,_) -> (initialMessages cs, cs)
-    (CapNak,_) -> (initialMessages cs, cs)
+    (CapAck,_) -> ([capEndMsg], cs)
+    (CapNak,_) -> ([capEndMsg], cs)
 
     _ -> noReply cs
 
 
 initialMessages :: ConnectionState -> [RawIrcMsg]
 initialMessages cs
-   = [ capEndMsg ]
+   = [ capLsMsg ]
   ++ [ passMsg pass | Just pass <- [view ssPassword ss]]
   ++ [ userMsg (view ssUser ss) False True (view ssReal ss)
      , nickMsg (view csNick cs)
@@ -358,10 +410,11 @@ loadWhoList chan cs
     whoEntries = concatMap Text.words (views csTransaction currentWhoList cs)
 
 
-createOnJoin :: Identifier -> Identifier -> ConnectionState -> ConnectionState
-createOnJoin user chan cs
-  | user == view csNick cs =
-        set (csChannels . at chan) (Just newChannel) cs
+createOnJoin :: UserInfo -> Identifier -> ConnectionState -> ConnectionState
+createOnJoin who chan cs
+  | userNick who == view csNick cs =
+        set csUserInfo who -- great time to learn our userinfo
+      $ set (csChannels . at chan) (Just newChannel) cs
   | otherwise = cs
 
 updateMyNick :: Identifier -> Identifier -> ConnectionState -> ConnectionState

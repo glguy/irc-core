@@ -3,9 +3,10 @@
 * scripting support
 * complete processing of reply/error codes
 * structured command argument processing
-* split long messages
 * ignore list
 * configurable colors
+* reconnect command
+* handle nick in use correctly
 
 moderation
 ----------

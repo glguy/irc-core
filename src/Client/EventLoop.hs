@@ -117,7 +117,7 @@ doNetworkLine network time line st =
                     $ recordIrcMessage network target msg
                     $ st
 
-             traverse_ (sendMsg (view csSocket cs)) msgs
+             traverse_ (sendMsg cs) msgs
              eventLoop st'
 
 doVtyEvent :: Event -> ClientState -> IO ()
@@ -241,17 +241,17 @@ executeChat :: String -> ClientState -> IO ()
 executeChat msg st =
   case view clientFocus st of
     ChannelFocus network channel
-      | Just conn <- view (clientConnections . at network) st ->
+      | Just cs <- view (clientConnections . at network) st ->
           do now <- getZonedTime
              let msgTxt = Text.pack msg
                  ircMsg = rawIrcMsg "PRIVMSG" [idText channel, msgTxt]
-                 myNick = UserInfo (view csNick conn) Nothing Nothing
+                 myNick = UserInfo (view csNick cs) Nothing Nothing
                  entry = ClientMessage
                             { _msgTime = now
                             , _msgNetwork = network
                             , _msgBody = IrcBody (Privmsg myNick channel msgTxt)
                             }
-             sendMsg (view csSocket conn) ircMsg
+             sendMsg cs ircMsg
              eventLoop $ recordChannelMessage network channel entry
                        $ consumeInput st
 
