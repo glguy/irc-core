@@ -3,6 +3,7 @@
 module Client.Commands
   ( CommandResult(..)
   , executeCommand
+  , nickTabCompletion
   ) where
 
 import           Client.Configuration
@@ -113,23 +114,23 @@ commands :: HashMap Text Command
 commands = HashMap.fromList
   [ ("connect", ClientCommand cmdConnect noClientTab)
   , ("exit"   , ClientCommand cmdExit    noClientTab)
-  , ("focus"  , ClientCommand cmdFocus   noClientTab)
+  , ("focus"  , ClientCommand cmdFocus   simpleClientTab)
 
-  , ("quote"  , NetworkCommand cmdQuote  noNetworkTab)
-  , ("join"   , NetworkCommand cmdJoin   noNetworkTab)
-  , ("mode"   , NetworkCommand cmdMode   noNetworkTab)
-  , ("msg"    , NetworkCommand cmdMsg    noNetworkTab)
-  , ("nick"   , NetworkCommand cmdNick   noNetworkTab)
-  , ("quit"   , NetworkCommand cmdQuit   noNetworkTab)
-  , ("whois"  , NetworkCommand cmdWhois  noNetworkTab)
-  , ("whowas" , NetworkCommand cmdWhowas noNetworkTab)
+  , ("quote"  , NetworkCommand cmdQuote  simpleNetworkTab)
+  , ("join"   , NetworkCommand cmdJoin   simpleNetworkTab)
+  , ("mode"   , NetworkCommand cmdMode   simpleNetworkTab)
+  , ("msg"    , NetworkCommand cmdMsg    simpleNetworkTab)
+  , ("nick"   , NetworkCommand cmdNick   simpleNetworkTab)
+  , ("quit"   , NetworkCommand cmdQuit   simpleNetworkTab)
+  , ("whois"  , NetworkCommand cmdWhois  simpleNetworkTab)
+  , ("whowas" , NetworkCommand cmdWhowas simpleNetworkTab)
 
-  , ("invite" , ChannelCommand cmdInvite noChannelTab)
+  , ("invite" , ChannelCommand cmdInvite simpleChannelTab)
   , ("topic"  , ChannelCommand cmdTopic  tabTopic    )
-  , ("kick"   , ChannelCommand cmdKick   noChannelTab)
-  , ("remove" , ChannelCommand cmdRemove noChannelTab)
-  , ("me"     , ChannelCommand cmdMe     noChannelTab)
-  , ("part"   , ChannelCommand cmdPart   noChannelTab)
+  , ("kick"   , ChannelCommand cmdKick   simpleChannelTab)
+  , ("remove" , ChannelCommand cmdRemove simpleChannelTab)
+  , ("me"     , ChannelCommand cmdMe     simpleChannelTab)
+  , ("part"   , ChannelCommand cmdPart   simpleChannelTab)
 
   , ("users"  , ChannelCommand cmdUsers  noChannelTab)
   , ("masks"  , ChannelCommand cmdMasks  noChannelTab)
@@ -143,6 +144,18 @@ noNetworkTab _ _ _ st _ = commandContinue st
 
 noChannelTab :: Bool -> ChannelCommand
 noChannelTab _ _ _ _ st _ = commandContinue st
+
+simpleClientTab :: Bool -> ClientCommand
+simpleClientTab isReversed st _ =
+  commandContinue (nickTabCompletion isReversed st)
+
+simpleNetworkTab :: Bool -> NetworkCommand
+simpleNetworkTab isReversed _ _ st _ =
+  commandContinue (nickTabCompletion isReversed st)
+
+simpleChannelTab :: Bool -> ChannelCommand
+simpleChannelTab isReversed _ _ _ st _ =
+  commandContinue (nickTabCompletion isReversed st)
 
 cmdExit :: ClientState -> String -> IO CommandResult
 cmdExit _ _ = return CommandQuit
@@ -374,3 +387,10 @@ commandNameCompletion isReversed st =
     leadingPart = takeWhile (not . isSpace) (clientInput st)
     cursorPos   = view (clientTextBox . Edit.pos) st
     possibilities = mkId . Text.cons '/' <$> HashMap.keys commands
+
+nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> ClientState
+nickTabCompletion isReversed st
+  = fromMaybe st
+  $ clientTextBox (wordComplete (++": ") isReversed completions) st
+  where
+    completions = currentUserList st

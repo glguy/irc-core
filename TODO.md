@@ -7,7 +7,6 @@
 * ignore list
 * clear window
 * configurable colors
-* tab complete command names
 
 moderation
 ----------

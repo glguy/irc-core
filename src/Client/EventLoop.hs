@@ -220,13 +220,6 @@ jumpFocus i st
     windows = view clientWindows st
     (focus,_) = Map.elemAt i windows
 
-nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> ClientState
-nickTabCompletion isReversed st
-  = fromMaybe st
-  $ clientTextBox (wordComplete (++": ") isReversed completions) st
-  where
-    completions = currentUserList st
-
 tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO ()
 tabCompletion isReversed st =
   case clientInput st of

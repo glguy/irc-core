@@ -241,9 +241,9 @@ doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
     applyChannelMode c (polarity, mode, arg)
 
       | Just sigil <- lookup mode sigilMap =
-          over (chanUsers . ix (mkId arg))
-               (setPrefixMode polarity sigil)
-               c
+          overStrict (chanUsers . ix (mkId arg))
+                     (setPrefixMode polarity sigil)
+                     c
 
       | mode `elem` listModes =
         let entry | polarity = Just (renderUserInfo who, zonedTimeToUTC when)
