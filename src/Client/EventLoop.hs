@@ -11,9 +11,11 @@ import           Client.Message
 import           Client.NetworkConnection
 import           Client.State
 import           Client.WordCompletion
+import           Client.Window
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
+import           Control.Monad
 import           Data.List
 import           Data.Time
 import           Data.Foldable
@@ -160,6 +162,7 @@ doKey key modifier st =
       case key of
         KChar 'b' -> changeInput Edit.leftWord
         KChar 'f' -> changeInput Edit.rightWord
+        KChar 'a' -> eventLoop (jumpToActivity st)
         KChar c   | Just i <- elemIndex c windowNames ->
                             eventLoop (jumpFocus i st)
         _ -> eventLoop st
@@ -198,6 +201,16 @@ pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
 
 scrollAmount :: ClientState -> Int
 scrollAmount st = max 1 (view clientHeight st - 2)
+
+jumpToActivity :: ClientState -> ClientState
+jumpToActivity st =
+  case mplus highPriority lowPriority of
+    Just (focus,_) -> changeFocus focus st
+    Nothing        -> st
+  where
+    windowList = views clientWindows Map.toList st
+    highPriority = find (view winMention . snd) windowList
+    lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
 
 jumpFocus :: Int -> ClientState -> ClientState
 jumpFocus i st

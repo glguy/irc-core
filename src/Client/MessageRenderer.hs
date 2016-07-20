@@ -18,6 +18,7 @@ import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import qualified Data.HashSet as HashSet
+import           Data.List
 import qualified Data.Text as Text
 import           Data.Text (Text)
 import           Data.Char
@@ -184,8 +185,8 @@ ircLineImage rm sigils nicks body =
       string (withForeColor defAttr cyan) sigils <|>
       coloredUserInfo rm nick <|>
       string defAttr " set mode: " <|>
-      horizCat [char (withForeColor defAttr blue) '·' <|>
-                text' defAttr m | m <- params]
+      horizCat (intersperse (char (withForeColor defAttr blue) '·')
+                            (text' defAttr <$> params))
 
 coloredIdentifier :: Identifier -> Image
 coloredIdentifier ident =
