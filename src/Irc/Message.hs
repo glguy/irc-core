@@ -17,7 +17,7 @@ data IrcMsg
   | Nick UserInfo Identifier
   | Join UserInfo Identifier
   | Part UserInfo Identifier (Maybe Text)
-  | Quit UserInfo Text
+  | Quit UserInfo (Maybe Text)
   | Kick UserInfo Identifier Identifier Text -- ^ kicker channel kickee comment
   | Topic UserInfo Identifier Text -- ^ user channel topic
   | Privmsg UserInfo Identifier Text -- ^ source target txt
@@ -78,8 +78,8 @@ cookIrcMsg msg =
            Join user (mkId chan)
 
     "QUIT" | Just user <- view msgPrefix msg
-           , [reason]  <- view msgParams msg ->
-           Quit user reason
+           , reasons   <- view msgParams msg ->
+           Quit user (listToMaybe reasons)
 
     "PART" | Just user    <- view msgPrefix msg
            , chan:reasons <- view msgParams msg ->
@@ -164,7 +164,7 @@ ircMsgText msg =
     Nick x y       -> Text.unwords [renderUserInfo x, idText y]
     Join x _       -> renderUserInfo x
     Part x _ mb    -> Text.unwords (renderUserInfo x : maybeToList mb)
-    Quit x y       -> Text.unwords [renderUserInfo x, y]
+    Quit x mb      -> Text.unwords (renderUserInfo x : maybeToList mb)
     Kick x _ z r   -> Text.unwords [renderUserInfo x, idText z, r]
     Topic x _ t    -> Text.unwords [renderUserInfo x, t]
     Privmsg x _ t  -> Text.unwords [renderUserInfo x, t]

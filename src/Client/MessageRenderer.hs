@@ -107,12 +107,12 @@ ircLineImage rm sigils nicks body =
                           parseIrcText reason <|>
                           string quietAttr ")") mbreason
 
-    Quit nick reason ->
+    Quit nick mbreason ->
       string quietAttr "quit "   <|>
       coloredUserInfo rm nick   <|>
-      string quietAttr " ("   <|>
-      parseIrcText reason <|>
-      string quietAttr ")"
+      foldMap (\reason -> string quietAttr " (" <|>
+                          parseIrcText reason <|>
+                          string quietAttr ")") mbreason
 
     Kick kicker _channel kickee reason ->
       detail (string quietAttr "kick ") <|>
@@ -170,7 +170,8 @@ ircLineImage rm sigils nicks body =
                 parseIrcText p | p <- params]
 
     UnknownMsg irc ->
-      maybe emptyImage (coloredUserInfo rm) (view msgPrefix irc) <|>
+      maybe emptyImage (\ui -> coloredUserInfo rm ui <|> char defAttr ' ')
+        (view msgPrefix irc) <|>
       text' defAttr (view msgCommand irc) <|>
       horizCat [char (withForeColor defAttr blue) '·' <|>
                 parseIrcText p | p <- view msgParams irc]
