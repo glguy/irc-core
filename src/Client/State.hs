@@ -261,7 +261,12 @@ windowNames = "1234567890qwertyuiop"
 
 clientMatcher :: ClientState -> Text -> Bool
 clientMatcher st =
-  case stripPrefix "/grep " (clientInput st) of
-    Just reStr | not (null reStr), Right r <- ICU.regex' [] (Text.pack reStr) ->
-          isJust . ICU.find r
-    _ -> const True
+  case break (==' ') (clientInput st) of
+    ("/grep" ,_:reStr) -> go [] reStr
+    ("/grepi",_:reStr) -> go [ICU.CaseInsensitive] reStr
+    _                  -> const True
+  where
+    go opts reStr
+      | not (null reStr)
+      , Right r <- ICU.regex' opts (Text.pack reStr) = isJust . ICU.find r
+      | otherwise                                    = const True

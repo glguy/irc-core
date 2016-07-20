@@ -109,7 +109,9 @@ executeCommand tabCompleteReversed str st =
           maybe exec tab tabCompleteReversed
             network cs channelId st rest
 
-    _ -> commandContinue st
+    _ -> case tabCompleteReversed of
+           Nothing         -> commandContinue st
+           Just isReversed -> commandContinue (nickTabCompletion isReversed st)
 
 commands :: HashMap Text Command
 commands = HashMap.fromList
