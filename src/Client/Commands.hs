@@ -12,7 +12,9 @@ import           Client.NetworkConnection
 import           Client.ServerSettings
 import           Client.ChannelState
 import           Client.State
+import           Client.WordCompletion
 import           Control.Lens
+import           Control.Monad
 import           Data.Char
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
@@ -79,9 +81,14 @@ nextWord = splitWord . dropWhile isSpace
 -- the command is executed, otherwise the first argument is the cursor
 -- position for tab-completion
 executeCommand :: Maybe Bool -> String -> ClientState -> IO CommandResult
+
+executeCommand (Just isReversed) str st
+  | Just st' <- commandNameCompletion isReversed st = commandContinue st'
+
 executeCommand tabCompleteReversed str st =
-  let (cmd, rest) = splitWord str in
-  case HashMap.lookup (Text.toLower (Text.pack cmd)) commands of
+  let (cmd, rest) = splitWord str
+      cmdTxt      = Text.toLower (Text.pack cmd) in
+  case HashMap.lookup cmdTxt commands of
 
     Just (ClientCommand exec tab) ->
           maybe exec tab tabCompleteReversed
@@ -357,3 +364,13 @@ modeCommand modes cs st =
 
   where
     conn = view csSocket cs
+
+commandNameCompletion :: Bool -> ClientState -> Maybe ClientState
+commandNameCompletion isReversed st =
+  do guard (cursorPos == n)
+     clientTextBox (wordComplete id isReversed possibilities) st
+  where
+    n = length leadingPart
+    leadingPart = takeWhile (not . isSpace) (clientInput st)
+    cursorPos   = view (clientTextBox . Edit.pos) st
+    possibilities = mkId . Text.cons '/' <$> HashMap.keys commands

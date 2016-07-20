@@ -223,7 +223,7 @@ jumpFocus i st
 nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> ClientState
 nickTabCompletion isReversed st
   = fromMaybe st
-  $ clientTextBox (wordComplete isReversed completions) st
+  $ clientTextBox (wordComplete (++": ") isReversed completions) st
   where
     completions = currentUserList st
 
