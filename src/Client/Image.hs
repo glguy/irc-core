@@ -129,7 +129,7 @@ horizDividerImage st
     fillSize = max 0 (view clientWidth st - imageWidth content)
     content = horizCat
       [ myNickImage st
-      , parens defAttr (focusImage st)
+      , focusImage st
       , activityImage st
       , scrollImage st
       ]
@@ -188,17 +188,36 @@ myNickImage st =
 
 
 focusImage :: ClientState -> Image
-focusImage st = horizCat
-  [ char (withForeColor defAttr cyan) windowName
-  , char defAttr ':'
-  , renderedFocus
-  ]
+focusImage st = parens defAttr majorImage <|> renderedSubfocus
   where
+    majorImage = horizCat
+      [ char (withForeColor defAttr cyan) windowName
+      , char defAttr ':'
+      , renderedFocus
+      ]
+
     focus = view clientFocus st
     windowName =
       case Map.lookupIndex focus (view clientWindows st) of
         Nothing -> '?'
         Just i  -> (windowNames ++ repeat '?') !! i
+
+    subfocusName =
+      case view clientSubfocus st of
+        FocusMessages -> Nothing
+        FocusUsers    -> Just $ string (withForeColor defAttr green) "users"
+        FocusMasks m  -> Just $ horizCat
+          [ string (withForeColor defAttr green) "masks"
+          , char defAttr ':'
+          , char (withForeColor defAttr green) m
+          ]
+
+    renderedSubfocus =
+      foldMap (\name -> horizCat
+          [ string defAttr "─("
+          , name
+          , char defAttr ')'
+          ]) subfocusName
 
     renderedFocus =
       case focus of
