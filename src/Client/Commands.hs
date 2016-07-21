@@ -57,16 +57,18 @@ addConnection network st =
          settings = fromMaybe defSettings
                               (view (clientConfig . configServers . at host) st)
 
+     let (i,st') = st & clientNextConnectionId <+~ 1
      c <- createConnection
-            network
-            (view clientConnectionContext st)
+            i
+            (view clientConnectionContext st')
             settings
-            (view clientEvents st)
+            (view clientEvents st')
 
-     let cs = newConnectionState settings c
+     let cs = newConnectionState network settings c
      traverse_ (sendMsg cs) (initialMessages cs)
 
-     return $! set (clientConnections . at network) (Just cs) st
+     return $ set (clientNetworkMap . at network) (Just i)
+            $ set (clientConnections . at i) (Just cs) st'
 
 
 commandContinue :: Monad m => ClientState -> m CommandResult
@@ -99,13 +101,13 @@ executeCommand tabCompleteReversed str st =
 
     Just (NetworkCommand exec tab)
       | Just network <- views clientFocus focusNetwork st
-      , Just cs      <- preview (clientConnections . ix network) st ->
+      , Just cs      <- preview (clientConnection network) st ->
           maybe exec tab tabCompleteReversed
             network cs st rest
 
     Just (ChannelCommand exec tab)
       | ChannelFocus network channelId <- view clientFocus st
-      , Just cs <- preview (clientConnections . ix network) st
+      , Just cs <- preview (clientConnection network) st
       , isChannelIdentifier cs channelId ->
           maybe exec tab tabCompleteReversed
             network cs channelId st rest
@@ -190,10 +192,10 @@ cmdClear st _
       case view clientFocus st of
         Unfocused -> False
         NetworkFocus network ->
-            has (clientConnections . ix network) st
+            has (clientConnection network) st
         ChannelFocus network channel ->
-            has ( clientConnections . ix network
-                . csChannels        . ix channel) st
+            has ( clientConnection network
+                . csChannels . ix channel) st
 
 
 cmdQuote :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult

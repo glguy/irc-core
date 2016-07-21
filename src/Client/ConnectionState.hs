@@ -40,6 +40,7 @@ data ConnectionState = ConnectionState
   , _csUserInfo     :: !UserInfo
   , _csUsers        :: !(HashMap Identifier (Maybe Text, Maybe Text))
   , _csModeCount    :: !Int
+  , _csNetwork      :: !Text
   }
   deriving Show
 
@@ -99,10 +100,11 @@ utf8ChunksOf n txt
             (a,b) -> a : search byteIx charIx b xs'
 
 newConnectionState ::
+  Text ->
   ServerSettings ->
   NetworkConnection ->
   ConnectionState
-newConnectionState settings sock = ConnectionState
+newConnectionState network settings sock = ConnectionState
   { _csUserInfo     = UserInfo (mkId (view ssNick settings)) Nothing Nothing
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
@@ -114,6 +116,7 @@ newConnectionState settings sock = ConnectionState
   , _csSettings     = settings
   , _csModeCount    = 3
   , _csUsers        = HashMap.empty
+  , _csNetwork      = network
   }
 
 noReply :: ConnectionState -> ([RawIrcMsg], ConnectionState)

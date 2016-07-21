@@ -33,8 +33,8 @@ userListImages matcher network channel st =
               $ HashMap.toList usersHashMap
 
     usersHashMap =
-      view ( clientConnections . ix network
-           . csChannels        . ix channel
+      view ( clientConnection network
+           . csChannels . ix channel
            . chanUsers ) st
 
 -- | Detailed channel user list, shows full user info
@@ -50,7 +50,7 @@ userInfoImages matcher network channel st =
     matcher' (info,sigils) =
       matcher (Text.pack sigils `Text.append` renderUserInfo info)
 
-    userInfos = view (clientConnections . ix network . csUsers) st
+    userInfos = view (clientConnection network . csUsers) st
 
     toInfo nick =
       case view (at nick . non (Nothing,Nothing)) userInfos of
@@ -62,6 +62,6 @@ userInfoImages matcher network channel st =
               $ HashMap.toList usersHashMap
 
     usersHashMap =
-      view ( clientConnections . ix network
-           . csChannels        . ix channel
+      view ( clientConnection network
+           . csChannels . ix channel
            . chanUsers ) st

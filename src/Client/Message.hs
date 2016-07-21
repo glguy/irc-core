@@ -13,7 +13,7 @@ data MessageBody = IrcBody !IrcMsg | ErrorBody !String | ExitBody
 makePrisms ''MessageBody
 
 data ClientMessage = ClientMessage
-  { _msgNetwork :: !NetworkName
+  { _msgNetwork :: !Text
   , _msgBody    :: !MessageBody
   , _msgTime    :: !ZonedTime
   }

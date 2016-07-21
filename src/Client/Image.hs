@@ -173,7 +173,7 @@ myNickImage st =
     Unfocused                 -> emptyImage
   where
     nickPart network mbChan =
-      case view (clientConnections . at network) st of
+      case preview (clientConnection network) st of
         Nothing -> emptyImage
         Just cs -> string (withForeColor defAttr cyan) myChanModes
                <|> text' defAttr (idText nick)
@@ -202,7 +202,7 @@ focusImage st =
 
 channelModesImage :: Text -> Identifier -> ClientState -> Image
 channelModesImage network channel st =
-  case preview (clientConnections . ix network . csChannels . ix channel . chanModes) st of
+  case preview (clientConnection network . csChannels . ix channel . chanModes) st of
     Just modeMap | not (null modeMap) ->
         string defAttr (" +" ++ modes) <|>
         horizCat [ char defAttr ' ' <|> text' defAttr arg | arg <- args, not (Text.null arg) ]

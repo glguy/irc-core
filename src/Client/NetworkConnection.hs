@@ -2,7 +2,7 @@
 
 module Client.NetworkConnection
   ( NetworkConnection(..)
-  , NetworkName
+  , NetworkId
   , NetworkEvent(..)
   , createConnection
   , abortConnection
@@ -24,17 +24,18 @@ import           Irc.RateLimit
 import           Client.Connect
 import           Client.ServerSettings
 
+type NetworkId = Int
+
 data NetworkConnection = NetworkConnection
   { connOutQueue :: !(Chan ByteString)
   , connThread   :: !(Async ())
+  , connId       :: !NetworkId
   }
 
-type NetworkName = Text
-
 data NetworkEvent
-  = NetworkLine  !NetworkName !ZonedTime !ByteString
-  | NetworkError !NetworkName !ZonedTime !SomeException
-  | NetworkClose !NetworkName !ZonedTime
+  = NetworkLine  !NetworkId !ZonedTime !ByteString
+  | NetworkError !NetworkId !ZonedTime !SomeException
+  | NetworkClose !NetworkId !ZonedTime
 
 instance Show NetworkConnection where
   showsPrec p _ = showParen (p > 10)
@@ -51,7 +52,7 @@ abortConnection c =
      return ()
 
 createConnection ::
-  NetworkName ->
+  NetworkId ->
   ConnectionContext ->
   ServerSettings ->
   TChan NetworkEvent ->
@@ -59,27 +60,26 @@ createConnection ::
 createConnection network cxt settings inQueue =
    do outQueue <- newChan
 
-      supervisor <- async $
-        do startConnection network cxt settings inQueue outQueue
-             `catch` recordFailure
-           recordNormalExit
+      supervisor <- async (startConnection network cxt settings inQueue outQueue)
 
+      -- Having this reporting thread separate from the supervisor ensures
+      -- that canceling the supervisor with abortConnection doesn't interfere
+      -- with carefully reporting the outcome
+      forkIO $ do outcome <- waitCatch supervisor
+                  case outcome of
+                    Right{} -> recordNormalExit
+                    Left e  -> recordFailure e
+                  
       return NetworkConnection
         { connOutQueue = outQueue
         , connThread   = supervisor
+        , connId       = network
         }
   where
     recordFailure :: SomeException -> IO ()
     recordFailure ex =
-      case fromException ex of
-        -- if this thread is aborted its connection is going
-        -- to be forcibly removed from the connection state
-        -- by the abort code and another network might start
-        -- using this networkname, so no further messages
-        -- should be added to the channel.
-        Just ThreadKilled -> throwIO ex
-        _ -> do now <- getZonedTime
-                atomically (writeTChan inQueue (NetworkError network now ex))
+        do now <- getZonedTime
+           atomically (writeTChan inQueue (NetworkError network now ex))
 
     recordNormalExit :: IO ()
     recordNormalExit =
@@ -88,7 +88,7 @@ createConnection network cxt settings inQueue =
 
 
 startConnection ::
-  NetworkName ->
+  NetworkId ->
   ConnectionContext ->
   ServerSettings ->
   TChan NetworkEvent ->
@@ -116,7 +116,7 @@ sendLoop h outQueue rate =
 ircMaxMessageLength :: Int
 ircMaxMessageLength = 512
 
-receiveLoop :: NetworkName -> Connection -> TChan NetworkEvent -> IO ()
+receiveLoop :: NetworkId -> Connection -> TChan NetworkEvent -> IO ()
 receiveLoop network h inQueue =
   do msg <- connectionGetLine ircMaxMessageLength h
      unless (B.null msg) $

@@ -56,37 +56,37 @@ eventLoop st0 =
        VtyEvent vtyEvent             -> doVtyEvent vtyEvent st
        NetworkEvent networkEvent ->
          case networkEvent of
-           NetworkLine network time line -> doNetworkLine network time line st
-           NetworkError network time ex  -> doNetworkError network time ex st
-           NetworkClose network time     -> doNetworkClose network time st
+           NetworkLine  network time line -> doNetworkLine network time line st
+           NetworkError network time ex   -> doNetworkError network time ex st
+           NetworkClose network time      -> doNetworkClose network time st
+
+doNetworkClose :: NetworkId -> ZonedTime -> ClientState -> IO ()
+doNetworkClose networkId time st =
+  let (cs,st') = removeNetwork networkId st
+      msg = ClientMessage
+              { _msgTime    = time
+              , _msgNetwork = view csNetwork cs
+              , _msgBody    = ExitBody
+              }
+  in eventLoop $ recordNetworkMessage msg st'
 
 
-doNetworkClose :: NetworkName -> ZonedTime -> ClientState -> IO ()
-doNetworkClose network time st =
-  do let msg = ClientMessage
-                 { _msgTime = time
-                 , _msgNetwork = network
-                 , _msgBody = ExitBody
-                 }
-     eventLoop $ recordNetworkMessage msg
-               $ set (clientConnections . at (view msgNetwork msg)) Nothing st
+doNetworkError :: NetworkId -> ZonedTime -> SomeException -> ClientState -> IO ()
+doNetworkError networkId time ex st =
+  let (cs,st') = removeNetwork networkId st
+      msg = ClientMessage
+              { _msgTime    = time
+              , _msgNetwork = view csNetwork cs
+              , _msgBody    = ErrorBody (show ex)
+              }
+  in eventLoop $ recordNetworkMessage msg st'
 
-
-doNetworkError :: NetworkName -> ZonedTime -> SomeException -> ClientState -> IO ()
-doNetworkError network time ex st =
-  do let msg = ClientMessage
-                 { _msgTime = time
-                 , _msgNetwork = network
-                 , _msgBody = ErrorBody (show ex)
-                 }
-     eventLoop $ recordNetworkMessage msg
-               $ set (clientConnections . at (view msgNetwork msg)) Nothing st
-
-doNetworkLine :: NetworkName -> ZonedTime -> ByteString -> ClientState -> IO ()
-doNetworkLine network time line st =
-  case preview (clientConnections . ix network) st of
-    Nothing -> eventLoop st -- really shouldn't happen
+doNetworkLine :: NetworkId -> ZonedTime -> ByteString -> ClientState -> IO ()
+doNetworkLine networkId time line st =
+  case view (clientConnections . at networkId) st of
+    Nothing -> error "doNetworkLine: Network missing"
     Just cs ->
+      let network = view csNetwork cs in
       case parseRawIrcMsg (asUtf8 line) of
         Nothing ->
           do let msg = ClientMessage
@@ -112,7 +112,7 @@ doNetworkLine network time line st =
              -- record messages *before* applying the changes
              let (msgs, st')
                     = traverseOf
-                        (clientConnections . ix network)
+                        (clientConnection network)
                         (applyMessage time irc)
                     $ recordIrcMessage network target msg
                     $ st
@@ -241,7 +241,7 @@ executeChat :: String -> ClientState -> IO ()
 executeChat msg st =
   case view clientFocus st of
     ChannelFocus network channel
-      | Just cs <- view (clientConnections . at network) st ->
+      | Just cs <- preview (clientConnection network) st ->
           do now <- getZonedTime
              let msgTxt = Text.pack msg
                  ircMsg = rawIrcMsg "PRIVMSG" [idText channel, msgTxt]

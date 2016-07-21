@@ -25,8 +25,8 @@ maskListImages matcher mode network channel st
               $ filter matcher'
               $ HashMap.toList entries
 
-    entries = view ( clientConnections . ix network
-                   . csChannels        . ix channel
+    entries = view ( clientConnection network
+                   . csChannels . ix channel
                    . chanList mode
                    ) st
 

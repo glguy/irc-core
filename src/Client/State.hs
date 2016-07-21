@@ -12,6 +12,8 @@ import           Control.Concurrent.STM
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import           Data.List
+import           Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import           Data.Maybe
 import           Data.Map (Map)
 import           Data.Monoid
@@ -28,6 +30,8 @@ import           Network.Connection
 import qualified Client.EditBox as Edit
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
+
+type NetworkName = Text
 
 data ClientFocus
  = Unfocused
@@ -58,7 +62,7 @@ instance Ord ClientFocus where
 data ClientState = ClientState
   { _clientWindows     :: !(Map ClientFocus Window)
   , _clientTextBox     :: !Edit.EditBox
-  , _clientConnections :: !(HashMap NetworkName ConnectionState)
+  , _clientConnections :: !(IntMap ConnectionState)
   , _clientWidth, _clientHeight :: !Int
   , _clientEvents :: !(TChan NetworkEvent)
   , _clientVty :: !Vty
@@ -68,9 +72,17 @@ data ClientState = ClientState
   , _clientScroll :: !Int
   , _clientDetailView :: !Bool
   , _clientSubfocus :: !ClientSubfocus
+  , _clientNextConnectionId :: !Int
+  , _clientNetworkMap :: !(HashMap Text Int)
   }
 
 makeLenses ''ClientState
+
+clientConnection :: Applicative f => Text -> LensLike' f ClientState ConnectionState
+clientConnection network f st =
+  case view (clientNetworkMap . at network) st of
+    Nothing -> pure st
+    Just i  -> clientConnections (ix i f) st
 
 clientInput :: ClientState -> String
 clientInput = view (clientTextBox . Edit.content)
@@ -88,7 +100,7 @@ initialClientState cfg vty =
      return ClientState
         { _clientWindows           = _Empty # ()
         , _clientTextBox           = Edit.empty
-        , _clientConnections       = HashMap.empty
+        , _clientConnections       = IntMap.empty
         , _clientWidth             = width
         , _clientHeight            = height
         , _clientVty               = vty
@@ -99,20 +111,16 @@ initialClientState cfg vty =
         , _clientScroll            = 0
         , _clientDetailView        = False
         , _clientSubfocus          = FocusMessages
+        , _clientNextConnectionId  = 0
+        , _clientNetworkMap        = HashMap.empty
         }
 
 abortNetwork :: NetworkName -> ClientState -> IO ClientState
 abortNetwork network st =
-  case clientConnections . at network <<.~ Nothing $ st of
-    (Nothing,_  ) -> return st
-    (Just cs,st') -> do abortConnection (view csSocket cs)
-                        now <- getZonedTime
-                        let msg = ClientMessage
-                                    { _msgNetwork = network
-                                    , _msgTime    = now
-                                    , _msgBody    = ExitBody
-                                    }
-                        return (recordNetworkMessage msg st')
+  case preview (clientConnection network) st of
+    Nothing -> return st
+    Just cs -> do abortConnection (view csSocket cs)
+                  return $ set (clientNetworkMap . at network) Nothing st
 
 recordChannelMessage :: NetworkName -> Identifier -> ClientMessage -> ClientState -> ClientState
 recordChannelMessage network channel msg st =
@@ -127,14 +135,14 @@ recordChannelMessage network channel msg st =
       }
 
     -- on failure returns mempty/""
-    possibleStatusModes = view (clientConnections . ix network . csStatusMsg) st
+    possibleStatusModes = view (clientConnection network . csStatusMsg) st
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
     importance = msgImportance msg st
 
 msgImportance :: ClientMessage -> ClientState -> WindowLineImportance
 msgImportance msg st =
   let network = view msgNetwork msg
-      me      = preview (clientConnections . ix network . csNick) st
+      me      = preview (clientConnection network . csNick) st
       isMe x  = Just x == me
       checkTxt txt = case me of
                        Just me' | me' `elem` (mkId <$> nickSplit txt) -> WLImportant
@@ -171,7 +179,7 @@ recordIrcMessage network target msg st =
       where
         wl = toWindowLine' msg
         chans =
-          case preview (clientConnections . ix network . csChannels) st of
+          case preview (clientConnection network . csChannels) st of
             Nothing -> []
             Just m  -> [chan | (chan, cs) <- HashMap.toList m, HashMap.member user (view chanUsers cs) ]
 
@@ -188,9 +196,9 @@ computeMsgLineModes network channel msg st =
 
 computeLineModes :: NetworkName -> Identifier -> Identifier -> ClientState -> [Char]
 computeLineModes network channel user =
-    view $ clientConnections . ix network
-         . csChannels        . ix channel
-         . chanUsers         . ix user
+    view $ clientConnection network
+         . csChannels . ix channel
+         . chanUsers  . ix user
 
 recordNetworkMessage :: ClientMessage -> ClientState -> ClientState
 recordNetworkMessage msg st =
@@ -257,7 +265,7 @@ currentUserList st =
 
 channelUserList :: NetworkName -> Identifier -> ClientState -> [Identifier]
 channelUserList network channel st =
-  views (clientConnections . ix network . csChannels . ix channel . chanUsers) HashMap.keys st
+  views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys st
 
 changeFocus :: ClientFocus -> ClientState -> ClientState
 changeFocus focus
@@ -284,3 +292,19 @@ clientMatcher st =
       | not (null reStr)
       , Right r <- ICU.regex' opts (Text.pack reStr) = isJust . ICU.find r
       | otherwise                                    = const True
+
+-- | Remove a network connection and unlink it from the network map.
+-- This operation assumes that the networkconnection exists and should
+-- only be applied once per connection.
+removeNetwork :: NetworkId -> ClientState -> (ConnectionState, ClientState)
+removeNetwork networkId st =
+  case (clientConnections . at networkId <<.~ Nothing) st of
+    (Nothing, _  ) -> error "removeNetwork: network not found"
+    (Just cs, st1) ->
+      -- Only remove the network mapping if it hasn't already been replace
+      -- with a new one. This can happen during reconnect in particular.
+      let network = view csNetwork cs in
+      case view (clientNetworkMap . at network) st of
+        Just i | i == networkId ->
+          (cs, set (clientNetworkMap . at network) Nothing st1)
+        _ -> (cs,st1)
