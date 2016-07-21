@@ -15,6 +15,7 @@ import           Data.List
 import           Data.Maybe
 import           Data.Map (Map)
 import           Data.Monoid
+import           Data.Time
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.ICU as ICU
@@ -99,6 +100,19 @@ initialClientState cfg vty =
         , _clientDetailView        = False
         , _clientSubfocus          = FocusMessages
         }
+
+abortNetwork :: NetworkName -> ClientState -> IO ClientState
+abortNetwork network st =
+  case clientConnections . at network <<.~ Nothing $ st of
+    (Nothing,_  ) -> return st
+    (Just cs,st') -> do abortConnection (view csSocket cs)
+                        now <- getZonedTime
+                        let msg = ClientMessage
+                                    { _msgNetwork = network
+                                    , _msgTime    = now
+                                    , _msgBody    = ExitBody
+                                    }
+                        return (recordNetworkMessage msg st')
 
 recordChannelMessage :: NetworkName -> Identifier -> ClientMessage -> ClientState -> ClientState
 recordChannelMessage network channel msg st =

@@ -5,6 +5,7 @@ module Client.NetworkConnection
   , NetworkName
   , NetworkEvent(..)
   , createConnection
+  , abortConnection
   , send
   ) where
 
@@ -25,6 +26,7 @@ import           Client.ServerSettings
 
 data NetworkConnection = NetworkConnection
   { connOutQueue :: !(Chan ByteString)
+  , connThread   :: !(Async ())
   }
 
 type NetworkName = Text
@@ -41,6 +43,13 @@ instance Show NetworkConnection where
 send :: NetworkConnection -> ByteString -> IO ()
 send c = writeChan (connOutQueue c)
 
+abortConnection :: NetworkConnection -> IO ()
+abortConnection c =
+  do let a = connThread c
+     cancel a
+     waitCatch a
+     return ()
+
 createConnection ::
   NetworkName ->
   ConnectionContext ->
@@ -50,19 +59,27 @@ createConnection ::
 createConnection network cxt settings inQueue =
    do outQueue <- newChan
 
-      forkIO $
+      supervisor <- async $
         do startConnection network cxt settings inQueue outQueue
              `catch` recordFailure
            recordNormalExit
 
       return NetworkConnection
         { connOutQueue = outQueue
+        , connThread   = supervisor
         }
   where
     recordFailure :: SomeException -> IO ()
     recordFailure ex =
-      do now <- getZonedTime
-         atomically (writeTChan inQueue (NetworkError network now ex))
+      case fromException ex of
+        -- if this thread is aborted its connection is going
+        -- to be forcibly removed from the connection state
+        -- by the abort code and another network might start
+        -- using this networkname, so no further messages
+        -- should be added to the channel.
+        Just ThreadKilled -> throwIO ex
+        _ -> do now <- getZonedTime
+                atomically (writeTChan inQueue (NetworkError network now ex))
 
     recordNormalExit :: IO ()
     recordNormalExit =

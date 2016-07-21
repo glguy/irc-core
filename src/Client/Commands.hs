@@ -49,9 +49,9 @@ data Command
   | NetworkCommand NetworkCommand (Bool -> NetworkCommand)
   | ChannelCommand ChannelCommand (Bool -> ChannelCommand)
 
-addConnection :: String -> ClientState -> IO ClientState
-addConnection host st =
-  do let network = Text.pack host
+addConnection :: Text -> ClientState -> IO ClientState
+addConnection network st =
+  do let host = Text.unpack network
          defSettings = (view (clientConfig . configDefaults) st)
                      { _ssHostName = host }
          settings = fromMaybe defSettings
@@ -116,33 +116,38 @@ executeCommand tabCompleteReversed str st =
 
 commands :: HashMap Text Command
 commands = HashMap.fromList
-  [ ("connect", ClientCommand cmdConnect noClientTab)
-  , ("exit"   , ClientCommand cmdExit    noClientTab)
-  , ("focus"  , ClientCommand cmdFocus   simpleClientTab)
-  , ("clear"  , ClientCommand cmdClear   noClientTab)
+  [ ("connect"   , ClientCommand cmdConnect noClientTab)
+  , ("exit"      , ClientCommand cmdExit    noClientTab)
+  , ("focus"     , ClientCommand cmdFocus   simpleClientTab)
+  , ("clear"     , ClientCommand cmdClear   noClientTab)
+  , ("reconnect" , ClientCommand cmdReconnect noClientTab)
 
-  , ("quote"  , NetworkCommand cmdQuote  simpleNetworkTab)
-  , ("join"   , NetworkCommand cmdJoin   simpleNetworkTab)
-  , ("mode"   , NetworkCommand cmdMode   simpleNetworkTab)
-  , ("msg"    , NetworkCommand cmdMsg    simpleNetworkTab)
-  , ("nick"   , NetworkCommand cmdNick   simpleNetworkTab)
-  , ("quit"   , NetworkCommand cmdQuit   simpleNetworkTab)
-  , ("whois"  , NetworkCommand cmdWhois  simpleNetworkTab)
-  , ("whowas" , NetworkCommand cmdWhowas simpleNetworkTab)
+  , ("quote"     , NetworkCommand cmdQuote  simpleNetworkTab)
+  , ("join"      , NetworkCommand cmdJoin   simpleNetworkTab)
+  , ("mode"      , NetworkCommand cmdMode   simpleNetworkTab)
+  , ("msg"       , NetworkCommand cmdMsg    simpleNetworkTab)
+  , ("nick"      , NetworkCommand cmdNick   simpleNetworkTab)
+  , ("quit"      , NetworkCommand cmdQuit   simpleNetworkTab)
+  , ("disconnect", NetworkCommand cmdDisconnect noNetworkTab)
+  , ("whois"     , NetworkCommand cmdWhois  simpleNetworkTab)
+  , ("whowas"    , NetworkCommand cmdWhowas simpleNetworkTab)
 
-  , ("invite" , ChannelCommand cmdInvite simpleChannelTab)
-  , ("topic"  , ChannelCommand cmdTopic  tabTopic    )
-  , ("kick"   , ChannelCommand cmdKick   simpleChannelTab)
-  , ("remove" , ChannelCommand cmdRemove simpleChannelTab)
-  , ("me"     , ChannelCommand cmdMe     simpleChannelTab)
-  , ("part"   , ChannelCommand cmdPart   simpleChannelTab)
+  , ("invite"    , ChannelCommand cmdInvite simpleChannelTab)
+  , ("topic"     , ChannelCommand cmdTopic  tabTopic    )
+  , ("kick"      , ChannelCommand cmdKick   simpleChannelTab)
+  , ("remove"    , ChannelCommand cmdRemove simpleChannelTab)
+  , ("me"        , ChannelCommand cmdMe     simpleChannelTab)
+  , ("part"      , ChannelCommand cmdPart   simpleChannelTab)
 
-  , ("users"  , ChannelCommand cmdUsers  noChannelTab)
-  , ("masks"  , ChannelCommand cmdMasks  noChannelTab)
+  , ("users"     , ChannelCommand cmdUsers  noChannelTab)
+  , ("masks"     , ChannelCommand cmdMasks  noChannelTab)
   ]
 
 noClientTab :: Bool -> ClientCommand
 noClientTab _ st _ = commandContinue st
+
+noNetworkTab :: Bool -> NetworkCommand
+noNetworkTab _ _ _ st _ = commandContinue st
 
 noChannelTab :: Bool -> ChannelCommand
 noChannelTab _ _ _ _ st _ = commandContinue st
@@ -245,9 +250,14 @@ cmdMsg network cs st rest =
 cmdConnect :: ClientState -> String -> IO CommandResult
 cmdConnect st rest =
   case words rest of
-    [network] ->
-      do st' <- addConnection network $ consumeInput st
-         commandContinue $ changeFocus (NetworkFocus (Text.pack network)) st'
+    [networkStr] ->
+      do -- abort any existing connection before connecting
+         let network = Text.pack networkStr
+         st' <- addConnection network =<< abortNetwork network st
+         commandContinue
+           $ changeFocus (NetworkFocus network)
+           $ consumeInput st'
+
     _ -> commandContinue st
 
 cmdFocus :: ClientState -> String -> IO CommandResult
@@ -376,6 +386,25 @@ cmdQuit _ cs st rest =
                   msg -> [Text.pack msg]
      sendMsg cs (rawIrcMsg "QUIT" msgs)
      commandContinue (consumeInput st)
+
+cmdDisconnect :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdDisconnect network _ st _ =
+  do st' <- abortNetwork network st
+     commandContinue (consumeInput st')
+
+-- | Reconnect to the currently focused network. It's possible
+-- that we're not currently connected to a network, so
+-- this is implemented as a client command.
+cmdReconnect :: ClientState -> String -> IO CommandResult
+cmdReconnect st _
+  | Just network <- views clientFocus focusNetwork st =
+
+      do st' <- addConnection network =<< abortNetwork network st
+         commandContinue
+           $ changeFocus (NetworkFocus network)
+           $ consumeInput st'
+
+  | otherwise = commandContinue st
 
 modeCommand :: [Text] -> ConnectionState -> ClientState -> IO CommandResult
 modeCommand modes cs st =
