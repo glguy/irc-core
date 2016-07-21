@@ -1,7 +1,7 @@
 module Client.Image.UserList where
 
 import           Client.MessageRenderer
-import           Client.Message
+import           Client.NetworkConnection
 import           Client.State
 import           Client.ChannelState
 import           Client.ConnectionState

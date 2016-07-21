@@ -2,32 +2,35 @@
 
 module Client.NetworkConnection
   ( NetworkConnection(..)
+  , NetworkName
   , NetworkEvent(..)
   , createConnection
   , send
   ) where
 
-import Control.Concurrent
-import Control.Concurrent.STM
-import Control.Concurrent.Async
-import Control.Exception
-import Control.Monad
-import Data.ByteString (ByteString)
-import Data.Time
-import Network.Connection
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Control.Concurrent.Async
+import           Control.Exception
+import           Control.Monad
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import           Data.Text
+import           Data.Time
+import           Network.Connection
 
-import Irc.RateLimit
-import Client.Message
-import Client.Connect
-import Client.ServerSettings
+import           Irc.RateLimit
+import           Client.Connect
+import           Client.ServerSettings
 
 data NetworkConnection = NetworkConnection
   { connOutQueue :: !(Chan ByteString)
   }
 
+type NetworkName = Text
+
 data NetworkEvent
-  = NetworkLine !NetworkName !ZonedTime !ByteString
+  = NetworkLine  !NetworkName !ZonedTime !ByteString
   | NetworkError !NetworkName !ZonedTime !SomeException
   | NetworkClose !NetworkName !ZonedTime
 

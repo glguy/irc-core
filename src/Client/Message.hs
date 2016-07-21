@@ -1,13 +1,12 @@
 {-# Language TemplateHaskell #-}
 module Client.Message where
 
-import Control.Lens
-import Data.Text (Text)
+import           Client.NetworkConnection
+import           Control.Lens
+import           Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Time (ZonedTime)
-import Irc.Message
-
-type NetworkName = Text
+import           Data.Time (ZonedTime)
+import           Irc.Message
 
 data MessageBody = IrcBody !IrcMsg | ErrorBody !String | ExitBody
 

@@ -2,7 +2,7 @@ module Client.Image.MaskList where
 
 import           Client.ChannelState
 import           Client.ConnectionState
-import           Client.Message
+import           Client.NetworkConnection
 import           Client.State
 import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
