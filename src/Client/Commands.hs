@@ -18,6 +18,7 @@ import           Client.WordCompletion
 import           Control.Lens
 import           Control.Monad
 import           Data.Char
+import           Data.List.Split
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -385,7 +386,17 @@ modeCommand modes cs st =
          commandContinue (consumeInput st)
 
     ChannelFocus _ chan ->
-          do sendMsg cs (rawIrcMsg "MODE" (idText chan : modes))
+      case modes of
+        [] -> success [[]]
+        flags:params ->
+          case splitModes (view csModeTypes cs) flags params of
+            Nothing -> commandContinue st
+            Just parsedModes ->
+              success (unsplitModes <$> chunksOf (view csModeCount cs) parsedModes)
+      where
+        success argss =
+          do for_ argss $ \args ->
+               sendMsg cs (rawIrcMsg "MODE" (idText chan : args))
              commandContinue (consumeInput st)
 
     _ -> commandContinue st

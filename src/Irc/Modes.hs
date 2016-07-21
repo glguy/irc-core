@@ -66,10 +66,26 @@ splitModes !icm = computeMode True . Text.unpack
        || polarity && m `elem` view modesSetArg icm
        ||             m `elem` map fst (view modesPrefixModes icm)
        ||             m `elem` view modesLists icm ->
-           do x:xs <- Just args
-              res <- computeMode polarity ms xs
-              return ((polarity,m,x) : res)
+           let (arg,args') =
+                    case args of
+                      []   -> (Text.empty,[])
+                      x:xs -> (x,xs)
+           in cons (polarity,m,arg) <$> computeMode polarity ms args'
 
-        | otherwise -> -- default to no arg
+        | not polarity && m `elem` view modesSetArg icm
+       ||                 m `elem` view modesNeverArg icm ->
            do res <- computeMode polarity ms args
               return ((polarity,m,Text.empty) : res)
+
+        | otherwise -> Nothing
+
+unsplitModes :: [(Bool,Char,Text)] -> [Text]
+unsplitModes modes
+  = Text.pack (foldr combineModeChars (const "") modes True)
+  : args
+  where
+  args = [arg | (_,_,arg) <- modes, not (Text.null arg)]
+  combineModeChars (q,m,_) rest p
+    | p == q    =       m : rest p
+    | q         = '+' : m : rest True
+    | otherwise = '-' : m : rest False

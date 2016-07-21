@@ -37,6 +37,7 @@ data ConnectionState = ConnectionState
   , _csStatusMsg    :: ![Char]
   , _csSettings     :: !ServerSettings
   , _csUserInfo     :: !UserInfo
+  , _csModeCount    :: !Int
   }
   deriving Show
 
@@ -107,6 +108,7 @@ newConnectionState settings sock = ConnectionState
   , _csModes        = ""
   , _csStatusMsg    = ""
   , _csSettings     = settings
+  , _csModeCount    = 3
   }
 
 noReply :: ConnectionState -> ([RawIrcMsg], ConnectionState)
@@ -437,6 +439,8 @@ isupport params conn = foldl' (flip isupport1) conn
     isupport1 ("CHANMODES",modes) = updateChanModes modes
     isupport1 ("PREFIX"   ,modes) = updateChanPrefix modes
     isupport1 ("STATUSMSG",prefix) = set csStatusMsg (Text.unpack prefix)
+    isupport1 ("MODES",nstr) | Right (n,"") <- Text.decimal nstr =
+                        set csModeCount n
     isupport1 _                   = id
 
 parseISupport :: Text -> (Text,Text)
