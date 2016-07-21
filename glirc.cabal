@@ -32,6 +32,8 @@ executable glirc2
                        Client.Window
                        Client.EditBox
                        Client.Image
+                       Client.Image.UserList
+                       Client.Image.MaskList
                        Client.State
                        Client.IdentifierColors
                        Client.MircFormatting

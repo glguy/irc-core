@@ -1,10 +1,12 @@
 module Client.MessageRenderer
   ( MessageRendererParams(..)
+  , RenderMode(..)
   , defaultRenderParams
   , msgImage
   , detailedMsgImage
   , metadataImg
   , quietIdentifier
+  , coloredUserInfo
   ) where
 
 import           Client.IdentifierColors

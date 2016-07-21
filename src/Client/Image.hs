@@ -3,23 +3,21 @@ module Client.Image (clientPicture) where
 
 import           Client.ChannelState
 import           Client.ConnectionState
+import           Client.Image.UserList
+import           Client.Image.MaskList
 import           Client.MircFormatting
 import           Client.State
 import           Client.Window
 import           Client.MessageRenderer
 import           Control.Lens
-import           Data.List
-import           Data.Ord
 import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
 import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier, idText)
 import           Client.Message
 import qualified Client.EditBox as Edit
 import qualified Data.Map.Strict as Map
-import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Time
 
 clientPicture :: ClientState -> (Picture, ClientState)
 clientPicture st = (pic, st')
@@ -44,8 +42,9 @@ clientImage st = (img, st')
 messagePaneImages :: ClientState -> [Image]
 messagePaneImages !st =
   case (view clientFocus st, view clientSubfocus st) of
-    (ChannelFocus network channel, FocusUsers) ->
-      userListImages matcher network channel st
+    (ChannelFocus network channel, FocusUsers)
+      | view clientDetailView st -> userInfoImages matcher network channel st
+      | otherwise                -> userListImages matcher network channel st
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages matcher mode network channel st
 
@@ -225,58 +224,4 @@ textboxImage st
   beginning = char (withForeColor defAttr brightBlack) '^'
   ending    = char (withForeColor defAttr brightBlack) '$'
 
-userListImages ::
-  (Text -> Bool) -> NetworkName -> Identifier -> ClientState -> [Image]
-userListImages matcher network channel st =
-    [horizCat (intersperse gap (map renderUser usersList))]
-  where
-    renderUser (ident, sigils) =
-      string (withForeColor defAttr cyan) sigils <|>
-      text' defAttr (idText ident)
 
-    gap = char defAttr ' '
-
-    matcher' (ident,sigils) = matcher (Text.pack sigils `Text.append` idText ident)
-
-    usersList = sortBy (comparing fst)
-              $ filter matcher'
-              $ HashMap.toList usersHashMap
-
-    usersHashMap =
-      view ( clientConnections . ix network
-           . csChannels        . ix channel
-           . chanUsers ) st
-
-maskListImages ::
-  (Text -> Bool) -> Char -> NetworkName -> Identifier -> ClientState -> [Image]
-maskListImages matcher mode network channel st
-  | null entryList = [string (withForeColor defAttr red) "No masks"]
-  | otherwise      = images
-  where
-    matcher' (x,(y,_)) = matcher x || matcher y
-
-    entryList = sortBy (comparing (snd . snd))
-              $ filter matcher'
-              $ HashMap.toList entries
-
-    entries = view ( clientConnections . ix network
-                   . csChannels        . ix channel
-                   . chanList mode
-                   ) st
-
-    renderWhen = formatTime defaultTimeLocale " %F %T"
-
-    (masks, whoWhens) = unzip entryList
-    maskImages       = text' defAttr <$> masks
-    maskColumnWidth  = maximum (imageWidth <$> maskImages) + 1
-    paddedMaskImages = resizeWidth maskColumnWidth <$> maskImages
-    width            = max 1 (view clientWidth st)
-
-    images = [ cropLine $ mask <|>
-                          text' defAttr who <|>
-                          string defAttr (renderWhen when)
-             | (mask, (who, when)) <- zip paddedMaskImages whoWhens ]
-
-    cropLine img
-      | imageWidth img > width = cropRight width img
-      | otherwise              = img

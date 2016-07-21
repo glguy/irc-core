@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, OverloadedStrings #-}
+{-# Language TemplateHaskell, OverloadedStrings, BangPatterns #-}
 module Client.ConnectionState where
 
 import           Client.ChannelState
@@ -7,6 +7,7 @@ import           Client.ServerSettings
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import qualified Data.ByteString as B
 import qualified Data.Map.Strict as Map
 import           Data.Bits
@@ -37,17 +38,20 @@ data ConnectionState = ConnectionState
   , _csStatusMsg    :: ![Char]
   , _csSettings     :: !ServerSettings
   , _csUserInfo     :: !UserInfo
+  , _csUsers        :: !(HashMap Identifier (Maybe Text, Maybe Text))
   , _csModeCount    :: !Int
   }
   deriving Show
 
 data Transaction
   = NoTransaction
-  | WhoTransaction [Text]
+  | NamesTransaction [Text]
   | BanTransaction [(Text,(Text,UTCTime))]
+  | WhoTransaction [UserInfo]
   deriving Show
 
 makeLenses ''ConnectionState
+makePrisms ''Transaction
 
 csNick :: Lens' ConnectionState Identifier
 csNick = csUserInfo . uiNick
@@ -109,6 +113,7 @@ newConnectionState settings sock = ConnectionState
   , _csStatusMsg    = ""
   , _csSettings     = settings
   , _csModeCount    = 3
+  , _csUsers        = HashMap.empty
   }
 
 noReply :: ConnectionState -> ([RawIrcMsg], ConnectionState)
@@ -126,26 +131,32 @@ applyMessage msgWhen msg cs =
     Ping args -> ([pongMsg args], cs)
     Join user chan ->
            noReply
+         $ recordUser user
          $ overChannel chan (joinChannel (userNick user))
          $ createOnJoin user chan cs
 
     Quit user _reason ->
            noReply
+         $ forgetUser (userNick user)
          $ overChannels (partChannel (userNick user)) cs
 
     Part user chan _mbreason ->
            noReply
+         $ forgetUser' (userNick user) -- possibly forget
          $ if userNick user == view csNick cs
              then set (csChannels . at chan) Nothing cs
              else overChannel chan (partChannel (userNick user)) cs
 
     Nick oldNick newNick ->
            noReply
+         $ renameUser (userNick oldNick) newNick
          $ updateMyNick (userNick oldNick) newNick
          $ overChannels (nickChange (userNick oldNick) newNick) cs
 
     Kick _kicker chan nick _reason ->
-           noReply (overChannel chan (partChannel nick) cs)
+           noReply
+         $ forgetUser' nick
+         $ overChannel chan (partChannel nick) cs
     Reply RPL_WELCOME (me:_) -> (onConnectCmds cs, set csNick (mkId me) cs)
     Reply code args        -> noReply (doRpl msgWhen code args cs)
     Cap cmd params         -> doCap cmd params cs
@@ -181,57 +192,64 @@ doRpl _ RPL_ISUPPORT params = isupport params
 
 doRpl _ RPL_NAMREPLY [_me,_sym,_tgt,x] =
            over csTransaction
-                (\t -> let xs = currentWhoList t
-                       in xs `seq` WhoTransaction (x:xs))
+                (\t -> let xs = view _NamesTransaction t
+                       in xs `seq` NamesTransaction (x:xs))
 doRpl _ RPL_ENDOFNAMES [_me,tgt,_txt] = loadWhoList (mkId tgt)
 
 doRpl _ RPL_BANLIST (_me:_tgt:mask:who:when:_) =
            over csTransaction
-                (\t -> let xs = currentBanList t
+                (\t -> let xs = view _BanTransaction t
                            whenSecs = either (const 0) fst (Text.decimal when)
                        in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
 
 doRpl _ RPL_ENDOFBANLIST (_me:tgt:_) = \cs ->
            set csTransaction NoTransaction
          $ setStrict (csChannels . ix (mkId tgt) . chanList 'b')
-                     (HashMap.fromList (currentBanList (view csTransaction cs)))
+                     (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
                      cs
 
 doRpl _ RPL_QUIETLIST (_me:_tgt:_q:mask:who:when:_) =
            over csTransaction
-                (\t -> let xs = currentBanList t
+                (\t -> let xs = view _BanTransaction t
                            whenSecs = either (const 0) fst (Text.decimal when)
                        in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
 
 doRpl _ RPL_ENDOFQUIETLIST (_me:tgt:_) = \cs ->
            set csTransaction NoTransaction
          $ setStrict (csChannels . ix (mkId tgt) . chanList 'q')
-                     (HashMap.fromList (currentBanList (view csTransaction cs)))
+                     (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
                      cs
 
 doRpl _ RPL_INVITELIST (_me:_tgt:mask:who:when:_) =
            over csTransaction
-                (\t -> let xs = currentBanList t
+                (\t -> let xs = view _BanTransaction t
                            whenSecs = either (const 0) fst (Text.decimal when)
                        in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
 
 doRpl _ RPL_ENDOFINVITELIST (_me:tgt:_) = \cs ->
            set csTransaction NoTransaction
          $ setStrict (csChannels . ix (mkId tgt) . chanList 'I')
-                     (HashMap.fromList (currentBanList (view csTransaction cs)))
+                     (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
                      cs
 
 doRpl _ RPL_EXCEPTLIST (_me:_tgt:mask:who:when:_) =
            over csTransaction
-                (\t -> let xs = currentBanList t
+                (\t -> let xs = view _BanTransaction t
                            whenSecs = either (const 0) fst (Text.decimal when)
                        in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
 
 doRpl _ RPL_ENDOFEXCEPTLIST (_me:tgt:_) = \cs ->
            set csTransaction NoTransaction
          $ setStrict (csChannels . ix (mkId tgt) . chanList 'e')
-                     (HashMap.fromList (currentBanList (view csTransaction cs)))
+                     (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
                      cs
+
+doRpl _ RPL_WHOREPLY (_me:_tgt:uname:host:_server:nick:_) =
+           over csTransaction
+                (\t -> let !xs = view _WhoTransaction t
+                       in WhoTransaction (UserInfo (mkId nick) (Just uname) (Just host) : xs))
+
+doRpl _ RPL_ENDOFWHO _ = massRegistration
 
 doRpl when RPL_CHANNELMODEIS (_me:chan:modes:args)
   = doMode when (UserInfo (mkId "*") Nothing Nothing) chanId modes args
@@ -382,18 +400,6 @@ capEndMsg = rawIrcMsg "CAP" ["END"]
 capLsMsg :: RawIrcMsg
 capLsMsg = rawIrcMsg "CAP" ["LS"]
 
-currentWhoList :: Transaction -> [Text]
-currentWhoList t =
-  case t of
-    WhoTransaction xs -> xs
-    _                 -> []
-
-currentBanList :: Transaction -> [(Text,(Text,UTCTime))]
-currentBanList t =
-  case t of
-    BanTransaction xs -> xs
-    _                 -> []
-
 loadWhoList :: Identifier -> ConnectionState -> ConnectionState
 loadWhoList chan cs
   = set csTransaction NoTransaction
@@ -409,7 +415,7 @@ loadWhoList chan cs
                                                  (Text.tail str)
       | otherwise = (mkId str, reverse modes)
 
-    whoEntries = concatMap Text.words (views csTransaction currentWhoList cs)
+    whoEntries = concatMap Text.words (view (csTransaction . _NamesTransaction) cs)
 
 
 createOnJoin :: UserInfo -> Identifier -> ConnectionState -> ConnectionState
@@ -486,3 +492,43 @@ isChannelIdentifier cs ident =
   case Text.uncons (idText ident) of
     Just (p, _) -> p `elem` view csChannelTypes cs
     _           -> False
+
+------------------------------------------------------------------------
+-- Helpers for managing the user list
+------------------------------------------------------------------------
+
+recordUser :: UserInfo -> ConnectionState -> ConnectionState
+recordUser !user = set (csUsers . at (userNick user))
+                       (Just (userName user, userHost user))
+
+forgetUser :: Identifier -> ConnectionState -> ConnectionState
+forgetUser nick = set (csUsers . at nick) Nothing
+
+renameUser :: Identifier -> Identifier -> ConnectionState -> ConnectionState
+renameUser old new cs = set (csUsers . at new) entry cs'
+  where
+    (entry,cs') = cs & csUsers . at old <<.~ Nothing
+
+forgetUser' :: Identifier -> ConnectionState -> ConnectionState
+forgetUser' nick cs
+  | keep      = cs
+  | otherwise = forgetUser nick cs
+  where
+    keep = has (csChannels . folded . chanUsers . ix nick) cs
+
+massRegistration :: ConnectionState -> ConnectionState
+massRegistration cs
+  = set csTransaction NoTransaction
+  $ over csUsers updateUsers cs
+  where
+    infos = view (csTransaction . _WhoTransaction) cs
+
+    channelUsers =
+      HashSet.fromList (views (csChannels . folded . chanUsers) HashMap.keys cs)
+
+    updateUsers users = foldl' updateUser users infos
+
+    updateUser users !info
+      | HashSet.member (userNick info) channelUsers =
+          HashMap.insert (userNick info) (userName info, userHost info) users
+      | otherwise = users
