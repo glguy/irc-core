@@ -188,17 +188,29 @@ myNickImage st =
 
 
 focusImage :: ClientState -> Image
-focusImage st =
-  case view clientFocus st of
-    Unfocused ->
-      char (withForeColor defAttr red) '*'
-    NetworkFocus network ->
-      text' (withForeColor defAttr green) network
-    ChannelFocus network channel ->
-      text' (withForeColor defAttr green) network <|>
-      char defAttr ':' <|>
-      text' (withForeColor defAttr green) (idText channel) <|>
-      channelModesImage network channel st
+focusImage st = horizCat
+  [ char (withForeColor defAttr cyan) windowName
+  , char defAttr ':'
+  , renderedFocus
+  ]
+  where
+    focus = view clientFocus st
+    windowName =
+      case Map.lookupIndex focus (view clientWindows st) of
+        Nothing -> '?'
+        Just i  -> (windowNames ++ repeat '?') !! i
+
+    renderedFocus =
+      case focus of
+        Unfocused ->
+          char (withForeColor defAttr red) '*'
+        NetworkFocus network ->
+          text' (withForeColor defAttr green) network
+        ChannelFocus network channel ->
+          text' (withForeColor defAttr green) network <|>
+          char defAttr ':' <|>
+          text' (withForeColor defAttr green) (idText channel) <|>
+          channelModesImage network channel st
 
 channelModesImage :: Text -> Identifier -> ClientState -> Image
 channelModesImage network channel st =

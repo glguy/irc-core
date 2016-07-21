@@ -69,7 +69,7 @@ createConnection network cxt settings inQueue =
                   case outcome of
                     Right{} -> recordNormalExit
                     Left e  -> recordFailure e
-                  
+
       return NetworkConnection
         { connOutQueue = outQueue
         , connThread   = supervisor
