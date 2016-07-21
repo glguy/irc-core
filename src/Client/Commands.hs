@@ -131,6 +131,7 @@ commands = HashMap.fromList
   , ("nick"      , NetworkCommand cmdNick   simpleNetworkTab)
   , ("quit"      , NetworkCommand cmdQuit   simpleNetworkTab)
   , ("disconnect", NetworkCommand cmdDisconnect noNetworkTab)
+  , ("who"       , NetworkCommand cmdWho    simpleNetworkTab)
   , ("whois"     , NetworkCommand cmdWhois  simpleNetworkTab)
   , ("whowas"    , NetworkCommand cmdWhowas simpleNetworkTab)
 
@@ -282,6 +283,11 @@ cmdFocus st rest =
 cmdWhois :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdWhois _ cs st rest =
   do sendMsg cs (rawIrcMsg "WHOIS" (Text.pack <$> words rest))
+     commandContinue (consumeInput st)
+
+cmdWho :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdWho _ cs st rest =
+  do sendMsg cs (rawIrcMsg "WHO" (Text.pack <$> words rest))
      commandContinue (consumeInput st)
 
 cmdWhowas :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
