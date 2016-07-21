@@ -1,7 +1,6 @@
 {-# Language TemplateHaskell #-}
 module Client.Message where
 
-import           Client.NetworkConnection
 import           Control.Lens
 import           Data.Text (Text)
 import qualified Data.Text as Text

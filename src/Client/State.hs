@@ -17,7 +17,6 @@ import qualified Data.IntMap as IntMap
 import           Data.Maybe
 import           Data.Map (Map)
 import           Data.Monoid
-import           Data.Time
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.ICU as ICU

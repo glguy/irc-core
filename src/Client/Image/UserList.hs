@@ -1,7 +1,6 @@
 module Client.Image.UserList where
 
 import           Client.MessageRenderer
-import           Client.NetworkConnection
 import           Client.State
 import           Client.ChannelState
 import           Client.ConnectionState
@@ -40,8 +39,7 @@ userListImages matcher network channel st =
 -- | Detailed channel user list, shows full user info
 userInfoImages ::
   (Text -> Bool) -> NetworkName -> Identifier -> ClientState -> [Image]
-userInfoImages matcher network channel st =
-  map renderEntry (reverse usersList)
+userInfoImages matcher network channel st = renderEntry <$> usersList
   where
     renderEntry (info, sigils) =
       string (withForeColor defAttr cyan) sigils <|>

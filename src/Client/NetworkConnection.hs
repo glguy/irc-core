@@ -16,7 +16,6 @@ import           Control.Exception
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
-import           Data.Text
 import           Data.Time
 import           Network.Connection
 
