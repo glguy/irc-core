@@ -154,8 +154,12 @@ msgImportance msg st =
       | squelchIrcMsg irc -> WLBoring
       | otherwise ->
       case irc of
-        Privmsg _ _ txt -> checkTxt txt
-        Notice _ _  txt -> checkTxt txt
+        Privmsg _ tgt txt
+          | isMe tgt  -> WLImportant
+          | otherwise -> checkTxt txt
+        Notice _ tgt txt
+          | isMe tgt  -> WLImportant
+          | otherwise -> checkTxt txt
         Action _ _  txt -> checkTxt txt
         Part who _ _ | isMe (userNick who) -> WLImportant
                      | otherwise           -> WLBoring
