@@ -18,6 +18,7 @@ data ChannelState = ChannelState
   , _chanUsers :: !(HashMap Identifier String)
   , _chanModes :: !(Map Char Text)
   , _chanLists :: !(Map Char (HashMap Text (Text, UTCTime)))
+  , _chanCreation :: !(Maybe UTCTime)
   }
   deriving Show
 
@@ -37,6 +38,7 @@ newChannel = ChannelState
   , _chanUsers = HashMap.empty
   , _chanModes = Map.empty
   , _chanLists = Map.empty
+  , _chanCreation = Nothing
   }
 
 chanList :: Functor f => Char -> LensLike' f ChannelState (HashMap Text (Text, UTCTime))

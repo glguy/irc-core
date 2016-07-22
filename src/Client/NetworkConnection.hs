@@ -5,7 +5,6 @@ module Client.NetworkConnection
   , NetworkId
   , NetworkEvent(..)
   , createConnection
-  , abortConnection
   , send
   ) where
 
@@ -27,7 +26,7 @@ type NetworkId = Int
 
 data NetworkConnection = NetworkConnection
   { connOutQueue :: !(Chan ByteString)
-  , connThread   :: !(Async ())
+  , abortConnection :: !(IO ())
   , connId       :: !NetworkId
   }
 
@@ -42,13 +41,6 @@ instance Show NetworkConnection where
 
 send :: NetworkConnection -> ByteString -> IO ()
 send c = writeChan (connOutQueue c)
-
-abortConnection :: NetworkConnection -> IO ()
-abortConnection c =
-  do let a = connThread c
-     cancel a
-     waitCatch a
-     return ()
 
 createConnection ::
   NetworkId ->
@@ -70,9 +62,9 @@ createConnection network cxt settings inQueue =
                     Left e  -> recordFailure e
 
       return NetworkConnection
-        { connOutQueue = outQueue
-        , connThread   = supervisor
-        , connId       = network
+        { connOutQueue    = outQueue
+        , abortConnection = cancel supervisor
+        , connId          = network
         }
   where
     recordFailure :: SomeException -> IO ()

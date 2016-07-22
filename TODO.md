@@ -5,7 +5,6 @@
 * structured command argument processing
 * ignore list
 * configurable colors
-* reconnect command
 
 moderation
 ----------

@@ -161,7 +161,7 @@ applyMessage msgWhen msg cs =
          $ forgetUser' nick
          $ overChannel chan (partChannel nick) cs
     Reply RPL_WELCOME (me:_) -> (onConnectCmds cs, set csNick (mkId me) cs)
-    Reply code args        -> noReply (doRpl msgWhen code args cs)
+    Reply code args        -> noReply (doRpl code msgWhen args cs)
     Cap cmd params         -> doCap cmd params cs
     Mode who target (modes:params)  -> noReply (doMode msgWhen who target modes params cs)
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
@@ -180,86 +180,144 @@ doTopic when user chan topic =
              , _topicTime   = zonedTimeToUTC when
              }
 
-doRpl :: ZonedTime -> Int -> [Text] -> ConnectionState -> ConnectionState
-doRpl _ RPL_NOTOPIC (_me:chan:_) =
-  overChannel (mkId chan) (setTopic "" . set chanTopicProvenance Nothing)
-doRpl _ RPL_TOPIC [_me,chan,topic] = overChannel (mkId chan) (setTopic topic)
-doRpl _ RPL_TOPICWHOTIME [_me,chan,who,whenTxt]
-  | Right (whenSecs, "") <- Text.decimal whenTxt =
-    let prov = TopicProvenance
-                 { _topicAuthor = parseUserInfo who
-                 , _topicTime = posixSecondsToUTCTime (fromInteger whenSecs)
-                 }
-    in setStrict (csChannels . ix (mkId chan) . chanTopicProvenance) (Just $! prov)
-doRpl _ RPL_ISUPPORT params = isupport params
+parseTimeParam :: Text -> Maybe UTCTime
+parseTimeParam txt =
+  case Text.decimal txt of
+    Right (i, rest) | Text.null rest ->
+      Just $! posixSecondsToUTCTime (fromInteger i)
+    _ -> Nothing
 
-doRpl _ RPL_NAMREPLY [_me,_sym,_tgt,x] =
+doRpl :: Int -> ZonedTime -> [Text] -> ConnectionState -> ConnectionState
+doRpl cmd msgWhen args =
+  case cmd of
+
+    RPL_NOTOPIC ->
+      case args of
+        _me:chan:_ -> overChannel (mkId chan) (setTopic "" . set chanTopicProvenance Nothing)
+        _          -> id
+
+    RPL_TOPIC ->
+      case args of
+        _me:chan:topic:_ -> overChannel (mkId chan) (setTopic topic)
+        _                -> id
+
+    RPL_TOPICWHOTIME ->
+      case args of
+        _me:chan:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
+          let !prov = TopicProvenance
+                       { _topicAuthor = parseUserInfo who
+                       , _topicTime   = when
+                       }
+          in overChannel (mkId chan) (set chanTopicProvenance (Just prov))
+        _ -> id
+
+    RPL_CREATIONTIME ->
+      case args of
+        _me:chan:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
+          overChannel (mkId chan) (set chanCreation (Just when))
+        _ -> id
+
+    RPL_ISUPPORT -> isupport args
+
+    RPL_NAMREPLY ->
+      case args of
+        _me:_sym:_tgt:x:_ ->
            over csTransaction
                 (\t -> let xs = view _NamesTransaction t
                        in xs `seq` NamesTransaction (x:xs))
-doRpl _ RPL_ENDOFNAMES [_me,tgt,_txt] = loadWhoList (mkId tgt)
+        _ -> id
 
-doRpl _ RPL_BANLIST (_me:_tgt:mask:who:when:_) =
-           over csTransaction
-                (\t -> let xs = view _BanTransaction t
-                           whenSecs = either (const 0) fst (Text.decimal when)
-                       in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
+    RPL_ENDOFNAMES ->
+      case args of
+        _me:tgt:_ -> loadNamesList (mkId tgt)
+        _         -> id
 
-doRpl _ RPL_ENDOFBANLIST (_me:tgt:_) = \cs ->
+    RPL_BANLIST ->
+      case args of
+        _me:_tgt:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
+          over csTransaction $ \t ->
+            let !xs = view _BanTransaction t
+            in BanTransaction ((mask,(who,when)):xs)
+        _ -> id
+
+    RPL_ENDOFBANLIST ->
+      case args of
+        _me:tgt:_ -> \cs ->
            set csTransaction NoTransaction
          $ setStrict (csChannels . ix (mkId tgt) . chanList 'b')
                      (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
                      cs
+        _ -> id
 
-doRpl _ RPL_QUIETLIST (_me:_tgt:_q:mask:who:when:_) =
-           over csTransaction
-                (\t -> let xs = view _BanTransaction t
-                           whenSecs = either (const 0) fst (Text.decimal when)
-                       in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
+    RPL_QUIETLIST ->
+      case args of
+        _me:_tgt:_q:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
+          over csTransaction $ \t ->
+            let !xs = view _BanTransaction t
+            in BanTransaction ((mask,(who,when)):xs)
+        _ -> id
 
-doRpl _ RPL_ENDOFQUIETLIST (_me:tgt:_) = \cs ->
+    RPL_ENDOFQUIETLIST ->
+      case args of
+        _me:tgt:_ -> \cs ->
            set csTransaction NoTransaction
          $ setStrict (csChannels . ix (mkId tgt) . chanList 'q')
                      (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
                      cs
+        _ -> id
 
-doRpl _ RPL_INVITELIST (_me:_tgt:mask:who:when:_) =
-           over csTransaction
-                (\t -> let xs = view _BanTransaction t
-                           whenSecs = either (const 0) fst (Text.decimal when)
-                       in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
+    RPL_INVITELIST ->
+      case args of
+        _me:_tgt:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
+          over csTransaction $ \t ->
+            let !xs = view _BanTransaction t
+            in BanTransaction ((mask,(who,when)):xs)
+        _ -> id
 
-doRpl _ RPL_ENDOFINVITELIST (_me:tgt:_) = \cs ->
+    RPL_ENDOFINVITELIST ->
+      case args of
+        _me:tgt:_ -> \cs ->
            set csTransaction NoTransaction
          $ setStrict (csChannels . ix (mkId tgt) . chanList 'I')
                      (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
                      cs
+        _ -> id
 
-doRpl _ RPL_EXCEPTLIST (_me:_tgt:mask:who:when:_) =
-           over csTransaction
-                (\t -> let xs = view _BanTransaction t
-                           whenSecs = either (const 0) fst (Text.decimal when)
-                       in xs `seq` BanTransaction ((mask,(who,posixSecondsToUTCTime (fromInteger whenSecs))):xs))
+    RPL_EXCEPTLIST ->
+      case args of
+        _me:_tgt:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
+          over csTransaction $ \t ->
+            let !xs = view _BanTransaction t
+            in BanTransaction ((mask,(who,when)):xs)
+        _ -> id
 
-doRpl _ RPL_ENDOFEXCEPTLIST (_me:tgt:_) = \cs ->
-           set csTransaction NoTransaction
-         $ setStrict (csChannels . ix (mkId tgt) . chanList 'e')
-                     (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
-                     cs
+    RPL_ENDOFEXCEPTLIST ->
+      case args of
+        _me:tgt:_ -> \cs ->
+             set csTransaction NoTransaction
+           $ setStrict (csChannels . ix (mkId tgt) . chanList 'e')
+                       (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
+                       cs
+        _ -> id
 
-doRpl _ RPL_WHOREPLY (_me:_tgt:uname:host:_server:nick:_) =
-           over csTransaction
-                (\t -> let !xs = view _WhoTransaction t
-                       in WhoTransaction (UserInfo (mkId nick) (Just uname) (Just host) : xs))
+    RPL_WHOREPLY ->
+      case args of
+        _me:_tgt:uname:host:_server:nick:_ ->
+          over csTransaction $ \t ->
+            let !xs = view _WhoTransaction t
+            in WhoTransaction (UserInfo (mkId nick) (Just uname) (Just host) : xs)
+        _ -> id
 
-doRpl _ RPL_ENDOFWHO _ = massRegistration
+    RPL_ENDOFWHO -> massRegistration
 
-doRpl when RPL_CHANNELMODEIS (_me:chan:modes:args)
-  = doMode when (UserInfo (mkId "*") Nothing Nothing) chanId modes args
-  . set (csChannels . ix chanId . chanModes) Map.empty
-  where chanId = mkId chan
-
-doRpl _ _ _ = id
+    RPL_CHANNELMODEIS ->
+      case args of
+        _me:chan:modes:params ->
+              doMode msgWhen (UserInfo (mkId "*") Nothing Nothing) chanId modes params
+            . set (csChannels . ix chanId . chanModes) Map.empty
+            where chanId = mkId chan
+        _ -> id
+    _ -> id
 
 
 -- | These replies are interpreted by the client and should only be shown
@@ -281,6 +339,7 @@ squelchReply rpl =
     RPL_CHANNELMODEIS   -> True
     RPL_TOPIC           -> True
     RPL_TOPICWHOTIME    -> True
+    RPL_CREATIONTIME    -> True
     RPL_NOTOPIC         -> True
     _                   -> False
 
@@ -345,7 +404,7 @@ doMyModes changes cs = over csModes (\modes -> foldl applyOne modes changes) cs
     applyOne modes (False, mode, _) = delete mode modes
 
 supportedCaps :: [Text]
-supportedCaps = ["multi-prefix","znc.in/server-time-iso"]
+supportedCaps = ["multi-prefix", "znc.in/server-time-iso"]
 
 doCap :: CapCmd -> [Text] -> ConnectionState -> ([RawIrcMsg], ConnectionState)
 doCap cmd args cs =
@@ -403,13 +462,13 @@ capEndMsg = rawIrcMsg "CAP" ["END"]
 capLsMsg :: RawIrcMsg
 capLsMsg = rawIrcMsg "CAP" ["LS"]
 
-loadWhoList :: Identifier -> ConnectionState -> ConnectionState
-loadWhoList chan cs
+loadNamesList :: Identifier -> ConnectionState -> ConnectionState
+loadNamesList chan cs
   = set csTransaction NoTransaction
   $ setStrict (csChannels . ix chan . chanUsers) newChanUsers
   $ cs
   where
-    newChanUsers = HashMap.fromList (splitEntry "" <$> whoEntries)
+    newChanUsers = HashMap.fromList (splitEntry "" <$> entries)
 
     sigils = toListOf (csModeTypes . modesPrefixModes . folded . _2) cs
 
@@ -418,7 +477,8 @@ loadWhoList chan cs
                                                  (Text.tail str)
       | otherwise = (mkId str, reverse modes)
 
-    whoEntries = concatMap Text.words (view (csTransaction . _NamesTransaction) cs)
+    entries =
+      concatMap Text.words (view (csTransaction . _NamesTransaction) cs)
 
 
 createOnJoin :: UserInfo -> Identifier -> ConnectionState -> ConnectionState

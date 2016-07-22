@@ -21,7 +21,7 @@ userListImages matcher network channel st =
   where
     renderUser (ident, sigils) =
       string (withForeColor defAttr cyan) sigils <|>
-      text' defAttr (idText ident)
+      coloredIdentifier ident
 
     gap = char defAttr ' '
 

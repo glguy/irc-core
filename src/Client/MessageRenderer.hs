@@ -7,6 +7,7 @@ module Client.MessageRenderer
   , metadataImg
   , quietIdentifier
   , coloredUserInfo
+  , coloredIdentifier
   ) where
 
 import           Client.IdentifierColors
