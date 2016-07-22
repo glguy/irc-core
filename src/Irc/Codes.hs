@@ -1,6 +1,20 @@
 {-# Language PatternSynonyms #-}
 module Irc.Codes where
 
+data ReplyType
+  = ClientServerReply
+  | CommandReply
+  | ErrorReply
+  | CustomReply
+
+-- | Categorize replies according to the ranges provided in RFC 2812
+replyType :: Int -> ReplyType
+replyType x
+  | 000 <= x, x < 100 = ClientServerReply
+  | 200 <= x, x < 400 = CommandReply
+  | 400 <= x, x < 600 = ErrorReply
+  | otherwise         = CustomReply
+
 -- Extracted from https://www.alien.net.au/irc/irc2numerics.html
 pattern RPL_WELCOME                 :: Int
 pattern RPL_WELCOME                 = 001

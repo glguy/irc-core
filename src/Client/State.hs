@@ -25,6 +25,7 @@ import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.UserInfo
+import           Irc.Codes
 import           LensUtils
 import           Network.Connection
 import qualified Client.EditBox as Edit
@@ -171,7 +172,10 @@ msgImportance msg st =
         Kick _ _ kicked _ | isMe kicked -> WLImportant
                           | otherwise   -> WLNormal
         Error{}         -> WLImportant
-        Reply{}         -> WLNormal
+        Reply cmd _ ->
+          case replyType cmd of
+            ErrorReply -> WLImportant
+            _          -> WLNormal
         _               -> WLBoring
 
 
