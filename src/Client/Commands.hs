@@ -20,6 +20,7 @@ import           Control.Monad
 import           Data.Char
 import           Data.List.Split
 import           Data.Foldable
+import           Data.HashSet (HashSet)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Maybe (fromMaybe)
@@ -123,6 +124,7 @@ commands = HashMap.fromList
   , ("focus"     , ClientCommand cmdFocus   simpleClientTab)
   , ("clear"     , ClientCommand cmdClear   noClientTab)
   , ("reconnect" , ClientCommand cmdReconnect noClientTab)
+  , ("ignore"    , ClientCommand cmdIgnore simpleClientTab)
 
   , ("quote"     , NetworkCommand cmdQuote  simpleNetworkTab)
   , ("join"      , NetworkCommand cmdJoin   simpleNetworkTab)
@@ -413,6 +415,18 @@ cmdReconnect st _
            $ consumeInput st'
 
   | otherwise = commandContinue st
+
+cmdIgnore :: ClientState -> String -> IO CommandResult
+cmdIgnore st rest =
+  case mkId . Text.pack <$> words rest of
+    [] -> commandContinue st
+    xs -> commandContinue
+            $ over clientIgnores updateIgnores
+            $ consumeInput st
+      where
+        updateIgnores :: HashSet Identifier -> HashSet Identifier
+        updateIgnores s = foldl' updateIgnore s xs
+        updateIgnore s x = over (contains x) not s
 
 modeCommand :: [Text] -> ConnectionState -> ClientState -> IO CommandResult
 modeCommand modes cs st =

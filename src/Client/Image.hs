@@ -59,7 +59,7 @@ messagePaneImages !st =
 
     windowLineProcessor
       | view clientDetailView st = map (view wlFullImage)
-      | otherwise                = windowLinesToImages . filter (not . isNoisy)
+      | otherwise                = windowLinesToImages st . filter (not . isNoisy)
 
     isNoisy msg =
       case view wlBody msg of
@@ -87,32 +87,34 @@ messagePane st = (img, st')
     h = view clientHeight st - 2
     w = view clientWidth st
 
-windowLinesToImages :: [WindowLine] -> [Image]
-windowLinesToImages wwls =
+windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
+windowLinesToImages st wwls =
   case wwls of
     [] -> []
     wl:wls
-      | Just (img,ident) <- metadataWindowLine wl -> windowLinesToImagesMd img ident wls
-      | otherwise -> view wlImage wl : windowLinesToImages wls
+      | Just (img,ident) <- metadataWindowLine st wl -> windowLinesToImagesMd st img ident wls
+      | otherwise -> view wlImage wl : windowLinesToImages st wls
 
-windowLinesToImagesMd :: Image -> Identifier -> [WindowLine] -> [Image]
-windowLinesToImagesMd acc who wwls =
+windowLinesToImagesMd :: ClientState -> Image -> Identifier -> [WindowLine] -> [Image]
+windowLinesToImagesMd st acc who wwls =
   case wwls of
     wl:wls
-      | Just (img,ident) <- metadataWindowLine wl ->
+      | Just (img,ident) <- metadataWindowLine st wl ->
           if who == ident
-            then windowLinesToImagesMd (acc <|> img) who wls
-            else windowLinesToImagesMd (finish <|> char defAttr ' ' <|> img) ident wls
-    _ -> finish : windowLinesToImages wwls
+            then windowLinesToImagesMd st (acc <|> img) who wls
+            else windowLinesToImagesMd st (finish <|> char defAttr ' ' <|> img) ident wls
+    _ -> finish : windowLinesToImages st wwls
   where
     finish = acc <|> quietIdentifier who
 
 
-metadataWindowLine :: WindowLine -> Maybe (Image, Identifier)
-metadataWindowLine wl =
+metadataWindowLine :: ClientState -> WindowLine -> Maybe (Image, Identifier)
+metadataWindowLine st wl =
   case view wlBody wl of
-    IrcBody irc -> metadataImg irc
-    _           -> Nothing
+    IrcBody irc
+      | Just who <- ircIgnorable irc st -> Just (ignoreImage, who)
+      | otherwise                       -> metadataImg irc
+    _                                   -> Nothing
 
 lineWrap :: Int -> Image -> Image
 lineWrap w img

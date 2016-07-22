@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell #-}
+{-# Language TemplateHaskell, BangPatterns #-}
 module Client.State where
 
 import           Client.ChannelState
@@ -11,6 +11,7 @@ import           Client.NetworkConnection
 import           Control.Concurrent.STM
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
+import           Data.HashSet (HashSet)
 import           Data.List
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
@@ -28,6 +29,7 @@ import           LensUtils
 import           Network.Connection
 import qualified Client.EditBox as Edit
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
 
 type NetworkName = Text
@@ -73,6 +75,7 @@ data ClientState = ClientState
   , _clientSubfocus :: !ClientSubfocus
   , _clientNextConnectionId :: !Int
   , _clientNetworkMap :: !(HashMap Text Int)
+  , _clientIgnores    :: !(HashSet Identifier)
   }
 
 makeLenses ''ClientState
@@ -112,6 +115,7 @@ initialClientState cfg vty =
         , _clientSubfocus          = FocusMessages
         , _clientNextConnectionId  = 0
         , _clientNetworkMap        = HashMap.empty
+        , _clientIgnores           = HashSet.empty
         }
 
 abortNetwork :: NetworkName -> ClientState -> IO ClientState
@@ -152,6 +156,7 @@ msgImportance msg st =
     ErrorBody _ -> WLImportant
     IrcBody irc
       | squelchIrcMsg irc -> WLBoring
+      | isJust (ircIgnorable irc st) -> WLBoring
       | otherwise ->
       case irc of
         Privmsg _ tgt txt
@@ -168,6 +173,22 @@ msgImportance msg st =
         Error{}         -> WLImportant
         Reply{}         -> WLNormal
         _               -> WLBoring
+
+
+-- | Predicate for messages that should be ignored based on the
+-- configurable ignore list
+ircIgnorable :: IrcMsg -> ClientState -> Maybe Identifier
+ircIgnorable msg st =
+  case msg of
+    Privmsg who _ _ -> checkUser who
+    Notice  who _ _ -> checkUser who
+    _               -> Nothing
+  where
+    ignores = view clientIgnores st
+    checkUser !who
+      | HashSet.member (userNick who) ignores = Just (userNick who)
+      | otherwise                             = Nothing
+
 
 recordIrcMessage :: NetworkName -> MessageTarget -> ClientMessage -> ClientState -> ClientState
 recordIrcMessage network target msg st =

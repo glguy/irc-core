@@ -5,6 +5,7 @@ module Client.MessageRenderer
   , msgImage
   , detailedMsgImage
   , metadataImg
+  , ignoreImage
   , quietIdentifier
   , coloredUserInfo
   , coloredIdentifier
@@ -231,3 +232,6 @@ metadataImg msg =
     Part who _ _ -> Just (char (withForeColor defAttr red  ) '-', userNick who)
     Join who _   -> Just (char (withForeColor defAttr green) '+', userNick who)
     _            -> Nothing
+
+ignoreImage :: Image
+ignoreImage = char (withForeColor defAttr yellow) 'I'
