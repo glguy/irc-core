@@ -41,7 +41,7 @@ data ConnectionState = ConnectionState
   , _csUsers        :: !(HashMap Identifier (Maybe Text, Maybe Text))
   , _csModeCount    :: !Int
   , _csNetwork      :: !Text
-  , _csNextPingTime :: !UTCTime
+  , _csNextPingTime :: !(Maybe UTCTime)
   , _csPingStatus   :: !PingStatus
   }
   deriving Show
@@ -127,7 +127,7 @@ newConnectionState network settings sock time = ConnectionState
   , _csUsers        = HashMap.empty
   , _csNetwork      = network
   , _csPingStatus   = PingNever
-  , _csNextPingTime = addUTCTime 30 time
+  , _csNextPingTime = Just $! addUTCTime 30 time
   }
 
 
@@ -615,8 +615,10 @@ data TimedAction
   | TimedSendPing
   deriving (Eq, Ord, Show)
 
-nextTimedAction :: ConnectionState -> (UTCTime, TimedAction)
-nextTimedAction cs = (view csNextPingTime cs, action)
+nextTimedAction :: ConnectionState -> Maybe (UTCTime, TimedAction)
+nextTimedAction cs =
+  do runAt <- view csNextPingTime cs
+     return (runAt, action)
   where
     action =
       case view csPingStatus cs of

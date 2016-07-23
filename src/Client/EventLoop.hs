@@ -51,7 +51,7 @@ getEvent st =
     possibleTimedEvents =
       [ (networkId, runAt, action)
            | (networkId, cs) <- views clientConnections IntMap.toList st
-           , let (runAt, action) = nextTimedAction cs
+           , Just (runAt, action) <- [nextTimedAction cs]
            ]
 
     earliestEvent
@@ -286,19 +286,16 @@ executeChat msg st =
 
 doTimerEvent :: Int -> TimedAction -> ClientState -> IO ()
 doTimerEvent networkId action st =
-  do st' <- forOf (clientConnections . at networkId) st $ \mbCs ->
-              case mbCs of
-                Nothing -> return Nothing -- o.O
-                Just cs ->
+  do st' <- forOf (clientConnections . ix networkId) st $ \cs ->
                   case action of
                     TimedDisconnect ->
                       do abortConnection (view csSocket cs)
-                         return Nothing
+                         return $! set csNextPingTime Nothing cs
 
                     TimedSendPing ->
                       do now <- getCurrentTime
-                         let cs' = set csNextPingTime (addUTCTime 60 now)
+                         let cs' = set csNextPingTime (Just $! addUTCTime 60 now)
                                  $ set csPingStatus   (PingSent now) cs
                          sendMsg cs (rawIrcMsg "PING" ["ping"])
-                         return (Just $! cs')
+                         return $! cs'
      eventLoop st'
