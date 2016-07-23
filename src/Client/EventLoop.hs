@@ -49,25 +49,25 @@ getEvent st =
     vtyEventChannel = _eventChannel (inputIface (view clientVty st))
 
     possibleTimedEvents =
-      [ (connId, when, action)
-           | (connId, cs) <- views clientConnections IntMap.toList st
-           , let (when, action) = nextTimedAction cs
+      [ (networkId, runAt, action)
+           | (networkId, cs) <- views clientConnections IntMap.toList st
+           , let (runAt, action) = nextTimedAction cs
            ]
 
     earliestEvent
       | null possibleTimedEvents = Nothing
-      | otherwise = Just (minimumBy (comparing (\(_,when,_) -> when)) possibleTimedEvents)
+      | otherwise = Just (minimumBy (comparing (\(_,runAt,_) -> runAt)) possibleTimedEvents)
 
     prepareTimer =
       case earliestEvent of
         Nothing -> return retry
-        Just (connId,when,action) ->
+        Just (networkId,runAt,action) ->
           do now <- getCurrentTime
-             let microsecs = truncate (1000000 * diffUTCTime when now)
+             let microsecs = truncate (1000000 * diffUTCTime runAt now)
              var <- registerDelay (max 0 microsecs)
              return $ do ready <- readTVar var
                          unless ready retry
-                         return (TimerEvent connId action)
+                         return (TimerEvent networkId action)
 
 eventLoop :: ClientState -> IO ()
 eventLoop st0 =
@@ -79,7 +79,7 @@ eventLoop st0 =
 
      event <- getEvent st
      case event of
-       TimerEvent connId action  -> doTimerEvent connId action st
+       TimerEvent networkId action  -> doTimerEvent networkId action st
        VtyEvent vtyEvent         -> doVtyEvent vtyEvent st
        NetworkEvent networkEvent ->
          case networkEvent of
@@ -285,8 +285,8 @@ executeChat msg st =
     _ -> eventLoop st
 
 doTimerEvent :: Int -> TimedAction -> ClientState -> IO ()
-doTimerEvent connId action st =
-  do st' <- forOf (clientConnections . at connId) st $ \mbCs ->
+doTimerEvent networkId action st =
+  do st' <- forOf (clientConnections . at networkId) st $ \mbCs ->
               case mbCs of
                 Nothing -> return Nothing -- o.O
                 Just cs ->
