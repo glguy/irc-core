@@ -1,5 +1,4 @@
 * CTCP
-* socket timeouts
 * scripting support
 * complete processing of reply/error codes
 * structured command argument processing

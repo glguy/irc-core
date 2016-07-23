@@ -14,6 +14,7 @@ import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
 import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier, idText)
 import           Client.Message
+import           Numeric
 import qualified Client.EditBox as Edit
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
@@ -134,6 +135,7 @@ horizDividerImage st
       , focusImage st
       , activityImage st
       , scrollImage st
+      , latencyImage st
       ]
 
 parens :: Attr -> Image -> Image
@@ -257,4 +259,16 @@ textboxImage st
   beginning = char (withForeColor defAttr brightBlack) '^'
   ending    = char (withForeColor defAttr brightBlack) '$'
 
-
+latencyImage :: ClientState -> Image
+latencyImage st
+  | Just network <- views clientFocus focusNetwork st
+  , Just cs      <- preview (clientConnection network) st =
+  case view csPingStatus cs of
+    PingNever -> emptyImage
+    PingSent {} -> emptyImage
+    PingLatency delta -> horizCat
+      [ string defAttr "─("
+      , string (withForeColor defAttr yellow) (showFFloat (Just 2) delta "s")
+      , string defAttr ")"
+      ]
+  | otherwise = emptyImage

@@ -65,7 +65,8 @@ addConnection network st =
             settings
             (view clientEvents st')
 
-     let cs = newConnectionState network settings c
+     now <- getCurrentTime
+     let cs = newConnectionState network settings c now
      traverse_ (sendMsg cs) (initialMessages cs)
 
      return $ set (clientNetworkMap . at network) (Just i)

@@ -25,7 +25,7 @@ import           Client.ServerSettings
 type NetworkId = Int
 
 data NetworkConnection = NetworkConnection
-  { connOutQueue :: !(Chan ByteString)
+  { connOutQueue :: !(TChan ByteString)
   , abortConnection :: !(IO ())
   , connId       :: !NetworkId
   }
@@ -40,7 +40,7 @@ instance Show NetworkConnection where
                 $ showString "NetworkConnection _"
 
 send :: NetworkConnection -> ByteString -> IO ()
-send c = writeChan (connOutQueue c)
+send c msg = atomically (writeTChan (connOutQueue c) msg)
 
 createConnection ::
   NetworkId ->
@@ -49,7 +49,7 @@ createConnection ::
   TChan NetworkEvent ->
   IO NetworkConnection
 createConnection network cxt settings inQueue =
-   do outQueue <- newChan
+   do outQueue <- atomically newTChan
 
       supervisor <- async (startConnection network cxt settings inQueue outQueue)
 
@@ -83,7 +83,7 @@ startConnection ::
   ConnectionContext ->
   ServerSettings ->
   TChan NetworkEvent ->
-  Chan ByteString ->
+  TChan ByteString ->
   IO ()
 startConnection network cxt settings onInput outQueue =
   do rate <- newRateLimitDefault
@@ -97,10 +97,10 @@ startConnection network cxt settings onInput outQueue =
               Left  (Left e) -> throwIO e
               Right (Left e) -> throwIO e
 
-sendLoop :: Connection -> Chan ByteString -> RateLimit -> IO ()
+sendLoop :: Connection -> TChan ByteString -> RateLimit -> IO ()
 sendLoop h outQueue rate =
   forever $
-    do msg <- readChan outQueue
+    do msg <- atomically (readTChan outQueue)
        tickRateLimit rate
        connectionPut h msg
 

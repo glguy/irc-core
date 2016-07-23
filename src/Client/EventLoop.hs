@@ -15,6 +15,7 @@ import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
+import           Data.Ord
 import           Data.List
 import           Data.Time
 import           Data.Foldable
@@ -27,21 +28,46 @@ import           Irc.UserInfo
 import qualified Client.EditBox     as Edit
 import qualified Data.Text as Text
 import qualified Data.Map as Map
+import qualified Data.IntMap as IntMap
 
 
 data ClientEvent
   = VtyEvent Event
   | NetworkEvent NetworkEvent
+  | TimerEvent Int TimedAction
 
 
 getEvent :: ClientState -> IO ClientEvent
-getEvent st = atomically $
-  asum [ VtyEvent     <$> readTChan vtyEventChannel
-       , NetworkEvent <$> readTChan (view clientEvents st)
-       ]
+getEvent st =
+  do timer <- prepareTimer
+     atomically $
+       asum [ timer
+            , VtyEvent     <$> readTChan vtyEventChannel
+            , NetworkEvent <$> readTChan (view clientEvents st)
+            ]
   where
     vtyEventChannel = _eventChannel (inputIface (view clientVty st))
 
+    possibleTimedEvents =
+      [ (connId, when, action)
+           | (connId, cs) <- views clientConnections IntMap.toList st
+           , let (when, action) = nextTimedAction cs
+           ]
+
+    earliestEvent
+      | null possibleTimedEvents = Nothing
+      | otherwise = Just (minimumBy (comparing (\(_,when,_) -> when)) possibleTimedEvents)
+
+    prepareTimer =
+      case earliestEvent of
+        Nothing -> return retry
+        Just (connId,when,action) ->
+          do now <- getCurrentTime
+             let microsecs = truncate (1000000 * diffUTCTime when now)
+             var <- registerDelay (max 0 microsecs)
+             return $ do ready <- readTVar var
+                         unless ready retry
+                         return (TimerEvent connId action)
 
 eventLoop :: ClientState -> IO ()
 eventLoop st0 =
@@ -53,7 +79,8 @@ eventLoop st0 =
 
      event <- getEvent st
      case event of
-       VtyEvent vtyEvent             -> doVtyEvent vtyEvent st
+       TimerEvent connId action  -> doTimerEvent connId action st
+       VtyEvent vtyEvent         -> doVtyEvent vtyEvent st
        NetworkEvent networkEvent ->
          case networkEvent of
            NetworkLine  network time line -> doNetworkLine network time line st
@@ -256,3 +283,22 @@ executeChat msg st =
                        $ consumeInput st
 
     _ -> eventLoop st
+
+doTimerEvent :: Int -> TimedAction -> ClientState -> IO ()
+doTimerEvent connId action st =
+  do st' <- forOf (clientConnections . at connId) st $ \mbCs ->
+              case mbCs of
+                Nothing -> return Nothing -- o.O
+                Just cs ->
+                  case action of
+                    TimedDisconnect ->
+                      do abortConnection (view csSocket cs)
+                         return Nothing
+
+                    TimedSendPing ->
+                      do now <- getCurrentTime
+                         let cs' = set csNextPingTime (addUTCTime 60 now)
+                                 $ set csPingStatus   (PingSent now) cs
+                         sendMsg cs (rawIrcMsg "PING" ["ping"])
+                         return (Just $! cs')
+     eventLoop st'

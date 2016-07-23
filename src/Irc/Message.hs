@@ -131,7 +131,7 @@ msgTarget me msg =
     Notice  src tgt _ | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
     Ping{}                        -> TargetHidden
-    Pong{}                        -> TargetNetwork
+    Pong{}                        -> TargetHidden
     Error{}                       -> TargetNetwork
     Cap{}                         -> TargetNetwork
     Reply {}                      -> TargetNetwork

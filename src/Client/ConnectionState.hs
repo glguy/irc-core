@@ -41,7 +41,15 @@ data ConnectionState = ConnectionState
   , _csUsers        :: !(HashMap Identifier (Maybe Text, Maybe Text))
   , _csModeCount    :: !Int
   , _csNetwork      :: !Text
+  , _csNextPingTime :: !UTCTime
+  , _csPingStatus   :: !PingStatus
   }
+  deriving Show
+
+data PingStatus
+  = PingSent    !UTCTime
+  | PingLatency !Double -- seconds
+  | PingNever
   deriving Show
 
 data Transaction
@@ -103,8 +111,9 @@ newConnectionState ::
   Text ->
   ServerSettings ->
   NetworkConnection ->
+  UTCTime ->
   ConnectionState
-newConnectionState network settings sock = ConnectionState
+newConnectionState network settings sock time = ConnectionState
   { _csUserInfo     = UserInfo (mkId (view ssNick settings)) Nothing Nothing
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
@@ -117,7 +126,11 @@ newConnectionState network settings sock = ConnectionState
   , _csModeCount    = 3
   , _csUsers        = HashMap.empty
   , _csNetwork      = network
+  , _csPingStatus   = PingNever
+  , _csNextPingTime = addUTCTime 30 time
   }
+
+
 
 noReply :: ConnectionState -> ([RawIrcMsg], ConnectionState)
 noReply x = ([], x)
@@ -132,6 +145,7 @@ applyMessage :: ZonedTime -> IrcMsg -> ConnectionState -> ([RawIrcMsg], Connecti
 applyMessage msgWhen msg cs =
   case msg of
     Ping args -> ([pongMsg args], cs)
+    Pong _    -> noReply $ doPong msgWhen cs
     Join user chan ->
            noReply
          $ recordUser user
@@ -595,3 +609,25 @@ massRegistration cs
       | HashSet.member (userNick info) channelUsers =
           HashMap.insert (userNick info) (userName info, userHost info) users
       | otherwise = users
+
+data TimedAction
+  = TimedDisconnect
+  | TimedSendPing
+  deriving (Eq, Ord, Show)
+
+nextTimedAction :: ConnectionState -> (UTCTime, TimedAction)
+nextTimedAction cs = (view csNextPingTime cs, action)
+  where
+    action =
+      case view csPingStatus cs of
+        PingSent{}    -> TimedDisconnect
+        PingLatency{} -> TimedSendPing
+        PingNever     -> TimedSendPing
+
+doPong :: ZonedTime -> ConnectionState -> ConnectionState
+doPong when cs = set csPingStatus (PingLatency delta) cs
+  where
+    delta =
+      case view csPingStatus cs of
+        PingSent sent -> realToFrac (diffUTCTime (zonedTimeToUTC when) sent)
+        _ -> 0
