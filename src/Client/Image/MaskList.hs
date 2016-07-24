@@ -19,7 +19,6 @@ import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Ord
-import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Image
 import           Irc.Identifier

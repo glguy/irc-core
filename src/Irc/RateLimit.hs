@@ -1,6 +1,20 @@
--- | This module implements a simple rate limiter based on the
--- to be used to keep an IRC client from getting kicked due to
--- flooding. It allows one event per duration with a given threshold.
+{-|
+Module      : Irc.RateLimit
+Description : Rate limit operations for IRC
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module implements a simple rate limiter based on the IRC RFC
+to be used to keep an IRC client from getting disconnected for
+flooding. It allows one event per duration with a given threshold.
+
+This algorithm keeps track of the time at which the client may
+start sending messages. Each message sent advances that time into
+the future by the @penalty@. The client is allowed to transmit
+up to @threshold@ seconds ahead of this time.
+
+-}
 module Irc.RateLimit
   ( RateLimit
   , newRateLimit
@@ -15,9 +29,9 @@ import Data.Time
 -- | The 'RateLimit' keeps track of rate limit settings as well
 -- as the current state of the limit.
 data RateLimit = RateLimit
-  { rateStamp     :: !(MVar UTCTime)
-  , rateThreshold :: !Int
-  , ratePenalty   :: !Int
+  { rateStamp     :: !(MVar UTCTime) -- ^ Time that client can send
+  , rateThreshold :: !Int            -- ^ seconds
+  , ratePenalty   :: !Int            -- ^ seconds
   }
 
 -- | Construct a new rate limit with the RFC 2813 specified

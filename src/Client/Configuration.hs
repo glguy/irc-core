@@ -2,10 +2,31 @@
 {-# Language TemplateHaskell #-}
 {-# Language BangPatterns #-}
 {-# Language RecordWildCards #-}
-module Client.Configuration where
+
+{-|
+Module      : Client.Configuration
+Description : Client configuration format and operations
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module defines the top-level configuration information for the client.
+-}
+
+module Client.Configuration
+  (
+  -- * Configuration type
+    Configuration(..)
+  , configDefaults
+  , configServers
+
+  -- * Loading configuration
+  , loadConfiguration
+  ) where
 
 import           Client.ServerSettings
 import           Control.Applicative
+import           Control.Exception
 import           Config
 import           Config.FromConfig
 import           Control.Lens hiding (List)
@@ -20,25 +41,42 @@ import           Network.Socket (HostName)
 import           System.Directory
 import           System.FilePath
 
+-- | Top-level client configuration information. When connecting to a
+-- server configuration from '_configServers' is used where possible,
+-- otherwise '_configDefaults' is used.
 data Configuration = Configuration
-  { _configDefaults :: ServerSettings
-  , _configServers  :: HashMap HostName ServerSettings
+  { _configDefaults :: ServerSettings -- ^ Default connection settings
+  , _configServers  :: HashMap HostName ServerSettings -- ^ Host-specific settings
   }
   deriving Show
 
 makeLenses ''Configuration
+
+data ConfigurationFailure
+  = ConfigurationParseFailed String
+  | ConfigurationMalformed Text
+  deriving Show
+
+instance Exception ConfigurationFailure
 
 getConfigPath :: IO FilePath
 getConfigPath =
   do dir <- getAppUserDataDirectory "glirc"
      return (dir </> "config")
 
+-- | Load the configuration file from @~/.glirc/config@.
+-- This action can throw 'IOError' and 'ConfigurationFailure'
+-- exceptions.
 loadConfiguration :: IO Configuration
 loadConfiguration =
   do file <- Text.readFile =<< getConfigPath
-     cfg  <- either fail return (parse file)
      def  <- loadDefaultServerSettings
-     either (fail . Text.unpack) return (runConfigParser (parseConfiguration def cfg))
+     case parse file of
+       Left parseError -> throwIO (ConfigurationParseFailed parseError)
+       Right rawcfg ->
+         case runConfigParser (parseConfiguration def rawcfg) of
+           Left loadError -> throwIO (ConfigurationMalformed loadError)
+           Right cfg -> return cfg
 
 
 parseConfiguration :: ServerSettings -> Value -> ConfigParser Configuration

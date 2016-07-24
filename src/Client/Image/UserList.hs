@@ -18,7 +18,6 @@ import           Irc.Identifier
 import           Irc.UserInfo
 import           Data.List
 import           Data.Ord
-import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import           Graphics.Vty.Image
