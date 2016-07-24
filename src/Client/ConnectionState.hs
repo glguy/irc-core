@@ -1,4 +1,21 @@
 {-# Language TemplateHaskell, OverloadedStrings, BangPatterns #-}
+
+{-|
+Module      : Client.ConnectionState
+Description : IRC connection session state
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module is responsible for tracking the state of an individual IRC
+connection while the client is connected to it. This state includes
+user information, server settings, channel membership, and more.
+
+This module is more complicated than many of the other modules in the
+client because it is responsible for interpreting each IRC message from
+the server and updating the connection state accordingly.
+-}
+
 module Client.ConnectionState where
 
 import           Client.ChannelState

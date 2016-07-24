@@ -1,7 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | This module is responsible for creating 'Connection' values
--- for a particular server as specified by its 'ServerSettings'
+{-|
+Module      : Client.Connect
+Description : Interface to the connection package
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module is responsible for creating 'Connection' values
+for a particular server as specified by a 'ServerSettings'.
+This involves setting up certificate stores an mapping
+network settings from the client configuration into the
+network connection library.
+-}
+
 module Client.Connect (withConnection) where
 
 import Control.Lens
@@ -96,5 +108,6 @@ connect connectionContext args = do
   connectionParams <- buildConnectionParams args
   connectTo connectionContext connectionParams
 
+-- | Create a new 'Connection' which will be closed when the continuation finishes.
 withConnection :: ConnectionContext -> ServerSettings -> (Connection -> IO a) -> IO a
 withConnection cxt settings = bracket (connect cxt settings) connectionClose

@@ -1,4 +1,18 @@
 {-# Language TemplateHaskell #-}
+
+{-|
+Module      : Client.ChannelState
+Description : IRC channel session state
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module is responsible for tracking the state of an individual IRC
+channel while the client is connected to it. When the client joins a
+channel a new channel session is created and when the client leaves
+a channel is it destroyed.
+-}
+
 module Client.ChannelState where
 
 import           Control.Lens

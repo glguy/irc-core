@@ -44,13 +44,16 @@ messagePaneImages :: ClientState -> [Image]
 messagePaneImages !st =
   case (view clientFocus st, view clientSubfocus st) of
     (ChannelFocus network channel, FocusUsers)
-      | view clientDetailView st -> userInfoImages matcher network channel st
-      | otherwise                -> userListImages matcher network channel st
+      | view clientDetailView st -> userInfoImages network channel st
+      | otherwise                -> userListImages network channel st
     (ChannelFocus network channel, FocusMasks mode) ->
-      maskListImages matcher mode network channel st
+      maskListImages mode network channel st
 
     -- subfocuses only make sense for channels
-    _ -> windowLineProcessor focusedMessages
+    _ -> chatMessageImages st
+
+chatMessageImages :: ClientState -> [Image]
+chatMessageImages st = windowLineProcessor focusedMessages
   where
     matcher = clientMatcher st
 

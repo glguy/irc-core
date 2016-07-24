@@ -1,4 +1,16 @@
-module Client.Image.MaskList where
+{-|
+Module      : Client.Image.MaskList
+Description : Line renderers for channel mask list view
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module renders the lines used in the channel mask list. A mask list
+can show channel bans, quiets, invites, and exceptions.
+-}
+module Client.Image.MaskList
+  ( maskListImages
+  ) where
 
 import           Client.ChannelState
 import           Client.ConnectionState
@@ -12,12 +24,18 @@ import           Data.Time
 import           Graphics.Vty.Image
 import           Irc.Identifier
 
+-- | Render the lines used in a channel mask list
 maskListImages ::
-  (Text -> Bool) -> Char -> NetworkName -> Identifier -> ClientState -> [Image]
-maskListImages matcher mode network channel st
+  Char        {- ^ Mask mode -} ->
+  NetworkName {- ^ Focused network -} ->
+  Identifier  {- ^ Focused channel -} ->
+  ClientState -> [Image]
+maskListImages mode network channel st
   | null entryList = [string (withForeColor defAttr red) "No masks"]
   | otherwise      = images
   where
+    matcher = clientMatcher st
+
     matcher' (x,(y,_)) = matcher x || matcher y
 
     entryList = sortBy (flip (comparing (snd . snd)))

@@ -1,3 +1,12 @@
+{-|
+Module      : Client.Image.UserList
+Description : Line renderers for channel user list view
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module renders the lines used in the channel user list.
+-}
 module Client.Image.UserList where
 
 import           Client.MessageRenderer
@@ -14,11 +23,16 @@ import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import           Graphics.Vty.Image
 
+-- | Render the lines used in a simple user list window.
 userListImages ::
-  (Text -> Bool) -> NetworkName -> Identifier -> ClientState -> [Image]
-userListImages matcher network channel st =
+  NetworkName {- ^ Focused network name -} ->
+  Identifier  {- ^ Focused channel name -} ->
+  ClientState -> [Image]
+userListImages network channel st =
     [horizCat (intersperse gap (map renderUser usersList))]
   where
+    matcher = clientMatcher st
+
     renderUser (ident, sigils) =
       string (withForeColor defAttr cyan) sigils <|>
       coloredIdentifier ident
@@ -36,11 +50,15 @@ userListImages matcher network channel st =
            . csChannels . ix channel
            . chanUsers ) st
 
--- | Detailed channel user list, shows full user info
+-- | Render lines for detailed channel user list which shows full user info.
 userInfoImages ::
-  (Text -> Bool) -> NetworkName -> Identifier -> ClientState -> [Image]
-userInfoImages matcher network channel st = renderEntry <$> usersList
+  NetworkName {- ^ Focused network name -} ->
+  Identifier  {- ^ Focused channel name -} ->
+  ClientState -> [Image]
+userInfoImages network channel st = renderEntry <$> usersList
   where
+    matcher = clientMatcher st
+
     renderEntry (info, sigils) =
       string (withForeColor defAttr cyan) sigils <|>
       coloredUserInfo DetailedRender info

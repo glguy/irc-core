@@ -1,10 +1,33 @@
 {-# Options_GHC -Wno-unused-do-bind #-}
 
+{-|
+Module      : Client.NetworkConnection
+Description : Event-based network IO
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module creates network connections and thread to manage those connections.
+Events on these connections will be written to a given event queue, and
+outgoing messages are recieved on an incoming event queue.
+
+These network connections are rate limited for outgoing messages per the
+rate limiting algorithm given in the IRC RFC.
+
+Incoming network event messages are assumed to be framed by newlines.
+
+When a network connection terminates normally its final messages will be
+'NetworkClose'. When it terminates abnormally its final message will be
+'NetworkError'.
+
+-}
+
 module Client.NetworkConnection
-  ( NetworkConnection(..)
+  ( NetworkConnection
   , NetworkId
   , NetworkEvent(..)
   , createConnection
+  , abortConnection
   , send
   ) where
 
@@ -22,31 +45,49 @@ import           Irc.RateLimit
 import           Client.Connect
 import           Client.ServerSettings
 
+-- | Identifier used to match connection events to connections.
 type NetworkId = Int
 
+-- | Handle for a network connection
 data NetworkConnection = NetworkConnection
   { connOutQueue :: !(TChan ByteString)
-  , abortConnection :: !(IO ())
-  , connId       :: !NetworkId
+  , connAsync    :: !(Async ())
   }
 
+-- | The sum of incoming events from a network connection. All events
+-- are annotated with a network ID matching that given when the connection
+-- was created as well as the time at which the message was recieved.
 data NetworkEvent
   = NetworkLine  !NetworkId !ZonedTime !ByteString
+    -- ^ Event for a new recieved line (newline removed)
   | NetworkError !NetworkId !ZonedTime !SomeException
+    -- ^ Final message indicating the network connection failed
   | NetworkClose !NetworkId !ZonedTime
+    -- ^ Final message indicating the network connection finished
 
 instance Show NetworkConnection where
   showsPrec p _ = showParen (p > 10)
                 $ showString "NetworkConnection _"
 
+-- | Schedule a message to be transmitted on the network connection.
+-- These messages are sent unmodified. The message should contain a
+-- newline terminator.
 send :: NetworkConnection -> ByteString -> IO ()
 send c msg = atomically (writeTChan (connOutQueue c) msg)
 
+-- | Force the given connection to terminate.
+abortConnection :: NetworkConnection -> IO ()
+abortConnection = cancel . connAsync
+
+-- | Initiate a new network connection according to the given 'ServerSettings'.
+-- All events on this connection will be added to the given queue. The resulting
+-- 'NetworkConnection' value can be used for sending outgoing messages and for
+-- early termination of the connection.
 createConnection ::
-  NetworkId ->
+  NetworkId {- ^ Identifier to be used on incoming events -} ->
   ConnectionContext ->
   ServerSettings ->
-  TChan NetworkEvent ->
+  TChan NetworkEvent {- Queue for incoming events -} ->
   IO NetworkConnection
 createConnection network cxt settings inQueue =
    do outQueue <- atomically newTChan
@@ -62,9 +103,8 @@ createConnection network cxt settings inQueue =
                     Left e  -> recordFailure e
 
       return NetworkConnection
-        { connOutQueue    = outQueue
-        , abortConnection = cancel supervisor
-        , connId          = network
+        { connOutQueue = outQueue
+        , connAsync    = supervisor
         }
   where
     recordFailure :: SomeException -> IO ()
