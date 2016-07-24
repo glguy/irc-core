@@ -1,5 +1,16 @@
 {-# Language OverloadedStrings #-}
 
+{-|
+Module      : Client.EventLoop
+Description : Event loop for IRC client
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module is responsible for dispatching user-input, network, and timer
+events to the correct module. It renders the user interface once per event.
+-}
+
 module Client.EventLoop
   ( eventLoop
   ) where
@@ -31,12 +42,15 @@ import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
 
+-- | Sum of the three possible event types the event loop handles
 data ClientEvent
-  = VtyEvent Event
-  | NetworkEvent NetworkEvent
-  | TimerEvent Int TimedAction
+  = VtyEvent Event -- ^ Key presses and resizing
+  | NetworkEvent NetworkEvent -- ^ Incoming network events
+  | TimerEvent NetworkId TimedAction -- ^ Timed action and the applicable network
 
 
+-- | Block waiting for the next 'ClientEvent'. This function will compute
+-- an appropriate timeout based on the current connections.
 getEvent :: ClientState -> IO ClientEvent
 getEvent st =
   do timer <- prepareTimer
@@ -69,6 +83,7 @@ getEvent st =
                          unless ready retry
                          return (TimerEvent networkId action)
 
+-- | Apply this function to an initial 'ClientState' to launch the client.
 eventLoop :: ClientState -> IO ()
 eventLoop st0 =
   do st1 <- clientTick st0
@@ -87,7 +102,11 @@ eventLoop st0 =
            NetworkError network time ex   -> doNetworkError network time ex st
            NetworkClose network time      -> doNetworkClose network time st
 
-doNetworkClose :: NetworkId -> ZonedTime -> ClientState -> IO ()
+-- | Respond to a network connection closing normally.
+doNetworkClose ::
+  NetworkId {- ^ finished network -} ->
+  ZonedTime {- ^ current time     -} ->
+  ClientState -> IO ()
 doNetworkClose networkId time st =
   let (cs,st') = removeNetwork networkId st
       msg = ClientMessage
@@ -98,7 +117,12 @@ doNetworkClose networkId time st =
   in eventLoop $ recordNetworkMessage msg st'
 
 
-doNetworkError :: NetworkId -> ZonedTime -> SomeException -> ClientState -> IO ()
+-- | Respond to a network connection closing abnormally.
+doNetworkError ::
+  NetworkId {- ^ failed network -} ->
+  ZonedTime {- ^ current time   -} ->
+  SomeException {- ^ termination reason -} ->
+  ClientState -> IO ()
 doNetworkError networkId time ex st =
   let (cs,st') = removeNetwork networkId st
       msg = ClientMessage
@@ -108,7 +132,13 @@ doNetworkError networkId time ex st =
               }
   in eventLoop $ recordNetworkMessage msg st'
 
-doNetworkLine :: NetworkId -> ZonedTime -> ByteString -> ClientState -> IO ()
+-- | Respond to an IRC protocol line. This will parse the message, updated the
+-- relevant connection state and update the UI buffers.
+doNetworkLine ::
+  NetworkId {- ^ Network ID of message -} ->
+  ZonedTime {- ^ current time          -} ->
+  ByteString {- ^ Raw IRC message without newlines -} ->
+  ClientState -> IO ()
 doNetworkLine networkId time line st =
   case view (clientConnections . at networkId) st of
     Nothing -> error "doNetworkLine: Network missing"
@@ -147,6 +177,7 @@ doNetworkLine networkId time line st =
              traverse_ (sendMsg cs) msgs
              eventLoop st'
 
+-- | Respond to a VTY event.
 doVtyEvent :: Event -> ClientState -> IO ()
 doVtyEvent vtyEvent st =
   case vtyEvent of
@@ -159,6 +190,7 @@ doVtyEvent vtyEvent st =
                    $ set clientHeight h st
     _                -> eventLoop st
 
+-- | Map keyboard inputs to actions in the client
 doKey :: Key -> [Modifier] -> ClientState -> IO ()
 doKey key modifier st =
   let changeInput f = eventLoop (over clientTextBox f st) in
@@ -180,7 +212,7 @@ doKey key modifier st =
         KChar 'v' -> changeInput (Edit.insert '\^V')
         KChar 'p' -> eventLoop (retreatFocus st)
         KChar 'n' -> eventLoop (advanceFocus st)
-        KChar 'l' -> refreshClient st
+        KChar 'l' -> refresh (view clientVty st) >> eventLoop st
         _         -> eventLoop st
 
     [MMeta] ->
@@ -213,20 +245,21 @@ doKey key modifier st =
 
     _ -> eventLoop st -- unsupported modifier
 
-refreshClient :: ClientState -> IO ()
-refreshClient st =
-  do refresh (view clientVty st)
-     eventLoop st
-
+-- | Scroll the current buffer to show older messages
 pageUp :: ClientState -> ClientState
 pageUp st = over clientScroll (+ scrollAmount st) st
 
+-- | Scroll the current buffer to show newer messages
 pageDown :: ClientState -> ClientState
 pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
 
+-- | Compute the number of lines in a page at the current window size
 scrollAmount :: ClientState -> Int
 scrollAmount st = max 1 (view clientHeight st - 2)
 
+-- | Jump the focus of the client to a buffer that has unread activity.
+-- Some events like errors or chat messages mentioning keywords are
+-- considered important and will be jumped to first.
 jumpToActivity :: ClientState -> ClientState
 jumpToActivity st =
   case mplus highPriority lowPriority of
@@ -237,7 +270,10 @@ jumpToActivity st =
     highPriority = find (view winMention . snd) windowList
     lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
 
-jumpFocus :: Int -> ClientState -> ClientState
+-- | Jump the focus directly to a window based on its zero-based index.
+jumpFocus ::
+  Int {- ^ zero-based window index -} ->
+  ClientState -> ClientState
 jumpFocus i st
   | 0 <= i, i < Map.size windows = changeFocus focus st
   | otherwise                    = st
@@ -245,6 +281,9 @@ jumpFocus i st
     windows = view clientWindows st
     (focus,_) = Map.elemAt i windows
 
+-- | Respond to the TAB key being pressed. This can dispatch to a command
+-- specific completion mode when relevant. Otherwise this will complete
+-- input based on the users of the channel related to the current buffer.
 tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO ()
 tabCompletion isReversed st =
   case clientInput st of
@@ -254,6 +293,9 @@ tabCompletion isReversed st =
                         CommandContinue st' -> eventLoop st'
     _          -> eventLoop (nickTabCompletion isReversed st)
 
+-- | Interpret whatever text is in the textbox. Leading @/@ indicates a
+-- command. Otherwise if a channel or user query is focused a chat message
+-- will be sent.
 execute :: ClientState -> IO ()
 execute st =
   case clientInput st of
@@ -264,6 +306,7 @@ execute st =
                         CommandContinue st' -> eventLoop st'
     msg         -> executeChat msg st
 
+-- | Treat the current text input as a chat message and send it.
 executeChat :: String -> ClientState -> IO ()
 executeChat msg st =
   case view clientFocus st of
@@ -284,7 +327,11 @@ executeChat msg st =
 
     _ -> eventLoop st
 
-doTimerEvent :: Int -> TimedAction -> ClientState -> IO ()
+-- | Respond to a timer event.
+doTimerEvent ::
+  NetworkId {- ^ Network related to event -} ->
+  TimedAction {- ^ Action to perform -} ->
+  ClientState -> IO ()
 doTimerEvent networkId action st =
   do st' <- forOf (clientConnections . ix networkId) st $ \cs ->
                   case action of
