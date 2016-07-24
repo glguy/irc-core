@@ -9,4 +9,3 @@ moderation
 ----------
 
 * temporary bans
-* automatic chanserv op requests

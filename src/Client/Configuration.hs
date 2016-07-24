@@ -37,6 +37,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import           Data.Traversable
+import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName)
 import           System.Directory
 import           System.FilePath
@@ -105,6 +106,9 @@ sectionOptStrings key = fmap (fmap Text.unpack) <$> sectionOpt key
 sectionOptNum :: Num a => Text -> SectionParser (Maybe a)
 sectionOptNum key = fmap fromInteger <$> sectionOpt key
 
+sectionOptIdentifiers :: Text -> SectionParser (Maybe [Identifier])
+sectionOptIdentifiers key = fmap (fmap mkId) <$> sectionOpt key
+
 parseServerSettings :: ServerSettings -> Value -> ConfigParser ServerSettings
 parseServerSettings !def =
   parseSections $
@@ -125,6 +129,7 @@ parseServerSettings !def =
        _ssSocksHost      <- field'    ssSocksHost     (sectionOptString "socks-host")
        _ssSocksPort      <- fieldReq' ssSocksPort     (sectionOptNum "socks-port")
        _ssServerCerts    <- fieldReq' ssServerCerts   (sectionOptStrings "server-certificates")
+       _ssChanservChannels <- fieldReq' ssChanservChannels (sectionOptIdentifiers "chanserv-channels")
        return ServerSettings{..}
   where
     field    l key = field'    l (sectionOpt key)

@@ -1,38 +1,82 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Client.ServerSettings where
+{-|
+Module      : Client.ServerSettings
+Description : Settings for an individual IRC connection
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
 
-import Control.Lens
-import Data.Text (Text)
-import System.Environment
+This module defines the settings used for an individual IRC connection.
+These are static settings that are not expected change over the lifetime
+of a connection.
+-}
+
+module Client.ServerSettings
+  (
+  -- * Server settings type
+    ServerSettings(..)
+  , ssNick
+  , ssUser
+  , ssReal
+  , ssUserInfo
+  , ssPassword
+  , ssSaslUsername
+  , ssSaslPassword
+  , ssHostName
+  , ssPort
+  , ssTls
+  , ssTlsInsecure
+  , ssTlsClientCert
+  , ssTlsClientKey
+  , ssConnectCmds
+  , ssSocksHost
+  , ssSocksPort
+  , ssServerCerts
+  , ssChanservChannels
+
+  -- * Load function
+  , loadDefaultServerSettings
+
+  ) where
+
+import           Control.Lens
+import           Data.Maybe (fromMaybe)
+import           Data.Text (Text)
+import           Irc.Identifier (Identifier)
+import           System.Environment
 import qualified Data.Text as Text
-import Data.Maybe (fromMaybe)
 
 import Network.Socket (HostName, PortNumber)
 
 data ServerSettings = ServerSettings
-  { _ssNick          :: !Text
-  , _ssUser          :: !Text
-  , _ssReal          :: !Text
-  , _ssUserInfo      :: !Text
-  , _ssPassword      :: !(Maybe Text)
-  , _ssSaslUsername  :: !(Maybe Text)
-  , _ssSaslPassword  :: !(Maybe Text)
-  , _ssHostName      :: !HostName
-  , _ssPort          :: !(Maybe PortNumber)
-  , _ssTls           :: !Bool
-  , _ssTlsInsecure   :: !Bool
-  , _ssTlsClientCert :: !(Maybe FilePath)
-  , _ssTlsClientKey  :: !(Maybe FilePath)
-  , _ssConnectCmds   :: ![Text]
-  , _ssSocksHost     :: !(Maybe HostName)
-  , _ssSocksPort     :: !PortNumber
-  , _ssServerCerts   :: ![FilePath]
+  { _ssNick          :: !Text -- ^ connection nickname
+  , _ssUser          :: !Text -- ^ connection username
+  , _ssReal          :: !Text -- ^ connection realname / GECOS
+  , _ssUserInfo      :: !Text -- ^ CTCP userinfo
+  , _ssPassword      :: !(Maybe Text) -- ^ server password
+  , _ssSaslUsername  :: !(Maybe Text) -- ^ SASL username
+  , _ssSaslPassword  :: !(Maybe Text) -- ^ SASL password
+  , _ssHostName      :: !HostName -- ^ server hostname
+  , _ssPort          :: !(Maybe PortNumber) -- ^ server port
+  , _ssTls           :: !Bool -- ^ use TLS to connect
+  , _ssTlsInsecure   :: !Bool -- ^ disable certificate checking
+  , _ssTlsClientCert :: !(Maybe FilePath) -- ^ path to client TLS certificate
+  , _ssTlsClientKey  :: !(Maybe FilePath) -- ^ path to client TLS key
+  , _ssConnectCmds   :: ![Text] -- ^ raw IRC messages to transmit upon successful connection
+  , _ssSocksHost     :: !(Maybe HostName) -- ^ hostname of SOCKS proxy
+  , _ssSocksPort     :: !PortNumber -- ^ port of SOCKS proxy
+  , _ssServerCerts   :: ![FilePath] -- ^ additional CA certificates for validating server
+  , _ssChanservChannels :: ![Identifier] -- ^ Channels with chanserv permissions
   }
   deriving Show
 
 makeLenses ''ServerSettings
 
+-- | Load the defaults for server settings based on the environment
+-- variables.
+--
+-- @USER@, @IRCPASSSWORD@, and @SASLPASSWORD@ are used.
 loadDefaultServerSettings :: IO ServerSettings
 loadDefaultServerSettings =
   do env  <- getEnvironment
@@ -55,4 +99,5 @@ loadDefaultServerSettings =
        , _ssSocksHost     = Nothing
        , _ssSocksPort     = 1080
        , _ssServerCerts   = []
+       , _ssChanservChannels = []
        }

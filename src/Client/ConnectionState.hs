@@ -16,7 +16,44 @@ client because it is responsible for interpreting each IRC message from
 the server and updating the connection state accordingly.
 -}
 
-module Client.ConnectionState where
+module Client.ConnectionState
+  (
+  -- * Connection state type
+    ConnectionState
+  , csNick
+  , csChannels
+  , csSocket
+  , csModeTypes
+  , csChannelTypes
+  , csTransaction
+  , csModes
+  , csStatusMsg
+  , csSettings
+  , csUserInfo
+  , csUsers
+  , csModeCount
+  , csNetworkId
+  , csNetwork
+  , csNextPingTime
+  , csPingStatus
+
+  , newConnectionState
+
+  -- * Connection predicates
+  , isChannelIdentifier
+  , iHaveOp
+
+  -- * Messages interactions
+  , sendMsg
+  , initialMessages
+  , applyMessage
+  , squelchIrcMsg
+
+  -- * Timer information
+  , PingStatus(..)
+  , TimedAction(..)
+  , nextTimedAction
+  ) where
 
 import           Client.ChannelState
 import           Client.NetworkConnection
@@ -46,7 +83,8 @@ import           Irc.UserInfo
 import           LensUtils
 
 data ConnectionState = ConnectionState
-  { _csChannels     :: !(HashMap Identifier ChannelState)
+  { _csNetworkId    :: NetworkId
+  , _csChannels     :: !(HashMap Identifier ChannelState)
   , _csSocket       :: !NetworkConnection
   , _csModeTypes    :: !ModeTypes
   , _csChannelTypes :: ![Char]
@@ -125,13 +163,15 @@ utf8ChunksOf n txt
             (a,b) -> a : search byteIx charIx b xs'
 
 newConnectionState ::
+  NetworkId ->
   Text ->
   ServerSettings ->
   NetworkConnection ->
   UTCTime ->
   ConnectionState
-newConnectionState network settings sock time = ConnectionState
-  { _csUserInfo     = UserInfo (mkId (view ssNick settings)) Nothing Nothing
+newConnectionState networkId network settings sock time = ConnectionState
+  { _csNetworkId    = networkId
+  , _csUserInfo     = UserInfo (mkId (view ssNick settings)) Nothing Nothing
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
   , _csChannelTypes = "#&"
@@ -194,7 +234,7 @@ applyMessage msgWhen msg cs =
     Reply RPL_WELCOME (me:_) -> (onConnectCmds cs, set csNick (mkId me) cs)
     Reply code args        -> noReply (doRpl code msgWhen args cs)
     Cap cmd params         -> doCap cmd params cs
-    Mode who target (modes:params)  -> noReply (doMode msgWhen who target modes params cs)
+    Mode who target (modes:params)  -> doMode msgWhen who target modes params cs
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
     _                      -> noReply cs
 
@@ -344,7 +384,8 @@ doRpl cmd msgWhen args =
     RPL_CHANNELMODEIS ->
       case args of
         _me:chan:modes:params ->
-              doMode msgWhen (UserInfo (mkId "*") Nothing Nothing) chanId modes params
+              snd -- channel mode reply shouldn't trigger messages
+            . doMode msgWhen (UserInfo (mkId "*") Nothing Nothing) chanId modes params
             . set (csChannels . ix chanId . chanModes) Map.empty
             where chanId = mkId chan
         _ -> id
@@ -382,17 +423,39 @@ squelchIrcMsg :: IrcMsg -> Bool
 squelchIrcMsg (Reply rpl _) = squelchReply rpl
 squelchIrcMsg _             = False
 
-doMode :: ZonedTime -> UserInfo -> Identifier -> Text -> [Text] -> ConnectionState -> ConnectionState
+doMode ::
+  ZonedTime {- ^ time of message -} ->
+  UserInfo  {- ^ sender          -} ->
+  Identifier {- ^ channel        -} ->
+  Text       {- ^ mode flags     -} ->
+  [Text]     {- ^ mode parameters -} ->
+  ConnectionState -> ([RawIrcMsg], ConnectionState)
 doMode when who target modes args cs
   | view csNick cs == target
   , Just xs <- splitModes defaultUmodeTypes modes args =
-        doMyModes xs cs
+        noReply (doMyModes xs cs)
 
   | isChannelIdentifier cs target
   , Just xs <- splitModes (view csModeTypes cs) modes args =
-        doChannelModes when who target xs cs
+        let cs' = doChannelModes when who target xs cs
 
-doMode _ _ _ _ _ cs = cs -- ignore bad mode command
+            finish | iHaveOp target cs' = popQueue
+                   | otherwise          = noReply
+
+        in finish cs'
+  where
+    popQueue :: ConnectionState -> ([RawIrcMsg], ConnectionState)
+    popQueue = csChannels . ix target . chanQueuedModeration <<.~ []
+
+doMode _ _ _ _ _ cs = noReply cs -- ignore bad mode command
+
+-- | Predicate to test if the connection has op in a given channel.
+iHaveOp :: Identifier -> ConnectionState -> Bool
+iHaveOp channel cs =
+  elemOf (csChannels . ix channel . chanUsers . ix me . folded) '@' cs
+  where
+    me = view csNick cs
+
 
 doChannelModes :: ZonedTime -> UserInfo -> Identifier -> [(Bool, Char, Text)] -> ConnectionState -> ConnectionState
 doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs

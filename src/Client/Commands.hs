@@ -1,5 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+{-|
+Module      : Client.Commands
+Description : Implementation of slash commands
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module renders the lines used in the channel mask list. A mask list
+can show channel bans, quiets, invites, and exceptions.
+-}
+
 module Client.Commands
   ( CommandResult(..)
   , executeCommand
@@ -32,11 +43,13 @@ import           Irc.RawIrcMsg
 import           Irc.Message
 import           Irc.UserInfo
 import           Irc.Modes
+import           LensUtils
 import qualified Client.EditBox as Edit
 
+-- | Possible results of running a command
 data CommandResult
-  = CommandContinue ClientState
-  | CommandQuit
+  = CommandContinue ClientState -- ^ Continue running client with updated state
+  | CommandQuit -- ^ Client should close
 
 type ClientCommand = ClientState -> String -> IO CommandResult
 type NetworkCommand = NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
@@ -66,7 +79,7 @@ addConnection network st =
             (view clientEvents st')
 
      now <- getCurrentTime
-     let cs = newConnectionState network settings c now
+     let cs = newConnectionState i network settings c now
      traverse_ (sendMsg cs) (initialMessages cs)
 
      return $ set (clientNetworkMap . at network) (Just i)
@@ -321,9 +334,21 @@ cmdInvite :: NetworkName -> ConnectionState -> Identifier -> ClientState -> Stri
 cmdInvite _ cs channelId st rest =
   case words rest of
     [nick] ->
-      do sendMsg cs (rawIrcMsg "INVITE" [Text.pack nick, idText channelId])
-         commandContinue (consumeInput st)
+      do let freeTarget = has (csChannels . ix channelId . chanModes . ix 'g') cs
+             cmd = rawIrcMsg "INVITE" [Text.pack nick, idText channelId]
+         cs' <- if freeTarget
+                  then cs <$ sendMsg cs cmd
+                  else sendModeration channelId [cmd] cs
+         commandContinueUpdateCS cs' st
+
     _ -> commandContinue st
+
+commandContinueUpdateCS :: ConnectionState -> ClientState -> IO CommandResult
+commandContinueUpdateCS cs st =
+  let networkId = view csNetworkId cs in
+  commandContinue
+    $ setStrict (clientConnections . ix networkId) cs
+    $ consumeInput st
 
 cmdTopic :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdTopic _ cs channelId st rest =
@@ -363,8 +388,9 @@ cmdKick _ cs channelId st rest =
          msgs = case dropWhile isSpace reason of
                   "" -> []
                   msg -> [Text.pack msg]
-     sendMsg cs $ rawIrcMsg "KICK" (idText channelId : Text.pack who : msgs)
-     commandContinue $ consumeInput st
+     let cmd = rawIrcMsg "KICK" (idText channelId : Text.pack who : msgs)
+     cs' <- sendModeration channelId [cmd] cs
+     commandContinueUpdateCS cs' st
 
 cmdRemove :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdRemove _ cs channelId st rest =
@@ -372,8 +398,10 @@ cmdRemove _ cs channelId st rest =
          msgs = case dropWhile isSpace reason of
                   "" -> []
                   msg -> [Text.pack msg]
-     sendMsg cs $ rawIrcMsg "REMOVE" (idText channelId : Text.pack who : msgs)
-     commandContinue $ consumeInput st
+
+     let cmd = rawIrcMsg "REMOVE" (idText channelId : Text.pack who : msgs)
+     cs' <- sendModeration channelId [cmd] cs
+     commandContinueUpdateCS cs' st
 
 cmdJoin :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdJoin network cs st rest =
@@ -439,19 +467,29 @@ modeCommand modes cs st =
 
     ChannelFocus _ chan ->
       case modes of
-        [] -> success [[]]
+        [] -> success False [[]]
         flags:params ->
           case splitModes (view csModeTypes cs) flags params of
             Nothing -> commandContinue st
             Just parsedModes ->
-              success (unsplitModes <$> chunksOf (view csModeCount cs) parsedModes)
+              success needOp (unsplitModes <$> chunksOf (view csModeCount cs) parsedModes)
+              where
+                needOp = not (all isPublicChannelMode parsedModes)
       where
-        success argss =
-          do for_ argss $ \args ->
-               sendMsg cs (rawIrcMsg "MODE" (idText chan : args))
-             commandContinue (consumeInput st)
+        success needOp argss =
+          do let cmds = [ rawIrcMsg "MODE" (idText chan : args) | args <- argss ]
+             cs' <- if needOp
+                      then sendModeration chan cmds cs
+                      else cs <$ traverse_ (sendMsg cs) cmds
+             commandContinueUpdateCS cs' st
 
     _ -> commandContinue st
+
+-- | Predicate for mode commands that can be performed without ops
+isPublicChannelMode :: (Bool, Char, Text) -> Bool
+isPublicChannelMode (True, 'b', param) = Text.null param -- query ban list
+isPublicChannelMode (True, 'q', param) = Text.null param -- query quiet list
+isPublicChannelMode _                  = False
 
 commandNameCompletion :: Bool -> ClientState -> Maybe ClientState
 commandNameCompletion isReversed st =
@@ -463,9 +501,22 @@ commandNameCompletion isReversed st =
     cursorPos   = view (clientTextBox . Edit.pos) st
     possibilities = mkId . Text.cons '/' <$> HashMap.keys commands
 
+-- | Complete the nickname at the current cursor position using the
+-- userlist for the currently focused channel (if any)
 nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> ClientState
 nickTabCompletion isReversed st
   = fromMaybe st
   $ clientTextBox (wordComplete (++": ") isReversed completions) st
   where
     completions = currentUserList st
+
+sendModeration :: Identifier -> [RawIrcMsg] -> ConnectionState -> IO ConnectionState
+sendModeration channel cmds cs
+  | useChanServ =
+      do sendMsg cs (rawIrcMsg "PRIVMSG" ["ChanServ", "OP", idText channel])
+         return $ csChannels . ix channel . chanQueuedModeration <>~ cmds $ cs
+  | otherwise = cs <$ traverse_ (sendMsg cs) cmds
+  where
+    useChanServ =
+      channel `elem` view (csSettings . ssChanservChannels) cs &&
+      not (iHaveOp channel cs)
