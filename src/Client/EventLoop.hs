@@ -296,6 +296,6 @@ doTimerEvent networkId action st =
                       do now <- getCurrentTime
                          let cs' = set csNextPingTime (Just $! addUTCTime 60 now)
                                  $ set csPingStatus   (PingSent now) cs
-                         sendMsg cs (rawIrcMsg "PING" ["ping"])
-                         return $! cs'
+                         sendMsg cs' (rawIrcMsg "PING" ["ping"])
+                         return cs'
      eventLoop st'
