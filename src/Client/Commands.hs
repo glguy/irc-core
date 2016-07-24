@@ -37,6 +37,7 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Data.Monoid ((<>))
 import           Data.Time
 import           Irc.Identifier
 import           Irc.RawIrcMsg
@@ -352,10 +353,13 @@ commandContinueUpdateCS cs st =
 
 cmdTopic :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdTopic _ cs channelId st rest =
-  do let topics = case dropWhile isSpace rest of
-                    ""    -> []
-                    topic -> [Text.pack topic]
-     sendMsg cs (rawIrcMsg "TOPIC" (idText channelId : topics))
+  do let cmd =
+           case dropWhile isSpace rest of
+             ""    -> rawIrcMsg "TOPIC" [idText channelId]
+             topic | useChanServ channelId cs ->
+                        rawIrcMsg "PRIVMSG" ["ChanServ", "TOPIC " <> idText channelId <> Text.pack (' ' : topic)]
+                   | otherwise -> rawIrcMsg "TOPIC" [idText channelId, Text.pack topic]
+     sendMsg cs cmd
      commandContinue (consumeInput st)
 
 tabTopic :: Bool -> NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
@@ -472,10 +476,17 @@ modeCommand modes cs st =
           case splitModes (view csModeTypes cs) flags params of
             Nothing -> commandContinue st
             Just parsedModes ->
-              success needOp (unsplitModes <$> chunksOf (view csModeCount cs) parsedModes)
+              success needOp (unsplitModes <$> chunksOf (view csModeCount cs) parsedModes')
               where
+                parsedModes'
+                  | useChanServ chan cs = filter (not . isOpMe) parsedModes
+                  | otherwise           = parsedModes
+
                 needOp = not (all isPublicChannelMode parsedModes)
       where
+        isOpMe (True, 'o', param) = mkId param == view csNick cs
+        isOpMe _                  = False
+
         success needOp argss =
           do let cmds = [ rawIrcMsg "MODE" (idText chan : args) | args <- argss ]
              cs' <- if needOp
@@ -512,11 +523,12 @@ nickTabCompletion isReversed st
 
 sendModeration :: Identifier -> [RawIrcMsg] -> ConnectionState -> IO ConnectionState
 sendModeration channel cmds cs
-  | useChanServ =
+  | useChanServ channel cs =
       do sendMsg cs (rawIrcMsg "PRIVMSG" ["ChanServ", "OP", idText channel])
          return $ csChannels . ix channel . chanQueuedModeration <>~ cmds $ cs
   | otherwise = cs <$ traverse_ (sendMsg cs) cmds
-  where
-    useChanServ =
-      channel `elem` view (csSettings . ssChanservChannels) cs &&
-      not (iHaveOp channel cs)
+
+useChanServ :: Identifier -> ConnectionState -> Bool
+useChanServ channel cs =
+  channel `elem` view (csSettings . ssChanservChannels) cs &&
+  not (iHaveOp channel cs)
