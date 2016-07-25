@@ -62,12 +62,12 @@ module Client.State
   ) where
 
 import           Client.ChannelState
-import           Client.ConnectionState
-import           Client.Message
-import           Client.Window
 import           Client.Configuration
-import           Client.MessageRenderer
+import           Client.ConnectionState
+import           Client.Image.Message
+import           Client.Message
 import           Client.NetworkConnection
+import           Client.Window
 import           Control.Concurrent.STM
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
@@ -130,7 +130,7 @@ data ClientState = ClientState
   , _clientConnections       :: !(IntMap ConnectionState) -- ^ state of active connections
   , _clientNextConnectionId  :: !Int
   , _clientConnectionContext :: !ConnectionContext        -- ^ network connection context
-  , _clientEvents            :: !(TChan NetworkEvent)     -- ^ incoming network event queue
+  , _clientEvents            :: !(TQueue NetworkEvent)     -- ^ incoming network event queue
   , _clientNetworkMap        :: !(HashMap NetworkName NetworkId)
                                                           -- ^ network name to connection ID
 
@@ -165,7 +165,7 @@ initialClientState :: Configuration -> Vty -> IO ClientState
 initialClientState cfg vty =
   do (width,height) <- displayBounds (outputIface vty)
      cxt            <- initConnectionContext
-     events         <- atomically newTChan
+     events         <- atomically newTQueue
      return ClientState
         { _clientWindows           = _Empty # ()
         , _clientTextBox           = Edit.empty

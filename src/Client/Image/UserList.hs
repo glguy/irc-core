@@ -9,18 +9,18 @@ This module renders the lines used in the channel user list.
 -}
 module Client.Image.UserList where
 
-import           Client.MessageRenderer
-import           Client.State
 import           Client.ChannelState
 import           Client.ConnectionState
+import           Client.Image.Message
+import           Client.State
 import           Control.Lens
-import           Irc.Identifier
-import           Irc.UserInfo
+import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Ord
 import qualified Data.Text as Text
-import qualified Data.HashMap.Strict as HashMap
 import           Graphics.Vty.Image
+import           Irc.Identifier
+import           Irc.UserInfo
 
 -- | Render the lines used in a simple user list window.
 userListImages ::

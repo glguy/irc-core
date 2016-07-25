@@ -50,7 +50,7 @@ type NetworkId = Int
 
 -- | Handle for a network connection
 data NetworkConnection = NetworkConnection
-  { connOutQueue :: !(TChan ByteString)
+  { connOutQueue :: !(TQueue ByteString)
   , connAsync    :: !(Async ())
   }
 
@@ -73,7 +73,7 @@ instance Show NetworkConnection where
 -- These messages are sent unmodified. The message should contain a
 -- newline terminator.
 send :: NetworkConnection -> ByteString -> IO ()
-send c msg = atomically (writeTChan (connOutQueue c) msg)
+send c msg = atomically (writeTQueue (connOutQueue c) msg)
 
 -- | Force the given connection to terminate.
 abortConnection :: NetworkConnection -> IO ()
@@ -87,10 +87,10 @@ createConnection ::
   NetworkId {- ^ Identifier to be used on incoming events -} ->
   ConnectionContext ->
   ServerSettings ->
-  TChan NetworkEvent {- Queue for incoming events -} ->
+  TQueue NetworkEvent {- Queue for incoming events -} ->
   IO NetworkConnection
 createConnection network cxt settings inQueue =
-   do outQueue <- atomically newTChan
+   do outQueue <- atomically newTQueue
 
       supervisor <- async (startConnection network cxt settings inQueue outQueue)
 
@@ -110,20 +110,20 @@ createConnection network cxt settings inQueue =
     recordFailure :: SomeException -> IO ()
     recordFailure ex =
         do now <- getZonedTime
-           atomically (writeTChan inQueue (NetworkError network now ex))
+           atomically (writeTQueue inQueue (NetworkError network now ex))
 
     recordNormalExit :: IO ()
     recordNormalExit =
       do now <- getZonedTime
-         atomically (writeTChan inQueue (NetworkClose network now))
+         atomically (writeTQueue inQueue (NetworkClose network now))
 
 
 startConnection ::
   NetworkId ->
   ConnectionContext ->
   ServerSettings ->
-  TChan NetworkEvent ->
-  TChan ByteString ->
+  TQueue NetworkEvent ->
+  TQueue ByteString ->
   IO ()
 startConnection network cxt settings onInput outQueue =
   do rate <- newRateLimitDefault
@@ -137,20 +137,20 @@ startConnection network cxt settings onInput outQueue =
               Left  (Left e) -> throwIO e
               Right (Left e) -> throwIO e
 
-sendLoop :: Connection -> TChan ByteString -> RateLimit -> IO ()
+sendLoop :: Connection -> TQueue ByteString -> RateLimit -> IO ()
 sendLoop h outQueue rate =
   forever $
-    do msg <- atomically (readTChan outQueue)
+    do msg <- atomically (readTQueue outQueue)
        tickRateLimit rate
        connectionPut h msg
 
 ircMaxMessageLength :: Int
 ircMaxMessageLength = 512
 
-receiveLoop :: NetworkId -> Connection -> TChan NetworkEvent -> IO ()
+receiveLoop :: NetworkId -> Connection -> TQueue NetworkEvent -> IO ()
 receiveLoop network h inQueue =
   do msg <- connectionGetLine ircMaxMessageLength h
      unless (B.null msg) $
        do now <- getZonedTime
-          atomically (writeTChan inQueue (NetworkLine network now (B.init msg)))
+          atomically (writeTQueue inQueue (NetworkLine network now (B.init msg)))
           receiveLoop network h inQueue

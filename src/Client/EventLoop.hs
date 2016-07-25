@@ -57,7 +57,7 @@ getEvent st =
      atomically $
        asum [ timer
             , VtyEvent     <$> readTChan vtyEventChannel
-            , NetworkEvent <$> readTChan (view clientEvents st)
+            , NetworkEvent <$> readTQueue (view clientEvents st)
             ]
   where
     vtyEventChannel = _eventChannel (inputIface (view clientVty st))

@@ -13,22 +13,22 @@ module Client.Image (clientPicture) where
 
 import           Client.ChannelState
 import           Client.ConnectionState
-import           Client.Image.UserList
+import qualified Client.EditBox as Edit
 import           Client.Image.MaskList
+import           Client.Image.Message
+import           Client.Image.UserList
+import           Client.Message
 import           Client.MircFormatting
 import           Client.State
 import           Client.Window
-import           Client.MessageRenderer
 import           Control.Lens
-import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
-import           Graphics.Vty.Image
-import           Irc.Identifier (Identifier, idText)
-import           Client.Message
-import           Numeric
-import qualified Client.EditBox as Edit
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
+import           Graphics.Vty.Image
+import           Irc.Identifier (Identifier, idText)
+import           Numeric
 
 -- | Generate a 'Picture' for the current client state. The resulting
 -- client state is updated for render specific information like scrolling.

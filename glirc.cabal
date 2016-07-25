@@ -34,12 +34,12 @@ executable glirc2
                        Client.Image
                        Client.Image.UserList
                        Client.Image.MaskList
+                       Client.Image.Message
                        Client.State
                        Client.IdentifierColors
                        Client.MircFormatting
                        Client.ConnectionState
                        Client.ChannelState
-                       Client.MessageRenderer
                        Client.Message
                        Client.Connect
                        Client.ServerSettings
