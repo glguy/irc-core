@@ -1,5 +1,65 @@
 {-# Language TemplateHaskell, BangPatterns #-}
-module Client.State where
+{-|
+Module      : Client.State
+Description : Primary client state type and update operations
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module provides the core logic of the IRC client. The client
+state tracks everything about the client.
+
+-}
+module Client.State
+  (
+  -- * Client state type
+    NetworkName
+  , ClientState(..)
+  , clientWindows
+  , clientTextBox
+  , clientConnections
+  , clientWidth
+  , clientHeight
+  , clientEvents
+  , clientVty
+  , clientFocus
+  , clientConnectionContext
+  , clientConfig
+  , clientScroll
+  , clientDetailView
+  , clientSubfocus
+  , clientNextConnectionId
+  , clientNetworkMap
+  , clientIgnores
+  , clientConnection
+  , initialClientState
+
+  -- * Client operations
+  , clientMatcher
+  , consumeInput
+  , currentUserList
+  , ircIgnorable
+  , clientInput
+  , abortNetwork
+  , removeNetwork
+  , clientTick
+
+  -- * Add messages to buffers
+  , recordChannelMessage
+  , recordNetworkMessage
+  , recordIrcMessage
+
+  -- * Focus information
+  , ClientFocus(..)
+  , ClientSubfocus(..)
+  , focusNetwork
+  , changeFocus
+  , changeSubfocus
+  , advanceFocus
+  , retreatFocus
+  , windowNames
+
+  ) where
 
 import           Client.ChannelState
 import           Client.ConnectionState
@@ -61,27 +121,33 @@ instance Ord ClientFocus where
   compare (NetworkFocus x  ) (ChannelFocus y _) = compare x y <> LT
   compare (ChannelFocus x _) (NetworkFocus y  ) = compare x y <> GT
 
+-- | All state information for the IRC client
 data ClientState = ClientState
-  { _clientWindows     :: !(Map ClientFocus Window)
-  , _clientTextBox     :: !Edit.EditBox
-  , _clientConnections :: !(IntMap ConnectionState)
-  , _clientWidth, _clientHeight :: !Int
-  , _clientEvents :: !(TChan NetworkEvent)
-  , _clientVty :: !Vty
-  , _clientFocus :: !ClientFocus
-  , _clientConnectionContext :: !ConnectionContext
-  , _clientConfig :: !Configuration
-  , _clientScroll :: !Int
-  , _clientDetailView :: !Bool
-  , _clientSubfocus :: !ClientSubfocus
-  , _clientNextConnectionId :: !Int
-  , _clientNetworkMap :: !(HashMap Text Int)
-  , _clientIgnores    :: !(HashSet Identifier)
+  { _clientWindows           :: !(Map ClientFocus Window) -- ^ client message buffers
+  , _clientFocus             :: !ClientFocus              -- ^ currently focused buffer
+  , _clientSubfocus          :: !ClientSubfocus           -- ^ sec
+
+  , _clientConnections       :: !(IntMap ConnectionState) -- ^ state of active connections
+  , _clientNextConnectionId  :: !Int
+  , _clientConnectionContext :: !ConnectionContext        -- ^ network connection context
+  , _clientEvents            :: !(TChan NetworkEvent)     -- ^ incoming network event queue
+  , _clientNetworkMap        :: !(HashMap NetworkName NetworkId)
+                                                          -- ^ network name to connection ID
+
+  , _clientVty               :: !Vty                      -- ^ VTY handle
+  , _clientTextBox           :: !Edit.EditBox             -- ^ primary text box
+  , _clientWidth             :: !Int                      -- ^ current terminal width
+  , _clientHeight            :: !Int                      -- ^ current terminal height
+  , _clientConfig            :: !Configuration            -- ^ client configuration
+  , _clientScroll            :: !Int                      -- ^ buffer scroll lines
+  , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
+
+  , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored nicknames
   }
 
 makeLenses ''ClientState
 
-clientConnection :: Applicative f => Text -> LensLike' f ClientState ConnectionState
+clientConnection :: Applicative f => NetworkName -> LensLike' f ClientState ConnectionState
 clientConnection network f st =
   case view (clientNetworkMap . at network) st of
     Nothing -> pure st

@@ -1,6 +1,15 @@
+{-|
+Module      : Client.WordCompletion
+Description : Tab-completion logic
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module provides the tab-completion logic used for nicknames and channels.
+
+-}
 module Client.WordCompletion
   ( wordComplete
-  , tabSearch
   ) where
 
 import Irc.Identifier
@@ -15,7 +24,19 @@ import Control.Lens
 import Client.EditBox as Edit
 import Control.Monad
 
-wordComplete :: (String -> String) -> Bool -> [Identifier] -> Edit.EditBox -> Maybe Edit.EditBox
+-- | Perform word completion on a text box.
+--
+-- The leading update operation is applied to the result of tab-completion
+-- when tab completing from the beginning of the text box. This is useful
+-- when auto-completing a nick and including a trailing colon.
+--
+-- The @reversed@ parameter indicates that tab-completion should return the
+-- previous entry.
+wordComplete ::
+  (String -> String) {- ^ leading update operation -} ->
+  Bool               {- ^ reversed -} ->
+  [Identifier]       {- ^ possible completions -} ->
+  Edit.EditBox -> Maybe Edit.EditBox
 wordComplete leadingCase isReversed vals box =
   do let current = currentWord box
      guard (not (null current))

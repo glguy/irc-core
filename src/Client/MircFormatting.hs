@@ -1,5 +1,15 @@
 {-# Language TemplateHaskell #-}
 
+{-|
+Module      : Client.MircFormatting
+Description : Parser for mIRC's text formatting encoding
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module parses mIRC encoded text and generates VTY images.
+
+-}
 module Client.MircFormatting
   ( parseIrcText
   , parseIrcTextExplicit
@@ -40,9 +50,13 @@ formatAttr fmt
 defaultFormatState :: FormatState
 defaultFormatState = FormatState Nothing Nothing False False False False
 
+-- | Parse mIRC encoded format characters and hide the control characters.
 parseIrcText :: Text -> Image
 parseIrcText = parseIrcText' False
 
+-- | Parse mIRC encoded format characters and render the control characters
+-- explicitly. This view is useful when inputting control characters to make
+-- it clear where they are in the text.
 parseIrcTextExplicit :: Text -> Image
 parseIrcTextExplicit = parseIrcText' True
 

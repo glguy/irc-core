@@ -1,4 +1,14 @@
 {-# Language BangPatterns #-}
+{-|
+Module      : Client.Image
+Description : UI renderer
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module provides the renderer for the client's UI.
+
+-}
 module Client.Image (clientPicture) where
 
 import           Client.ChannelState
@@ -20,6 +30,8 @@ import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as Text
 
+-- | Generate a 'Picture' for the current client state. The resulting
+-- client state is updated for render specific information like scrolling.
 clientPicture :: ClientState -> (Picture, ClientState)
 clientPicture st = (pic, st')
     where
