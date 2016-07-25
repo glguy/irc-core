@@ -1,17 +1,35 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language TemplateHaskell #-}
--- | This module provides a parser and printer for the low-level IRC
--- message format.
+
+{-|
+Module      : Irc.RawIrcMsg
+Description : Low-level representation of IRC messages
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module provides a parser and printer for the low-level IRC
+message format. It handles splitting up IRC commands into the
+prefix, command, and arguments.
+
+-}
 module Irc.RawIrcMsg
-  ( RawIrcMsg(..)
+  (
+  -- * Low-level IRC messages
+    RawIrcMsg(..)
+  , rawIrcMsg
+  , msgServerTime
+  , msgPrefix
+  , msgCommand
+  , msgParams
+
+  -- * Text format for IRC messages
   , parseRawIrcMsg
   , renderRawIrcMsg
-  , rawIrcMsg
-  , parseUserInfo
-  , renderUserInfo
+
+  -- * Permissive text decoder
   , asUtf8
-  , msgServerTime, msgPrefix, msgCommand, msgParams
   ) where
 
 import Control.Applicative
@@ -42,10 +60,10 @@ import Irc.UserInfo
 --
 -- @:prefix COMMAND param0 param1 param2 .. paramN@
 data RawIrcMsg = RawIrcMsg
-  { _msgServerTime :: Maybe UTCTime
-  , _msgPrefix  :: Maybe UserInfo
-  , _msgCommand :: Text
-  , _msgParams  :: [Text]
+  { _msgServerTime :: Maybe UTCTime -- ^ Time from znc.in/server-time-iso extension
+  , _msgPrefix  :: Maybe UserInfo -- ^ Optional sender of message
+  , _msgCommand :: Text -- ^ command
+  , _msgParams  :: [Text] -- ^ command parameters
   }
   deriving (Read, Show)
 
@@ -171,7 +189,10 @@ renderRawIrcMsg m = L.toStrict $ Builder.toLazyByteString $
   <> Builder.char8 '\r'
   <> Builder.char8 '\n'
 
-rawIrcMsg :: Text -> [Text] -> RawIrcMsg
+-- | Construct a new 'RawIrcMsg' without a time or prefix.
+rawIrcMsg ::
+  Text {- ^ command -} ->
+  [Text] {- ^ parameters -} -> RawIrcMsg
 rawIrcMsg = RawIrcMsg Nothing Nothing
 
 renderPrefix :: UserInfo -> Builder
@@ -200,7 +221,7 @@ guarded pa pb =
        Just{}  -> fmap Just pb
 
 
--- Try to decode a message as UTF-8. If that fails interpret it as Windows CP1252
+-- | Try to decode a message as UTF-8. If that fails interpret it as Windows CP1252
 -- This helps deal with clients like XChat that get clever and otherwise misconfigured
 -- clients.
 asUtf8 :: ByteString -> Text

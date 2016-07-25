@@ -1,4 +1,17 @@
 {-# Language OverloadedStrings #-}
+
+{-|
+Module      : Irc.UserInfo
+Description : User hostmasks
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+Information identifying users on IRC. This information includes
+a nickname and optionally a username and hostname.
+
+-}
+
 module Irc.UserInfo
   ( UserInfo(..)
   , renderUserInfo
@@ -15,12 +28,13 @@ import           Control.Lens
 -- | 'UserInfo' packages a nickname along with the username and hsotname
 -- if they are known in the current context.
 data UserInfo = UserInfo
-  { userNick :: !Identifier
-  , userName :: !(Maybe Text)
-  , userHost :: !(Maybe Text)
+  { userNick :: !Identifier   -- ^ nickname
+  , userName :: !(Maybe Text) -- ^ username
+  , userHost :: !(Maybe Text) -- ^ hostname
   }
   deriving (Read, Show)
 
+-- | 'Lens' into 'userNick' field.
 uiNick :: Lens' UserInfo Identifier
 uiNick f ui@UserInfo{userNick = n} = (\n' -> ui{userNick = n'}) <$> f n
 

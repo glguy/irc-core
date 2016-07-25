@@ -1,5 +1,34 @@
 {-# Language OverloadedStrings #-}
-module Irc.Message where
+
+{-|
+Module      : Irc.Message
+Description : High-level representation of IRC messages
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module defines high-level IRC commands. Commands are interpreted
+and their arguments are extracted into the appropriate types.
+
+-}
+
+module Irc.Message
+  (
+  -- * High-level messages
+    IrcMsg(..)
+  , CapCmd(..)
+  , cookIrcMsg
+
+  -- * Properties of messages
+  , MessageTarget(..)
+  , ircMsgText
+  , msgTarget
+  , msgActor
+
+  -- * Helper functions
+  , nickSplit
+  , computeMaxMessageLength
+  ) where
 
 import           Control.Lens
 import           Data.Function
@@ -38,9 +67,6 @@ data CapCmd
   | CapNak
   deriving (Show, Eq, Ord)
 
-isErrorCode :: Int -> Bool
-isErrorCode x = 400 <= x && x < 600
-
 cookCapCmd :: Text -> Maybe CapCmd
 cookCapCmd "LS"   = Just CapLs
 cookCapCmd "LIST" = Just CapList
@@ -49,6 +75,8 @@ cookCapCmd "ACK"  = Just CapAck
 cookCapCmd "NAK"  = Just CapNak
 cookCapCmd _      = Nothing
 
+-- | Interpret a low-level 'RawIrcMsg' as a high-level 'IrcMsg'.
+-- Messages that can't be understood are wrapped in 'UnknownMsg'.
 cookIrcMsg :: RawIrcMsg -> IrcMsg
 cookIrcMsg msg =
   case view msgCommand msg of
@@ -106,12 +134,15 @@ cookIrcMsg msg =
 
     _      -> UnknownMsg msg
 
+-- | Targets used to direct a message to a window for display
 data MessageTarget
-  = TargetUser Identifier
-  | TargetWindow Identifier
-  | TargetNetwork
-  | TargetHidden
+  = TargetUser   !Identifier -- ^ Metadata update for a user
+  | TargetWindow !Identifier -- ^ Directed message to channel or from user
+  | TargetNetwork            -- ^ Network-level message
+  | TargetHidden             -- ^ Completely hidden message
 
+-- | Target information for the window that could be appropriate to
+-- display this message in.
 msgTarget :: Identifier -> IrcMsg -> MessageTarget
 msgTarget me msg =
   case msg of
@@ -136,6 +167,7 @@ msgTarget me msg =
     Cap{}                         -> TargetNetwork
     Reply {}                      -> TargetNetwork
 
+-- | 'UserInfo' of the user responsible for a message.
 msgActor :: IrcMsg -> Maybe UserInfo
 msgActor msg =
   case msg of
@@ -156,6 +188,8 @@ msgActor msg =
     Error{}       -> Nothing
     Cap{}         -> Nothing
 
+-- | Text representation of an IRC message to be used for matching with
+-- regular expressions.
 ircMsgText :: IrcMsg -> Text
 ircMsgText msg =
   case msg of
@@ -185,10 +219,12 @@ isNickChar x = '0' <= x && x <= '9'
               || 'A' <= x && x <= '}'
               || '-' == x
 
+-- | Split a nick into text parts group by whether or not those parts are valid
+-- nickname characters.
 nickSplit :: Text -> [Text]
 nickSplit = Text.groupBy ((==) `on` isNickChar)
 
--- Maximum length computation for the message part for
+-- | Maximum length computation for the message part for
 -- privmsg and notice. Note that the need for the limit is because
 -- the server will limit the length of the message sent out to each
 -- client, not just the length of the messages it will recieve.
@@ -197,7 +233,9 @@ nickSplit = Text.groupBy ((==) `on` isNickChar)
 -- The calculation isn't using UTF-8 on the userinfo part because
 -- I'm assuming that the channel name and userinfo are all ASCII
 --
+-- @
 -- :my!user@info PRIVMSG #channel :messagebody\r\n
+-- @
 computeMaxMessageLength :: UserInfo -> Text -> Int
 computeMaxMessageLength myUserInfo target
   = 512 -- max IRC command

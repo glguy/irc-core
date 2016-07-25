@@ -1,3 +1,14 @@
+{-|
+Module      : Client.IdentifierColors
+Description : Mapping from identifiers to console colors
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module provides the color mapping for nick highlighting.
+
+-}
+
 module Client.IdentifierColors (identifierColor) where
 
 import Graphics.Vty.Image
@@ -5,6 +16,9 @@ import Irc.Identifier
 import Data.Array
 import qualified Data.ByteString as B
 
+-- | Compute a color from the denotation of an identifier.
+-- This color will be consistent for different capitalizations
+-- and will be consistent across program executions.
 identifierColor :: Identifier -> Color
 identifierColor ident = nickColorPalette ! i
   where

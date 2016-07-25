@@ -1,3 +1,16 @@
+{-|
+Module      : Irc.Identifier
+Description : Type and operations for nicknames and channel names
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module defines support for working with IRC's numeric reply
+codes. Pattern synonyms are provided for each of the possible IRC reply codes.
+
+Reply code information was extracted from https://www.alien.net.au/irc/irc2numerics.html
+
+-}
 module Irc.Identifier
   ( Identifier
   , idDenote
@@ -13,18 +26,19 @@ import           Data.Hashable         (Hashable (hashWithSalt))
 import           Data.Text             (Text)
 import qualified Data.Text.Encoding    as Text
 
--- | Case insensitive identifier representing channels and nicknames
+-- | Identifier representing channels and nicknames
 data Identifier = Identifier Text ByteString
   deriving (Read, Show)
 
--- Equality on normalized 'Identifiers'
+-- | Equality on normalized identifier
 instance Eq Identifier where
   (==) = (==) `on` idDenote
 
--- Comparison on normalized 'Identifiers'
+-- | Comparison on normalized identifier
 instance Ord Identifier where
   compare = compare `on` idDenote
 
+-- | Hash on normalized identifier
 instance Hashable Identifier where
   hashWithSalt s = hashWithSalt s . idDenote
 
@@ -37,7 +51,7 @@ idText :: Identifier -> Text
 idText (Identifier x _) = x
 
 -- | Returns the case-normalized 'ByteString' of an 'Identifier'
--- which is suitable for comparison.
+-- which is suitable for comparison or hashing.
 idDenote :: Identifier -> ByteString
 idDenote (Identifier _ x) = x
 

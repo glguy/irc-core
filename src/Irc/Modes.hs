@@ -1,6 +1,33 @@
 {-# Language TemplateHaskell #-}
 {-# Language BangPatterns #-}
-module Irc.Modes where
+
+{-|
+Module      : Irc.Modes
+Description : Operations for interpreting mode changes
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module provides support for interpreting the modes changed by
+a MODE command.
+
+-}
+module Irc.Modes
+  (
+  -- * Interpretation of modes
+    ModeTypes(..)
+  , modesLists
+  , modesAlwaysArg
+  , modesSetArg
+  , modesNeverArg
+  , modesPrefixModes
+  , defaultModeTypes
+  , defaultUmodeTypes
+
+  -- * Operations for working with MODE command parameters
+  , splitModes
+  , unsplitModes
+  ) where
 
 import           Control.Lens
 import           Data.Text (Text)
@@ -8,11 +35,11 @@ import qualified Data.Text as Text
 
 -- | Settings that describe how to interpret channel modes
 data ModeTypes = ModeTypes
-  { _modesLists       :: ![Char]
-  , _modesAlwaysArg   :: ![Char]
-  , _modesSetArg      :: ![Char]
-  , _modesNeverArg    :: ![Char]
-  , _modesPrefixModes :: ![(Char,Char)]
+  { _modesLists       :: ![Char] -- ^ modes for channel lists (e.g. ban)
+  , _modesAlwaysArg   :: ![Char] -- ^ modes that always have an argument
+  , _modesSetArg      :: ![Char] -- ^ modes that have an argument when set
+  , _modesNeverArg    :: ![Char] -- ^ modes that never have arguments
+  , _modesPrefixModes :: ![(Char,Char)] -- ^ modes requiring a nickname argument (mode,sigil)
   }
   deriving Show
 
@@ -28,7 +55,7 @@ defaultModeTypes = ModeTypes
   , _modesPrefixModes = [('o','@'),('v','+')]
   }
 
--- | The default UMODE as defined by Freenode
+-- | The default UMODE used by Freenode
 defaultUmodeTypes :: ModeTypes
 defaultUmodeTypes = ModeTypes
   { _modesLists     = ""
@@ -44,7 +71,7 @@ splitModes ::
   ModeTypes {- ^ mode interpretation -} ->
   Text      {- ^ modes               -} ->
   [Text]    {- ^ arguments           -} ->
-  Maybe [(Bool,Char,Text)]
+  Maybe [(Bool,Char,Text)] {- ^ (set, mode, parameter) -}
 splitModes !icm = computeMode True . Text.unpack
   where
   computeMode ::
@@ -79,7 +106,11 @@ splitModes !icm = computeMode True . Text.unpack
 
         | otherwise -> Nothing
 
-unsplitModes :: [(Bool,Char,Text)] -> [Text]
+-- | Construct the arguments to a MODE command corresponding to the given
+-- mode changes.
+unsplitModes ::
+  [(Bool,Char,Text)] {- ^ (set,mode,parameter) -} ->
+  [Text]
 unsplitModes modes
   = Text.pack (foldr combineModeChars (const "") modes True)
   : args

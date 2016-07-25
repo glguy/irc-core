@@ -1,21 +1,36 @@
 {-# Language PatternSynonyms #-}
+
+{-|
+Module      : Irc.Codes
+Description : Helpers for interpreting IRC reply codes
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module defines support for working with IRC's numeric reply
+codes. Pattern synonyms are provided for each of the possible IRC reply codes.
+
+Reply code information was extracted from https://www.alien.net.au/irc/irc2numerics.html
+
+-}
+
 module Irc.Codes where
 
+-- | Categories for reply codes
 data ReplyType
-  = ClientServerReply
-  | CommandReply
-  | ErrorReply
-  | CustomReply
+  = ClientServerReply -- ^ 0-99 Messages between client and server
+  | CommandReply      -- ^ 200-399 Responses to commands
+  | ErrorReply        -- ^ 200-399 Errors
+  | CustomReply       -- ^ Uncategorized
 
 -- | Categorize replies according to the ranges provided in RFC 2812
-replyType :: Int -> ReplyType
+replyType :: Int {- reply code -} -> ReplyType
 replyType x
   | 000 <= x, x < 100 = ClientServerReply
   | 200 <= x, x < 400 = CommandReply
   | 400 <= x, x < 600 = ErrorReply
   | otherwise         = CustomReply
 
--- Extracted from https://www.alien.net.au/irc/irc2numerics.html
 pattern RPL_WELCOME                 :: Int
 pattern RPL_WELCOME                 = 001
 
