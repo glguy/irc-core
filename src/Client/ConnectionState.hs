@@ -413,6 +413,8 @@ squelchReply rpl =
     RPL_TOPICWHOTIME    -> True
     RPL_CREATIONTIME    -> True
     RPL_NOTOPIC         -> True
+    RPL_WHOREPLY        -> True
+    RPL_ENDOFWHO        -> True
     _                   -> False
 
 -- | Return 'True' for messages that should be hidden outside of
