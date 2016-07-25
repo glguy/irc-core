@@ -28,6 +28,7 @@ executable glirc2
                        Irc.Identifier
                        Irc.Message
                        Irc.Modes
+                       Client.CommandArguments
                        Client.EventLoop
                        Client.Window
                        Client.EditBox
@@ -48,6 +49,7 @@ executable glirc2
                        Client.WordCompletion
                        Config.FromConfig
                        LensUtils
+                       Paths_glirc
 
   -- other-extensions:
   build-depends:       base                 >=4.9    && <4.10,

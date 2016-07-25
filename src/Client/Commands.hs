@@ -17,10 +17,8 @@ module Client.Commands
   , nickTabCompletion
   ) where
 
-import           Client.Configuration
 import           Client.ConnectionState
 import           Client.Message
-import           Client.NetworkConnection
 import           Client.ServerSettings
 import           Client.ChannelState
 import           Client.State
@@ -63,28 +61,6 @@ data Command
   = ClientCommand  ClientCommand  (Bool -> ClientCommand)
   | NetworkCommand NetworkCommand (Bool -> NetworkCommand)
   | ChannelCommand ChannelCommand (Bool -> ChannelCommand)
-
-addConnection :: Text -> ClientState -> IO ClientState
-addConnection network st =
-  do let host = Text.unpack network
-         defSettings = (view (clientConfig . configDefaults) st)
-                     { _ssHostName = host }
-         settings = fromMaybe defSettings
-                              (view (clientConfig . configServers . at host) st)
-
-     let (i,st') = st & clientNextConnectionId <+~ 1
-     c <- createConnection
-            i
-            (view clientConnectionContext st')
-            settings
-            (view clientEvents st')
-
-     now <- getCurrentTime
-     let cs = newConnectionState i network settings c now
-     traverse_ (sendMsg cs) (initialMessages cs)
-
-     return $ set (clientNetworkMap . at network) (Just i)
-            $ set (clientConnections . at i) (Just cs) st'
 
 
 commandContinue :: Monad m => ClientState -> m CommandResult

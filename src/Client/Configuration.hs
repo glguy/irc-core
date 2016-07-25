@@ -65,12 +65,15 @@ getConfigPath =
   do dir <- getAppUserDataDirectory "glirc"
      return (dir </> "config")
 
--- | Load the configuration file from @~/.glirc/config@.
+-- | Load the configuration file defaulting to @~/.glirc/config@.
 -- This action can throw 'IOError' and 'ConfigurationFailure'
 -- exceptions.
-loadConfiguration :: IO Configuration
-loadConfiguration =
-  do file <- Text.readFile =<< getConfigPath
+loadConfiguration ::
+  Maybe FilePath {- ^ path to configuration file -} ->
+  IO Configuration
+loadConfiguration mbPath =
+  do path <- maybe getConfigPath return mbPath
+     file <- Text.readFile path
      def  <- loadDefaultServerSettings
      case parse file of
        Left parseError -> throwIO (ConfigurationParseFailed parseError)

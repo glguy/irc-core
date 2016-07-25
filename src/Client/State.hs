@@ -41,6 +41,7 @@ module Client.State
   , ircIgnorable
   , clientInput
   , abortNetwork
+  , addConnection
   , removeNetwork
   , clientTick
 
@@ -67,12 +68,13 @@ import           Client.ConnectionState
 import           Client.Image.Message
 import           Client.Message
 import           Client.NetworkConnection
+import           Client.ServerSettings
 import           Client.Window
 import           Control.Concurrent.STM
 import           Control.Lens
+import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
 import           Data.HashSet (HashSet)
-import           Data.List
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.Maybe
@@ -81,6 +83,7 @@ import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.ICU as ICU
+import           Data.Time
 import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message
@@ -402,3 +405,26 @@ removeNetwork networkId st =
         Just i | i == networkId ->
           (cs, set (clientNetworkMap . at network) Nothing st1)
         _ -> (cs,st1)
+
+addConnection :: Text -> ClientState -> IO ClientState
+addConnection network st =
+  do let host = Text.unpack network
+         defSettings = (view (clientConfig . configDefaults) st)
+                     { _ssHostName = host }
+         settings = fromMaybe defSettings
+                              (view (clientConfig . configServers . at host) st)
+
+     let (i,st') = st & clientNextConnectionId <+~ 1
+     c <- createConnection
+            i
+            (view clientConnectionContext st')
+            settings
+            (view clientEvents st')
+
+     now <- getCurrentTime
+     let cs = newConnectionState i network settings c now
+     traverse_ (sendMsg cs) (initialMessages cs)
+
+     return $ set (clientNetworkMap . at network) (Just i)
+            $ set (clientConnections . at i) (Just cs) st'
+
