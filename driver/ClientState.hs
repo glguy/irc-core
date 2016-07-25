@@ -5,7 +5,7 @@
 
 module ClientState where
 
-import Control.Concurrent (ThreadId)
+import Control.Concurrent
 import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.DeepSeq (force)
 import Control.Lens
@@ -20,7 +20,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Time (TimeZone, UTCTime)
+import Data.Time
 import Graphics.Vty.Image
 import System.IO (Handle)
 import qualified Data.ByteString as B
@@ -37,7 +37,9 @@ import Irc.Core
 import Irc.Format
 import Irc.Message
 import Irc.Model
+import Irc.Cmd
 
+import DCC
 import Connection
 import EditBox (EditBox)
 import qualified EditBox as Edit
@@ -50,6 +52,7 @@ data ClientConnection = ClientConnection
   , _ccSendChan       :: Maybe (IORef Bool, TChan ByteString)
   , _ccRecvThread     :: Maybe ThreadId
   , _ccSendThread     :: Maybe ThreadId
+  , _ccHoldDccTrans   :: Map Identifier DCCOffer
   }
 
 data ClientState = ClientState
@@ -73,6 +76,7 @@ data ClientState = ClientState
   , _clientMessages :: !(Map Identifier MessageList)
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
+  , _clientDCCTransfers :: [Transfer]
   , _clientTimers     :: Map UTCTime [TimerEvent]
   , _clientTimeZone   :: TimeZone
   }
@@ -100,6 +104,7 @@ data Focus
   = ChannelFocus Identifier
   | ChannelInfoFocus Identifier
   | MaskListFocus Char Identifier
+  | DCCFocus Focus
   deriving (Eq, Ord, Read, Show)
 
 data EventHandler = EventHandler
@@ -193,6 +198,7 @@ incrementFocus f st
     case view clientFocus st of
       ChannelInfoFocus c -> ChannelFocus c
       MaskListFocus _  c -> ChannelFocus c
+      DCCFocus oldFocus  -> oldFocus
       ChannelFocus c     -> ChannelFocus (f c focuses)
 
   focuses = Map.keysSet (fullMessageLists st)
@@ -212,12 +218,14 @@ focusedName st =
     ChannelInfoFocus c -> c
     MaskListFocus _  c -> c
     ChannelFocus     c -> c
+    DCCFocus _         -> "DCCWindow"
 
 focusedChan :: ClientState -> Maybe Identifier
 focusedChan st =
   case view clientFocus st of
     ChannelInfoFocus c -> Just c
     MaskListFocus _  c -> Just c
+    DCCFocus         _ -> Nothing
     ChannelFocus     c
       | isChannelName c (view (clientServer0.ccConnection) st) -> Just c
       | otherwise -> Nothing
@@ -325,3 +333,52 @@ filterTimerEvents p = over clientTimers (Map.mapMaybe aux)
 
 addTimerEvent :: UTCTime -> TimerEvent -> ClientState -> ClientState
 addTimerEvent trigger e = over clientTimers (Map.insertWith (++) trigger [e])
+
+-- time limit between offer and acceptance of connection 90s.
+pruneStaleOffers :: ClientState -> IO ClientState
+pruneStaleOffers st =
+  do now <- getCurrentTime
+     let cond offer = diffUTCTime now (_doTime offer) < 90
+     return $ over (clientServer0 . ccHoldDccTrans) (Map.filter cond) st
+
+-- traverseOf = id. Yet traverseOf is  more clear(?)
+updateTransfers :: ClientState -> IO ClientState
+updateTransfers = traverseOf (clientDCCTransfers . traverse)
+                             (update . graduate)
+  where
+    update :: Transfer -> IO Transfer
+    update trans
+      | (Ongoing _ _ _ _ mvar) <- trans = do
+            possibleProgress <- tryReadMVar mvar
+            case possibleProgress of
+              Just newValue -> return $ trans { _tcurSize = newValue }
+              Nothing       -> return $ trans
+      | otherwise = return trans
+
+    graduate :: Transfer -> Transfer
+    graduate trans
+      | (Ongoing name size curSize _ _) <- trans,
+        size == curSize = Finished name size
+      | otherwise       = trans
+
+-- remove from queue and tell the sender to go fishing
+cancelOffer :: ClientState -> Maybe (IO ClientState)
+cancelOffer st = do
+  sender <- preview (clientFocus . _ChannelFocus) st
+  let cancelMsg = privMsgCmd sender (Text.encodeUtf8 . Text.pack $ "xdcc cancel")
+  Just $ do clientSend cancelMsg st
+            return $ over (clientServer0 . ccHoldDccTrans) (Map.delete sender) st
+
+-- Start offer from the sender on the current window.
+startOffer :: ClientState -> Maybe (IO ClientState)
+startOffer st = do
+  sender <- preview (clientFocus . _ChannelFocus) st
+  offer  <- view (clientServer0 . ccHoldDccTrans . at sender) st
+  Just $ do
+    mvar     <- newMVar 0
+    threadId <- forkIO (dcc_recv mvar offer)
+    let transfer      = toTransfer offer threadId mvar
+        removeOffer   = over (clientServer0 . ccHoldDccTrans)
+                             (Map.delete sender)
+        storeTransfer = over clientDCCTransfers (cons transfer)
+    return . storeTransfer . removeOffer $ st

@@ -20,7 +20,7 @@ import Data.Foldable (for_, traverse_)
 import Data.List (elemIndex)
 import Data.List.Split (chunksOf)
 import Data.IORef
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust)
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
@@ -59,6 +59,7 @@ import ServerSettings
 import Views.BanList
 import Views.Channel
 import Views.ChannelInfo
+import Views.DCC
 import qualified EditBox as Edit
 
 data SendType = SendCtcp String | SendPriv | SendNotice | SendAction
@@ -73,6 +74,10 @@ main = do
                   preview ( cmdArgConfigValue
                           . C.key "debug-file"
                           . C.text . Text.unpacked) args
+
+      outDir = fromJust (preview ( cmdArgConfigValue . C.key "download-dir"
+                                 . C.text . Text.unpacked ) args
+                         `mplus` (Just "~"))
 
   hErr <- for debugFile $ \fn ->
             do hErr <- openFile fn WriteMode
@@ -107,7 +112,9 @@ main = do
                , _clientHighlights      = mempty
                , _clientMessages        = mempty
                , _clientNickColors      = defaultNickColors
-               , _clientAutomation      = [ctcpHandler,cancelDeopTimerOnDeop,connectCmds]
+               , _clientAutomation      = [dccHandler outDir, ctcpHandler
+                                          ,cancelDeopTimerOnDeop, connectCmds]
+               , _clientDCCTransfers    = mempty
                , _clientTimers          = mempty
                , _clientTimeZone        = zone
                }
@@ -154,6 +161,7 @@ startIrcConnection recvChan settings hErr =
          , _ccSendChan       = Just (connectedRef, sendChan)
          , _ccRecvThread     = Just recvThreadId
          , _ccSendThread     = Just sendThreadId
+         , _ccHoldDccTrans   = Map.empty
          }
 
   connectionFailed (SomeException e) =
@@ -169,6 +177,7 @@ startIrcConnection recvChan settings hErr =
          , _ccSendChan       = Nothing
          , _ccRecvThread     = Nothing
          , _ccSendThread     = Nothing
+         , _ccHoldDccTrans   = Map.empty
          }
 
 initializeConnection ::
@@ -198,6 +207,8 @@ driver vty vtyEventChan ircMsgChan st0 =
   -- processVtyEvent and processIrcMsg jump here
   continue = considerTimers
            . resetCurrentChannelMessages
+           <=< pruneStaleOffers
+           <=< updateTransfers
 
   considerTimers st =
     do now <- getCurrentTime
@@ -423,7 +434,7 @@ doSendMessage sendType target message st =
 
 commandEvent :: ClientState -> (Image, Maybe (IO KeyEventResult))
 commandEvent st = commandsParser (clientInput st)
-                        (exitCommand : normalCommands)
+                        (exitCommand : dccCommand : normalCommands)
  where
  st' = clearInput st
  toB = Text.encodeUtf8 . Text.pack
@@ -431,6 +442,17 @@ commandEvent st = commandsParser (clientInput st)
 
  exitCommand =
   ("exit", [], pure (return Exit))
+
+ dccCommand :: (String, [String], Parser (IO KeyEventResult))
+ dccCommand =
+   let popAndLaunch = fmap (fmap KeepGoing) $ startOffer st'
+       justPop      = fmap (fmap KeepGoing) $ cancelOffer st'
+       cmdBranch a = case a of
+                       "accept" -> popAndLaunch
+                       "cancel" -> justPop
+                       _        -> Nothing
+
+    in ("dcc", [], pValidToken "(accept|cancel)" cmdBranch )
 
  normalCommands = over (mapped . _3 . mapped . mapped) KeepGoing $
     -- focus setting
@@ -450,6 +472,8 @@ commandEvent st = commandsParser (clientInput st)
     <$> pNumber)
 
   , ("channelinfo", [], pure (doChannelInfoCmd st))
+
+  , ("transfers", [], pure (doDccTransfers st))
 
   , ("bans", [], pure (doMasksCmd 'b' st))
 
@@ -729,6 +753,12 @@ doChannelInfoCmd st
   where
   conn = view (clientServer0 . ccConnection) st
 
+doDccTransfers :: ClientState -> IO ClientState
+doDccTransfers st =
+  case view clientFocus st of
+    DCCFocus _ -> return $ st   -- No DCCFocus (DCCFocus (..))
+    oldFocus -> return $ set clientFocus (DCCFocus oldFocus) st
+
 doMasksCmd ::
   Char       {- ^ mode    -} ->
   ClientState -> IO ClientState
@@ -809,6 +839,7 @@ picForState now st = (scroll', pic)
     case view clientFocus st of
       MaskListFocus mode chan -> banListImage mode chan st
       ChannelInfoFocus chan -> channelInfoImage chan st
+      DCCFocus _ -> dccImage st
       _ -> channelImage st
 
   titlebar =
@@ -819,6 +850,7 @@ picForState now st = (scroll', pic)
                         <|> identImg defAttr c
       MaskListFocus mode c -> string defAttr (maskListTitle mode ++ ": ")
                           <|> identImg defAttr c
+      DCCFocus _ -> string defAttr "DCC progress: "
 
   topicbar chan =
     case preview (connChannels . ix chan . chanTopic . folded . folded . _1) conn of
