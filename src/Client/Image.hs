@@ -23,6 +23,7 @@ import           Client.State
 import           Client.Window
 import           Control.Lens
 import qualified Data.Map.Strict as Map
+import           Data.Maybe (isJust)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
@@ -111,24 +112,24 @@ windowLinesToImages st wwls =
       | Just (img,ident) <- metadataWindowLine st wl -> windowLinesToImagesMd st img ident wls
       | otherwise -> view wlImage wl : windowLinesToImages st wls
 
-windowLinesToImagesMd :: ClientState -> Image -> Identifier -> [WindowLine] -> [Image]
+windowLinesToImagesMd :: ClientState -> Image -> Maybe Identifier -> [WindowLine] -> [Image]
 windowLinesToImagesMd st acc who wwls =
   case wwls of
     wl:wls
       | Just (img,ident) <- metadataWindowLine st wl ->
-          if who == ident
+          if isJust ident && who == ident
             then windowLinesToImagesMd st (acc <|> img) who wls
             else windowLinesToImagesMd st (finish <|> char defAttr ' ' <|> img) ident wls
     _ -> finish : windowLinesToImages st wwls
   where
-    finish = acc <|> quietIdentifier who
+    finish = acc <|> maybe emptyImage quietIdentifier who
 
 
-metadataWindowLine :: ClientState -> WindowLine -> Maybe (Image, Identifier)
+metadataWindowLine :: ClientState -> WindowLine -> Maybe (Image, Maybe Identifier)
 metadataWindowLine st wl =
   case view wlBody wl of
     IrcBody irc
-      | Just who <- ircIgnorable irc st -> Just (ignoreImage, who)
+      | Just who <- ircIgnorable irc st -> Just (ignoreImage, Just who)
       | otherwise                       -> metadataImg irc
     _                                   -> Nothing
 
@@ -136,8 +137,6 @@ lineWrap :: Int -> Image -> Image
 lineWrap w img
   | imageWidth img > w = cropRight w img <-> lineWrap w (cropLeft (imageWidth img - w) img)
   | otherwise = img
-
-
 
 
 horizDividerImage :: ClientState -> Image
