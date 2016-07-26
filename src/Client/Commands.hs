@@ -71,8 +71,11 @@ splitWord str = (w, drop 1 rest)
   where
     (w, rest) = break isSpace str
 
-nextWord :: String -> (String, String)
-nextWord = splitWord . dropWhile isSpace
+nextWord :: String -> Maybe (String, String)
+nextWord str =
+  case splitWord (dropWhile isSpace str) of
+    (a,b) | null a    -> Nothing
+          | otherwise -> Just (a,b)
 
 -- | Parse and execute the given command. When the first argument is Nothing
 -- the command is executed, otherwise the first argument is the cursor
@@ -131,6 +134,7 @@ commands = HashMap.fromList
   , ("invite"    , ChannelCommand cmdInvite simpleChannelTab)
   , ("topic"     , ChannelCommand cmdTopic  tabTopic    )
   , ("kick"      , ChannelCommand cmdKick   simpleChannelTab)
+  , ("kickban"   , ChannelCommand cmdKickBan simpleChannelTab)
   , ("remove"    , ChannelCommand cmdRemove simpleChannelTab)
   , ("me"        , ChannelCommand cmdMe     simpleChannelTab)
   , ("part"      , ChannelCommand cmdPart   simpleChannelTab)
@@ -219,29 +223,31 @@ cmdMe network cs channelId st rest =
 -- | Implementation of @/msg@
 cmdMsg :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdMsg network cs st rest =
-  do now <- getZonedTime
-     let (targetsStr, msgStr) = nextWord rest
-         targetTxts = Text.split (==',') (Text.pack targetsStr)
-         targetIds  = mkId <$> targetTxts
-         msgTxt = Text.pack msgStr
-         myNick = UserInfo (view csNick cs) Nothing Nothing
-         entries = [ (targetId,
-                      ClientMessage
-                      { _msgTime = now
-                      , _msgNetwork = network
-                      , _msgBody = IrcBody (Privmsg myNick targetId msgTxt)
-                      })
-                   | targetId <- targetIds ]
+  case nextWord rest of
+    Nothing -> commandContinue st
+    Just (targetsStr, msgStr) ->
+      do now <- getZonedTime
+         let targetTxts = Text.split (==',') (Text.pack targetsStr)
+             targetIds  = mkId <$> targetTxts
+             msgTxt = Text.pack msgStr
+             myNick = UserInfo (view csNick cs) Nothing Nothing
+             entries = [ (targetId,
+                          ClientMessage
+                          { _msgTime = now
+                          , _msgNetwork = network
+                          , _msgBody = IrcBody (Privmsg myNick targetId msgTxt)
+                          })
+                       | targetId <- targetIds ]
 
-     for_ targetTxts $ \targetTxt ->
-       sendMsg cs (rawIrcMsg "PRIVMSG" [targetTxt, msgTxt])
+         for_ targetTxts $ \targetTxt ->
+           sendMsg cs (rawIrcMsg "PRIVMSG" [targetTxt, msgTxt])
 
-     let st' = foldl' (\acc (targetId, entry) ->
-                         recordChannelMessage network targetId entry acc)
-                      st
-                      entries
+         let st' = foldl' (\acc (targetId, entry) ->
+                             recordChannelMessage network targetId entry acc)
+                          st
+                          entries
 
-     commandContinue (consumeInput st')
+         commandContinue (consumeInput st')
 
 cmdConnect :: ClientState -> String -> IO CommandResult
 cmdConnect st rest =
@@ -364,24 +370,53 @@ cmdMasks _ cs _ st rest =
 
 cmdKick :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdKick _ cs channelId st rest =
-  do let (who,reason) = nextWord rest
-         msgs = case dropWhile isSpace reason of
-                  "" -> []
-                  msg -> [Text.pack msg]
-     let cmd = rawIrcMsg "KICK" (idText channelId : Text.pack who : msgs)
-     cs' <- sendModeration channelId [cmd] cs
-     commandContinueUpdateCS cs' st
+  case nextWord rest of
+    Nothing -> commandContinue st
+    Just (who,reason) ->
+      do let msgs = case dropWhile isSpace reason of
+                      ""  -> []
+                      msg -> [Text.pack msg]
+             cmd = rawIrcMsg "KICK" (idText channelId : Text.pack who : msgs)
+         cs' <- sendModeration channelId [cmd] cs
+         commandContinueUpdateCS cs' st
+
+cmdKickBan :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdKickBan _ cs channelId st rest =
+  case nextWord rest of
+    Nothing -> commandContinue st
+    Just (whoStr,reason) ->
+      do let msgs = case dropWhile isSpace reason of
+                      ""  -> []
+                      msg -> [Text.pack msg]
+
+             channelTxt = idText channelId
+             whoTxt     = Text.pack whoStr
+
+             mask = renderUserInfo (computeBanUserInfo (mkId whoTxt) cs)
+             cmds = [ rawIrcMsg "MODE" [channelTxt, "b", mask]
+                    , rawIrcMsg "KICK" (channelTxt : whoTxt : msgs)
+                    ]
+         cs' <- sendModeration channelId cmds cs
+         commandContinueUpdateCS cs' st
+
+computeBanUserInfo :: Identifier -> ConnectionState -> UserInfo
+computeBanUserInfo who cs =
+  case view (csUser who . _2) cs of
+    Nothing   -> UserInfo who        (Just "*") (Just "*")
+    Just host -> UserInfo (mkId "*") (Just "*") (Just host)
 
 cmdRemove :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdRemove _ cs channelId st rest =
-  do let (who,reason) = nextWord rest
-         msgs = case dropWhile isSpace reason of
-                  "" -> []
-                  msg -> [Text.pack msg]
+  case nextWord rest of
+    Nothing -> commandContinue st
+    Just (who,reason) ->
+      do let msgs = case dropWhile isSpace reason of
+                      "" -> []
+                      msg -> [Text.pack msg]
 
-     let cmd = rawIrcMsg "REMOVE" (idText channelId : Text.pack who : msgs)
-     cs' <- sendModeration channelId [cmd] cs
-     commandContinueUpdateCS cs' st
+             cmd = rawIrcMsg "REMOVE" (idText channelId : Text.pack who : msgs)
+         cs' <- sendModeration channelId [cmd] cs
+         commandContinueUpdateCS cs' st
 
 cmdJoin :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdJoin network cs st rest =

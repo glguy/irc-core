@@ -31,6 +31,7 @@ module Client.ConnectionState
   , csSettings
   , csUserInfo
   , csUsers
+  , csUser
   , csModeCount
   , csNetworkId
   , csNetwork
@@ -666,6 +667,9 @@ isChannelIdentifier cs ident =
 ------------------------------------------------------------------------
 -- Helpers for managing the user list
 ------------------------------------------------------------------------
+
+csUser :: Functor f => Identifier -> LensLike' f ConnectionState (Maybe Text, Maybe Text)
+csUser i = csUsers . at i . non (Nothing,Nothing)
 
 recordUser :: UserInfo -> ConnectionState -> ConnectionState
 recordUser !user = set (csUsers . at (userNick user))
