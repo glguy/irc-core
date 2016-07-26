@@ -3,7 +3,9 @@
 * complete processing of reply/error codes
 * structured command argument processing
 * configurable colors
-* command-line arguments
+* /reload config
+* Add count to /users
+* Make topic, provenance, creation visible
 
 moderation
 ----------
