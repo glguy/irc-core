@@ -20,34 +20,35 @@ source-repository head
 
 executable glirc2
   main-is:             Main.hs
-  other-modules:       Client.NetworkConnection
-                       Irc.RateLimit
+  other-modules:       Client.ChannelState
+                       Client.CommandArguments
+                       Client.Commands
+                       Client.Configuration
+                       Client.Connect
+                       Client.ConnectionState
+                       Client.EditBox
+                       Client.EventLoop
+                       Client.IdentifierColors
+                       Client.Image
+                       Client.Image.MaskList
+                       Client.Image.Message
+                       Client.Image.UserList
+                       Client.Message
+                       Client.MircFormatting
+                       Client.NetworkConnection
+                       Client.ServerSettings
+                       Client.State
+                       Client.Window
+                       Client.WordCompletion
+                       Config.FromConfig
                        Irc.Codes
-                       Irc.RawIrcMsg
-                       Irc.UserInfo
+                       Irc.Commands
                        Irc.Identifier
                        Irc.Message
                        Irc.Modes
-                       Client.CommandArguments
-                       Client.EventLoop
-                       Client.Window
-                       Client.EditBox
-                       Client.Image
-                       Client.Image.UserList
-                       Client.Image.MaskList
-                       Client.Image.Message
-                       Client.State
-                       Client.IdentifierColors
-                       Client.MircFormatting
-                       Client.ConnectionState
-                       Client.ChannelState
-                       Client.Message
-                       Client.Connect
-                       Client.ServerSettings
-                       Client.Commands
-                       Client.Configuration
-                       Client.WordCompletion
-                       Config.FromConfig
+                       Irc.RateLimit
+                       Irc.RawIrcMsg
+                       Irc.UserInfo
                        LensUtils
                        Paths_glirc
 

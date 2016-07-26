@@ -76,6 +76,7 @@ import qualified Data.Text.Read as Text
 import           Data.Time
 import           Data.Time.Clock.POSIX
 import           Irc.Codes
+import           Irc.Commands
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.Modes
@@ -201,7 +202,7 @@ overChannels = overStrict (csChannels . traverse)
 applyMessage :: ZonedTime -> IrcMsg -> ConnectionState -> ([RawIrcMsg], ConnectionState)
 applyMessage msgWhen msg cs =
   case msg of
-    Ping args -> ([pongMsg args], cs)
+    Ping args -> ([ircPong args], cs)
     Pong _    -> noReply $ doPong msgWhen cs
     Join user chan ->
            noReply
@@ -518,57 +519,27 @@ doCap :: CapCmd -> [Text] -> ConnectionState -> ([RawIrcMsg], ConnectionState)
 doCap cmd args cs =
   case (cmd,args) of
     (CapLs,[capsTxt])
-      | null reqCaps -> ([capEndMsg], cs)
-      | otherwise -> ([capReqMsg reqCaps], cs)
+      | null reqCaps -> ([ircCapEnd], cs)
+      | otherwise -> ([ircCapReq reqCaps], cs)
       where
         caps = Text.words capsTxt
         reqCaps = intersect supportedCaps caps
 
-    (CapAck,_) -> ([capEndMsg], cs)
-    (CapNak,_) -> ([capEndMsg], cs)
+    (CapAck,_) -> ([ircCapEnd], cs)
+    (CapNak,_) -> ([ircCapEnd], cs)
 
     _ -> noReply cs
 
 
 initialMessages :: ConnectionState -> [RawIrcMsg]
 initialMessages cs
-   = [ capLsMsg ]
-  ++ [ passMsg pass | Just pass <- [view ssPassword ss]]
-  ++ [ userMsg (view ssUser ss) False True (view ssReal ss)
-     , nickMsg (view csNick cs)
+   = [ ircCapLs ]
+  ++ [ ircPass pass | Just pass <- [view ssPassword ss]]
+  ++ [ ircUser (view ssUser ss) False True (view ssReal ss)
+     , ircNick (view csNick cs)
      ]
   where
     ss = view csSettings cs
-
-passMsg :: Text -> RawIrcMsg
-passMsg pass = rawIrcMsg "PASS" [pass]
-
-pongMsg :: [Text] -> RawIrcMsg
-pongMsg = rawIrcMsg "PONG"
-
-userMsg ::
-  Text {- ^ username -} ->
-  Bool {- ^ set +w   -} ->
-  Bool {- ^ set +i   -} ->
-  Text {- ^ realname -} -> RawIrcMsg
-userMsg user set_w set_i real = rawIrcMsg "USER" [user, modeTxt, "*", real]
-  where
-    modeTxt = Text.pack (show mode)
-    mode :: Int
-    mode = (if set_w then 4 else 0) -- bit 2
-         + (if set_i then 8 else 0) -- bit 3
-
-nickMsg :: Identifier -> RawIrcMsg
-nickMsg nick = rawIrcMsg "NICK" [idText nick]
-
-capReqMsg :: [Text] -> RawIrcMsg
-capReqMsg caps = rawIrcMsg "CAP" ["REQ", Text.unwords caps]
-
-capEndMsg :: RawIrcMsg
-capEndMsg = rawIrcMsg "CAP" ["END"]
-
-capLsMsg :: RawIrcMsg
-capLsMsg = rawIrcMsg "CAP" ["LS"]
 
 loadNamesList :: Identifier -> ConnectionState -> ConnectionState
 loadNamesList chan cs

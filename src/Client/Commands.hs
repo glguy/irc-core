@@ -37,6 +37,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Monoid ((<>))
 import           Data.Time
+import           Irc.Commands
 import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.Message
@@ -215,7 +216,7 @@ cmdMe network cs channelId st rest =
                     , _msgNetwork = network
                     , _msgBody = IrcBody (Action myNick channelId (Text.pack rest))
                     }
-     sendMsg cs (rawIrcMsg "PRIVMSG" [idText channelId, actionTxt])
+     sendMsg cs (ircPrivmsg channelId actionTxt)
      commandContinue
        $ recordChannelMessage network channelId entry
        $ consumeInput st
@@ -227,7 +228,8 @@ cmdMsg network cs st rest =
     Nothing -> commandContinue st
     Just (targetsStr, msgStr) ->
       do now <- getZonedTime
-         let targetTxts = Text.split (==',') (Text.pack targetsStr)
+         let targetsTxt = Text.pack targetsStr
+             targetTxts = Text.split (==',') targetsTxt
              targetIds  = mkId <$> targetTxts
              msgTxt = Text.pack msgStr
              myNick = UserInfo (view csNick cs) Nothing Nothing
@@ -239,8 +241,7 @@ cmdMsg network cs st rest =
                           })
                        | targetId <- targetIds ]
 
-         for_ targetTxts $ \targetTxt ->
-           sendMsg cs (rawIrcMsg "PRIVMSG" [targetTxt, msgTxt])
+         sendMsg cs (ircPrivmsg (mkId targetsTxt) msgTxt)
 
          let st' = foldl' (\acc (targetId, entry) ->
                              recordChannelMessage network targetId entry acc)
@@ -281,17 +282,17 @@ cmdFocus st rest =
 
 cmdWhois :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdWhois _ cs st rest =
-  do sendMsg cs (rawIrcMsg "WHOIS" (Text.pack <$> words rest))
+  do sendMsg cs (ircWhois (Text.pack <$> words rest))
      commandContinue (consumeInput st)
 
 cmdWho :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdWho _ cs st rest =
-  do sendMsg cs (rawIrcMsg "WHO" (Text.pack <$> words rest))
+  do sendMsg cs (ircWho (Text.pack <$> words rest))
      commandContinue (consumeInput st)
 
 cmdWhowas :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdWhowas _ cs st rest =
-  do sendMsg cs (rawIrcMsg "WHOWAS" (Text.pack <$> words rest))
+  do sendMsg cs (ircWhowas (Text.pack <$> words rest))
      commandContinue (consumeInput st)
 
 cmdMode :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
@@ -301,16 +302,14 @@ cmdNick :: NetworkName -> ConnectionState -> ClientState -> String -> IO Command
 cmdNick _ cs st rest =
   case words rest of
     [nick] ->
-      do sendMsg cs (rawIrcMsg "NICK" [Text.pack nick])
+      do sendMsg cs (ircNick (mkId (Text.pack nick)))
          commandContinue (consumeInput st)
     _ -> commandContinue st
 
 cmdPart :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdPart _ cs channelId st rest =
-  do let msgs = case dropWhile isSpace rest of
-                  ""  -> []
-                  msg -> [Text.pack msg]
-     sendMsg cs (rawIrcMsg "PART" (idText channelId : msgs))
+  do let msg = dropWhile isSpace rest
+     sendMsg cs (ircPart channelId (Text.pack msg))
      commandContinue (consumeInput st)
 
 cmdInvite :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
@@ -318,7 +317,7 @@ cmdInvite _ cs channelId st rest =
   case words rest of
     [nick] ->
       do let freeTarget = has (csChannels . ix channelId . chanModes . ix 'g') cs
-             cmd = rawIrcMsg "INVITE" [Text.pack nick, idText channelId]
+             cmd = ircInvite (Text.pack nick) channelId
          cs' <- if freeTarget
                   then cs <$ sendMsg cs cmd
                   else sendModeration channelId [cmd] cs
@@ -337,10 +336,11 @@ cmdTopic :: NetworkName -> ConnectionState -> Identifier -> ClientState -> Strin
 cmdTopic _ cs channelId st rest =
   do let cmd =
            case dropWhile isSpace rest of
-             ""    -> rawIrcMsg "TOPIC" [idText channelId]
+             ""    -> ircTopic channelId ""
              topic | useChanServ channelId cs ->
-                        rawIrcMsg "PRIVMSG" ["ChanServ", "TOPIC " <> idText channelId <> Text.pack (' ' : topic)]
-                   | otherwise -> rawIrcMsg "TOPIC" [idText channelId, Text.pack topic]
+                        ircPrivmsg (mkId "ChanServ")
+                          ("TOPIC " <> idText channelId <> Text.pack (' ' : topic))
+                   | otherwise -> ircTopic channelId (Text.pack topic)
      sendMsg cs cmd
      commandContinue (consumeInput st)
 
@@ -373,10 +373,8 @@ cmdKick _ cs channelId st rest =
   case nextWord rest of
     Nothing -> commandContinue st
     Just (who,reason) ->
-      do let msgs = case dropWhile isSpace reason of
-                      ""  -> []
-                      msg -> [Text.pack msg]
-             cmd = rawIrcMsg "KICK" (idText channelId : Text.pack who : msgs)
+      do let msg = Text.pack (dropWhile isSpace reason)
+             cmd = ircKick channelId (Text.pack who) msg
          cs' <- sendModeration channelId [cmd] cs
          commandContinueUpdateCS cs' st
 
@@ -385,16 +383,13 @@ cmdKickBan _ cs channelId st rest =
   case nextWord rest of
     Nothing -> commandContinue st
     Just (whoStr,reason) ->
-      do let msgs = case dropWhile isSpace reason of
-                      ""  -> []
-                      msg -> [Text.pack msg]
+      do let msg = Text.pack (dropWhile isSpace reason)
 
-             channelTxt = idText channelId
              whoTxt     = Text.pack whoStr
 
              mask = renderUserInfo (computeBanUserInfo (mkId whoTxt) cs)
-             cmds = [ rawIrcMsg "MODE" [channelTxt, "b", mask]
-                    , rawIrcMsg "KICK" (channelTxt : whoTxt : msgs)
+             cmds = [ ircMode channelId ["b", mask]
+                    , ircKick channelId whoTxt msg
                     ]
          cs' <- sendModeration channelId cmds cs
          commandContinueUpdateCS cs' st
@@ -410,35 +405,30 @@ cmdRemove _ cs channelId st rest =
   case nextWord rest of
     Nothing -> commandContinue st
     Just (who,reason) ->
-      do let msgs = case dropWhile isSpace reason of
-                      "" -> []
-                      msg -> [Text.pack msg]
-
-             cmd = rawIrcMsg "REMOVE" (idText channelId : Text.pack who : msgs)
+      do let msg = Text.pack (dropWhile isSpace reason)
+             cmd = ircRemove channelId (Text.pack who) msg
          cs' <- sendModeration channelId [cmd] cs
          commandContinueUpdateCS cs' st
 
 cmdJoin :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdJoin network cs st rest =
   let ws = words rest
-      doJoin channelTxt =
-        do let channelId = mkId (Text.pack (takeWhile (/=',') channelTxt))
-           sendMsg cs $ rawIrcMsg "JOIN" (Text.pack <$> ws)
+      doJoin channelStr keyStr =
+        do let channelId = mkId (Text.pack (takeWhile (/=',') channelStr))
+           sendMsg cs (ircJoin (Text.pack channelStr) (Text.pack <$> keyStr))
            commandContinue
                $ changeFocus (ChannelFocus network channelId)
                $ consumeInput st
   in case ws of
-       [channelTxt]   -> doJoin channelTxt
-       [channelTxt,_] -> doJoin channelTxt
-       _ -> commandContinue st
+       [channel]     -> doJoin channel Nothing
+       [channel,key] -> doJoin channel (Just key)
+       _             -> commandContinue st
 
 
 cmdQuit :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdQuit _ cs st rest =
-  do let msgs = case dropWhile isSpace rest of
-                  ""  -> []
-                  msg -> [Text.pack msg]
-     sendMsg cs (rawIrcMsg "QUIT" msgs)
+  do let msg = Text.pack (dropWhile isSpace rest)
+     sendMsg cs (ircQuit msg)
      commandContinue (consumeInput st)
 
 cmdDisconnect :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
@@ -477,7 +467,7 @@ modeCommand modes cs st =
   case view clientFocus st of
 
     NetworkFocus _ ->
-      do sendMsg cs (rawIrcMsg "MODE" (idText (view csNick cs) : modes))
+      do sendMsg cs (ircMode (view csNick cs) modes)
          commandContinue (consumeInput st)
 
     ChannelFocus _ chan ->
@@ -499,7 +489,7 @@ modeCommand modes cs st =
         isOpMe _                  = False
 
         success needOp argss =
-          do let cmds = [ rawIrcMsg "MODE" (idText chan : args) | args <- argss ]
+          do let cmds = ircMode chan <$> argss
              cs' <- if needOp
                       then sendModeration chan cmds cs
                       else cs <$ traverse_ (sendMsg cs) cmds
@@ -535,7 +525,7 @@ nickTabCompletion isReversed st
 sendModeration :: Identifier -> [RawIrcMsg] -> ConnectionState -> IO ConnectionState
 sendModeration channel cmds cs
   | useChanServ channel cs =
-      do sendMsg cs (rawIrcMsg "PRIVMSG" ["ChanServ", "OP " <> idText channel])
+      do sendMsg cs (ircPrivmsg (mkId "ChanServ") ("OP " <> idText channel))
          return $ csChannels . ix channel . chanQueuedModeration <>~ cmds $ cs
   | otherwise = cs <$ traverse_ (sendMsg cs) cmds
 
