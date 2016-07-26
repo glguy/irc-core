@@ -167,9 +167,8 @@ newConnectionState ::
   Text ->
   ServerSettings ->
   NetworkConnection ->
-  UTCTime ->
   ConnectionState
-newConnectionState networkId network settings sock time = ConnectionState
+newConnectionState networkId network settings sock = ConnectionState
   { _csNetworkId    = networkId
   , _csUserInfo     = UserInfo (mkId (view ssNick settings)) Nothing Nothing
   , _csChannels     = HashMap.empty
@@ -184,7 +183,7 @@ newConnectionState networkId network settings sock time = ConnectionState
   , _csUsers        = HashMap.empty
   , _csNetwork      = network
   , _csPingStatus   = PingNever
-  , _csNextPingTime = Just $! addUTCTime 30 time
+  , _csNextPingTime = Nothing
   }
 
 
@@ -231,16 +230,28 @@ applyMessage msgWhen msg cs =
            noReply
          $ forgetUser' nick
          $ overChannel chan (partChannel nick) cs
-    Reply RPL_WELCOME (me:_) -> (onConnectCmds cs, set csNick (mkId me) cs)
+    Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
     Reply code args        -> noReply (doRpl code msgWhen args cs)
     Cap cmd params         -> doCap cmd params cs
     Mode who target (modes:params)  -> doMode msgWhen who target modes params cs
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
     _                      -> noReply cs
 
-onConnectCmds :: ConnectionState -> [RawIrcMsg]
-onConnectCmds cs =
-  mapMaybe parseRawIrcMsg (view (csSettings . ssConnectCmds) cs)
+-- | 001 'RPL_WELCOME' is the first message received when transitioning
+-- from the initial handshake to a connected state. At this point we know
+-- what nickname the server is using for our connection, and we can start
+-- scheduling PINGs.
+doWelcome ::
+  ZonedTime  {- ^ message received -} ->
+  Identifier {- ^ my nickname      -} ->
+  ConnectionState -> ([RawIrcMsg], ConnectionState)
+doWelcome msgWhen me cs = (reply, update cs)
+  where
+    reply = mapMaybe parseRawIrcMsg (view (csSettings . ssConnectCmds) cs)
+
+    update
+      = set csNick me
+      . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> ConnectionState -> ConnectionState
 doTopic when user chan topic =
