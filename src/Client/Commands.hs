@@ -535,7 +535,7 @@ nickTabCompletion isReversed st
 sendModeration :: Identifier -> [RawIrcMsg] -> ConnectionState -> IO ConnectionState
 sendModeration channel cmds cs
   | useChanServ channel cs =
-      do sendMsg cs (rawIrcMsg "PRIVMSG" ["ChanServ", "OP", idText channel])
+      do sendMsg cs (rawIrcMsg "PRIVMSG" ["ChanServ", "OP " <> idText channel])
          return $ csChannels . ix channel . chanQueuedModeration <>~ cmds $ cs
   | otherwise = cs <$ traverse_ (sendMsg cs) cmds
 
