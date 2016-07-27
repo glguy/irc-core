@@ -64,7 +64,7 @@ type FourTuple a = (a, a, a, a)
 -- Smart constructor
 parseDccOffer :: UTCTime -> FilePath -> FourTuple B.ByteString -> DCCOffer
 parseDccOffer ctime outDir (bName, bAddr, bPort, bSize) =
-    let fullpath = outDir ++ "/" ++ (B8.unpack bName)
+    let fullpath = outDir </> (B8.unpack bName) -- handles trailing /
         size     = read (B8.unpack bSize)
      in DCCOffer fullpath bAddr bPort size ctime
 
