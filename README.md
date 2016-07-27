@@ -75,6 +75,7 @@ Learn more about this file format at [config-value](http://hackage.haskell.org/p
 ```
 -- Optional file to dump raw server messages
 debug-file: "debug.txt"
+download-dir: "~/downloads"
 
 -- Defaults used when not specified on command line
 defaults:
