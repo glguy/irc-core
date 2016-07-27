@@ -76,7 +76,7 @@ getCommandArguments =
            cmdArgs = assembleCommandArguments flags networks
        (_, _, errors) ->
          do traverse_ (hPutStr stderr) errors
-            hPutStrLn stderr "Run 'glirc --help' to see a list of available command line options."
+            hPutStrLn stderr "Run 'glirc2 --help' to see a list of available command line options."
             exitFailure
 
 assembleCommandArguments :: [CommandArguments -> CommandArguments] -> [String] -> CommandArguments
@@ -85,7 +85,7 @@ assembleCommandArguments flags networks =
   in flagArgs { _cmdArgInitialNetworks = Text.pack <$> networks }
 
 helpTxt :: String
-helpTxt = usageInfo "glirc [FLAGS] INITIAL_NETWORKS..." options
+helpTxt = usageInfo "glirc2 [FLAGS] INITIAL_NETWORKS..." options
 
 versionTxt :: String
 versionTxt = unlines
