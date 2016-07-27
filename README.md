@@ -40,6 +40,7 @@ glirc [FLAGS] INITIAL_NETWORKS...
 ```
 
 Environment variables
+```
 USER=<default nickname and username>
 IRCPASSWORD=<your irc password>
 ```
@@ -87,27 +88,27 @@ servers:
 Configuration sections:
 --------
 
-* defaults - These settings are used for all connections
-* servers - These settings are used to override defaults when the hostname matches
+* `defaults` - These settings are used for all connections
+* `servers` - These settings are used to override defaults when the hostname matches
 
 Settings
 --------
 
-* hostname - text - hostname used to connect and to specify the server
-* port - number - port number, defaults to 6667 without TLS and 6697 with TLS
-* nick - text - nickname
-* username - text - username
-* realname - text - realname / GECOS
-* password - text - server password
-* tls - yes/no - use TLS to connect
-* tls-insecure - yes/no - disable certificate validation
-* tls-client-cert - text - path to TLS client certificate
-* tls-client-key - text - path to TLS client key
-* connect-cmds - list of text - raw IRC commands to send upon connection
-* socks-host - text - hostname of SOCKS proxy to connect through
-* socks-port - number - port number of SOCKS proxy to connect through
-* server-certificates - list of text - list of CA certificates to use when validating certificates
-* chanserv-channels - list of text - list of channels with chanserv op permission
+* `hostname` - text - hostname used to connect and to specify the server
+* `port` - number - port number, defaults to 6667 without TLS and 6697 with TLS
+* `nick` - text - nickname
+* `username` - text - username
+* `realname` - text - realname / GECOS
+* `password` - text - server password
+* `tls` - yes/no - use TLS to connect
+* `tls-insecure` - yes/no - disable certificate validation
+* `tls-client-cert` - text - path to TLS client certificate
+* `tls-client-key` - text - path to TLS client key
+* `connect-cmds` - list of text - raw IRC commands to send upon connection
+* `socks-host` - text - hostname of SOCKS proxy to connect through
+* `socks-port` - number - port number of SOCKS proxy to connect through
+* `server-certificates` - list of text - list of CA certificates to use when validating certificates
+* `chanserv-channels` - list of text - list of channels with chanserv op permission
 
 
 Commands
