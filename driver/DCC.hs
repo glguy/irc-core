@@ -41,15 +41,15 @@ data Transfer =
       , _tSize     :: Int
       , _tcurSize  :: Int
       , _threadId  :: ThreadId
-      , _tProgress :: MVar Int }
+      , _tProgress :: Progress }
   | Finished
       { _tName :: FilePath
       , _tSize :: Int }
 
-makeLenses ''Transfer
-
 -- current size of transfer.
 type Progress = MVar Int
+
+makeLenses ''Transfer
 
 data DCCError = ParseIPPort
               | ParseDottedIP
