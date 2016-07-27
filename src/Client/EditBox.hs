@@ -39,8 +39,8 @@ module Client.EditBox
   , success
   ) where
 
-import Control.Lens
-import Data.Char
+import           Control.Lens
+import           Data.Char
 
 data EditBox = EditBox
   { _content :: !String
@@ -199,13 +199,11 @@ insertString str e
 
 -- | Move the cursor left.
 left :: EditBox -> EditBox
-left e
-  = over pos (max 0 . subtract 1) e
+left = over pos (max 0 . subtract 1)
 
 -- | Move the cursor right.
 right :: EditBox -> EditBox
-right e
-  = over pos (min (views content length e) . (+1)) e
+right e = over pos (min (views content length e) . (+1)) e
 
 -- | Move the cursor left to the previous word boundary.
 leftWord :: EditBox -> EditBox

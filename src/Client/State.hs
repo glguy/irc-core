@@ -361,8 +361,8 @@ currentUserList st =
     _                         -> []
 
 channelUserList :: NetworkName -> Identifier -> ClientState -> [Identifier]
-channelUserList network channel st =
-  views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys st
+channelUserList network channel =
+  views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys
 
 changeFocus :: ClientFocus -> ClientState -> ClientState
 changeFocus focus

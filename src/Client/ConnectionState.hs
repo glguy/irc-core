@@ -505,7 +505,7 @@ doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
 
 
 doMyModes :: [(Bool, Char, Text)] -> ConnectionState -> ConnectionState
-doMyModes changes cs = over csModes (\modes -> foldl applyOne modes changes) cs
+doMyModes changes = over csModes $ \modes -> foldl applyOne modes changes
   where
     applyOne modes (True, mode, _)
       | mode `elem` modes = modes

@@ -1,4 +1,3 @@
-{-# Language RankNTypes #-}
 {-# Language GeneralizedNewtypeDeriving #-}
 {-# Language OverloadedStrings #-}
 

@@ -42,12 +42,13 @@ wordComplete leadingCase isReversed vals box =
      guard (not (null current))
      let cur = mkId (Text.pack current)
      case view Edit.tabSeed box of
-       Just pattern
-         | let pat = mkId (Text.pack pattern)
-         , idPrefix pat cur ->
+       Just patternStr
+         | idPrefix pat cur ->
 
          do next <- tabSearch isReversed pat cur vals
             Just $ replaceWith leadingCase (idString next) box
+         where
+           pat = mkId (Text.pack patternStr)
 
        _ ->
          do next <- tabSearch isReversed cur cur vals

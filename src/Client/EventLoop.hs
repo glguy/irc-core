@@ -17,6 +17,7 @@ module Client.EventLoop
 
 import           Client.Commands
 import           Client.ConnectionState
+import qualified Client.EditBox     as Edit
 import           Client.Image
 import           Client.Message
 import           Client.NetworkConnection
@@ -26,20 +27,20 @@ import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
-import           Data.Ord
-import           Data.List
-import           Data.Time
-import           Data.Foldable
 import           Data.ByteString (ByteString)
+import           Data.Foldable
+import qualified Data.IntMap as IntMap
+import           Data.List
+import qualified Data.Map as Map
+import           Data.Maybe
+import           Data.Ord
+import qualified Data.Text as Text
+import           Data.Time
 import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
-import qualified Client.EditBox     as Edit
-import qualified Data.Text as Text
-import qualified Data.Map as Map
-import qualified Data.IntMap as IntMap
 
 
 -- | Sum of the three possible event types the event loop handles
@@ -232,8 +233,8 @@ doKey key modifier st =
         KRight     -> changeInput Edit.right
         KHome      -> changeInput Edit.home
         KEnd       -> changeInput Edit.end
-        KUp        -> changeInput $ \ed -> maybe ed id $ Edit.earlier ed
-        KDown      -> changeInput $ \ed -> maybe ed id $ Edit.later ed
+        KUp        -> changeInput $ \ed -> fromMaybe ed $ Edit.earlier ed
+        KDown      -> changeInput $ \ed -> fromMaybe ed $ Edit.later ed
         KEnter     -> execute st
         KPageUp    -> eventLoop (pageUp st)
         KPageDown  -> eventLoop (pageDown st)
