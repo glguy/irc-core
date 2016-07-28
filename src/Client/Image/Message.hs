@@ -27,6 +27,7 @@ import           Client.MircFormatting
 import           Control.Lens
 import           Data.Time
 import           Graphics.Vty.Image
+import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
@@ -200,35 +201,34 @@ ircLineImage rm sigils nicks body =
       parseIrcTextWithNicks nicks txt
 
     Ping params ->
-      string defAttr "PING" <|>
-      horizCat [char (withForeColor defAttr blue) '·' <|>
-                 parseIrcText p | p <- params]
+      string defAttr "PING " <|> separatedParams params
 
     Pong params ->
-      string defAttr "PONG" <|>
-      horizCat [char (withForeColor defAttr blue) '·' <|>
-                 parseIrcText p | p <- params]
+      string defAttr "PONG " <|> separatedParams params
 
     Error reason ->
       string (withForeColor defAttr red) "ERROR " <|>
       parseIrcText reason
 
     Reply code params ->
-      string defAttr (show code) <|>
-      horizCat [char (withForeColor defAttr blue) '·' <|>
-                parseIrcText p | p <- params]
+      renderReplyCode rm code <|>
+      separatedParams (dropFst params)
+      where
+        dropFst = case rm of
+                    DetailedRender -> id
+                    NormalRender   -> drop 1
 
     UnknownMsg irc ->
       maybe emptyImage (\ui -> coloredUserInfo rm ui <|> char defAttr ' ')
         (view msgPrefix irc) <|>
       text' defAttr (view msgCommand irc) <|>
-      horizCat [char (withForeColor defAttr blue) '·' <|>
-                parseIrcText p | p <- view msgParams irc]
+      char defAttr ' ' <|>
+      separatedParams (view msgParams irc)
 
     Cap cmd args ->
       string defAttr (show cmd) <|>
-      horizCat [char (withForeColor defAttr blue) '·' <|>
-                text' defAttr a | a <- args]
+      char defAttr ' ' <|>
+      separatedParams args
 
     Authenticate{} -> string defAttr "AUTHENTICATE ***"
 
@@ -237,8 +237,32 @@ ircLineImage rm sigils nicks body =
       string (withForeColor defAttr cyan) sigils <|>
       coloredUserInfo rm nick <|>
       string defAttr " set mode: " <|>
-      horizCat (intersperse (char (withForeColor defAttr blue) '·')
-                            (text' defAttr <$> params))
+      separatedParams params
+
+separatorImage :: Image
+separatorImage = char (withForeColor defAttr blue) '·'
+
+separatedParams :: [Text] -> Image
+separatedParams = horizCat . intersperse separatorImage . map parseIrcText
+
+renderReplyCode :: RenderMode -> ReplyCode -> Image
+renderReplyCode rm code@(ReplyCode w) =
+  char attr '<' <|> text' defAttr txt <|> string attr "> "
+  where
+    info = replyCodeInfo code
+
+    txt = case rm of
+            DetailedRender -> Text.pack (show w)
+            NormalRender   -> replyCodeText info
+
+    color = case replyCodeType info of
+              ClientServerReply -> magenta
+              CommandReply      -> green
+              ErrorReply        -> red
+              UnknownReply      -> yellow
+
+    attr = withForeColor defAttr color
+
 
 -- | Render a nickname in its hash-based color.
 coloredIdentifier :: Identifier -> Image

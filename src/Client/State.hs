@@ -241,7 +241,7 @@ msgImportance msg st =
                           | otherwise   -> WLNormal
         Error{}         -> WLImportant
         Reply cmd _ ->
-          case replyType cmd of
+          case replyCodeType (replyCodeInfo cmd) of
             ErrorReply -> WLImportant
             _          -> WLNormal
         _               -> WLBoring
