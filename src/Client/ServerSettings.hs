@@ -34,6 +34,8 @@ module Client.ServerSettings
   , ssSocksPort
   , ssServerCerts
   , ssChanservChannels
+  , ssFloodPenalty
+  , ssFloodThreshold
 
   -- * Load function
   , loadDefaultServerSettings
@@ -50,24 +52,26 @@ import qualified Data.Text as Text
 import Network.Socket (HostName, PortNumber)
 
 data ServerSettings = ServerSettings
-  { _ssNick          :: !Text -- ^ connection nickname
-  , _ssUser          :: !Text -- ^ connection username
-  , _ssReal          :: !Text -- ^ connection realname / GECOS
-  , _ssUserInfo      :: !Text -- ^ CTCP userinfo
-  , _ssPassword      :: !(Maybe Text) -- ^ server password
-  , _ssSaslUsername  :: !(Maybe Text) -- ^ SASL username
-  , _ssSaslPassword  :: !(Maybe Text) -- ^ SASL password
-  , _ssHostName      :: !HostName -- ^ server hostname
-  , _ssPort          :: !(Maybe PortNumber) -- ^ server port
-  , _ssTls           :: !Bool -- ^ use TLS to connect
-  , _ssTlsInsecure   :: !Bool -- ^ disable certificate checking
-  , _ssTlsClientCert :: !(Maybe FilePath) -- ^ path to client TLS certificate
-  , _ssTlsClientKey  :: !(Maybe FilePath) -- ^ path to client TLS key
-  , _ssConnectCmds   :: ![Text] -- ^ raw IRC messages to transmit upon successful connection
-  , _ssSocksHost     :: !(Maybe HostName) -- ^ hostname of SOCKS proxy
-  , _ssSocksPort     :: !PortNumber -- ^ port of SOCKS proxy
-  , _ssServerCerts   :: ![FilePath] -- ^ additional CA certificates for validating server
+  { _ssNick             :: !Text -- ^ connection nickname
+  , _ssUser             :: !Text -- ^ connection username
+  , _ssReal             :: !Text -- ^ connection realname / GECOS
+  , _ssUserInfo         :: !Text -- ^ CTCP userinfo
+  , _ssPassword         :: !(Maybe Text) -- ^ server password
+  , _ssSaslUsername     :: !(Maybe Text) -- ^ SASL username
+  , _ssSaslPassword     :: !(Maybe Text) -- ^ SASL password
+  , _ssHostName         :: !HostName -- ^ server hostname
+  , _ssPort             :: !(Maybe PortNumber) -- ^ server port
+  , _ssTls              :: !Bool -- ^ use TLS to connect
+  , _ssTlsInsecure      :: !Bool -- ^ disable certificate checking
+  , _ssTlsClientCert    :: !(Maybe FilePath) -- ^ path to client TLS certificate
+  , _ssTlsClientKey     :: !(Maybe FilePath) -- ^ path to client TLS key
+  , _ssConnectCmds      :: ![Text] -- ^ raw IRC messages to transmit upon successful connection
+  , _ssSocksHost        :: !(Maybe HostName) -- ^ hostname of SOCKS proxy
+  , _ssSocksPort        :: !PortNumber -- ^ port of SOCKS proxy
+  , _ssServerCerts      :: ![FilePath] -- ^ additional CA certificates for validating server
   , _ssChanservChannels :: ![Identifier] -- ^ Channels with chanserv permissions
+  , _ssFloodPenalty     :: !Int -- ^ Flood limiter penalty (seconds)
+  , _ssFloodThreshold   :: !Int -- ^ Flood limited threshold (seconds)
   }
   deriving Show
 
@@ -100,4 +104,6 @@ loadDefaultServerSettings =
        , _ssSocksPort     = 1080
        , _ssServerCerts   = []
        , _ssChanservChannels = []
+       , _ssFloodPenalty     = 2 -- RFC 1459 defaults
+       , _ssFloodThreshold   = 10
        }

@@ -112,6 +112,8 @@ Settings
 * `socks-port` - number - port number of SOCKS proxy to connect through
 * `server-certificates` - list of text - list of CA certificates to use when validating certificates
 * `chanserv-channels` - list of text - list of channels with chanserv op permission
+* `flood-penalty` - number - cost in seconds per message
+* `flood-threshold` - number - threshold of seconds for burst
 
 
 Commands

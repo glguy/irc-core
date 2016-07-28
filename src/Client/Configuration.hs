@@ -133,6 +133,8 @@ parseServerSettings !def =
        _ssSocksPort      <- fieldReq' ssSocksPort     (sectionOptNum "socks-port")
        _ssServerCerts    <- fieldReq' ssServerCerts   (sectionOptStrings "server-certificates")
        _ssChanservChannels <- fieldReq' ssChanservChannels (sectionOptIdentifiers "chanserv-channels")
+       _ssFloodPenalty   <- fieldReq' ssFloodPenalty   (sectionOptNum "flood-penalty")
+       _ssFloodThreshold <- fieldReq' ssFloodThreshold (sectionOptNum "flood-threshold")
        return ServerSettings{..}
   where
     field    l key = field'    l (sectionOpt key)

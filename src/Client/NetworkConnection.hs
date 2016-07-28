@@ -35,6 +35,7 @@ import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Concurrent.Async
 import           Control.Exception
+import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
@@ -126,7 +127,9 @@ startConnection ::
   TQueue ByteString ->
   IO ()
 startConnection network cxt settings onInput outQueue =
-  do rate <- newRateLimitDefault
+  do rate <- newRateLimit
+               (view ssFloodPenalty settings)
+               (view ssFloodThreshold settings)
      withConnection cxt settings $ \h ->
        withAsync (sendLoop h outQueue rate)      $ \sender ->
        withAsync (receiveLoop network h onInput) $ \receiver ->

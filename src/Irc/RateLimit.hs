@@ -18,7 +18,6 @@ up to @threshold@ seconds ahead of this time.
 module Irc.RateLimit
   ( RateLimit
   , newRateLimit
-  , newRateLimitDefault
   , tickRateLimit
   ) where
 
@@ -33,11 +32,6 @@ data RateLimit = RateLimit
   , rateThreshold :: !Int            -- ^ seconds
   , ratePenalty   :: !Int            -- ^ seconds
   }
-
--- | Construct a new rate limit with the RFC 2813 specified
--- 2 second penalty and 10 second threshold
-newRateLimitDefault :: IO RateLimit
-newRateLimitDefault = newRateLimit 2 10
 
 -- | Construct a new rate limit with the given penalty and threshold.
 newRateLimit ::
