@@ -79,6 +79,7 @@ executable glirc2
                        data-default-class   >=0.1.2  && <0.2,
                        stm                  >=2.4    && <2.5,
                        directory            >=1.2.6  && <1.3,
+                       memory               >=0.13   && <0.14,
                        filepath             >=1.4.1  && <1.5
 
   ghc-options:         -threaded -rtsopts

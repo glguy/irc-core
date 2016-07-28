@@ -233,8 +233,11 @@ applyMessage msgWhen msg cs =
          $ forgetUser' nick
          $ overChannel chan (partChannel nick) cs
     Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
+    Reply RPL_SASLSUCCESS _ -> ([ircCapEnd], cs)
+    Reply RPL_SASLFAIL _ -> ([ircCapEnd], cs)
     Reply code args        -> noReply (doRpl code msgWhen args cs)
     Cap cmd params         -> doCap cmd params cs
+    Authenticate param     -> doAuthenticate param cs
     Mode who target (modes:params)  -> doMode msgWhen who target modes params cs
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
     _                      -> noReply cs
@@ -512,8 +515,22 @@ doMyModes changes = over csModes $ \modes -> foldl applyOne modes changes
       | otherwise         = mode:modes
     applyOne modes (False, mode, _) = delete mode modes
 
-supportedCaps :: [Text]
-supportedCaps = ["multi-prefix", "znc.in/server-time-iso"]
+supportedCaps :: ConnectionState -> [Text]
+supportedCaps cs = sasl ++ ["multi-prefix", "znc.in/server-time-iso"]
+  where
+    ss = view csSettings cs
+    sasl = ["sasl" | has ssSaslUsername ss
+                   , has ssSaslPassword ss ]
+
+doAuthenticate :: Text -> ConnectionState -> ([RawIrcMsg], ConnectionState)
+doAuthenticate "+" cs
+  | Just user <- view ssSaslUsername ss
+  , Just pass <- view ssSaslPassword ss
+  = ([ircAuthenticate (encodePlainAuthentication user pass)], cs)
+  where
+    ss = view csSettings cs
+
+doAuthenticate _ cs = ([ircCapEnd], cs)
 
 doCap :: CapCmd -> [Text] -> ConnectionState -> ([RawIrcMsg], ConnectionState)
 doCap cmd args cs =
@@ -523,12 +540,15 @@ doCap cmd args cs =
       | otherwise -> ([ircCapReq reqCaps], cs)
       where
         caps = Text.words capsTxt
-        reqCaps = intersect supportedCaps caps
+        reqCaps = intersect (supportedCaps cs) caps
 
-    (CapAck,_) -> ([ircCapEnd], cs)
-    (CapNak,_) -> ([ircCapEnd], cs)
+    (CapAck,[capsTxt])
+      | "sasl" `elem` caps ->
+          ([ircAuthenticate plainAuthenticationMode], cs)
+      where
+        caps = Text.words capsTxt
 
-    _ -> noReply cs
+    _ -> ([ircCapEnd], cs)
 
 
 initialMessages :: ConnectionState -> [RawIrcMsg]

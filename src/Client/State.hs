@@ -83,7 +83,6 @@ import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.ICU as ICU
-import           Data.Time
 import           Graphics.Vty
 import           Irc.Identifier
 import           Irc.Message

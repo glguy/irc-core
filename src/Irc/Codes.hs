@@ -1300,6 +1300,33 @@ pattern RPL_XINFOSTART              = 773
 pattern RPL_XINFOEND                :: Int
 pattern RPL_XINFOEND                = 774
 
+pattern RPL_LOGGEDIN                :: Int
+pattern RPL_LOGGEDIN                = 900
+
+pattern RPL_LOGGEDOUT               :: Int
+pattern RPL_LOGGEDOUT               = 901
+
+pattern RPL_NICKLOCKED              :: Int
+pattern RPL_NICKLOCKED              = 902
+
+pattern RPL_SASLSUCCESS             :: Int
+pattern RPL_SASLSUCCESS             = 903
+
+pattern RPL_SASLFAIL                :: Int
+pattern RPL_SASLFAIL                = 904
+
+pattern RPL_SASLTOOLONG             :: Int
+pattern RPL_SASLTOOLONG             = 905
+
+pattern RPL_SASLABORTED             :: Int
+pattern RPL_SASLABORTED             = 906
+
+pattern RPL_SASLALREADY             :: Int
+pattern RPL_SASLALREADY             = 907
+
+pattern RPL_SASLMECHS               :: Int
+pattern RPL_SASLMECHS               = 908
+
 pattern ERR_CANNOTDOCOMMAND         :: Int
 pattern ERR_CANNOTDOCOMMAND         = 972
 

@@ -21,6 +21,7 @@ Client Features
 * Run commands upon connection
 * Ban lists don't obstruct chat messages
 * Ban list and user list are searchable
+* CERTFP and SASL authentication
 
 TLS
 ===
@@ -100,6 +101,8 @@ Settings
 * `username` - text - username
 * `realname` - text - realname / GECOS
 * `password` - text - server password
+* `sasl-username` - text - SASL username
+* `sasl-password` - text - SASL password
 * `tls` - yes/no - use TLS to connect
 * `tls-insecure` - yes/no - disable certificate validation
 * `tls-client-cert` - text - path to TLS client certificate

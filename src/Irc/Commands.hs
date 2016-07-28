@@ -28,12 +28,19 @@ module Irc.Commands
   , ircWho
   , ircWhois
   , ircWhowas
+
+  -- * SASL support
+  , ircAuthenticate
+  , plainAuthenticationMode
+  , encodePlainAuthentication
   ) where
 
 import           Irc.RawIrcMsg
 import           Irc.Identifier
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.ByteArray.Encoding as Enc
 
 -- | PRIVMSG command
 ircPrivmsg ::
@@ -167,3 +174,19 @@ ircCapEnd = rawIrcMsg "CAP" ["END"]
 -- | CAP LS command
 ircCapLs :: RawIrcMsg
 ircCapLs = rawIrcMsg "CAP" ["LS"]
+
+ircAuthenticate :: Text -> RawIrcMsg
+ircAuthenticate msg = rawIrcMsg "AUTHENTICATE" [msg]
+
+plainAuthenticationMode :: Text
+plainAuthenticationMode = "PLAIN"
+
+encodePlainAuthentication ::
+  Text {- ^ username -} ->
+  Text {- ^ password -} ->
+  Text
+encodePlainAuthentication user pass
+  = Text.decodeUtf8
+  $ Enc.convertToBase Enc.Base64
+  $ Text.encodeUtf8
+  $ Text.intercalate "\0" [user,user,pass]

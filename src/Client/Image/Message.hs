@@ -230,6 +230,8 @@ ircLineImage rm sigils nicks body =
       horizCat [char (withForeColor defAttr blue) '·' <|>
                 text' defAttr a | a <- args]
 
+    Authenticate{} -> string defAttr "AUTHENTICATE ***"
+
     Mode nick _chan params ->
       detail (string quietAttr "mode ") <|>
       string (withForeColor defAttr cyan) sigils <|>

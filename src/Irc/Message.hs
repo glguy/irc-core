@@ -53,6 +53,7 @@ data IrcMsg
   | Action UserInfo Identifier Text -- ^ source target txt
   | Notice UserInfo Identifier Text -- ^ source target txt
   | Mode UserInfo Identifier [Text] -- ^ source target txt
+  | Authenticate Text
   | Cap CapCmd [Text]
   | Ping [Text]
   | Pong [Text]
@@ -85,6 +86,9 @@ cookIrcMsg msg =
     "CAP" | _target:cmdTxt:rest <- view msgParams msg
           , Just cmd <- cookCapCmd cmdTxt ->
            Cap cmd rest
+
+    "AUTHENTICATE" | x:_ <- view msgParams msg ->
+        Authenticate x
 
     "PING" -> Ping (view msgParams msg)
     "PONG" -> Pong (view msgParams msg)
@@ -161,6 +165,7 @@ msgTarget me msg =
                       | otherwise -> TargetWindow tgt
     Notice  src tgt _ | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
+    Authenticate{}                -> TargetHidden
     Ping{}                        -> TargetHidden
     Pong{}                        -> TargetHidden
     Error{}                       -> TargetNetwork
@@ -183,6 +188,7 @@ msgActor msg =
     Action x _ _  -> Just x
     Notice x _ _  -> Just x
     Mode x _ _    -> Just x
+    Authenticate{}-> Nothing
     Ping{}        -> Nothing
     Pong{}        -> Nothing
     Error{}       -> Nothing
@@ -209,6 +215,7 @@ ircMsgText msg =
     Pong xs        -> Text.unwords xs
     Cap _ xs       -> Text.unwords xs
     Error t        -> t
+    Authenticate{} -> ""
 
 -- nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
 -- letter     =  %x41-5A / %x61-7A       ; A-Z / a-z
