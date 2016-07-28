@@ -212,6 +212,7 @@ ircLineImage rm sigils nicks body =
 
     Reply code params ->
       renderReplyCode rm code <|>
+      char defAttr ' ' <|>
       separatedParams (dropFst params)
       where
         dropFst = case rm of
@@ -247,13 +248,12 @@ separatedParams = horizCat . intersperse separatorImage . map parseIrcText
 
 renderReplyCode :: RenderMode -> ReplyCode -> Image
 renderReplyCode rm code@(ReplyCode w) =
-  char attr '<' <|> text' defAttr txt <|> string attr "> "
+  case rm of
+    DetailedRender -> string attr (show w)
+    NormalRender   -> text' attr (Text.toLower (replyCodeText info)) <|>
+                      char defAttr ':'
   where
     info = replyCodeInfo code
-
-    txt = case rm of
-            DetailedRender -> Text.pack (show w)
-            NormalRender   -> replyCodeText info
 
     color = case replyCodeType info of
               ClientServerReply -> magenta

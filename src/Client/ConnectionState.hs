@@ -85,7 +85,7 @@ import           Irc.UserInfo
 import           LensUtils
 
 data ConnectionState = ConnectionState
-  { _csNetworkId    :: NetworkId
+  { _csNetworkId    :: !NetworkId
   , _csChannels     :: !(HashMap Identifier ChannelState)
   , _csSocket       :: !NetworkConnection
   , _csModeTypes    :: !ModeTypes
@@ -353,7 +353,7 @@ doRpl cmd msgWhen args =
                      cs
         _ -> id
 
-    RPL_INVITELIST ->
+    RPL_INVEXLIST ->
       case args of
         _me:_tgt:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
           over csTransaction $ \t ->
@@ -361,7 +361,7 @@ doRpl cmd msgWhen args =
             in BanTransaction ((mask,(who,when)):xs)
         _ -> id
 
-    RPL_ENDOFINVITELIST ->
+    RPL_ENDOFINVEXLIST ->
       case args of
         _me:tgt:_ -> \cs ->
            set csTransaction NoTransaction
@@ -418,8 +418,8 @@ squelchReply rpl =
     RPL_ENDOFNAMES      -> True
     RPL_BANLIST         -> True
     RPL_ENDOFBANLIST    -> True
-    RPL_INVITELIST      -> True
-    RPL_ENDOFINVITELIST -> True
+    RPL_INVEXLIST       -> True
+    RPL_ENDOFINVEXLIST  -> True
     RPL_EXCEPTLIST      -> True
     RPL_ENDOFEXCEPTLIST -> True
     RPL_QUIETLIST       -> True
