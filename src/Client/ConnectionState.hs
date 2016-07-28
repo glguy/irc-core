@@ -274,7 +274,7 @@ parseTimeParam txt =
       Just $! posixSecondsToUTCTime (fromInteger i)
     _ -> Nothing
 
-doRpl :: Int -> ZonedTime -> [Text] -> ConnectionState -> ConnectionState
+doRpl :: ReplyCode -> ZonedTime -> [Text] -> ConnectionState -> ConnectionState
 doRpl cmd msgWhen args =
   case cmd of
 
@@ -411,7 +411,7 @@ doRpl cmd msgWhen args =
 -- | These replies are interpreted by the client and should only be shown
 -- in the detailed view. Any reply interpreted by 'doRpl' should be
 -- listed here.
-squelchReply :: Int -> Bool
+squelchReply :: ReplyCode -> Bool
 squelchReply rpl =
   case rpl of
     RPL_NAMREPLY        -> True

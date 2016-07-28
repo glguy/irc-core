@@ -39,10 +39,11 @@ import           Data.Text.Read as Text
 import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
+import           Irc.Codes
 
 data IrcMsg
   = UnknownMsg RawIrcMsg
-  | Reply Int [Text]
+  | Reply ReplyCode [Text]
   | Nick UserInfo Identifier
   | Join UserInfo Identifier
   | Part UserInfo Identifier (Maybe Text)
@@ -82,7 +83,7 @@ cookIrcMsg :: RawIrcMsg -> IrcMsg
 cookIrcMsg msg =
   case view msgCommand msg of
     cmd | Right (n,"") <- decimal cmd ->
-        Reply n (view msgParams msg)
+        Reply (ReplyCode n) (view msgParams msg)
     "CAP" | _target:cmdTxt:rest <- view msgParams msg
           , Just cmd <- cookCapCmd cmdTxt ->
            Cap cmd rest
@@ -200,7 +201,7 @@ ircMsgText :: IrcMsg -> Text
 ircMsgText msg =
   case msg of
     UnknownMsg raw -> Text.unwords (view msgCommand raw : view msgParams raw)
-    Reply n xs     -> Text.unwords (Text.pack (show n) : xs)
+    Reply (ReplyCode n) xs -> Text.unwords (Text.pack (show n) : xs)
     Nick x y       -> Text.unwords [renderUserInfo x, idText y]
     Join x _       -> renderUserInfo x
     Part x _ mb    -> Text.unwords (renderUserInfo x : maybeToList mb)
