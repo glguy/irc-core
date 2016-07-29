@@ -141,6 +141,7 @@ commands = HashMap.fromList
   , ("part"      , ChannelCommand cmdPart   simpleChannelTab)
 
   , ("users"     , ChannelCommand cmdUsers  noChannelTab)
+  , ("channelinfo", ChannelCommand cmdChannelInfo noChannelTab)
   , ("masks"     , ChannelCommand cmdMasks  noChannelTab)
   ]
 
@@ -359,6 +360,12 @@ cmdUsers :: NetworkName -> ConnectionState -> Identifier -> ClientState -> Strin
 cmdUsers _ _ _ st _ = commandContinue
                     $ changeSubfocus FocusUsers
                     $ consumeInput st
+
+cmdChannelInfo :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdChannelInfo _ _ _ st _
+  = commandContinue
+  $ changeSubfocus FocusInfo
+  $ consumeInput st
 
 cmdMasks :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdMasks _ cs _ st rest =

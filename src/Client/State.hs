@@ -105,6 +105,7 @@ data ClientFocus
 
 data ClientSubfocus
   = FocusMessages
+  | FocusInfo
   | FocusUsers
   | FocusMasks !Char
   deriving Eq

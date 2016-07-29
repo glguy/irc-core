@@ -14,6 +14,7 @@ module Client.Image (clientPicture) where
 import           Client.ChannelState
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
+import           Client.Image.ChannelInfo
 import           Client.Image.MaskList
 import           Client.Image.Message
 import           Client.Image.UserList
@@ -56,6 +57,8 @@ clientImage st = (img, st')
 messagePaneImages :: ClientState -> [Image]
 messagePaneImages !st =
   case (view clientFocus st, view clientSubfocus st) of
+    (ChannelFocus network channel, FocusInfo) ->
+      channelInfoImages network channel st
     (ChannelFocus network channel, FocusUsers)
       | view clientDetailView st -> userInfoImages network channel st
       | otherwise                -> userListImages network channel st
@@ -223,6 +226,7 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
     subfocusName =
       case view clientSubfocus st of
         FocusMessages -> Nothing
+        FocusInfo     -> Just $ string (withForeColor defAttr green) "info"
         FocusUsers    -> Just $ string (withForeColor defAttr green) "users"
         FocusMasks m  -> Just $ horizCat
           [ string (withForeColor defAttr green) "masks"

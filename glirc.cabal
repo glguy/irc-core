@@ -1,5 +1,5 @@
 name:                glirc
-version:             2.0
+version:             2.1
 synopsis:            Console IRC client
 description:         Console IRC client
 license:             ISC
@@ -30,6 +30,7 @@ executable glirc2
                        Client.EventLoop
                        Client.IdentifierColors
                        Client.Image
+                       Client.Image.ChannelInfo
                        Client.Image.MaskList
                        Client.Image.Message
                        Client.Image.UserList

@@ -145,6 +145,7 @@ Commands
 * `/part` - Part from current channel
 * `/users` - Show channel user list
 * `/masks <mode>` - Show channel bans(b), quiets(q), exempts(e), or invex(I)
+* `/channelinfo` - Show channel topic, creation, url
 
 Filters
 

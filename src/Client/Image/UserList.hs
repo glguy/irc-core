@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 {-|
 Module      : Client.Image.UserList
 Description : Line renderers for channel user list view
@@ -28,8 +29,11 @@ userListImages ::
   Identifier  {- ^ Focused channel name -} ->
   ClientState -> [Image]
 userListImages network channel st =
-    [horizCat (intersperse gap (map renderUser usersList))]
+    [countImage, horizCat (intersperse gap (map renderUser usersList))]
   where
+    countImage = text' (withForeColor defAttr green) "Users: " <|>
+                 string defAttr (show (HashMap.size usersHashMap))
+
     matcher = clientMatcher st
 
     myNicks = toListOf (clientConnection network . csNick) st

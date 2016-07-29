@@ -19,7 +19,7 @@ the server and updating the connection state accordingly.
 module Client.ConnectionState
   (
   -- * Connection state type
-    ConnectionState
+    ConnectionState(..)
   , csNick
   , csChannels
   , csSocket
@@ -307,7 +307,7 @@ doRpl cmd msgWhen args =
     RPL_CHANNEL_URL ->
       case args of
         _me:chan:urlTxt:_ ->
-          overChannel (mkId chan) (set chanUrl urlTxt)
+          overChannel (mkId chan) (set chanUrl (Just urlTxt))
         _ -> id
 
     RPL_ISUPPORT -> isupport args
