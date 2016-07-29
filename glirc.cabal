@@ -11,6 +11,8 @@ category:            Network
 build-type:          Custom
 extra-source-files:  ChangeLog.md README.md
 cabal-version:       >=1.23
+homepage:            https://github.com/glguy/irc-core
+bug-reports:         https://github.com/glguy/irc-core/issues
 tested-with:         GHC==8.0.1
 
 custom-setup
