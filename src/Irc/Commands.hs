@@ -9,29 +9,32 @@ Maintainer  : emertens@gmail.com
 This module provides smart constructors for IRC commands.
 -}
 module Irc.Commands
-  ( ircCapEnd
+  ( ircAway
+  , ircCapEnd
   , ircCapLs
   , ircCapReq
   , ircInvite
+  , ircIson
   , ircJoin
   , ircKick
+  , ircLinks
   , ircMode
   , ircNick
+  , ircNotice
   , ircPart
   , ircPass
   , ircPong
   , ircPrivmsg
-  , ircNotice
   , ircQuit
   , ircRemove
+  , ircStats
+  , ircTime
   , ircTopic
   , ircUser
+  , ircUserhost
   , ircWho
   , ircWhois
   , ircWhowas
-  , ircIson
-  , ircUserhost
-  , ircAway
 
   -- * SASL support
   , ircAuthenticate
@@ -166,11 +169,29 @@ ircIson ::
   RawIrcMsg
 ircIson = rawIrcMsg "ISON"
 
+-- | TIME command
+ircTime ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircTime = rawIrcMsg "TIME"
+
 -- | USERHOST command
 ircUserhost ::
   [Text] {- ^ parameters -} ->
   RawIrcMsg
 ircUserhost = rawIrcMsg "USERHOST"
+
+-- | STATS command
+ircStats ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircStats = rawIrcMsg "STATS"
+
+-- | LINKS command
+ircLinks ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircLinks = rawIrcMsg "LINKS"
 
 -- | AWAY command
 ircAway ::

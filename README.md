@@ -167,6 +167,9 @@ Queries
 * `/whowas <nick>` - Perform WHOWAS query
 * `/ison <nick>` - Perform ISON query
 * `/userhost <nick>` - Perform USERHOST query
+* `/links <server>` - Perform LINKS query
+* `/time` - Perform TIME query
+* `/stats <query>` - Perform STATS query
 
 Channel information
 

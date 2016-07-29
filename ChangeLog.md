@@ -2,7 +2,7 @@
 
 ## 2.2
 
-* Add commands `/ison`, `/userhost`, `/away`, `/notice`, `/ctcp`
+* Add commands `/ison`, `/userhost`, `/away`, `/notice`, `/ctcp`, `/links`, `/time`, `/stats`
 * Render CTCP messages
 
 ## 2.1
