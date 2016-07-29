@@ -200,10 +200,12 @@ recordChannelMessage network channel msg st =
   where
     focus = ChannelFocus network channel'
     wl = toWindowLine rendParams msg
+    myNicks = toListOf (clientConnection network . csNick) st
     rendParams = MessageRendererParams
       { rendStatusMsg  = statusModes
       , rendUserSigils = computeMsgLineModes network channel' msg st
       , rendNicks      = channelUserList network channel' st
+      , rendMyNicks    = myNicks
       }
 
     -- on failure returns mempty/""

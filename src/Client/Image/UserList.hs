@@ -32,9 +32,11 @@ userListImages network channel st =
   where
     matcher = clientMatcher st
 
+    myNicks = toListOf (clientConnection network . csNick) st
+
     renderUser (ident, sigils) =
       string (withForeColor defAttr cyan) sigils <|>
-      coloredIdentifier ident
+      coloredIdentifier myNicks ident
 
     gap = char defAttr ' '
 
@@ -58,9 +60,11 @@ userInfoImages network channel st = renderEntry <$> usersList
   where
     matcher = clientMatcher st
 
+    myNicks = toListOf (clientConnection network . csNick) st
+
     renderEntry (info, sigils) =
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo DetailedRender info
+      coloredUserInfo DetailedRender myNicks info
 
     matcher' (info,sigils) =
       matcher (Text.pack sigils `Text.append` renderUserInfo info)

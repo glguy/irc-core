@@ -19,6 +19,7 @@ module Client.ChannelState
     ChannelState
   , chanTopic
   , chanTopicProvenance
+  , chanUrl
   , chanUsers
   , chanModes
   , chanLists
@@ -56,6 +57,8 @@ data ChannelState = ChannelState
         -- ^ topic text
   , _chanTopicProvenance :: !(Maybe TopicProvenance)
         -- ^ author and timestamp for topic
+  , _chanUrl :: !Text
+        -- ^ channel URL
   , _chanUsers :: !(HashMap Identifier String)
         -- ^ user list and sigils
   , _chanModes :: !(Map Char Text)
@@ -80,6 +83,7 @@ makeLenses ''TopicProvenance
 newChannel :: ChannelState
 newChannel = ChannelState
   { _chanTopic = Text.empty
+  , _chanUrl = Text.empty
   , _chanTopicProvenance = Nothing
   , _chanUsers = HashMap.empty
   , _chanModes = Map.empty

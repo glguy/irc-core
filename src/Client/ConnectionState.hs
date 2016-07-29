@@ -304,6 +304,12 @@ doRpl cmd msgWhen args =
           overChannel (mkId chan) (set chanCreation (Just when))
         _ -> id
 
+    RPL_CHANNEL_URL ->
+      case args of
+        _me:chan:urlTxt:_ ->
+          overChannel (mkId chan) (set chanUrl urlTxt)
+        _ -> id
+
     RPL_ISUPPORT -> isupport args
 
     RPL_NAMREPLY ->
@@ -428,6 +434,7 @@ squelchReply rpl =
     RPL_TOPIC           -> True
     RPL_TOPICWHOTIME    -> True
     RPL_CREATIONTIME    -> True
+    RPL_CHANNEL_URL     -> True
     RPL_NOTOPIC         -> True
     RPL_WHOREPLY        -> True
     RPL_ENDOFWHO        -> True
