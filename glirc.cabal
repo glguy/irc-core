@@ -10,8 +10,12 @@ copyright:           2016 Eric Mertens
 category:            Network
 build-type:          Custom
 extra-source-files:  ChangeLog.md README.md
-cabal-version:       >=1.10
+cabal-version:       >=1.23
 tested-with:         GHC==8.0.1
+
+custom-setup
+  setup-depends: base  >=4.9  && <4.10,
+                 Cabal >=1.24 && <1.25
 
 source-repository head
   type: git
