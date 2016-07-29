@@ -119,30 +119,51 @@ Settings
 Commands
 ========
 
+Client commands
+
 * `/exit` - Terminate the client
 * `/quit` - Gracefully terminate connection to the current server
-* `/disconnect` - Forcefully terminate connection to the current server
 * `/connect <hostname>` - Connect to the given hostname
+* `/disconnect` - Forcefully terminate connection to the current server
 * `/reconnect` - Reconnect to the current server
+* `/nick <nick>` - Change nickname
+
+Window management
+
 * `/focus <server>` - Change focus to server window
 * `/focus <server> <channel>` - Change focus to channel window
-* `/clear` - <Clear contents of current window
+* `/clear` - Clear contents of current window
 * `/ignore <nick>` - Toggle ignore of a user
-* `/quote <raw command>` - Send a raw IRC command to the server
+
+Channel membership
+
 * `/join <channel>` - Join a channel
-* `/mode <mode> <params>` - Change modes on the current channel
+* `/part` - Part from current channel
+
+Chat commands
+
 * `/msg <target> <msg>` - Send a message on the current server to target
-* `/nick <nick>` - Change nickname
-* `/who <query>` - Perform WHO query (use detailed view to see output)
-* `/whois <nick>` - Perform WHOIS query
-* `/whowas <nick>` - Perform WHOWAS query
-* `/invite <nick>` - Invite a user to the current channel
-* `/topic <topic>` - Change the topic
+* `/notice <target> <msg>` - Send a notice message on the current server to target
+* `/ctcp <target> <command> <args>` - Send a ctcp command on the current server to target
+* `/me` - Send action message to channel
+
+Channel management
+
+* `/mode <mode> <params>` - Change modes on the current channel
 * `/kick <nick>` - Kick a user
 * `/kickban <nick>` - Kick and ban a user
 * `/remove` - Gracefully kick a user
-* `/me` - Send action message to channel
-* `/part` - Part from current channel
+* `/topic <topic>` - Change the topic
+* `/invite <nick>` - Invite a user to the current channel
+
+Queries
+
+* `/who <query>` - Perform WHO query (use detailed view to see output)
+* `/whois <nick>` - Perform WHOIS query
+* `/whowas <nick>` - Perform WHOWAS query
+
+Channel information
+
 * `/users` - Show channel user list
 * `/masks <mode>` - Show channel bans(b), quiets(q), exempts(e), or invex(I)
 * `/channelinfo` - Show channel topic, creation, url
@@ -151,6 +172,10 @@ Filters
 
 * `/grep` - Filter chat messages using a regular expression
 * `/grepi` - Filter chat messages using a case-insensitive regular expression on the message
+
+Low-level
+
+* `/quote <raw command>` - Send a raw IRC command to the server
 
 Keyboard Shortcuts
 ==================

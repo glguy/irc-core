@@ -198,7 +198,7 @@ ircLineImage rm sigils myNicks nicks body =
       parseIrcTextWithNicks myNicks nicks txt
 
     Ctcp src _dst "ACTION" txt ->
-      detail (string quietAttr "chat ") <|>
+      detail (string quietAttr "actp ") <|>
       string (withForeColor defAttr blue) "* " <|>
       string (withForeColor defAttr cyan) sigils <|>
       coloredUserInfo rm myNicks src <|>
@@ -206,7 +206,7 @@ ircLineImage rm sigils myNicks nicks body =
       parseIrcTextWithNicks myNicks nicks txt
 
     CtcpNotice src _dst "ACTION" txt ->
-      detail (string quietAttr "chat ") <|>
+      detail (string quietAttr "actn ") <|>
       string (withForeColor defAttr red) "* " <|>
       string (withForeColor defAttr cyan) sigils <|>
       coloredUserInfo rm myNicks src <|>
@@ -216,6 +216,9 @@ ircLineImage rm sigils myNicks nicks body =
     Ctcp src _dst cmd txt ->
       detail (string quietAttr "ctcp ") <|>
       string (withForeColor defAttr blue) "! " <|>
+      string (withForeColor defAttr cyan) sigils <|>
+      coloredUserInfo rm myNicks src <|>
+      string defAttr " " <|>
       parseIrcText cmd <|>
       separatorImage <|>
       parseIrcText txt
@@ -223,6 +226,9 @@ ircLineImage rm sigils myNicks nicks body =
     CtcpNotice src _dst cmd txt ->
       detail (string quietAttr "ctcp ") <|>
       string (withForeColor defAttr red) "! " <|>
+      string (withForeColor defAttr cyan) sigils <|>
+      coloredUserInfo rm myNicks src <|>
+      string defAttr " " <|>
       parseIrcText cmd <|>
       separatorImage <|>
       parseIrcText txt
