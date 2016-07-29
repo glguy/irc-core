@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 {-|
 Module      : Client.Image.Message
 Description : Renderer for message lines
@@ -196,13 +197,20 @@ ircLineImage rm sigils myNicks nicks body =
       string defAttr ": " <|>
       parseIrcTextWithNicks myNicks nicks txt
 
-    Action src _dst txt ->
+    Ctcp src _dst "ACTION" txt ->
       detail (string quietAttr "chat ") <|>
       string (withForeColor defAttr blue) "* " <|>
       string (withForeColor defAttr cyan) sigils <|>
       coloredUserInfo rm myNicks src <|>
       string defAttr " " <|>
       parseIrcTextWithNicks myNicks nicks txt
+
+    Ctcp src _dst cmd txt ->
+      detail (string quietAttr "ctcp ") <|>
+      string (withForeColor defAttr blue) "! " <|>
+      parseIrcText cmd <|>
+      separatorImage <|>
+      parseIrcText txt
 
     Ping params ->
       string defAttr "PING " <|> separatedParams params
@@ -329,6 +337,8 @@ metadataImg msg =
     Quit who _   -> Just (char (withForeColor defAttr red  ) 'x', Just (userNick who))
     Part who _ _ -> Just (char (withForeColor defAttr red  ) '-', Just (userNick who))
     Join who _   -> Just (char (withForeColor defAttr green) '+', Just (userNick who))
+    Ctcp who _ cmd _ | cmd /= "ACTION"  ->
+                    Just (char (withForeColor defAttr white) 'C', Just (userNick who))
     Nick old new -> Just (quietIdentifier (userNick old) <|>
                           char (withForeColor defAttr yellow) '-' <|>
                           quietIdentifier new, Nothing)

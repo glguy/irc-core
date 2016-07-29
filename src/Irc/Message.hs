@@ -31,6 +31,7 @@ module Irc.Message
   ) where
 
 import           Control.Lens
+import           Control.Monad
 import           Data.Function
 import           Data.Maybe
 import           Data.Text (Text)
@@ -51,7 +52,7 @@ data IrcMsg
   | Kick UserInfo Identifier Identifier Text -- ^ kicker channel kickee comment
   | Topic UserInfo Identifier Text -- ^ user channel topic
   | Privmsg UserInfo Identifier Text -- ^ source target txt
-  | Action UserInfo Identifier Text -- ^ source target txt
+  | Ctcp UserInfo Identifier Text Text -- ^ source target command txt
   | Notice UserInfo Identifier Text -- ^ source target txt
   | Mode UserInfo Identifier [Text] -- ^ source target txt
   | Authenticate Text
@@ -97,9 +98,9 @@ cookIrcMsg msg =
     "PRIVMSG" | Just user <- view msgPrefix msg
            , [chan,txt]   <- view msgParams msg ->
 
-           case Text.stripSuffix "\^A" =<< Text.stripPrefix "\^AACTION " txt of
-             Just action -> Action  user (mkId chan) action
-             Nothing     -> Privmsg user (mkId chan) txt
+           case parseCtcp txt of
+             Just (cmd,args) -> Ctcp user (mkId chan) (Text.toUpper cmd) args
+             Nothing         -> Privmsg user (mkId chan) txt
 
     "NOTICE" | Just user <- view msgPrefix msg
            , [chan,txt]    <- view msgParams msg ->
@@ -139,6 +140,17 @@ cookIrcMsg msg =
 
     _      -> UnknownMsg msg
 
+-- | Parse a CTCP encoded message:
+--
+-- @\^ACOMMAND arguments\^A@
+parseCtcp :: Text -> Maybe (Text, Text)
+parseCtcp txt =
+  do txt1 <- Text.stripSuffix "\^A" =<< Text.stripPrefix "\^A" txt
+     let (cmd,args) = Text.break (==' ') txt1
+     guard (not (Text.null cmd))
+     return (cmd, Text.drop 1 args)
+     
+
 -- | Targets used to direct a message to a window for display
 data MessageTarget
   = TargetUser   !Identifier -- ^ Metadata update for a user
@@ -162,7 +174,7 @@ msgTarget me msg =
     Topic _ chan _                -> TargetWindow chan
     Privmsg src tgt _ | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
-    Action  src tgt _ | tgt == me -> TargetWindow (userNick src)
+    Ctcp src tgt _ _  | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
     Notice  src tgt _ | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
@@ -186,7 +198,7 @@ msgActor msg =
     Kick x _ _ _  -> Just x
     Topic x _ _   -> Just x
     Privmsg x _ _ -> Just x
-    Action x _ _  -> Just x
+    Ctcp x _ _ _  -> Just x
     Notice x _ _  -> Just x
     Mode x _ _    -> Just x
     Authenticate{}-> Nothing
@@ -209,7 +221,7 @@ ircMsgText msg =
     Kick x _ z r   -> Text.unwords [renderUserInfo x, idText z, r]
     Topic x _ t    -> Text.unwords [renderUserInfo x, t]
     Privmsg x _ t  -> Text.unwords [renderUserInfo x, t]
-    Action x _ t   -> Text.unwords [renderUserInfo x, t]
+    Ctcp x _ c t   -> Text.unwords [renderUserInfo x, c, t]
     Notice x _ t   -> Text.unwords [renderUserInfo x, t]
     Mode x _ xs    -> Text.unwords (renderUserInfo x:"set mode":xs)
     Ping xs        -> Text.unwords xs

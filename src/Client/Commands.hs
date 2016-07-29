@@ -215,7 +215,7 @@ cmdMe network cs channelId st rest =
          entry = ClientMessage
                     { _msgTime = now
                     , _msgNetwork = network
-                    , _msgBody = IrcBody (Action myNick channelId (Text.pack rest))
+                    , _msgBody = IrcBody (Ctcp myNick channelId "ACTION" (Text.pack rest))
                     }
      sendMsg cs (ircPrivmsg channelId actionTxt)
      commandContinue
