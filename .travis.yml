@@ -72,4 +72,13 @@ script:
 # `cabal install --force-reinstalls dist/*-*.tar.gz`
  - SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz &&
    (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
+
+notifications:
+  irc:
+    channels:
+      - "irc.freenode.org#haskell-irc"
+    skip_join: true
+    use_notice: true
+    template:
+      - "\x0313irc-core\x0f/\x0306%{branch}\x0f \x0314%{commit}\x0f %{message} \x0302\x1f%{build_url}\x0f"
 # EOF
