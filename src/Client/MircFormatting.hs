@@ -15,13 +15,14 @@ module Client.MircFormatting
   , parseIrcTextExplicit
   ) where
 
-import Graphics.Vty hiding ((<|>))
+import           Control.Applicative ((<|>))
+import           Control.Lens
+import           Data.Attoparsec.Text as Parse
+import           Data.Char
+import           Data.Maybe
+import           Data.Text (Text)
+import           Graphics.Vty hiding ((<|>))
 import qualified Graphics.Vty as Vty
-import Data.Attoparsec.Text as Parse
-import Data.Char
-import Data.Text (Text)
-import Control.Applicative ((<|>))
-import Control.Lens
 
 data FormatState = FormatState
   { _fmtFore :: Maybe Color
@@ -87,11 +88,14 @@ pIrcLine explicit fmt =
                               Vty.<|> rest
                           else rest
        Just (ControlSegment c)
-          | explicit -> do rest <- next
-                           return (Vty.char controlAttr (controlName c) Vty.<|> rest)
+          -- always render control codes that we don't understand
+          | isNothing mbFmt' || explicit ->
+                do rest <- next
+                   return (Vty.char controlAttr (controlName c) Vty.<|> rest)
           | otherwise -> next
           where
-            next = pIrcLine explicit $ applyControlEffect c fmt
+            mbFmt' = applyControlEffect c fmt
+            next = pIrcLine explicit (fromMaybe fmt mbFmt')
 
 pColorNumbers :: Parser (Maybe Int, Maybe Int)
 pColorNumbers = option (Nothing,Nothing) $
@@ -135,13 +139,13 @@ mircColor  _ = Nothing
 rgbColor' :: Int -> Int -> Int -> Color
 rgbColor' = rgbColor -- fix the type to Int
 
-applyControlEffect :: Char -> FormatState -> FormatState
-applyControlEffect '\^B' = over fmtBold not
-applyControlEffect '\^O' = const defaultFormatState
-applyControlEffect '\^V' = over fmtReverse not
-applyControlEffect '\^]' = over fmtItalic not
-applyControlEffect '\^_' = over fmtUnderline not
-applyControlEffect _     = id
+applyControlEffect :: Char -> FormatState -> Maybe FormatState
+applyControlEffect '\^B' = Just . over fmtBold not
+applyControlEffect '\^O' = Just . const defaultFormatState
+applyControlEffect '\^V' = Just . over fmtReverse not
+applyControlEffect '\^]' = Just . over fmtItalic not
+applyControlEffect '\^_' = Just . over fmtUnderline not
+applyControlEffect _     = const Nothing
 
 controlAttr :: Attr
 controlAttr = defAttr `withStyle` reverseVideo
