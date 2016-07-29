@@ -61,7 +61,7 @@ defaultUmodeTypes = ModeTypes
   { _modesLists     = ""
   , _modesAlwaysArg = ""
   , _modesSetArg    = "s"
-  , _modesNeverArg  = ""
+  , _modesNeverArg  = "DQRZgiow"
   , _modesPrefixModes = []
   }
 

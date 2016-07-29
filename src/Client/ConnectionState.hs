@@ -280,6 +280,13 @@ parseTimeParam txt =
 doRpl :: ReplyCode -> ZonedTime -> [Text] -> ConnectionState -> ConnectionState
 doRpl cmd msgWhen args =
   case cmd of
+    RPL_UMODEIS ->
+      case args of
+        _me:modes:params
+          | Just xs <- splitModes defaultUmodeTypes modes params ->
+                 doMyModes xs
+               . set csModes "" -- reset modes
+        _ -> id
 
     RPL_NOTOPIC ->
       case args of
@@ -440,6 +447,7 @@ squelchReply rpl =
     RPL_CREATIONTIME    -> True
     RPL_CHANNEL_URL     -> True
     RPL_NOTOPIC         -> True
+    RPL_UMODEIS         -> True
     RPL_WHOREPLY        -> True
     RPL_ENDOFWHO        -> True
     _                   -> False
@@ -519,7 +527,7 @@ doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
 
 
 doMyModes :: [(Bool, Char, Text)] -> ConnectionState -> ConnectionState
-doMyModes changes = over csModes $ \modes -> foldl applyOne modes changes
+doMyModes changes = over csModes $ \modes -> sort (foldl' applyOne modes changes)
   where
     applyOne modes (True, mode, _)
       | mode `elem` modes = modes
