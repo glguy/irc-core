@@ -133,6 +133,9 @@ commands = HashMap.fromList
   , ("who"       , NetworkCommand cmdWho    simpleNetworkTab)
   , ("whois"     , NetworkCommand cmdWhois  simpleNetworkTab)
   , ("whowas"    , NetworkCommand cmdWhowas simpleNetworkTab)
+  , ("ison"      , NetworkCommand cmdIson   simpleNetworkTab)
+  , ("userhost"  , NetworkCommand cmdUserhost simpleNetworkTab)
+  , ("away"      , NetworkCommand cmdAway   simpleNetworkTab)
 
   , ("invite"    , ChannelCommand cmdInvite simpleChannelTab)
   , ("topic"     , ChannelCommand cmdTopic  tabTopic    )
@@ -345,6 +348,21 @@ cmdWho _ cs st rest =
 cmdWhowas :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdWhowas _ cs st rest =
   do sendMsg cs (ircWhowas (Text.pack <$> words rest))
+     commandContinue (consumeInput st)
+
+cmdIson :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdIson _ cs st rest =
+  do sendMsg cs (ircIson (Text.pack <$> words rest))
+     commandContinue (consumeInput st)
+
+cmdUserhost :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdUserhost _ cs st rest =
+  do sendMsg cs (ircUserhost (Text.pack <$> words rest))
+     commandContinue (consumeInput st)
+
+cmdAway :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdAway _ cs st rest =
+  do sendMsg cs (ircAway (Text.pack (dropWhile (==' ') rest)))
      commandContinue (consumeInput st)
 
 cmdMode :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult

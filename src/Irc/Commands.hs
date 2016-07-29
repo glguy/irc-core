@@ -29,6 +29,9 @@ module Irc.Commands
   , ircWho
   , ircWhois
   , ircWhowas
+  , ircIson
+  , ircUserhost
+  , ircAway
 
   -- * SASL support
   , ircAuthenticate
@@ -156,6 +159,26 @@ ircPong ::
   [Text] {- ^ parameters -} ->
   RawIrcMsg
 ircPong = rawIrcMsg "PONG"
+
+-- | ISON command
+ircIson ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircIson = rawIrcMsg "ISON"
+
+-- | USERHOST command
+ircUserhost ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircUserhost = rawIrcMsg "USERHOST"
+
+-- | AWAY command
+ircAway ::
+  Text {- ^ message -} ->
+  RawIrcMsg
+ircAway msg
+  | Text.null msg = rawIrcMsg "AWAY" []
+  | otherwise     = rawIrcMsg "AWAY" [msg]
 
 ircUser ::
   Text {- ^ username -} ->

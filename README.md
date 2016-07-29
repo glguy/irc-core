@@ -126,7 +126,11 @@ Client commands
 * `/connect <hostname>` - Connect to the given hostname
 * `/disconnect` - Forcefully terminate connection to the current server
 * `/reconnect` - Reconnect to the current server
+
+Connection commands
+
 * `/nick <nick>` - Change nickname
+* `/away <message>` - Set away status
 
 Window management
 
@@ -161,6 +165,8 @@ Queries
 * `/who <query>` - Perform WHO query (use detailed view to see output)
 * `/whois <nick>` - Perform WHOIS query
 * `/whowas <nick>` - Perform WHOWAS query
+* `/ison <nick>` - Perform ISON query
+* `/userhost <nick>` - Perform USERHOST query
 
 Channel information
 
@@ -168,7 +174,7 @@ Channel information
 * `/masks <mode>` - Show channel bans(b), quiets(q), exempts(e), or invex(I)
 * `/channelinfo` - Show channel topic, creation, url
 
-Filters
+Window filters
 
 * `/grep` - Filter chat messages using a regular expression
 * `/grepi` - Filter chat messages using a case-insensitive regular expression on the message

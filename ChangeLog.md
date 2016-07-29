@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.2
+
+* Add commands `/ison`, `/userhost`, `/away`, `/notice`, `/ctcp`
+* Render CTCP messages
+
 ## 2.1
 
 * Add red highlighting for own nick
