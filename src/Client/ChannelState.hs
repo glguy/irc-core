@@ -52,6 +52,7 @@ import           Irc.Identifier
 import           Irc.RawIrcMsg (RawIrcMsg)
 import           Irc.UserInfo
 
+-- | Dynamic information about the state of an IRC channel
 data ChannelState = ChannelState
   { _chanTopic :: !Text
         -- ^ topic text
@@ -97,6 +98,7 @@ chanList ::
   Functor f =>
   Char {- ^ mode -} ->
   LensLike' f ChannelState (HashMap Text (Text, UTCTime))
+    {- ^ HashMap mask (setby, setwhen) -}
 chanList mode = chanLists . at mode . non' _Empty
 
 -- | Add a user to the user list

@@ -51,6 +51,7 @@ import qualified Data.Text as Text
 
 import Network.Socket (HostName, PortNumber)
 
+-- | Static server-level settings
 data ServerSettings = ServerSettings
   { _ssNick             :: !Text -- ^ connection nickname
   , _ssUser             :: !Text -- ^ connection username

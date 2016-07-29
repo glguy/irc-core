@@ -42,13 +42,14 @@ import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           Irc.Codes
 
+-- | High-level IRC message representation
 data IrcMsg
-  = UnknownMsg RawIrcMsg
-  | Reply ReplyCode [Text]
-  | Nick UserInfo Identifier
-  | Join UserInfo Identifier
-  | Part UserInfo Identifier (Maybe Text)
-  | Quit UserInfo (Maybe Text)
+  = UnknownMsg RawIrcMsg -- ^ pass-through for unhandled messages
+  | Reply ReplyCode [Text] -- ^ code arguments
+  | Nick UserInfo Identifier -- ^ old new
+  | Join UserInfo Identifier -- ^ user channel
+  | Part UserInfo Identifier (Maybe Text) -- ^ user channel reason
+  | Quit UserInfo (Maybe Text) -- ^ user reason
   | Kick UserInfo Identifier Identifier Text -- ^ kicker channel kickee comment
   | Topic UserInfo Identifier Text -- ^ user channel topic
   | Privmsg UserInfo Identifier Text -- ^ source target txt
@@ -56,21 +57,23 @@ data IrcMsg
   | CtcpNotice UserInfo Identifier Text Text -- ^ source target command txt
   | Notice UserInfo Identifier Text -- ^ source target txt
   | Mode UserInfo Identifier [Text] -- ^ source target txt
-  | Authenticate Text
-  | Cap CapCmd [Text]
-  | Ping [Text]
-  | Pong [Text]
-  | Error Text
+  | Authenticate Text -- ^ parameters
+  | Cap CapCmd [Text] -- ^ command parameters
+  | Ping [Text] -- ^ parameters
+  | Pong [Text] -- ^ parameters
+  | Error Text -- ^ message
   deriving Show
 
+-- | Sub-commands of the CAP command
 data CapCmd
-  = CapLs
-  | CapList
-  | CapReq
-  | CapAck
-  | CapNak
+  = CapLs -- ^ request list of supported caps
+  | CapList -- ^ request list of active caps
+  | CapReq -- ^ request activation of cap
+  | CapAck -- ^ request accepted
+  | CapNak -- ^ request denied
   deriving (Show, Eq, Ord)
 
+-- | Match command text to structured cap sub-command
 cookCapCmd :: Text -> Maybe CapCmd
 cookCapCmd "LS"   = Just CapLs
 cookCapCmd "LIST" = Just CapList
@@ -153,7 +156,7 @@ parseCtcp txt =
      let (cmd,args) = Text.break (==' ') txt1
      guard (not (Text.null cmd))
      return (cmd, Text.drop 1 args)
-     
+
 
 -- | Targets used to direct a message to a window for display
 data MessageTarget

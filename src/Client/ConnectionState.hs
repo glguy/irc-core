@@ -283,7 +283,9 @@ doRpl cmd msgWhen args =
 
     RPL_NOTOPIC ->
       case args of
-        _me:chan:_ -> overChannel (mkId chan) (setTopic "" . set chanTopicProvenance Nothing)
+        _me:chan:_ -> overChannel
+                        (mkId chan)
+                        (setTopic "" . set chanTopicProvenance Nothing)
         _          -> id
 
     RPL_TOPIC ->
@@ -418,8 +420,7 @@ doRpl cmd msgWhen args =
 
 
 -- | These replies are interpreted by the client and should only be shown
--- in the detailed view. Any reply interpreted by 'doRpl' should be
--- listed here.
+-- in the detailed view.
 squelchReply :: ReplyCode -> Bool
 squelchReply rpl =
   case rpl of
@@ -691,6 +692,7 @@ forgetUser' nick cs
   where
     keep = has (csChannels . folded . chanUsers . ix nick) cs
 
+-- | Process a list of WHO replies
 massRegistration :: ConnectionState -> ConnectionState
 massRegistration cs
   = set csTransaction NoTransaction
@@ -708,11 +710,13 @@ massRegistration cs
           HashMap.insert (userNick info) (userName info, userHost info) users
       | otherwise = users
 
+-- | Timer-based events
 data TimedAction
-  = TimedDisconnect
-  | TimedSendPing
+  = TimedDisconnect -- ^ terminate the connection due to timeout
+  | TimedSendPing -- ^ transmit a ping to the server
   deriving (Eq, Ord, Show)
 
+-- | Compute the earliest timed action for a connection, if any
 nextTimedAction :: ConnectionState -> Maybe (UTCTime, TimedAction)
 nextTimedAction cs =
   do runAt <- view csNextPingTime cs

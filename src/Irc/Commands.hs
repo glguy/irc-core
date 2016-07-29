@@ -201,6 +201,7 @@ ircAway msg
   | Text.null msg = rawIrcMsg "AWAY" []
   | otherwise     = rawIrcMsg "AWAY" [msg]
 
+-- | USER command
 ircUser ::
   Text {- ^ username -} ->
   Bool {- ^ set +w   -} ->
@@ -227,12 +228,15 @@ ircCapEnd = rawIrcMsg "CAP" ["END"]
 ircCapLs :: RawIrcMsg
 ircCapLs = rawIrcMsg "CAP" ["LS"]
 
+-- | AUTHENTICATE command
 ircAuthenticate :: Text -> RawIrcMsg
 ircAuthenticate msg = rawIrcMsg "AUTHENTICATE" [msg]
 
+-- | PLAIN authentiation mode
 plainAuthenticationMode :: Text
 plainAuthenticationMode = "PLAIN"
 
+-- | Encoding of username and password in PLAIN authentication
 encodePlainAuthentication ::
   Text {- ^ username -} ->
   Text {- ^ password -} ->

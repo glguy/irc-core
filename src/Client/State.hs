@@ -95,19 +95,22 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
 
+-- | Textual name of a network connection
 type NetworkName = Text
 
+-- | Currently focused window
 data ClientFocus
- = Unfocused
- | NetworkFocus !NetworkName
- | ChannelFocus !NetworkName !Identifier
+ = Unfocused -- ^ No network
+ | NetworkFocus !NetworkName -- ^ Network
+ | ChannelFocus !NetworkName !Identifier -- ^ Channel on network
   deriving Eq
 
+-- | Subfocus for a channel view
 data ClientSubfocus
-  = FocusMessages
-  | FocusInfo
-  | FocusUsers
-  | FocusMasks !Char
+  = FocusMessages -- ^ Show chat messages
+  | FocusInfo -- ^ Show channel metadata
+  | FocusUsers -- ^ Show user list
+  | FocusMasks !Char -- ^ Show mask list for given mode
   deriving Eq
 
 -- | Unfocused first, followed by focuses sorted by network.
@@ -150,20 +153,25 @@ data ClientState = ClientState
 
 makeLenses ''ClientState
 
+-- | 'Traversal' for finding the 'ConnectionState' associated with a given network
+-- if that connection is currently active.
 clientConnection :: Applicative f => NetworkName -> LensLike' f ClientState ConnectionState
 clientConnection network f st =
   case view (clientNetworkMap . at network) st of
     Nothing -> pure st
     Just i  -> clientConnections (ix i f) st
 
+-- | Full content of the edit box
 clientInput :: ClientState -> String
 clientInput = view (clientTextBox . Edit.content)
 
+-- | Return the network associated with the current focus
 focusNetwork :: ClientFocus -> Maybe NetworkName
 focusNetwork Unfocused = Nothing
 focusNetwork (NetworkFocus network) = Just network
 focusNetwork (ChannelFocus network _) = Just network
 
+-- | Construct an initial 'ClientState' using default values.
 initialClientState :: Configuration -> Vty -> IO ClientState
 initialClientState cfg vty =
   do (width,height) <- displayBounds (outputIface vty)
@@ -188,6 +196,8 @@ initialClientState cfg vty =
         , _clientIgnores           = HashSet.empty
         }
 
+-- | Forcefully terminate the connection currently associated
+-- with a given network name.
 abortNetwork :: NetworkName -> ClientState -> IO ClientState
 abortNetwork network st =
   case preview (clientConnection network) st of
@@ -195,16 +205,22 @@ abortNetwork network st =
     Just cs -> do abortConnection (view csSocket cs)
                   return $ set (clientNetworkMap . at network) Nothing st
 
-recordChannelMessage :: NetworkName -> Identifier -> ClientMessage -> ClientState -> ClientState
+-- | Add a message to the window associated with a given channel
+recordChannelMessage ::
+  NetworkName ->
+  Identifier {- ^ channel -} ->
+  ClientMessage -> ClientState -> ClientState
 recordChannelMessage network channel msg st =
-  over (clientWindows . at focus) (\w -> Just $! addToWindow importance wl (fromMaybe emptyWindow w)) st
+  over (clientWindows . at focus)
+       (\w -> Just $! addToWindow importance wl (fromMaybe emptyWindow w))
+       st
   where
     focus = ChannelFocus network channel'
     wl = toWindowLine rendParams msg
     myNicks = toListOf (clientConnection network . csNick) st
     rendParams = MessageRendererParams
       { rendStatusMsg  = statusModes
-      , rendUserSigils = computeMsgLineModes network channel' msg st
+      , rendUserSigils = computeMsgLineSigils network channel' msg st
       , rendNicks      = channelUserList network channel' st
       , rendMyNicks    = myNicks
       }
@@ -214,6 +230,8 @@ recordChannelMessage network channel msg st =
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
     importance = msgImportance msg st
 
+-- | Compute the importance of a message to be used when computing
+-- change notifications in the client.
 msgImportance :: ClientMessage -> ClientState -> WindowLineImportance
 msgImportance msg st =
   let network = view msgNetwork msg
@@ -265,40 +283,61 @@ ircIgnorable msg st =
       | otherwise                             = Nothing
 
 
-recordIrcMessage :: NetworkName -> MessageTarget -> ClientMessage -> ClientState -> ClientState
+-- | Record a message in the windows corresponding to the given target
+recordIrcMessage ::
+  NetworkName -> MessageTarget -> ClientMessage -> ClientState -> ClientState
 recordIrcMessage network target msg st =
   case target of
     TargetHidden -> st
     TargetNetwork -> recordNetworkMessage msg st
     TargetWindow chan -> recordChannelMessage network chan msg st
-    TargetUser user -> foldl' (\st' chan -> overStrict
-                                              (clientWindows . ix (ChannelFocus network chan))
-                                              (addToWindow WLBoring wl) st')
-                              st chans
+    TargetUser user ->
+      foldl' (\st' chan -> overStrict
+                             (clientWindows . ix (ChannelFocus network chan))
+                             (addToWindow WLBoring wl) st')
+           st chans
       where
         wl = toWindowLine' msg
         chans =
           case preview (clientConnection network . csChannels) st of
             Nothing -> []
-            Just m  -> [chan | (chan, cs) <- HashMap.toList m, HashMap.member user (view chanUsers cs) ]
+            Just m  -> [chan | (chan, cs) <- HashMap.toList m
+                             , HashMap.member user (view chanUsers cs) ]
 
-splitStatusMsgModes :: [Char] -> Identifier -> ([Char], Identifier)
+-- | Extract the status mode sigils from a message target.
+splitStatusMsgModes ::
+  [Char]               {- ^ possible modes              -} ->
+  Identifier           {- ^ target                      -} ->
+  ([Char], Identifier) {- ^ actual modes, actual target -}
 splitStatusMsgModes possible ident = (Text.unpack modes, mkId ident')
   where
     (modes, ident') = Text.span (`elem` possible) (idText ident)
 
-computeMsgLineModes :: NetworkName -> Identifier -> ClientMessage -> ClientState -> [Char]
-computeMsgLineModes network channel msg st =
+-- | Compute the sigils of the user who sent a message.
+computeMsgLineSigils ::
+  NetworkName ->
+  Identifier {- ^ channel -} ->
+  ClientMessage ->
+  ClientState ->
+  [Char] {- ^ sigils -}
+computeMsgLineSigils network channel msg st =
   case msgActor =<< preview (msgBody . _IrcBody) msg of
-    Just user -> computeLineModes network channel (userNick user) st
+    Just user -> computeUserSigils network channel (userNick user) st
     Nothing   -> []
 
-computeLineModes :: NetworkName -> Identifier -> Identifier -> ClientState -> [Char]
-computeLineModes network channel user =
+-- | Compute sigils for a user on a channel
+computeUserSigils ::
+  NetworkName ->
+  Identifier {- ^ channel -} ->
+  Identifier {- ^ user    -} ->
+  ClientState ->
+  [Char] {- ^ sigils -}
+computeUserSigils network channel user =
     view $ clientConnection network
          . csChannels . ix channel
          . chanUsers  . ix user
 
+-- | Record a message on a network window
 recordNetworkMessage :: ClientMessage -> ClientState -> ClientState
 recordNetworkMessage msg st =
   over (clientWindows . at (NetworkFocus network))
