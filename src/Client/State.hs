@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, BangPatterns #-}
+{-# Language TemplateHaskell, BangPatterns, OverloadedStrings #-}
 {-|
 Module      : Client.State
 Description : Primary client state type and update operations
@@ -275,6 +275,10 @@ ircIgnorable msg st =
   case msg of
     Privmsg who _ _ -> checkUser who
     Notice  who _ _ -> checkUser who
+    -- privmsg ctcp commands are already metadata
+    Ctcp who _ "ACTION" _ -> checkUser who
+    -- notice ctcp responses are not already metadata
+    CtcpNotice who _ _ _ -> checkUser who
     _               -> Nothing
   where
     ignores = view clientIgnores st
