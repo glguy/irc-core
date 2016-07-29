@@ -53,6 +53,7 @@ data IrcMsg
   | Topic UserInfo Identifier Text -- ^ user channel topic
   | Privmsg UserInfo Identifier Text -- ^ source target txt
   | Ctcp UserInfo Identifier Text Text -- ^ source target command txt
+  | CtcpNotice UserInfo Identifier Text Text -- ^ source target command txt
   | Notice UserInfo Identifier Text -- ^ source target txt
   | Mode UserInfo Identifier [Text] -- ^ source target txt
   | Authenticate Text
@@ -104,7 +105,10 @@ cookIrcMsg msg =
 
     "NOTICE" | Just user <- view msgPrefix msg
            , [chan,txt]    <- view msgParams msg ->
-           Notice user (mkId chan) txt
+
+           case parseCtcp txt of
+             Just (cmd,args) -> CtcpNotice user (mkId chan) (Text.toUpper cmd) args
+             Nothing         -> Notice user (mkId chan) txt
 
     "JOIN" | Just user <- view msgPrefix msg
            , chan:_    <- view msgParams msg ->
@@ -176,6 +180,8 @@ msgTarget me msg =
                       | otherwise -> TargetWindow tgt
     Ctcp src tgt _ _  | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
+    CtcpNotice src tgt _ _  | tgt == me -> TargetWindow (userNick src)
+                            | otherwise -> TargetWindow tgt
     Notice  src tgt _ | tgt == me -> TargetWindow (userNick src)
                       | otherwise -> TargetWindow tgt
     Authenticate{}                -> TargetHidden
@@ -199,6 +205,7 @@ msgActor msg =
     Topic x _ _   -> Just x
     Privmsg x _ _ -> Just x
     Ctcp x _ _ _  -> Just x
+    CtcpNotice x _ _ _ -> Just x
     Notice x _ _  -> Just x
     Mode x _ _    -> Just x
     Authenticate{}-> Nothing
@@ -222,6 +229,7 @@ ircMsgText msg =
     Topic x _ t    -> Text.unwords [renderUserInfo x, t]
     Privmsg x _ t  -> Text.unwords [renderUserInfo x, t]
     Ctcp x _ c t   -> Text.unwords [renderUserInfo x, c, t]
+    CtcpNotice x _ c t -> Text.unwords [renderUserInfo x, c, t]
     Notice x _ t   -> Text.unwords [renderUserInfo x, t]
     Mode x _ xs    -> Text.unwords (renderUserInfo x:"set mode":xs)
     Ping xs        -> Text.unwords xs

@@ -125,6 +125,8 @@ commands = HashMap.fromList
   , ("join"      , NetworkCommand cmdJoin   simpleNetworkTab)
   , ("mode"      , NetworkCommand cmdMode   simpleNetworkTab)
   , ("msg"       , NetworkCommand cmdMsg    simpleNetworkTab)
+  , ("notice"    , NetworkCommand cmdNotice simpleNetworkTab)
+  , ("ctcp"      , NetworkCommand cmdCtcp   simpleNetworkTab)
   , ("nick"      , NetworkCommand cmdNick   simpleNetworkTab)
   , ("quit"      , NetworkCommand cmdQuit   simpleNetworkTab)
   , ("disconnect", NetworkCommand cmdDisconnect noNetworkTab)
@@ -222,34 +224,83 @@ cmdMe network cs channelId st rest =
        $ recordChannelMessage network channelId entry
        $ consumeInput st
 
+-- | Implementation of @/ctcp@
+cmdCtcp :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdCtcp network cs st rest =
+  case parse of
+    Nothing -> commandContinue st
+    Just (target, cmd, args) ->
+      do let cmdTxt = Text.toUpper (Text.pack cmd)
+             argTxt = Text.pack args
+             tgtTxt = Text.pack target
+
+         sendMsg cs (ircPrivmsg (mkId tgtTxt) ("\^A" <> cmdTxt <> " " <> argTxt <> "\^A"))
+         chatCommand
+            (\src tgt -> Ctcp src tgt cmdTxt argTxt)
+            tgtTxt
+            network cs st
+  where
+    parse =
+      do (target, rest1) <- nextWord rest
+         (cmd   , args ) <- nextWord rest1
+         return (target, cmd, args)
+
+-- | Implementation of @/notice@
+cmdNotice :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdNotice network cs st rest =
+  case nextWord rest of
+    Nothing -> commandContinue st
+    Just (target, rest1) ->
+      do let restTxt = Text.pack rest1
+             tgtTxt = Text.pack target
+
+         sendMsg cs (ircNotice (mkId tgtTxt) restTxt)
+         chatCommand
+            (\src tgt -> Notice src tgt restTxt)
+            tgtTxt
+            network cs st
+
 -- | Implementation of @/msg@
 cmdMsg :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdMsg network cs st rest =
   case nextWord rest of
     Nothing -> commandContinue st
-    Just (targetsStr, msgStr) ->
-      do now <- getZonedTime
-         let targetsTxt = Text.pack targetsStr
-             targetTxts = Text.split (==',') targetsTxt
-             targetIds  = mkId <$> targetTxts
-             msgTxt = Text.pack msgStr
-             myNick = UserInfo (view csNick cs) Nothing Nothing
-             entries = [ (targetId,
+    Just (target, rest1) ->
+      do let restTxt = Text.pack rest1
+             tgtTxt = Text.pack target
+
+         sendMsg cs (ircPrivmsg (mkId tgtTxt) restTxt)
+         chatCommand
+            (\src tgt -> Notice src tgt restTxt)
+            tgtTxt
+            network cs st
+
+chatCommand ::
+  (UserInfo -> Identifier -> IrcMsg) ->
+  Text {- ^ target -} ->
+  NetworkName ->
+  ConnectionState ->
+  ClientState ->
+  IO CommandResult
+chatCommand con targetsTxt network cs st =
+  do now <- getZonedTime
+     let targetTxts = Text.split (==',') targetsTxt
+         targetIds  = mkId <$> targetTxts
+         myNick = UserInfo (view csNick cs) Nothing Nothing
+         entries = [ (targetId,
                           ClientMessage
                           { _msgTime = now
                           , _msgNetwork = network
-                          , _msgBody = IrcBody (Privmsg myNick targetId msgTxt)
+                          , _msgBody = IrcBody (con myNick targetId)
                           })
                        | targetId <- targetIds ]
 
-         sendMsg cs (ircPrivmsg (mkId targetsTxt) msgTxt)
-
-         let st' = foldl' (\acc (targetId, entry) ->
+         st' = foldl' (\acc (targetId, entry) ->
                              recordChannelMessage network targetId entry acc)
                           st
                           entries
 
-         commandContinue (consumeInput st')
+     commandContinue (consumeInput st')
 
 cmdConnect :: ClientState -> String -> IO CommandResult
 cmdConnect st rest =

@@ -21,6 +21,7 @@ module Irc.Commands
   , ircPass
   , ircPong
   , ircPrivmsg
+  , ircNotice
   , ircQuit
   , ircRemove
   , ircTopic
@@ -48,6 +49,13 @@ ircPrivmsg ::
   Text       {- ^ message -} ->
   RawIrcMsg
 ircPrivmsg who msg = rawIrcMsg "PRIVMSG" [idText who, msg]
+
+-- | NOTICE command
+ircNotice ::
+  Identifier {- ^ target  -} ->
+  Text       {- ^ message -} ->
+  RawIrcMsg
+ircNotice who msg = rawIrcMsg "NOTICE" [idText who, msg]
 
 -- | MODE command
 ircMode ::
