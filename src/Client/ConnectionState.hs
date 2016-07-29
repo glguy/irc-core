@@ -40,6 +40,9 @@ module Client.ConnectionState
 
   , newConnectionState
 
+  -- * Cross-message state
+  , Transaction(..)
+
   -- * Connection predicates
   , isChannelIdentifier
   , iHaveOp

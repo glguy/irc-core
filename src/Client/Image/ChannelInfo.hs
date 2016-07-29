@@ -22,9 +22,6 @@ import           Client.Image.Message
 import           Client.MircFormatting
 import           Client.State
 import           Control.Lens
-import qualified Data.HashMap.Strict as HashMap
-import           Data.List
-import           Data.Ord
 import           Data.Time
 import           Graphics.Vty.Image
 import           Irc.Identifier

@@ -17,6 +17,7 @@ module Client.Configuration
   (
   -- * Configuration type
     Configuration(..)
+  , ConfigurationFailure(..)
   , configDefaults
   , configServers
 
@@ -41,6 +42,7 @@ import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName)
 import           System.Directory
 import           System.FilePath
+import           System.IO.Error
 
 -- | Top-level client configuration information. When connecting to a
 -- server configuration from '_configServers' is used where possible,
@@ -55,7 +57,8 @@ makeLenses ''Configuration
 
 data ConfigurationFailure
   = ConfigurationParseFailed String
-  | ConfigurationMalformed Text
+  | ConfigurationMalformed String
+  | ConfigurationReadFailed String
   deriving Show
 
 instance Exception ConfigurationFailure
@@ -65,22 +68,35 @@ getConfigPath =
   do dir <- getAppUserDataDirectory "glirc"
      return (dir </> "config")
 
+-- | Empty configuration file used when no path is specified
+-- and the configuration file is missing.
+emptyConfigFile :: Text
+emptyConfigFile = "{}\n"
+
 -- | Load the configuration file defaulting to @~/.glirc/config@.
--- This action can throw 'IOError' and 'ConfigurationFailure'
--- exceptions.
 loadConfiguration ::
   Maybe FilePath {- ^ path to configuration file -} ->
-  IO Configuration
-loadConfiguration mbPath =
+  IO (Either ConfigurationFailure Configuration)
+loadConfiguration mbPath = try $
   do path <- maybe getConfigPath return mbPath
-     file <- Text.readFile path
+     fileRes <- try (Text.readFile path)
+     file <- case fileRes of
+       Right file -> return file
+       Left e | isNothing mbPath
+              , isDoesNotExistError e -> return emptyConfigFile
+              | otherwise ->
+                  throwIO (ConfigurationReadFailed (show e))
+
      def  <- loadDefaultServerSettings
-     case parse file of
-       Left parseError -> throwIO (ConfigurationParseFailed parseError)
-       Right rawcfg ->
-         case runConfigParser (parseConfiguration def rawcfg) of
-           Left loadError -> throwIO (ConfigurationMalformed loadError)
-           Right cfg -> return cfg
+
+     rawcfg <-
+       case parse file of
+         Left parseError -> throwIO (ConfigurationParseFailed parseError)
+         Right rawcfg -> return rawcfg
+
+     case runConfigParser (parseConfiguration def rawcfg) of
+       Left loadError -> throwIO (ConfigurationMalformed (Text.unpack loadError))
+       Right cfg -> return cfg
 
 
 parseConfiguration :: ServerSettings -> Value -> ConfigParser Configuration
