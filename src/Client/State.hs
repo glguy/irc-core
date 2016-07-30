@@ -71,6 +71,7 @@ import           Client.NetworkConnection
 import           Client.ServerSettings
 import           Client.Window
 import           Control.Concurrent.STM
+import           Control.DeepSeq
 import           Control.Lens
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
@@ -355,8 +356,8 @@ toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
 toWindowLine params msg = WindowLine
   { _wlBody      = view msgBody msg
   , _wlText      = views msgBody msgText msg
-  , _wlImage     = msgImage         (view msgTime msg) params (view msgBody msg)
-  , _wlFullImage = detailedMsgImage (view msgTime msg) params (view msgBody msg)
+  , _wlImage     = force $ msgImage         (view msgTime msg) params (view msgBody msg)
+  , _wlFullImage = force $ detailedMsgImage (view msgTime msg) params (view msgBody msg)
   }
 
 toWindowLine' :: ClientMessage -> WindowLine

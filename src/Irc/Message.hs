@@ -44,24 +44,24 @@ import           Irc.Codes
 
 -- | High-level IRC message representation
 data IrcMsg
-  = UnknownMsg RawIrcMsg -- ^ pass-through for unhandled messages
-  | Reply ReplyCode [Text] -- ^ code arguments
-  | Nick UserInfo Identifier -- ^ old new
-  | Join UserInfo Identifier -- ^ user channel
-  | Part UserInfo Identifier (Maybe Text) -- ^ user channel reason
-  | Quit UserInfo (Maybe Text) -- ^ user reason
-  | Kick UserInfo Identifier Identifier Text -- ^ kicker channel kickee comment
-  | Topic UserInfo Identifier Text -- ^ user channel topic
-  | Privmsg UserInfo Identifier Text -- ^ source target txt
-  | Ctcp UserInfo Identifier Text Text -- ^ source target command txt
-  | CtcpNotice UserInfo Identifier Text Text -- ^ source target command txt
-  | Notice UserInfo Identifier Text -- ^ source target txt
-  | Mode UserInfo Identifier [Text] -- ^ source target txt
-  | Authenticate Text -- ^ parameters
-  | Cap CapCmd [Text] -- ^ command parameters
+  = UnknownMsg !RawIrcMsg -- ^ pass-through for unhandled messages
+  | Reply !ReplyCode [Text] -- ^ code arguments
+  | Nick !UserInfo !Identifier -- ^ old new
+  | Join !UserInfo !Identifier -- ^ user channel
+  | Part !UserInfo !Identifier (Maybe Text) -- ^ user channel reason
+  | Quit !UserInfo (Maybe Text) -- ^ user reason
+  | Kick !UserInfo !Identifier !Identifier !Text -- ^ kicker channel kickee comment
+  | Topic !UserInfo !Identifier !Text -- ^ user channel topic
+  | Privmsg !UserInfo !Identifier !Text -- ^ source target txt
+  | Ctcp !UserInfo !Identifier !Text !Text -- ^ source target command txt
+  | CtcpNotice !UserInfo !Identifier !Text !Text -- ^ source target command txt
+  | Notice !UserInfo !Identifier !Text -- ^ source target txt
+  | Mode !UserInfo !Identifier [Text] -- ^ source target txt
+  | Authenticate !Text -- ^ parameters
+  | Cap !CapCmd [Text] -- ^ command parameters
   | Ping [Text] -- ^ parameters
   | Pong [Text] -- ^ parameters
-  | Error Text -- ^ message
+  | Error !Text -- ^ message
   deriving Show
 
 -- | Sub-commands of the CAP command

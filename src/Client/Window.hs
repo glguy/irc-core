@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell #-}
+{-# Language BangPatterns, TemplateHaskell #-}
 
 {-|
 Module      : Client.Window
@@ -77,7 +77,7 @@ emptyWindow = Window
 -- | Adds a given line to a window as the newest message. Window's
 -- unread count will be updated according to the given importance.
 addToWindow :: WindowLineImportance -> WindowLine -> Window -> Window
-addToWindow importance msg win = Window
+addToWindow importance msg !win = Window
     { _winMessages = msg : _winMessages win
     , _winUnread   = _winUnread win + (if importance == WLBoring then 0 else 1)
     , _winMention  = _winMention win || importance == WLImportant
