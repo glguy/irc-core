@@ -139,7 +139,9 @@ metadataWindowLine st wl =
 lineWrap :: Int -> Image -> Image
 lineWrap w img
   | imageWidth img > w = cropRight w img <-> lineWrap w (cropLeft (imageWidth img - w) img)
-  | otherwise = img
+  | otherwise = img <|> char defAttr ' '
+                        -- trailing space with default attributes deals with bug in VTY
+                        -- where the formatting will continue past the end of chat messages
 
 
 horizDividerImage :: ClientState -> Image
