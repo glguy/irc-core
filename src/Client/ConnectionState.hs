@@ -538,8 +538,8 @@ supportedCaps :: ConnectionState -> [Text]
 supportedCaps cs = sasl ++ ["multi-prefix", "znc.in/server-time-iso"]
   where
     ss = view csSettings cs
-    sasl = ["sasl" | has ssSaslUsername ss
-                   , has ssSaslPassword ss ]
+    sasl = ["sasl" | isJust (view ssSaslUsername ss)
+                   , isJust (view ssSaslPassword ss) ]
 
 doAuthenticate :: Text -> ConnectionState -> ([RawIrcMsg], ConnectionState)
 doAuthenticate "+" cs
