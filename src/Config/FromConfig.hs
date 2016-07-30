@@ -38,6 +38,7 @@ import           Control.Monad.Trans.State
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Monoid
+import           Data.Ratio
 import           Data.Text (Text)
 import qualified Data.Text as Text
 
@@ -81,7 +82,17 @@ instance FromConfig Text where
 -- | Matches 'Number' values ignoring the base
 instance FromConfig Integer where
   parseConfig (Number _ n)      = return n
-  parseConfig _                 = failure "expected number"
+  parseConfig (Floating c e)
+    | denominator n == 1 = return $! numerator n
+    where
+      n = floatingToRatio c e
+  parseConfig _                 = failure "expected integral number"
+
+-- | Matches 'Number' values ignoring the base
+instance Integral a => FromConfig (Ratio a) where
+  parseConfig (Number _ n)   = return $! fromIntegral n
+  parseConfig (Floating c e) = return $! floatingToRatio c e
+  parseConfig _              = failure "expected fractional number"
 
 -- | Matches 'Atom' values
 instance FromConfig Atom where
@@ -146,3 +157,6 @@ sectionReq key =
 
 toHashMap :: [Section] -> HashMap Text Value
 toHashMap xs = HashMap.fromList [ (k,v) | Section k v <- xs ] -- todo: handle duplicate sections
+
+floatingToRatio :: Integral a => Integer -> Integer -> Ratio a
+floatingToRatio c e = fromIntegral c * 10 ^^ e

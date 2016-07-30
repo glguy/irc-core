@@ -29,14 +29,14 @@ import Data.Time
 -- as the current state of the limit.
 data RateLimit = RateLimit
   { rateStamp     :: !(MVar UTCTime) -- ^ Time that client can send
-  , rateThreshold :: !Int            -- ^ seconds
-  , ratePenalty   :: !Int            -- ^ seconds
+  , rateThreshold :: !NominalDiffTime
+  , ratePenalty   :: !NominalDiffTime
   }
 
 -- | Construct a new rate limit with the given penalty and threshold.
 newRateLimit ::
-  Int {- ^ penalty  -} ->
-  Int {- ^ threshold -} ->
+  Rational {- ^ penalty seconds -} ->
+  Rational {- ^ threshold seconds -} ->
   IO RateLimit
 newRateLimit penalty threshold =
   do unless (penalty > 0)
@@ -50,8 +50,8 @@ newRateLimit penalty threshold =
 
      return RateLimit
         { rateStamp     = ref
-        , rateThreshold = threshold
-        , ratePenalty   = penalty
+        , rateThreshold = realToFrac threshold
+        , ratePenalty   = realToFrac penalty
         }
 
 -- | Account for an event in the context of a 'RateLimit'. This command
@@ -60,12 +60,10 @@ newRateLimit penalty threshold =
 tickRateLimit :: RateLimit -> IO ()
 tickRateLimit r = modifyMVar_ (rateStamp r) $ \stamp ->
   do now <- getCurrentTime
-     let stamp' = fromIntegral (ratePenalty r) `addUTCTime` max stamp now
+     let stamp' = ratePenalty r `addUTCTime` max stamp now
          diff   = diffUTCTime stamp' now
-         excess = diff - fromIntegral (rateThreshold r)
+         excess = diff - rateThreshold r
 
-     when (excess > 0)
-        (threadDelay
-           (ceiling (1000000 * realToFrac excess :: Rational)))
+     when (excess > 0) (threadDelay (ceiling (1000000 * excess)))
 
      return stamp'

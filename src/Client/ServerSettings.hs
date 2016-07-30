@@ -71,8 +71,8 @@ data ServerSettings = ServerSettings
   , _ssSocksPort        :: !PortNumber -- ^ port of SOCKS proxy
   , _ssServerCerts      :: ![FilePath] -- ^ additional CA certificates for validating server
   , _ssChanservChannels :: ![Identifier] -- ^ Channels with chanserv permissions
-  , _ssFloodPenalty     :: !Int -- ^ Flood limiter penalty (seconds)
-  , _ssFloodThreshold   :: !Int -- ^ Flood limited threshold (seconds)
+  , _ssFloodPenalty     :: !Rational -- ^ Flood limiter penalty (seconds)
+  , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
   }
   deriving Show
 
