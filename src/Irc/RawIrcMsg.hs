@@ -32,25 +32,24 @@ module Irc.RawIrcMsg
   , asUtf8
   ) where
 
-import Control.Applicative
-import Control.Monad (when)
-import Control.Lens
-import Data.Array
-import Data.Attoparsec.Text as P
-import Data.ByteString (ByteString)
-import Data.ByteString.Builder (Builder)
-import Data.Functor
-import Data.Monoid
-import Data.Text (Text)
-import Data.Time (UTCTime, parseTimeM, defaultTimeLocale)
-import Data.Word (Word8)
+import           Control.Applicative
+import           Control.Lens
+import           Data.Attoparsec.Text as P
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
+import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
+import           Data.Maybe
+import           Data.Monoid
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import           Data.Time (UTCTime, parseTimeM, defaultTimeLocale)
+import           Data.Vector (Vector)
+import qualified Data.Vector as Vector
 
-import Irc.UserInfo
+import           Irc.UserInfo
 
 -- | 'RawIrcMsg' breaks down the IRC protocol into its most basic parts.
 -- The "trailing" parameter indicated in the IRC protocol with a leading
@@ -58,12 +57,17 @@ import Irc.UserInfo
 --
 -- Note that RFC 2812 specifies a maximum of 15 parameters.
 --
+-- This parser is permissive regarding spaces. It aims to parse carefully
+-- constructed messages exactly and to make a best effort to recover from
+-- extraneous spaces. It makes no effort to validate nicknames, usernames,
+-- hostnames, commands, etc. Servers don't all agree on these things.
+--
 -- @:prefix COMMAND param0 param1 param2 .. paramN@
 data RawIrcMsg = RawIrcMsg
   { _msgServerTime :: Maybe UTCTime -- ^ Time from znc.in/server-time-iso extension
-  , _msgPrefix  :: Maybe UserInfo -- ^ Optional sender of message
-  , _msgCommand :: Text -- ^ command
-  , _msgParams  :: [Text] -- ^ command parameters
+  , _msgPrefix     :: Maybe UserInfo -- ^ Optional sender of message
+  , _msgCommand    :: !Text -- ^ command
+  , _msgParams     :: [Text] -- ^ command parameters
   }
   deriving (Read, Show)
 
@@ -110,30 +114,27 @@ rawIrcMsgParser =
      prefix <- guarded (char ':') prefixParser
      cmd    <- simpleTokenParser
      params <- paramsParser maxMiddleParams
-     return RawIrcMsg
-              { _msgServerTime    = time
-              , _msgPrefix  = prefix
-              , _msgCommand = cmd
-              , _msgParams  = params
-              }
+     return $! RawIrcMsg
+       { _msgServerTime = time
+       , _msgPrefix     = prefix
+       , _msgCommand    = cmd
+       , _msgParams     = params
+       }
 
 -- | Parse the list of parameters in a raw message. The RFC
 -- allows for up to 15 parameters.
-paramsParser :: Int -> Parser [Text]
-paramsParser n =
-  do _ <- skipMany (char ' ') -- Freenode requires this exception
-     endOfInput $> [] <|> more
-  where
-  more
-    | n == 0 =
-        do _ <- optional (char ':')
-           finalParam
+paramsParser ::
+  Int {- ^ possible middle parameters -} -> Parser [Text]
+paramsParser !n =
+  do end <- P.atEnd
+     if end
+       then return []
+       else do mbColon <- optional (char ':')
+               if n == 0 || isJust mbColon
+                 then finalParam
+                 else middleParam
 
-    | otherwise =
-        do mbColon <- optional (char ':')
-           case mbColon of
-             Just{}  -> finalParam
-             Nothing -> middleParam
+  where
 
   finalParam =
     do x <- takeText
@@ -141,18 +142,15 @@ paramsParser n =
        return [x']
 
   middleParam =
-    do x <- P.takeWhile (/= ' ')
-       when (Text.null x) (fail "Empty middle parameter")
-       let !x' = Text.copy x
+    do x  <- simpleTokenParser
        xs <- paramsParser (n-1)
-       return (x':xs)
+       return (x:xs)
 
 -- | Parse the server-time message prefix:
 -- @time=2015-03-04T22:29:04.064Z
 timeParser :: Parser UTCTime
 timeParser =
   do timeBytes <- simpleTokenParser
-     _         <- char ' '
      case parseIrcTime (Text.unpack timeBytes) of
        Nothing -> fail "Bad server-time format"
        Just t  -> return t
@@ -163,14 +161,13 @@ parseIrcTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%Z"
 prefixParser :: Parser UserInfo
 prefixParser =
   do tok <- simpleTokenParser
-     _   <- char ' '
-     return (parseUserInfo tok)
+     return $! parseUserInfo tok
 
--- | Take the bytes up to the next space delimiter
+-- | Take the next space-delimited lexeme
 simpleTokenParser :: Parser Text
 simpleTokenParser =
-  do xs <- P.takeWhile (/= ' ')
-     when (Text.null xs) (fail "Empty token")
+  do xs <- P.takeWhile1 (/= ' ')
+     P.skipWhile (== ' ')
      return $! Text.copy xs
 
 -- | Take the bytes up to the next space delimiter.
@@ -230,13 +227,13 @@ asUtf8 x = case Text.decodeUtf8' x of
              Left{}    -> decodeCP1252 x
 
 decodeCP1252 :: ByteString -> Text
-decodeCP1252 = Text.pack . map (cp1252!) . B.unpack
+decodeCP1252 bs = Text.pack [ cp1252 Vector.! fromIntegral x | x <- B.unpack bs ]
 
 -- This character encoding is a superset of ISO 8859-1 in terms of printable
 -- characters, but differs from the IANA's ISO-8859-1 by using displayable
 -- characters rather than control characters in the 80 to 9F (hex) range.
-cp1252 :: Array Word8 Char
-cp1252 = listArray (0,255)
+cp1252 :: Vector Char
+cp1252 = Vector.fromListN 256
   ['\NUL','\SOH','\STX','\ETX','\EOT','\ENQ','\ACK','\a','\b','\t','\n','\v','\f','\r','\SO','\SI',
    '\DLE','\DC1','\DC2','\DC3','\DC4','\NAK','\SYN','\ETB','\CAN','\EM','\SUB','\ESC','\FS','\GS','\RS','\US',
    ' ','!','\"','#','$','%','&','\'','(',')','*','+',',','-','.','/',
