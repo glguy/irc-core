@@ -16,6 +16,7 @@ import           Client.Image.Message
 import           Client.State
 import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Map.Strict as Map
 import           Data.List
 import           Data.Ord
 import qualified Data.Text as Text
@@ -31,8 +32,8 @@ userListImages ::
 userListImages network channel st =
     [countImage, horizCat (intersperse gap (map renderUser usersList))]
   where
-    countImage = text' (withForeColor defAttr green) "Users: " <|>
-                 string defAttr (show (HashMap.size usersHashMap))
+    countImage = text' (withForeColor defAttr green) "Users:" <|>
+                 sigilCountImage
 
     matcher = clientMatcher st
 
@@ -49,6 +50,15 @@ userListImages network channel st =
     usersList = sortBy (comparing fst)
               $ filter matcher'
               $ HashMap.toList usersHashMap
+
+    sigilCounts = Map.fromListWith (+)
+                    [ (take 1 sigil, 1) | (_,sigil) <- usersList ]
+
+    sigilCountImage = horizCat
+      [ string (withForeColor defAttr cyan) (' ':sigil) <|>
+        string defAttr (show n)
+      | (sigil,n) <- Map.toList sigilCounts
+      ]
 
     usersHashMap =
       view ( clientConnection network

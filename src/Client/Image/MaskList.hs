@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 {-|
 Module      : Client.Image.MaskList
 Description : Line renderers for channel mask list view
@@ -29,10 +30,13 @@ maskListImages ::
   NetworkName {- ^ Focused network -} ->
   Identifier  {- ^ Focused channel -} ->
   ClientState -> [Image]
-maskListImages mode network channel st
-  | null entryList = [string (withForeColor defAttr red) "No masks"]
-  | otherwise      = images
+maskListImages mode network channel st = countImage : images
   where
+    countImage = text' (withForeColor defAttr green) "Masks (visible/total): " <|>
+                 string defAttr (show (length entryList)) <|>
+                 char (withForeColor defAttr green) '/' <|>
+                 string defAttr (show (HashMap.size entries))
+
     matcher = clientMatcher st
 
     matcher' (x,(y,_)) = matcher x || matcher y

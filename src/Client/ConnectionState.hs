@@ -109,7 +109,7 @@ data ConnectionState = ConnectionState
   }
   deriving Show
 
-data UserAndHost = UserAndHost !Text !Text
+data UserAndHost = UserAndHost {-# UNPACK #-} !Text {-# UNPACK #-} !Text
   deriving Show
 
 data PingStatus
