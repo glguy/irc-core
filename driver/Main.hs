@@ -755,9 +755,10 @@ doChannelInfoCmd st
 
 doDccTransfers :: ClientState -> IO ClientState
 doDccTransfers st =
-  case view clientFocus st of
-    DCCFocus _ -> return $ st   -- No DCCFocus (DCCFocus (..))
-    oldFocus -> return $ set clientFocus (DCCFocus oldFocus) st
+  return . clearInput $
+    case view clientFocus st of
+      DCCFocus _ -> st   -- No recursive DCCFocus
+      oldFocus   -> set clientFocus (DCCFocus oldFocus) st
 
 doMasksCmd ::
   Char       {- ^ mode    -} ->

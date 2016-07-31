@@ -1,10 +1,11 @@
-module Views.DCC (dccImage) where
+module Views.DCC  where
 
 import qualified Data.Map as Map
 import System.FilePath
 import Data.Text.Encoding
 import Control.Lens
 import Graphics.Vty.Image
+import Text.Printf
 
 import ClientState
 import DCC
@@ -27,15 +28,17 @@ offerImg (ident, offer) =
   <|> text' defAttr (decodeUtf8 (idBytes ident))
 
 transferImg :: Transfer -> Image
-transferImg (Ongoing name total current _ _) =
-    string defAttr name <|>
-    string (withForeColor defAttr blue) (percent total current)
-transferImg (Finished name _) =
-    string defAttr name <|>
-    char defAttr ' ' <|>
-    string (withForeColor defAttr green) "100"
+transferImg trans = string defAttr name <|>
+                    pad (max 1 (70 - length name)) 0 0 0 (context trans)
+  where
+    name = _tName trans
+
+    context (Finished _ _) = string (withForeColor defAttr green) "100%"
+    context (Ongoing _ total current _ _) =
+      string (withForeColor defAttr blue) (percent total current)
 
 percent :: Int -> Int -> String
 percent total current =
-  let value = ((fromIntegral current) / (fromIntegral total)) * 100
-  in ' ' : (take 5 . show $ value)
+  let value :: Double
+      value = ((fromIntegral current) / (fromIntegral total)) * 100
+  in printf "%.1f%%" value
