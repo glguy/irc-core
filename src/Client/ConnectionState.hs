@@ -40,6 +40,9 @@ module Client.ConnectionState
 
   , newConnectionState
 
+  -- * User information
+  , UserAndHost(..)
+
   -- * Cross-message state
   , Transaction(..)
 
@@ -98,12 +101,15 @@ data ConnectionState = ConnectionState
   , _csStatusMsg    :: ![Char]
   , _csSettings     :: !ServerSettings
   , _csUserInfo     :: !UserInfo
-  , _csUsers        :: !(HashMap Identifier (Maybe Text, Maybe Text))
+  , _csUsers        :: !(HashMap Identifier UserAndHost)
   , _csModeCount    :: !Int
   , _csNetwork      :: !Text
   , _csNextPingTime :: !(Maybe UTCTime)
   , _csPingStatus   :: !PingStatus
   }
+  deriving Show
+
+data UserAndHost = UserAndHost !Text !Text
   deriving Show
 
 data PingStatus
@@ -678,12 +684,15 @@ isChannelIdentifier cs ident =
 -- Helpers for managing the user list
 ------------------------------------------------------------------------
 
-csUser :: Functor f => Identifier -> LensLike' f ConnectionState (Maybe Text, Maybe Text)
-csUser i = csUsers . at i . non (Nothing,Nothing)
+csUser :: Functor f => Identifier -> LensLike' f ConnectionState (Maybe UserAndHost)
+csUser i = csUsers . at i
 
 recordUser :: UserInfo -> ConnectionState -> ConnectionState
-recordUser !user = set (csUsers . at (userNick user))
-                       (Just (userName user, userHost user))
+recordUser user =
+  case (userName user, userHost user) of
+    (Just u, Just h) -> set (csUsers . at (userNick user))
+                            (Just (UserAndHost u h))
+    _ -> id
 
 forgetUser :: Identifier -> ConnectionState -> ConnectionState
 forgetUser nick = set (csUsers . at nick) Nothing
@@ -714,8 +723,10 @@ massRegistration cs
     updateUsers users = foldl' updateUser users infos
 
     updateUser users !info
-      | HashSet.member (userNick info) channelUsers =
-          HashMap.insert (userNick info) (userName info, userHost info) users
+      | Just u <- userName info
+      , Just h <- userHost info
+      , HashSet.member (userNick info) channelUsers =
+              HashMap.insert (userNick info) (UserAndHost u h) users
       | otherwise = users
 
 -- | Timer-based events

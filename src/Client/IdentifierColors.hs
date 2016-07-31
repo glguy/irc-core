@@ -23,7 +23,7 @@ import           Graphics.Vty.Image
 identifierColor :: Identifier -> Color
 identifierColor ident = nickColorPalette Vector.! i
   where
-    i = hashIdentity ident `rem` Vector.length nickColorPalette
+    i = hashIdentity ident `mod` Vector.length nickColorPalette
 
 hashIdentity :: Identifier -> Int
 hashIdentity ident =

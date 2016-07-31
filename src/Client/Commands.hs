@@ -490,9 +490,9 @@ cmdKickBan _ cs channelId st rest =
 
 computeBanUserInfo :: Identifier -> ConnectionState -> UserInfo
 computeBanUserInfo who cs =
-  case view (csUser who . _2) cs of
-    Nothing   -> UserInfo who        (Just "*") (Just "*")
-    Just host -> UserInfo (mkId "*") (Just "*") (Just host)
+  case view (csUser who) cs of
+    Nothing                   -> UserInfo who        (Just "*") (Just "*")
+    Just (UserAndHost _ host) -> UserInfo (mkId "*") (Just "*") (Just host)
 
 cmdRemove :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdRemove _ cs channelId st rest =
