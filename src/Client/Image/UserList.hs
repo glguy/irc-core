@@ -52,7 +52,7 @@ userListImages network channel st =
               $ HashMap.toList usersHashMap
 
     sigilCounts = Map.fromListWith (+)
-                    [ (take 1 sigil, 1) | (_,sigil) <- usersList ]
+                    [ (take 1 sigil, 1::Int) | (_,sigil) <- usersList ]
 
     sigilCountImage = horizCat
       [ string (withForeColor defAttr cyan) (' ':sigil) <|>

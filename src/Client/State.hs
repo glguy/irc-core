@@ -44,6 +44,7 @@ module Client.State
   , addConnection
   , removeNetwork
   , clientTick
+  , applyMessageToClientState
 
   -- * Add messages to buffers
   , recordChannelMessage
@@ -65,6 +66,7 @@ module Client.State
 import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
+import qualified Client.EditBox as Edit
 import           Client.Image.Message
 import           Client.Message
 import           Client.NetworkConnection
@@ -75,26 +77,27 @@ import           Control.DeepSeq
 import           Control.Lens
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.Maybe
 import           Data.Map (Map)
+import qualified Data.Map as Map
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.ICU as ICU
+import           Data.Time
 import           Graphics.Vty
+import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
+import           Irc.RawIrcMsg
 import           Irc.UserInfo
-import           Irc.Codes
 import           LensUtils
 import           Network.Connection
-import qualified Client.EditBox as Edit
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
-import qualified Data.Map as Map
 
 -- | Textual name of a network connection
 type NetworkName = Text
@@ -303,11 +306,11 @@ recordIrcMessage network target msg st =
            st chans
       where
         wl = toWindowLine' msg
-        chans =
-          case preview (clientConnection network . csChannels) st of
-            Nothing -> []
-            Just m  -> [chan | (chan, cs) <- HashMap.toList m
-                             , HashMap.member user (view chanUsers cs) ]
+        chans = user
+              : case preview (clientConnection network . csChannels) st of
+                  Nothing -> []
+                  Just m  -> [chan | (chan, cs) <- HashMap.toList m
+                                   , HashMap.member user (view chanUsers cs) ]
 
 -- | Extract the status mode sigils from a message target.
 splitStatusMsgModes ::
@@ -472,4 +475,45 @@ addConnection network st =
 
      return $ set (clientNetworkMap . at network) (Just i)
             $ set (clientConnections . at i) (Just cs) st'
+
+applyMessageToClientState ::
+  ZonedTime                  {- ^ message received         -} ->
+  IrcMsg                     {- ^ message recieved         -} ->
+  NetworkId                  {- ^ messge network           -} ->
+  ConnectionState            {- ^ network connection state -} ->
+  ClientState                                                 ->
+  ([RawIrcMsg], ClientState) {- ^ response , updated state -}
+applyMessageToClientState time irc networkId cs st =
+  cs' `seq` (reply, st')
+  where
+    (reply, cs') = applyMessage time irc cs
+    network = view csNetwork cs
+    st' = applyWindowRenames network irc
+        $ set (clientConnections . ix networkId) cs' st
+
+-- | When a nick change happens and there is an open query window for that nick
+-- and there isn't an open query window for the new nick, rename the window.
+applyWindowRenames :: NetworkName -> IrcMsg -> ClientState -> ClientState
+applyWindowRenames network (Nick old new) st
+  | hasWindow old'
+  , not (hasWindow new) = over clientFocus moveFocus
+                        $ over clientWindows moveWindow st
+  | otherwise = st
+  where
+    old' = userNick old
+
+    mkFocus = ChannelFocus network
+
+    hasWindow who = has (clientWindows . ix (mkFocus who)) st
+
+    moveWindow :: Map ClientFocus Window -> Map ClientFocus Window
+    moveWindow wins =
+      let (win,wins') = (at (mkFocus old') <<.~ Nothing) wins
+      in set (at (mkFocus new)) win wins'
+
+    moveFocus x
+      | x == mkFocus old' = mkFocus new
+      | otherwise         = x
+
+applyWindowRenames _ _ st = st
 

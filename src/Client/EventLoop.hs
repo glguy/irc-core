@@ -133,6 +133,7 @@ doNetworkError networkId time ex st =
               }
   in eventLoop $ recordNetworkMessage msg st'
 
+
 -- | Respond to an IRC protocol line. This will parse the message, updated the
 -- relevant connection state and update the UI buffers.
 doNetworkLine ::
@@ -169,14 +170,12 @@ doNetworkLine networkId time line st =
 
              -- record messages *before* applying the changes
              let (msgs, st')
-                    = traverseOf
-                        (clientConnection network)
-                        (applyMessage time irc)
-                    $ recordIrcMessage network target msg
-                    $ st
+                    = applyMessageToClientState time irc networkId cs
+                    $ recordIrcMessage network target msg st
 
              traverse_ (sendMsg cs) msgs
              eventLoop st'
+
 
 -- | Respond to a VTY event.
 doVtyEvent :: Event -> ClientState -> IO ()
@@ -190,6 +189,7 @@ doVtyEvent vtyEvent st =
          eventLoop $ set clientWidth w
                    $ set clientHeight h st
     _                -> eventLoop st
+
 
 -- | Map keyboard inputs to actions in the client
 doKey :: Key -> [Modifier] -> ClientState -> IO ()
