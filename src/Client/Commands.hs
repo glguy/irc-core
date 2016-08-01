@@ -147,6 +147,8 @@ commands = HashMap.fromList
   , ("remove"    , ChannelCommand cmdRemove simpleChannelTab)
   , ("me"        , ChannelCommand cmdMe     simpleChannelTab)
   , ("part"      , ChannelCommand cmdPart   simpleChannelTab)
+  , ("unban"     , ChannelCommand (cmdUnmask 'b') (tabUnmask 'b'))
+  , ("unquiet"   , ChannelCommand (cmdUnmask 'q') (tabUnmask 'q'))
 
   , ("users"     , ChannelCommand cmdUsers  noChannelTab)
   , ("channelinfo", ChannelCommand cmdChannelInfo noChannelTab)
@@ -471,6 +473,28 @@ cmdKick _ cs channelId st rest =
              cmd = ircKick channelId (Text.pack who) msg
          cs' <- sendModeration channelId [cmd] cs
          commandContinueUpdateCS cs' st
+
+cmdUnmask :: Char {- ^ mask mode -} -> ChannelCommand
+cmdUnmask mode _ cs _ st rest =
+  do let masks = Text.words (Text.pack rest)
+         modes = Text.pack ('-':replicate (length masks) mode)
+
+     if null masks
+       then commandContinue st
+       else modeCommand (modes : masks) cs st
+
+
+tabUnmask ::
+  Char {- ^ mask mode -} ->
+  Bool {- ^ reversed -} ->
+  ChannelCommand
+tabUnmask mode isReversed _network cs channel st _rest
+  = commandContinue
+  $ fromMaybe st
+  $ clientTextBox (wordComplete (++": ") isReversed completions) st
+  where
+    masks = view (csChannels . ix channel . chanLists . ix mode) cs
+    completions = mkId <$> HashMap.keys masks
 
 cmdKickBan :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdKickBan _ cs channelId st rest =

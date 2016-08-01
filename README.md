@@ -157,8 +157,10 @@ Channel management
 * `/kick <nick>` - Kick a user
 * `/kickban <nick>` - Kick and ban a user
 * `/remove` - Gracefully kick a user
-* `/topic <topic>` - Change the topic
+* `/topic <topic>` - Change the topic (tab completion for topic)
 * `/invite <nick>` - Invite a user to the current channel
+* `/unban <mask>` - Remove a ban (tab completion for masks)
+* `/unquiet <mask>` - Remove a quiet (tab completion for masks)
 
 Queries
 

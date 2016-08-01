@@ -218,6 +218,7 @@ doKey key modifier st =
 
     [MMeta] ->
       case key of
+        KBS       -> changeInput (Edit.killWord True)
         KChar 'b' -> changeInput Edit.leftWord
         KChar 'f' -> changeInput Edit.rightWord
         KChar 'a' -> eventLoop (jumpToActivity st)
