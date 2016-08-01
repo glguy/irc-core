@@ -87,8 +87,8 @@ getEvent st =
 -- | Apply this function to an initial 'ClientState' to launch the client.
 eventLoop :: ClientState -> IO ()
 eventLoop st0 =
-  do st1 <- clientTick st0
-     let vty = view clientVty st
+  do let st1 = clientTick st0
+         vty = view clientVty st
          (pic, st) = clientPicture st1
 
      update vty pic

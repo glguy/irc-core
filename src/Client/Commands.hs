@@ -68,6 +68,9 @@ data Command
 commandContinue :: Monad m => ClientState -> m CommandResult
 commandContinue = return . CommandContinue
 
+commandFailure :: Monad m => ClientState -> m CommandResult
+commandFailure = return . CommandContinue
+
 splitWord :: String -> (String, String)
 splitWord str = (w, drop 1 rest)
   where
@@ -110,7 +113,7 @@ executeCommand tabCompleteReversed str st =
             network cs channelId st rest
 
     _ -> case tabCompleteReversed of
-           Nothing         -> commandContinue st
+           Nothing         -> commandFailure st
            Just isReversed -> commandContinue (nickTabCompletion isReversed st)
 
 commands :: HashMap Text Command
@@ -155,13 +158,13 @@ commands = HashMap.fromList
   ]
 
 noClientTab :: Bool -> ClientCommand
-noClientTab _ st _ = commandContinue st
+noClientTab _ st _ = commandFailure st
 
 noNetworkTab :: Bool -> NetworkCommand
-noNetworkTab _ _ _ st _ = commandContinue st
+noNetworkTab _ _ _ st _ = commandFailure st
 
 noChannelTab :: Bool -> ChannelCommand
-noChannelTab _ _ _ _ st _ = commandContinue st
+noChannelTab _ _ _ _ st _ = commandFailure st
 
 simpleClientTab :: Bool -> ClientCommand
 simpleClientTab isReversed st _ =
@@ -210,7 +213,7 @@ cmdClear st _
 cmdQuote :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdQuote _ cs st rest =
   case parseRawIrcMsg (Text.pack rest) of
-    Nothing  -> commandContinue st
+    Nothing  -> commandFailure st
     Just raw ->
       do sendMsg cs raw
          commandContinue (consumeInput st)
@@ -235,7 +238,7 @@ cmdMe network cs channelId st rest =
 cmdCtcp :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdCtcp network cs st rest =
   case parse of
-    Nothing -> commandContinue st
+    Nothing -> commandFailure st
     Just (target, cmd, args) ->
       do let cmdTxt = Text.toUpper (Text.pack cmd)
              argTxt = Text.pack args
@@ -256,7 +259,7 @@ cmdCtcp network cs st rest =
 cmdNotice :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdNotice network cs st rest =
   case nextWord rest of
-    Nothing -> commandContinue st
+    Nothing -> commandFailure st
     Just (target, rest1) ->
       do let restTxt = Text.pack rest1
              tgtTxt = Text.pack target
@@ -271,7 +274,7 @@ cmdNotice network cs st rest =
 cmdMsg :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdMsg network cs st rest =
   case nextWord rest of
-    Nothing -> commandContinue st
+    Nothing -> commandFailure st
     Just (target, rest1) ->
       do let restTxt = Text.pack rest1
              tgtTxt = Text.pack target
@@ -320,7 +323,7 @@ cmdConnect st rest =
            $ changeFocus (NetworkFocus network)
            $ consumeInput st'
 
-    _ -> commandContinue st
+    _ -> commandFailure st
 
 cmdFocus :: ClientState -> String -> IO CommandResult
 cmdFocus st rest =
@@ -337,7 +340,7 @@ cmdFocus st rest =
         $ changeFocus focus
         $ consumeInput st
 
-    _ -> commandContinue st
+    _ -> commandFailure st
 
 cmdWhois :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdWhois _ cs st rest =
@@ -393,7 +396,7 @@ cmdNick _ cs st rest =
     [nick] ->
       do sendMsg cs (ircNick (mkId (Text.pack nick)))
          commandContinue (consumeInput st)
-    _ -> commandContinue st
+    _ -> commandFailure st
 
 cmdPart :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdPart _ cs channelId st rest =
@@ -412,7 +415,7 @@ cmdInvite _ cs channelId st rest =
                   else sendModeration channelId [cmd] cs
          commandContinueUpdateCS cs' st
 
-    _ -> commandContinue st
+    _ -> commandFailure st
 
 commandContinueUpdateCS :: ConnectionState -> ClientState -> IO CommandResult
 commandContinueUpdateCS cs st =
@@ -447,7 +450,7 @@ tabTopic _ _ cs channelId st rest
                     . set Edit.content ("/topic " ++ Text.unpack topic)
         commandContinue (over clientTextBox textBox st)
 
-  | otherwise = commandContinue st
+  | otherwise = commandFailure st
 
 
 cmdUsers :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
@@ -467,12 +470,12 @@ cmdMasks _ cs _ st rest =
     [[mode]] | mode `elem` view (csModeTypes . modesLists) cs ->
         commandContinue $ changeSubfocus (FocusMasks mode)
                         $ consumeInput st
-    _ -> commandContinue st
+    _ -> commandFailure st
 
 cmdKick :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdKick _ cs channelId st rest =
   case nextWord rest of
-    Nothing -> commandContinue st
+    Nothing -> commandFailure st
     Just (who,reason) ->
       do let msg = Text.pack (dropWhile isSpace reason)
              cmd = ircKick channelId (Text.pack who) msg
@@ -483,7 +486,7 @@ cmdKick _ cs channelId st rest =
 cmdKickBan :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdKickBan _ cs channelId st rest =
   case nextWord rest of
-    Nothing -> commandContinue st
+    Nothing -> commandFailure st
     Just (whoStr,reason) ->
       do let msg = Text.pack (dropWhile isSpace reason)
 
@@ -505,7 +508,7 @@ computeBanUserInfo who cs =
 cmdRemove :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdRemove _ cs channelId st rest =
   case nextWord rest of
-    Nothing -> commandContinue st
+    Nothing -> commandFailure st
     Just (who,reason) ->
       do let msg = Text.pack (dropWhile isSpace reason)
              cmd = ircRemove channelId (Text.pack who) msg
@@ -524,7 +527,7 @@ cmdJoin network cs st rest =
   in case ws of
        [channel]     -> doJoin channel Nothing
        [channel,key] -> doJoin channel (Just key)
-       _             -> commandContinue st
+       _             -> commandFailure st
 
 
 cmdQuit :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
@@ -550,12 +553,12 @@ cmdReconnect st _
            $ changeFocus (NetworkFocus network)
            $ consumeInput st'
 
-  | otherwise = commandContinue st
+  | otherwise = commandFailure st
 
 cmdIgnore :: ClientState -> String -> IO CommandResult
 cmdIgnore st rest =
   case mkId . Text.pack <$> words rest of
-    [] -> commandContinue st
+    [] -> commandFailure st
     xs -> commandContinue
             $ over clientIgnores updateIgnores
             $ consumeInput st
@@ -577,7 +580,7 @@ modeCommand modes cs st =
         [] -> success False [[]]
         flags:params ->
           case splitModes (view csModeTypes cs) flags params of
-            Nothing -> commandContinue st
+            Nothing -> commandFailure st
             Just parsedModes ->
               success needOp (unsplitModes <$> chunksOf (view csModeCount cs) parsedModes')
               where
@@ -597,7 +600,7 @@ modeCommand modes cs st =
                       else cs <$ traverse_ (sendMsg cs) cmds
              commandContinueUpdateCS cs' st
 
-    _ -> commandContinue st
+    _ -> commandFailure st
 
 tabMode :: Bool -> NetworkCommand
 tabMode isReversed _ cs st rest =

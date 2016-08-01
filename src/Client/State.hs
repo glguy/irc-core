@@ -366,9 +366,8 @@ toWindowLine params msg = WindowLine
 toWindowLine' :: ClientMessage -> WindowLine
 toWindowLine' = toWindowLine defaultRenderParams
 
-clientTick :: ClientState -> IO ClientState
-clientTick st =
-     return $! over (clientWindows . ix (view clientFocus st)) windowSeen st
+clientTick :: ClientState -> ClientState
+clientTick st = overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
 
 consumeInput :: ClientState -> ClientState
 consumeInput = over clientTextBox Edit.success
@@ -516,4 +515,3 @@ applyWindowRenames network (Nick old new) st
       | otherwise         = x
 
 applyWindowRenames _ _ st = st
-
