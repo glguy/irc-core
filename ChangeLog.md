@@ -3,7 +3,13 @@
 ## 2.2
 
 * Add commands `/ison`, `/userhost`, `/away`, `/notice`, `/ctcp`, `/links`, `/time`, `/stats`
+* Added context-sensitive completion to `/mode`
 * Render CTCP messages
+* Memory performance improvements
+* Improved logic on nick changes
+* Support for fractional flood settings
+* Fixed VTY formatting bug
+* Add counts to the mask and user lists
 
 ## 2.1
 
