@@ -18,6 +18,7 @@ module Client.Commands
   ) where
 
 import           Client.ConnectionState
+import qualified Client.EditBox as EditBox
 import           Client.Message
 import           Client.ServerSettings
 import           Client.ChannelState
@@ -123,7 +124,7 @@ commands = HashMap.fromList
 
   , ("quote"     , NetworkCommand cmdQuote  simpleNetworkTab)
   , ("join"      , NetworkCommand cmdJoin   simpleNetworkTab)
-  , ("mode"      , NetworkCommand cmdMode   simpleNetworkTab)
+  , ("mode"      , NetworkCommand cmdMode   tabMode)
   , ("msg"       , NetworkCommand cmdMsg    simpleNetworkTab)
   , ("notice"    , NetworkCommand cmdNotice simpleNetworkTab)
   , ("ctcp"      , NetworkCommand cmdCtcp   simpleNetworkTab)
@@ -147,8 +148,6 @@ commands = HashMap.fromList
   , ("remove"    , ChannelCommand cmdRemove simpleChannelTab)
   , ("me"        , ChannelCommand cmdMe     simpleChannelTab)
   , ("part"      , ChannelCommand cmdPart   simpleChannelTab)
-  , ("unban"     , ChannelCommand (cmdUnmask 'b') (tabUnmask 'b'))
-  , ("unquiet"   , ChannelCommand (cmdUnmask 'q') (tabUnmask 'q'))
 
   , ("users"     , ChannelCommand cmdUsers  noChannelTab)
   , ("channelinfo", ChannelCommand cmdChannelInfo noChannelTab)
@@ -434,7 +433,12 @@ cmdTopic _ cs channelId st rest =
      sendMsg cs cmd
      commandContinue (consumeInput st)
 
-tabTopic :: Bool -> NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+tabTopic ::
+  Bool {- ^ reversed -} ->
+  NetworkName ->
+  ConnectionState ->
+  Identifier {- ^ channel -} ->
+  ClientState -> String -> IO CommandResult
 tabTopic _ _ cs channelId st rest
 
   | all isSpace rest
@@ -444,6 +448,7 @@ tabTopic _ _ cs channelId st rest
         commandContinue (over clientTextBox textBox st)
 
   | otherwise = commandContinue st
+
 
 cmdUsers :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdUsers _ _ _ st _ = commandContinue
@@ -474,27 +479,6 @@ cmdKick _ cs channelId st rest =
          cs' <- sendModeration channelId [cmd] cs
          commandContinueUpdateCS cs' st
 
-cmdUnmask :: Char {- ^ mask mode -} -> ChannelCommand
-cmdUnmask mode _ cs _ st rest =
-  do let masks = Text.words (Text.pack rest)
-         modes = Text.pack ('-':replicate (length masks) mode)
-
-     if null masks
-       then commandContinue st
-       else modeCommand (modes : masks) cs st
-
-
-tabUnmask ::
-  Char {- ^ mask mode -} ->
-  Bool {- ^ reversed -} ->
-  ChannelCommand
-tabUnmask mode isReversed _network cs channel st _rest
-  = commandContinue
-  $ fromMaybe st
-  $ clientTextBox (wordComplete (++": ") isReversed completions) st
-  where
-    masks = view (csChannels . ix channel . chanLists . ix mode) cs
-    completions = mkId <$> HashMap.keys masks
 
 cmdKickBan :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdKickBan _ cs channelId st rest =
@@ -614,6 +598,50 @@ modeCommand modes cs st =
              commandContinueUpdateCS cs' st
 
     _ -> commandContinue st
+
+tabMode :: Bool -> NetworkCommand
+tabMode isReversed _ cs st rest =
+  case view clientFocus st of
+
+    ChannelFocus _ channel
+      | flags:params     <- Text.words (Text.pack rest)
+      , Just parsedModes <- splitModes (view csModeTypes cs) flags params
+      , let parsedModesWithParams =
+              [ (pol,mode) | (pol,mode,arg) <- parsedModes, not (Text.null arg) ]
+      , (pol,mode):_      <- drop (paramIndex-3) parsedModesWithParams
+      , let completions = computeModeCompletion pol mode channel cs
+      -> commandContinue
+       $ fromMaybe st
+       $ clientTextBox (wordComplete id isReversed completions) st
+
+    _ -> commandContinue st
+
+  where
+    textBox    = view clientTextBox st
+    paramIndex = length $ words $ take (view EditBox.pos textBox)
+                                       (view EditBox.content textBox)
+
+-- | Use the *!*@host masks of users for channel lists when setting list modes
+--
+-- Use the channel's mask list for removing modes
+--
+-- Use the nick list otherwise
+computeModeCompletion :: Bool -> Char -> Identifier -> ConnectionState -> [Identifier]
+computeModeCompletion pol mode channel cs
+  | mode `elem` view modesLists modeSettings =
+        if pol then usermasks else masks
+  | otherwise = nicks
+  where
+    modeSettings = view csModeTypes cs
+    nicks = HashMap.keys (view (csChannels . ix channel . chanUsers) cs)
+
+    masks = mkId <$> HashMap.keys (view (csChannels . ix channel . chanLists . ix mode) cs)
+
+    usermasks =
+      [ mkId ("*!*@" <> host)
+        | nick <- HashMap.keys (view (csChannels . ix channel . chanUsers) cs)
+        , UserAndHost _ host <- toListOf (csUsers . ix nick) cs
+        ]
 
 -- | Predicate for mode commands that can be performed without ops
 isPublicChannelMode :: (Bool, Char, Text) -> Bool

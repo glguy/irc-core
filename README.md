@@ -153,14 +153,12 @@ Chat commands
 
 Channel management
 
-* `/mode <mode> <params>` - Change modes on the current channel
+* `/mode <mode> <params>` - Change modes on the current channel (advanced tab completion)
 * `/kick <nick>` - Kick a user
 * `/kickban <nick>` - Kick and ban a user
 * `/remove` - Gracefully kick a user
 * `/topic <topic>` - Change the topic (tab completion for topic)
 * `/invite <nick>` - Invite a user to the current channel
-* `/unban <mask>` - Remove a ban (tab completion for masks)
-* `/unquiet <mask>` - Remove a quiet (tab completion for masks)
 
 Queries
 
