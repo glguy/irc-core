@@ -2,6 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module ClientState where
 
@@ -10,9 +11,10 @@ import Control.Concurrent.STM (TChan, atomically, writeTChan)
 import Control.DeepSeq (force)
 import Control.Lens
 import Control.Monad (foldM, guard, when)
+import Control.Applicative (Alternative(..))
 import Data.ByteString (ByteString)
 import Data.Char (isControl)
-import Data.Foldable (for_)
+import Data.Foldable (for_, find)
 import Data.Functor.Compose
 import Data.IORef
 import Data.Map (Map)
@@ -21,7 +23,7 @@ import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time
-import Graphics.Vty.Image
+import Graphics.Vty.Image hiding ((<|>))
 import System.IO (Handle)
 import qualified Data.ByteString as B
 import qualified Data.Map as Map
@@ -52,7 +54,7 @@ data ClientConnection = ClientConnection
   , _ccSendChan       :: Maybe (IORef Bool, TChan ByteString)
   , _ccRecvThread     :: Maybe ThreadId
   , _ccSendThread     :: Maybe ThreadId
-  , _ccHoldDccTrans   :: Map Identifier DCCOffer
+  , _ccHoldDccTrans   :: (Map Identifier DCCOffer, Map Identifier Transfer)
   }
 
 data ClientState = ClientState
@@ -76,7 +78,6 @@ data ClientState = ClientState
   , _clientMessages :: !(Map Identifier MessageList)
   , _clientNickColors :: [Color]
   , _clientAutomation :: [EventHandler]
-  , _clientDCCTransfers :: [Transfer]
   , _clientTimers     :: Map UTCTime [TimerEvent]
   , _clientTimeZone   :: TimeZone
   }
@@ -339,12 +340,14 @@ pruneStaleOffers :: ClientState -> IO ClientState
 pruneStaleOffers st =
   do now <- getCurrentTime
      let cond offer = diffUTCTime now (_doTime offer) < 90
-     return $ over (clientServer0 . ccHoldDccTrans) (Map.filter cond) st
+     return $ over (clientServer0 . ccHoldDccTrans . _1)
+                   (Map.filter cond) st
 
 -- traverseOf = id. Yet traverseOf is  more clear(?)
 updateTransfers :: ClientState -> IO ClientState
-updateTransfers = traverseOf (clientDCCTransfers . traverse)
-                             (update . graduate)
+updateTransfers =
+  traverseOf (clientServer0 . ccHoldDccTrans . _2 . traverse)
+             (update . graduate)
   where
     update :: Transfer -> IO Transfer
     update trans
@@ -361,24 +364,41 @@ updateTransfers = traverseOf (clientDCCTransfers . traverse)
         size == curSize = Finished name size
       | otherwise       = trans
 
--- remove from queue and tell the sender to go fishing
+-- if just offer remove from the queue. If it is already started then
+-- stop it
 cancelOffer :: ClientState -> Maybe (IO ClientState)
 cancelOffer st = do
   sender <- preview (clientFocus . _ChannelFocus) st
-  let cancelMsg = privMsgCmd sender (Text.encodeUtf8 . Text.pack $ "xdcc cancel")
-  Just $ do clientSend cancelMsg st
-            return $ over (clientServer0 . ccHoldDccTrans) (Map.delete sender) st
+  removeOffer sender <|> killTransfer sender
+  where
+    focus = clientServer0 . ccHoldDccTrans
+
+    removeOffer :: Identifier -> Maybe (IO ClientState)
+    removeOffer sender = do
+      _ <- view (focus . _1 . at sender) st -- if exist offer then
+      Just . return $ over (focus . _1) (Map.delete sender) st
+
+    killTransfer :: Identifier -> Maybe (IO ClientState)
+    killTransfer sender = do
+      trans <- view (focus . _2 . at sender) st
+      case trans of
+        (Ongoing name size cSize threadId _) ->
+            Just $ do
+              killThread threadId
+              let failed = Failed name size cSize
+              return (over (focus . _2) (Map.insert sender failed) st)
+        _ -> Nothing
 
 -- Start offer from the sender on the current window.
 startOffer :: ClientState -> Maybe (IO ClientState)
 startOffer st = do
+  let focus = clientServer0 . ccHoldDccTrans
   sender <- preview (clientFocus . _ChannelFocus) st
-  offer  <- view (clientServer0 . ccHoldDccTrans . at sender) st
+  offer  <- view (focus . _1 . at sender) st
   Just $ do
     mvar     <- newMVar 0
     threadId <- forkIO (dcc_recv mvar offer)
     let transfer      = toTransfer offer threadId mvar
-        removeOffer   = over (clientServer0 . ccHoldDccTrans)
-                             (Map.delete sender)
-        storeTransfer = over clientDCCTransfers (cons transfer)
+        removeOffer   = over (focus . _1) (Map.delete sender)
+        storeTransfer = over (focus . _2) (Map.insert sender transfer)
     return . storeTransfer . removeOffer $ st

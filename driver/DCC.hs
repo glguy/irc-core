@@ -24,6 +24,8 @@ import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString           as B
 import qualified Data.ByteString.Char8     as B8
 
+import Irc.Format (Identifier)
+
 -- | ad-hoc structure for not confuse the args, only the name and size
 -- are processed the C functions underlying expect Bytestrings and not
 -- value as input
@@ -43,8 +45,12 @@ data Transfer =
       , _threadId  :: ThreadId
       , _tProgress :: Progress }
   | Finished
-      { _tName :: FilePath
-      , _tSize :: Int }
+      { _tName   :: FilePath
+      , _tSize   :: Int }
+  | Failed
+      { _tName    :: FilePath
+      , _tSize    :: Int
+      , _tcurSize :: Int }
 
 -- current size of transfer.
 type Progress = MVar Int

@@ -170,7 +170,7 @@ DCC commands
 
 * `/transfers` - Show the DCC Offers and the ongoing progress
 * `/dcc accept` - On the sender window starts the download
-* `/dcc cancel` - as above but drops the offer and informs the sender with xdcc cancel
+* `/dcc cancel` - as above but drops the offer/transfer
 
 Keyboard Shortcuts
 ==================
