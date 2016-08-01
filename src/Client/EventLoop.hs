@@ -91,6 +91,7 @@ eventLoop st0 =
          vty = view clientVty st
          (pic, st) = clientPicture st1
 
+     when (view clientBell st0) (beep vty)
      update vty pic
 
      event <- getEvent st
@@ -102,6 +103,9 @@ eventLoop st0 =
            NetworkLine  network time line -> doNetworkLine network time line st
            NetworkError network time ex   -> doNetworkError network time ex st
            NetworkClose network time      -> doNetworkClose network time st
+
+beep :: Vty -> IO ()
+beep vty = outputByteBuffer (outputIface vty) "\BEL"
 
 -- | Respond to a network connection closing normally.
 doNetworkClose ::
@@ -301,7 +305,7 @@ tabCompletion isReversed st =
 execute :: ClientState -> IO ()
 execute st =
   case clientInput st of
-    []          -> eventLoop st
+    []          -> eventLoop (set clientBell True st)
     '/':command -> do res <- executeCommand Nothing command st
                       case res of
                         CommandQuit -> return ()
@@ -327,7 +331,7 @@ executeChat msg st =
              eventLoop $ recordChannelMessage network channel entry
                        $ consumeInput st
 
-    _ -> eventLoop st
+    _ -> eventLoop (set clientBell True st)
 
 -- | Respond to a timer event.
 doTimerEvent ::

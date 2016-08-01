@@ -32,6 +32,7 @@ module Client.State
   , clientNetworkMap
   , clientIgnores
   , clientConnection
+  , clientBell
   , initialClientState
 
   -- * Client operations
@@ -151,6 +152,7 @@ data ClientState = ClientState
   , _clientConfig            :: !Configuration            -- ^ client configuration
   , _clientScroll            :: !Int                      -- ^ buffer scroll lines
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
+  , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
   , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored nicknames
   }
@@ -198,6 +200,7 @@ initialClientState cfg vty =
         , _clientNextConnectionId  = 0
         , _clientNetworkMap        = HashMap.empty
         , _clientIgnores           = HashSet.empty
+        , _clientBell              = False
         }
 
 -- | Forcefully terminate the connection currently associated
@@ -367,7 +370,9 @@ toWindowLine' :: ClientMessage -> WindowLine
 toWindowLine' = toWindowLine defaultRenderParams
 
 clientTick :: ClientState -> ClientState
-clientTick st = overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
+clientTick st
+  = set clientBell False
+  $ overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
 
 consumeInput :: ClientState -> ClientState
 consumeInput = over clientTextBox Edit.success

@@ -69,7 +69,7 @@ commandContinue :: Monad m => ClientState -> m CommandResult
 commandContinue = return . CommandContinue
 
 commandFailure :: Monad m => ClientState -> m CommandResult
-commandFailure = return . CommandContinue
+commandFailure = return . CommandContinue . set clientBell True
 
 splitWord :: String -> (String, String)
 splitWord str = (w, drop 1 rest)
