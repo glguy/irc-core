@@ -23,7 +23,6 @@ module Client.ChannelState
   , chanUsers
   , chanModes
   , chanLists
-  , chanList
   , chanCreation
   , chanQueuedModeration
 
@@ -93,13 +92,6 @@ newChannel = ChannelState
   , _chanQueuedModeration = []
   }
 
--- | 'Lens' into a mask list for a given mode.
-chanList ::
-  Functor f =>
-  Char {- ^ mode -} ->
-  LensLike' f ChannelState (HashMap Text (Text, UTCTime))
-    {- ^ HashMap mask (setby, setwhen) -}
-chanList mode = chanLists . at mode . non' _Empty
 
 -- | Add a user to the user list
 joinChannel :: Identifier -> ChannelState -> ChannelState

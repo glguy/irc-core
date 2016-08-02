@@ -17,9 +17,11 @@ import           Client.ChannelState
 import           Client.ConnectionState
 import           Client.State
 import           Control.Lens
+import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Ord
+import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Image
 import           Irc.Identifier
@@ -30,7 +32,20 @@ maskListImages ::
   NetworkName {- ^ Focused network -} ->
   Identifier  {- ^ Focused channel -} ->
   ClientState -> [Image]
-maskListImages mode network channel st = countImage : images
+maskListImages mode network channel st =
+  case mbEntries of
+    Nothing      -> [text' (withForeColor defAttr red) "Mask list not loaded"]
+    Just entries -> maskListImages' entries st
+
+  where
+    mbEntries = preview
+                ( clientConnection network
+                . csChannels . ix channel
+                . chanLists . ix mode
+                ) st
+
+maskListImages' :: HashMap Text (Text, UTCTime) -> ClientState -> [Image]
+maskListImages' entries st = countImage : images
   where
     countImage = text' (withForeColor defAttr green) "Masks (visible/total): " <|>
                  string defAttr (show (length entryList)) <|>
@@ -44,11 +59,6 @@ maskListImages mode network channel st = countImage : images
     entryList = sortBy (flip (comparing (snd . snd)))
               $ filter matcher'
               $ HashMap.toList entries
-
-    entries = view ( clientConnection network
-                   . csChannels . ix channel
-                   . chanList mode
-                   ) st
 
     renderWhen = formatTime defaultTimeLocale " %F %T"
 

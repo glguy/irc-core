@@ -345,71 +345,43 @@ doRpl cmd msgWhen args =
 
     RPL_BANLIST ->
       case args of
-        _me:_tgt:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
-          over csTransaction $ \t ->
-            let !xs = view _BanTransaction t
-            in BanTransaction ((mask,(who,when)):xs)
-        _ -> id
+        _me:_tgt:mask:who:whenTxt:_ -> recordListEntry mask who whenTxt
+        _                           -> id
 
     RPL_ENDOFBANLIST ->
       case args of
-        _me:tgt:_ -> \cs ->
-           set csTransaction NoTransaction
-         $ setStrict (csChannels . ix (mkId tgt) . chanList 'b')
-                     (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
-                     cs
-        _ -> id
+        _me:tgt:_ -> saveList 'b' tgt
+        _         -> id
 
     RPL_QUIETLIST ->
       case args of
-        _me:_tgt:_q:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
-          over csTransaction $ \t ->
-            let !xs = view _BanTransaction t
-            in BanTransaction ((mask,(who,when)):xs)
-        _ -> id
+        _me:_tgt:_q:mask:who:whenTxt:_ -> recordListEntry mask who whenTxt
+        _                              -> id
 
     RPL_ENDOFQUIETLIST ->
       case args of
-        _me:tgt:_ -> \cs ->
-           set csTransaction NoTransaction
-         $ setStrict (csChannels . ix (mkId tgt) . chanList 'q')
-                     (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
-                     cs
-        _ -> id
+        _me:tgt:_ -> saveList 'q' tgt
+        _         -> id
 
     RPL_INVEXLIST ->
       case args of
-        _me:_tgt:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
-          over csTransaction $ \t ->
-            let !xs = view _BanTransaction t
-            in BanTransaction ((mask,(who,when)):xs)
-        _ -> id
+        _me:_tgt:mask:who:whenTxt:_ -> recordListEntry mask who whenTxt
+        _                           -> id
 
     RPL_ENDOFINVEXLIST ->
       case args of
-        _me:tgt:_ -> \cs ->
-           set csTransaction NoTransaction
-         $ setStrict (csChannels . ix (mkId tgt) . chanList 'I')
-                     (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
-                     cs
-        _ -> id
+        _me:tgt:_ -> saveList 'I' tgt
+        _         -> id
 
     RPL_EXCEPTLIST ->
       case args of
-        _me:_tgt:mask:who:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
-          over csTransaction $ \t ->
-            let !xs = view _BanTransaction t
-            in BanTransaction ((mask,(who,when)):xs)
-        _ -> id
+        _me:_tgt:mask:who:whenTxt:_ -> recordListEntry mask who whenTxt
+        _                           -> id
 
     RPL_ENDOFEXCEPTLIST ->
       case args of
-        _me:tgt:_ -> \cs ->
-             set csTransaction NoTransaction
-           $ setStrict (csChannels . ix (mkId tgt) . chanList 'e')
-                       (HashMap.fromList (view (csTransaction . _BanTransaction) cs))
-                       cs
-        _ -> id
+        _me:tgt:_ -> saveList 'e' tgt
+        _         -> id
 
     RPL_WHOREPLY ->
       case args of
@@ -430,6 +402,37 @@ doRpl cmd msgWhen args =
             where chanId = mkId chan
         _ -> id
     _ -> id
+
+
+-- | Add an entry to a mode list transaction
+recordListEntry ::
+  Text {- ^ mask -} ->
+  Text {- ^ set by -} ->
+  Text {- ^ set time -} ->
+  ConnectionState -> ConnectionState
+recordListEntry mask who whenTxt =
+  case parseTimeParam whenTxt of
+    Nothing   -> id
+    Just when ->
+      over csTransaction $ \t ->
+        let !xs = view _BanTransaction t
+        in BanTransaction ((mask,(who,when)):xs)
+
+
+-- | Save a completed ban, quiet, invex, or exempt list into the channel
+-- state.
+saveList ::
+  Char {- ^ mode -} ->
+  Text {- ^ channel -} ->
+  ConnectionState -> ConnectionState
+saveList mode tgt cs
+   = set csTransaction NoTransaction
+   $ setStrict
+        (csChannels . ix (mkId tgt) . chanLists . at mode)
+        (Just $! newList)
+        cs
+  where
+    newList = HashMap.fromList (view (csTransaction . _BanTransaction) cs)
 
 
 -- | These replies are interpreted by the client and should only be shown
@@ -519,7 +522,7 @@ doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
       | mode `elem` listModes =
         let entry | polarity = Just (renderUserInfo who, zonedTimeToUTC when)
                   | otherwise = Nothing
-        in setStrict (chanList mode . at arg) entry c
+        in setStrict (chanLists . ix mode . at arg) entry c
 
       | polarity  = set (chanModes . at mode) (Just arg) c
       | otherwise = set (chanModes . at mode) Nothing    c

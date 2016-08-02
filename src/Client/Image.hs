@@ -153,6 +153,7 @@ horizDividerImage st
       [ myNickImage st
       , focusImage st
       , activityImage st
+      , detailImage st
       , scrollImage st
       , latencyImage st
       ]
@@ -168,6 +169,15 @@ scrollImage st
       , string (withForeColor defAttr red) "scroll"
       , string defAttr ")"
       ]
+
+detailImage :: ClientState -> Image
+detailImage st
+  | view clientDetailView st = horizCat
+      [ string defAttr "─("
+      , string (withForeColor defAttr red) "detail"
+      , string defAttr ")"
+      ]
+  | otherwise = emptyImage
 
 activityImage :: ClientState -> Image
 activityImage st
