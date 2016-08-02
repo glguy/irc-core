@@ -669,7 +669,7 @@ nickTabCompletion isReversed st
   = fromMaybe st
   $ clientTextBox (wordComplete (++": ") isReversed completions) st
   where
-    completions = currentUserList st
+    completions = currentCompletionList st
 
 sendModeration :: Identifier -> [RawIrcMsg] -> ConnectionState -> IO ConnectionState
 sendModeration channel cmds cs

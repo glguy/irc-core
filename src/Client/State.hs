@@ -38,7 +38,7 @@ module Client.State
   -- * Client operations
   , clientMatcher
   , consumeInput
-  , currentUserList
+  , currentCompletionList
   , ircIgnorable
   , clientInput
   , abortNetwork
@@ -412,11 +412,20 @@ retreatFocus st
     oldFocus = view clientFocus st
     windows  = view clientWindows st
 
-currentUserList :: ClientState -> [Identifier]
-currentUserList st =
+-- | Returns the current network's channels and current channel's users.
+currentCompletionList :: ClientState -> [Identifier]
+currentCompletionList st =
   case view clientFocus st of
-    ChannelFocus network chan -> channelUserList network chan st
+    NetworkFocus network ->
+         networkChannelList network st
+    ChannelFocus network chan ->
+         networkChannelList network st
+      ++ channelUserList network chan st
     _                         -> []
+
+networkChannelList :: NetworkName -> ClientState -> [Identifier]
+networkChannelList network =
+  views (clientConnection network . csChannels) HashMap.keys
 
 channelUserList :: NetworkName -> Identifier -> ClientState -> [Identifier]
 channelUserList network channel =
