@@ -370,9 +370,14 @@ toWindowLine' :: ClientMessage -> WindowLine
 toWindowLine' = toWindowLine defaultRenderParams
 
 clientTick :: ClientState -> ClientState
-clientTick st
-  = set clientBell False
-  $ overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
+clientTick = set clientBell False . markSeen
+
+
+markSeen :: ClientState -> ClientState
+markSeen st =
+  case view clientSubfocus st of
+    FocusMessages -> overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
+    _             -> st
 
 consumeInput :: ClientState -> ClientState
 consumeInput = over clientTextBox Edit.success
