@@ -121,7 +121,7 @@ data PingStatus
 data Transaction
   = NoTransaction
   | NamesTransaction [Text]
-  | BanTransaction [(Text,(Text,UTCTime))]
+  | BanTransaction [(Text,MaskListEntry)]
   | WhoTransaction [UserInfo]
   deriving Show
 
@@ -415,8 +415,12 @@ recordListEntry mask who whenTxt =
     Nothing   -> id
     Just when ->
       over csTransaction $ \t ->
-        let !xs = view _BanTransaction t
-        in BanTransaction ((mask,(who,when)):xs)
+        let !x = MaskListEntry
+                    { _maskListSetter = who
+                    , _maskListTime   = when
+                    }
+            !xs = view _BanTransaction t
+        in BanTransaction ((mask,x):xs)
 
 
 -- | Save a completed ban, quiet, invex, or exempt list into the channel
@@ -520,7 +524,10 @@ doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
                      c
 
       | mode `elem` listModes =
-        let entry | polarity = Just (renderUserInfo who, zonedTimeToUTC when)
+        let entry | polarity = Just $! MaskListEntry
+                         { _maskListSetter = renderUserInfo who
+                         , _maskListTime   = zonedTimeToUTC when
+                         }
                   | otherwise = Nothing
         in setStrict (chanLists . ix mode . at arg) entry c
 

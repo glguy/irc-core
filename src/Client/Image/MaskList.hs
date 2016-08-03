@@ -44,7 +44,7 @@ maskListImages mode network channel st =
                 . chanLists . ix mode
                 ) st
 
-maskListImages' :: HashMap Text (Text, UTCTime) -> ClientState -> [Image]
+maskListImages' :: HashMap Text MaskListEntry -> ClientState -> [Image]
 maskListImages' entries st = countImage : images
   where
     countImage = text' (withForeColor defAttr green) "Masks (visible/total): " <|>
@@ -54,9 +54,9 @@ maskListImages' entries st = countImage : images
 
     matcher = clientMatcher st
 
-    matcher' (x,(y,_)) = matcher x || matcher y
+    matcher' (mask,entry) = matcher mask || matcher (view maskListSetter entry)
 
-    entryList = sortBy (flip (comparing (snd . snd)))
+    entryList = sortBy (flip (comparing (view (_2 . maskListTime))))
               $ filter matcher'
               $ HashMap.toList entries
 
@@ -71,7 +71,7 @@ maskListImages' entries st = countImage : images
     images = [ cropLine $ mask <|>
                           text' defAttr who <|>
                           string defAttr (renderWhen when)
-             | (mask, (who, when)) <- zip paddedMaskImages whoWhens ]
+             | (mask, MaskListEntry who when) <- zip paddedMaskImages whoWhens ]
 
     cropLine img
       | imageWidth img > width = cropRight width img

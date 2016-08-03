@@ -26,6 +26,11 @@ module Client.ChannelState
   , chanCreation
   , chanQueuedModeration
 
+  -- * Mask list entries
+  , MaskListEntry(..)
+  , maskListSetter
+  , maskListTime
+
   -- * Topic information
   , TopicProvenance(..)
   , topicAuthor
@@ -63,7 +68,7 @@ data ChannelState = ChannelState
         -- ^ user list and sigils
   , _chanModes :: !(Map Char Text)
         -- ^ channel settings and parameters
-  , _chanLists :: !(Map Char (HashMap Text (Text, UTCTime)))
+  , _chanLists :: !(Map Char (HashMap Text MaskListEntry))
         -- ^ mode, mask, setter, set time
   , _chanCreation :: !(Maybe UTCTime) -- ^ creation time of channel
   , _chanQueuedModeration :: ![RawIrcMsg] -- ^ delayed op messages
@@ -76,8 +81,15 @@ data TopicProvenance = TopicProvenance
   }
   deriving Show
 
+data MaskListEntry = MaskListEntry
+  { _maskListSetter :: {-# UNPACK #-} !Text
+  , _maskListTime   :: {-# UNPACK #-} !UTCTime
+  }
+  deriving Show
+
 makeLenses ''ChannelState
 makeLenses ''TopicProvenance
+makeLenses ''MaskListEntry
 
 -- | Construct an empty 'ChannelState'
 newChannel :: ChannelState
