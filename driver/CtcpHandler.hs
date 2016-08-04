@@ -82,9 +82,10 @@ dccHandler outDir = EventHandler
 
 queueOffer :: FilePath -> Identifier -> IrcMessage
            -> ClientState -> ClientState
-queueOffer outDir _ msg st = fromJust $
-    (notIgnored >> isCtcpMsg >>= isDCCcommand
-     >>= pure . userConfirm sender . storeOffer) <|> Just st
+queueOffer outDir _ msg st =
+  fromMaybe st $
+    notIgnored >> isCtcpMsg >>= isDCCcommand
+    >>= pure . userConfirm sender . storeOffer
   where
     space = 0x20
     sender = views mesgSender userNick msg
