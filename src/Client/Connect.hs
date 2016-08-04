@@ -103,11 +103,8 @@ loadClientCredentials args =
            []    -> fail "No private keys found"
            _     -> fail "Too many private keys found"
 
-connect :: ConnectionContext -> ServerSettings -> IO Connection
-connect connectionContext args = do
-  connectionParams <- buildConnectionParams args
-  connectTo connectionContext connectionParams
-
 -- | Create a new 'Connection' which will be closed when the continuation finishes.
 withConnection :: ConnectionContext -> ServerSettings -> (Connection -> IO a) -> IO a
-withConnection cxt settings = bracket (connect cxt settings) connectionClose
+withConnection cxt settings k =
+  do params <- buildConnectionParams settings
+     bracket (connectTo cxt params) connectionClose k
