@@ -1,5 +1,12 @@
 # Revision history for glirc2
 
+## 2.3
+
+* Add commands `/znc`
+* Add initial support for ZNC's playback module and `/znc-playback` command
+* Don't consider message seen when in masklist, userlist, or channelinfo windows
+* Add terminal bell on command error
+
 ## 2.2
 
 * Add commands `/ison`, `/userhost`, `/away`, `/notice`, `/ctcp`, `/links`, `/time`, `/stats`

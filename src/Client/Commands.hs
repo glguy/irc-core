@@ -147,7 +147,7 @@ commands = HashMap.fromList
   , ("time"      , NetworkCommand cmdTime   simpleNetworkTab)
   , ("stats"     , NetworkCommand cmdStats  simpleNetworkTab)
   , ("znc"       , NetworkCommand cmdZnc    simpleNetworkTab)
-  , ("znc-playback", NetworkCommand cmdZncPlayback simpleNetworkTab)
+  , ("znc-playback", NetworkCommand cmdZncPlayback noNetworkTab)
 
   , ("invite"    , ChannelCommand cmdInvite simpleChannelTab)
   , ("topic"     , ChannelCommand cmdTopic  tabTopic    )
@@ -392,8 +392,42 @@ cmdZnc _ cs st rest =
 -- TODO: support time ranges
 cmdZncPlayback :: NetworkCommand
 cmdZncPlayback _ cs st rest =
-  do sendMsg cs (ircZnc ["*playback", "play", "*", "0"])
-     commandSuccess st
+  case words rest of
+
+    -- request everything
+    [] -> success "0"
+
+    -- current date explicit time
+    [timeStr]
+       | Just tod <- parse timeFormats timeStr ->
+          do now <- getZonedTime
+             successZoned
+               (set (zonedTimeLocalTime . localTimeTimeOfDay) tod now)
+
+    -- explicit date and time
+    [dateStr,timeStr]
+       | Just day  <- parse dateFormats dateStr
+       , Just tod  <- parse timeFormats timeStr ->
+          do tz <- getCurrentTimeZone
+             successZoned ZonedTime
+               { zonedTimeZone = tz
+               , zonedTimeToLocalTime = LocalTime
+                   { localTimeOfDay = tod
+                   , localDay       = day } }
+
+    _ -> commandFailure st
+
+  where
+    timeFormats = ["%T","%R"]
+    dateFormats = ["%F"]
+    parse formats str =
+      asum (map (parseTimeM False defaultTimeLocale ?? str) formats)
+
+    successZoned = success . formatTime defaultTimeLocale "%s"
+
+    success start =
+      do sendMsg cs (ircZnc ["*playback", "play", "*", Text.pack start])
+         commandSuccess st
 
 cmdMode :: NetworkCommand
 cmdMode _ cs st rest = modeCommand (Text.pack <$> words rest) cs st

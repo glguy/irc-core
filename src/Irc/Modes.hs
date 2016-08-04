@@ -35,11 +35,11 @@ import qualified Data.Text as Text
 
 -- | Settings that describe how to interpret channel modes
 data ModeTypes = ModeTypes
-  { _modesLists       :: ![Char] -- ^ modes for channel lists (e.g. ban)
-  , _modesAlwaysArg   :: ![Char] -- ^ modes that always have an argument
-  , _modesSetArg      :: ![Char] -- ^ modes that have an argument when set
-  , _modesNeverArg    :: ![Char] -- ^ modes that never have arguments
-  , _modesPrefixModes :: ![(Char,Char)] -- ^ modes requiring a nickname argument (mode,sigil)
+  { _modesLists       :: [Char] -- ^ modes for channel lists (e.g. ban)
+  , _modesAlwaysArg   :: [Char] -- ^ modes that always have an argument
+  , _modesSetArg      :: [Char] -- ^ modes that have an argument when set
+  , _modesNeverArg    :: [Char] -- ^ modes that never have arguments
+  , _modesPrefixModes :: [(Char,Char)] -- ^ modes requiring a nickname argument (mode,sigil)
   }
   deriving Show
 

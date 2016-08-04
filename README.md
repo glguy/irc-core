@@ -182,6 +182,13 @@ Window filters
 * `/grep` - Filter chat messages using a regular expression
 * `/grepi` - Filter chat messages using a case-insensitive regular expression on the message
 
+ZNC-specific
+
+* `/znc <module> <parameters>` - send command to ZNC module without echoing to all clients
+* `/znc-playback` - ZNC playback module - play everything
+* `/znc-playback <time>` - ZNC playback module - play everything start at the given time today
+* `/znc-playback <date> <time>` - ZNC playback module - play everything start at the given time
+
 Low-level
 
 * `/quote <raw command>` - Send a raw IRC command to the server

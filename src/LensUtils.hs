@@ -12,11 +12,16 @@ module LensUtils
   ( Id'
   , overStrict
   , setStrict
+
+  -- * time lenses
+  , zonedTimeLocalTime
+  , localTimeTimeOfDay
   ) where
 
 import           Control.Lens
 import           Control.Applicative
 import           Data.Profunctor.Unsafe
+import           Data.Time
 
 newtype Id' a = Id' { runId' :: a }
 
@@ -40,3 +45,9 @@ overStrict l f = runId' #. l (Id' #. f)
 setStrict :: ASetter s t a b -> b -> s -> t
 setStrict l x = set l $! x
 {-# INLINE setStrict #-}
+
+zonedTimeLocalTime :: Lens' ZonedTime LocalTime
+zonedTimeLocalTime f (ZonedTime t z) = f t <&> \t' -> ZonedTime t' z
+
+localTimeTimeOfDay :: Lens' LocalTime TimeOfDay
+localTimeTimeOfDay f (LocalTime d t) = LocalTime d <$> f t
