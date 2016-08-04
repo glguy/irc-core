@@ -68,6 +68,9 @@ data Command
 commandContinue :: Monad m => ClientState -> m CommandResult
 commandContinue = return . CommandContinue
 
+commandSuccess :: Monad m => ClientState -> m CommandResult
+commandSuccess = return . CommandContinue . consumeInput
+
 commandFailure :: Monad m => ClientState -> m CommandResult
 commandFailure = return . CommandContinue . set clientBell True
 
@@ -143,6 +146,8 @@ commands = HashMap.fromList
   , ("links"     , NetworkCommand cmdLinks  simpleNetworkTab)
   , ("time"      , NetworkCommand cmdTime   simpleNetworkTab)
   , ("stats"     , NetworkCommand cmdStats  simpleNetworkTab)
+  , ("znc"       , NetworkCommand cmdZnc    simpleNetworkTab)
+  , ("znc-playback", NetworkCommand cmdZncPlayback simpleNetworkTab)
 
   , ("invite"    , ChannelCommand cmdInvite simpleChannelTab)
   , ("topic"     , ChannelCommand cmdTopic  tabTopic    )
@@ -178,18 +183,15 @@ simpleChannelTab :: Bool -> ChannelCommand
 simpleChannelTab isReversed _ _ _ st _ =
   commandContinue (nickTabCompletion isReversed st)
 
-cmdExit :: ClientState -> String -> IO CommandResult
+cmdExit :: ClientCommand
 cmdExit _ _ = return CommandQuit
 
 -- | When used on a channel that the user is currently
 -- joined to this command will clear the messages but
 -- preserve the window. When used on a window that the
 -- user is not joined to this command will delete the window.
-cmdClear :: ClientState -> String -> IO CommandResult
-cmdClear st _
-  = commandContinue
-  $ windowEffect
-  $ consumeInput st
+cmdClear :: ClientCommand
+cmdClear st _ = commandSuccess (windowEffect st)
   where
     windowEffect
       | isActive  = clearWindow
@@ -210,16 +212,16 @@ cmdClear st _
                 . csChannels . ix channel) st
 
 
-cmdQuote :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdQuote :: NetworkCommand
 cmdQuote _ cs st rest =
   case parseRawIrcMsg (Text.pack rest) of
     Nothing  -> commandFailure st
     Just raw ->
       do sendMsg cs raw
-         commandContinue (consumeInput st)
+         commandSuccess st
 
 -- | Implementation of @/me@
-cmdMe :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdMe :: ChannelCommand
 cmdMe network cs channelId st rest =
   do now <- getZonedTime
      let actionTxt = Text.pack ("\^AACTION " ++ rest ++ "\^A")
@@ -230,12 +232,11 @@ cmdMe network cs channelId st rest =
                     , _msgBody = IrcBody (Ctcp myNick channelId "ACTION" (Text.pack rest))
                     }
      sendMsg cs (ircPrivmsg channelId actionTxt)
-     commandContinue
-       $ recordChannelMessage network channelId entry
-       $ consumeInput st
+     commandSuccess
+       $ recordChannelMessage network channelId entry st
 
 -- | Implementation of @/ctcp@
-cmdCtcp :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdCtcp :: NetworkCommand
 cmdCtcp network cs st rest =
   case parse of
     Nothing -> commandFailure st
@@ -256,7 +257,7 @@ cmdCtcp network cs st rest =
          return (target, cmd, args)
 
 -- | Implementation of @/notice@
-cmdNotice :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdNotice :: NetworkCommand
 cmdNotice network cs st rest =
   case nextWord rest of
     Nothing -> commandFailure st
@@ -271,7 +272,7 @@ cmdNotice network cs st rest =
             network cs st
 
 -- | Implementation of @/msg@
-cmdMsg :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdMsg :: NetworkCommand
 cmdMsg network cs st rest =
   case nextWord rest of
     Nothing -> commandFailure st
@@ -310,99 +311,106 @@ chatCommand con targetsTxt network cs st =
                           st
                           entries
 
-     commandContinue (consumeInput st')
+     commandSuccess st'
 
-cmdConnect :: ClientState -> String -> IO CommandResult
+cmdConnect :: ClientCommand
 cmdConnect st rest =
   case words rest of
     [networkStr] ->
       do -- abort any existing connection before connecting
          let network = Text.pack networkStr
          st' <- addConnection network =<< abortNetwork network st
-         commandContinue
-           $ changeFocus (NetworkFocus network)
-           $ consumeInput st'
+         commandSuccess
+           $ changeFocus (NetworkFocus network) st'
 
     _ -> commandFailure st
 
-cmdFocus :: ClientState -> String -> IO CommandResult
+cmdFocus :: ClientCommand
 cmdFocus st rest =
   case words rest of
     [network] ->
       let focus = NetworkFocus (Text.pack network) in
-      commandContinue
-        $ changeFocus focus
-        $ consumeInput st
+      commandSuccess (changeFocus focus st)
 
     [network,channel] ->
       let focus = ChannelFocus (Text.pack network) (mkId (Text.pack channel)) in
-      commandContinue
-        $ changeFocus focus
-        $ consumeInput st
+      commandSuccess
+        $ changeFocus focus st
 
     _ -> commandFailure st
 
-cmdWhois :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdWhois :: NetworkCommand
 cmdWhois _ cs st rest =
   do sendMsg cs (ircWhois (Text.pack <$> words rest))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdWho :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdWho :: NetworkCommand
 cmdWho _ cs st rest =
   do sendMsg cs (ircWho (Text.pack <$> words rest))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdWhowas :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdWhowas :: NetworkCommand
 cmdWhowas _ cs st rest =
   do sendMsg cs (ircWhowas (Text.pack <$> words rest))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdIson :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdIson :: NetworkCommand
 cmdIson _ cs st rest =
   do sendMsg cs (ircIson (Text.pack <$> words rest))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdUserhost :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdUserhost :: NetworkCommand
 cmdUserhost _ cs st rest =
   do sendMsg cs (ircUserhost (Text.pack <$> words rest))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdStats :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdStats :: NetworkCommand
 cmdStats _ cs st rest =
   do sendMsg cs (ircStats (Text.pack <$> words rest))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdAway :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdAway :: NetworkCommand
 cmdAway _ cs st rest =
   do sendMsg cs (ircAway (Text.pack (dropWhile (==' ') rest)))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdLinks :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdLinks :: NetworkCommand
 cmdLinks _ cs st rest =
   do sendMsg cs (ircLinks (Text.pack <$> words rest))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdTime :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdTime :: NetworkCommand
 cmdTime _ cs st rest =
   do sendMsg cs (ircTime (Text.pack <$> words rest))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
-cmdMode :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdZnc :: NetworkCommand
+cmdZnc _ cs st rest =
+  do sendMsg cs (ircZnc (Text.words (Text.pack rest)))
+     commandSuccess st
+
+-- TODO: support time ranges
+cmdZncPlayback :: NetworkCommand
+cmdZncPlayback _ cs st rest =
+  do sendMsg cs (ircZnc ["*playback", "play", "*", "0"])
+     commandSuccess st
+
+cmdMode :: NetworkCommand
 cmdMode _ cs st rest = modeCommand (Text.pack <$> words rest) cs st
 
-cmdNick :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdNick :: NetworkCommand
 cmdNick _ cs st rest =
   case words rest of
     [nick] ->
       do sendMsg cs (ircNick (mkId (Text.pack nick)))
-         commandContinue (consumeInput st)
+         commandSuccess st
     _ -> commandFailure st
 
-cmdPart :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdPart :: ChannelCommand
 cmdPart _ cs channelId st rest =
   do let msg = dropWhile isSpace rest
      sendMsg cs (ircPart channelId (Text.pack msg))
-     commandContinue (consumeInput st)
+     commandSuccess st
 
 cmdInvite :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdInvite _ cs channelId st rest =
@@ -420,9 +428,8 @@ cmdInvite _ cs channelId st rest =
 commandContinueUpdateCS :: ConnectionState -> ClientState -> IO CommandResult
 commandContinueUpdateCS cs st =
   let networkId = view csNetworkId cs in
-  commandContinue
-    $ setStrict (clientConnections . ix networkId) cs
-    $ consumeInput st
+  commandSuccess
+    $ setStrict (clientConnections . ix networkId) cs st
 
 cmdTopic :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdTopic _ cs channelId st rest =
@@ -434,7 +441,7 @@ cmdTopic _ cs channelId st rest =
                           ("TOPIC " <> idText channelId <> Text.pack (' ' : topic))
                    | otherwise -> ircTopic channelId (Text.pack topic)
      sendMsg cs cmd
-     commandContinue (consumeInput st)
+     commandSuccess st
 
 tabTopic ::
   Bool {- ^ reversed -} ->
@@ -453,23 +460,17 @@ tabTopic _ _ cs channelId st rest
   | otherwise = commandFailure st
 
 
-cmdUsers :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
-cmdUsers _ _ _ st _ = commandContinue
-                    $ changeSubfocus FocusUsers
-                    $ consumeInput st
+cmdUsers :: ChannelCommand
+cmdUsers _ _ _ st _ = commandSuccess (changeSubfocus FocusUsers st)
 
-cmdChannelInfo :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
-cmdChannelInfo _ _ _ st _
-  = commandContinue
-  $ changeSubfocus FocusInfo
-  $ consumeInput st
+cmdChannelInfo :: ChannelCommand
+cmdChannelInfo _ _ _ st _ = commandSuccess (changeSubfocus FocusInfo st)
 
-cmdMasks :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdMasks :: ChannelCommand
 cmdMasks _ cs _ st rest =
   case words rest of
     [[mode]] | mode `elem` view (csModeTypes . modesLists) cs ->
-        commandContinue $ changeSubfocus (FocusMasks mode)
-                        $ consumeInput st
+        commandSuccess (changeSubfocus (FocusMasks mode) st)
     _ -> commandFailure st
 
 cmdKick :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
@@ -521,9 +522,8 @@ cmdJoin network cs st rest =
       doJoin channelStr keyStr =
         do let channelId = mkId (Text.pack (takeWhile (/=',') channelStr))
            sendMsg cs (ircJoin (Text.pack channelStr) (Text.pack <$> keyStr))
-           commandContinue
-               $ changeFocus (ChannelFocus network channelId)
-               $ consumeInput st
+           commandSuccess
+               $ changeFocus (ChannelFocus network channelId) st
   in case ws of
        [channel]     -> doJoin channel Nothing
        [channel,key] -> doJoin channel (Just key)
@@ -534,12 +534,12 @@ cmdQuit :: NetworkName -> ConnectionState -> ClientState -> String -> IO Command
 cmdQuit _ cs st rest =
   do let msg = Text.pack (dropWhile isSpace rest)
      sendMsg cs (ircQuit msg)
-     commandContinue (consumeInput st)
+     commandSuccess st
 
 cmdDisconnect :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdDisconnect network _ st _ =
   do st' <- abortNetwork network st
-     commandContinue (consumeInput st')
+     commandSuccess st'
 
 -- | Reconnect to the currently focused network. It's possible
 -- that we're not currently connected to a network, so
@@ -549,9 +549,8 @@ cmdReconnect st _
   | Just network <- views clientFocus focusNetwork st =
 
       do st' <- addConnection network =<< abortNetwork network st
-         commandContinue
-           $ changeFocus (NetworkFocus network)
-           $ consumeInput st'
+         commandSuccess
+           $ changeFocus (NetworkFocus network) st'
 
   | otherwise = commandFailure st
 
@@ -559,9 +558,8 @@ cmdIgnore :: ClientState -> String -> IO CommandResult
 cmdIgnore st rest =
   case mkId . Text.pack <$> words rest of
     [] -> commandFailure st
-    xs -> commandContinue
-            $ over clientIgnores updateIgnores
-            $ consumeInput st
+    xs -> commandSuccess
+            $ over clientIgnores updateIgnores st
       where
         updateIgnores :: HashSet Identifier -> HashSet Identifier
         updateIgnores s = foldl' updateIgnore s xs
@@ -573,7 +571,7 @@ modeCommand modes cs st =
 
     NetworkFocus _ ->
       do sendMsg cs (ircMode (view csNick cs) modes)
-         commandContinue (consumeInput st)
+         commandSuccess st
 
     ChannelFocus _ chan ->
       case modes of

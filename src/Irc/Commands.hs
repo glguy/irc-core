@@ -36,6 +36,9 @@ module Irc.Commands
   , ircWhois
   , ircWhowas
 
+  -- * ZNC support
+  , ircZnc
+
   -- * SASL support
   , ircAuthenticate
   , plainAuthenticationMode
@@ -227,6 +230,14 @@ ircCapEnd = rawIrcMsg "CAP" ["END"]
 -- | CAP LS command
 ircCapLs :: RawIrcMsg
 ircCapLs = rawIrcMsg "CAP" ["LS"]
+
+-- | ZNC command
+--
+-- /specific to ZNC/
+ircZnc ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircZnc = rawIrcMsg "ZNC"
 
 -- | AUTHENTICATE command
 ircAuthenticate :: Text -> RawIrcMsg
