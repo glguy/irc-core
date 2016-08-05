@@ -135,6 +135,7 @@ commands = HashMap.fromList
 
   , (["quote"     ], NetworkCommand cmdQuote  simpleNetworkTab)
   , (["j","join"  ], NetworkCommand cmdJoin   simpleNetworkTab)
+  , (["c","channel"], NetworkCommand cmdChannel simpleNetworkTab)
   , (["mode"      ], NetworkCommand cmdMode   tabMode)
   , (["msg"       ], NetworkCommand cmdMsg    simpleNetworkTab)
   , (["notice"    ], NetworkCommand cmdNotice simpleNetworkTab)
@@ -567,6 +568,17 @@ cmdJoin network cs st rest =
        [channel]     -> doJoin channel Nothing
        [channel,key] -> doJoin channel (Just key)
        _             -> commandFailure st
+
+
+-- | @/channel@ command. Takes the name of a channel and switches
+-- focus to that channel on the current network.
+cmdChannel :: NetworkCommand
+cmdChannel network _ st rest =
+  case mkId . Text.pack <$> words rest of
+    [ channelId ] ->
+       commandSuccess
+         $ changeFocus (ChannelFocus network channelId) st
+    _ -> commandFailure st
 
 
 cmdQuit :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult

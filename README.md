@@ -138,10 +138,11 @@ Window management
 * `/focus <server> <channel>` - Change focus to channel window
 * `/clear` - Clear contents of current window
 * `/ignore <nick>` - Toggle ignore of a user
+* `/channel <channel>` - Change focus to channel on current network (alias: `/c`)
 
 Channel membership
 
-* `/join <channel>` - Join a channel
+* `/join <channel>` - Join a channel (alias: `/j`)
 * `/part` - Part from current channel
 
 Chat commands
