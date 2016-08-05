@@ -128,7 +128,7 @@ commands = HashMap.fromList
          $ expandAliases
   [ (["connect"   ], ClientCommand cmdConnect noClientTab)
   , (["exit"      ], ClientCommand cmdExit    noClientTab)
-  , (["focus"     ], ClientCommand cmdFocus   simpleClientTab)
+  , (["focus"     ], ClientCommand cmdFocus   tabFocus)
   , (["clear"     ], ClientCommand cmdClear   noClientTab)
   , (["reconnect" ], ClientCommand cmdReconnect noClientTab)
   , (["ignore"    ], ClientCommand cmdIgnore simpleClientTab)
@@ -344,6 +344,23 @@ cmdFocus st rest =
         $ changeFocus focus st
 
     _ -> commandFailure st
+
+-- | When tab completing the first parameter of the focus command
+-- the current networks are used.
+tabFocus :: Bool -> ClientCommand
+tabFocus isReversed st _
+  = commandContinue
+  $ fromMaybe st
+  $ clientTextBox (wordComplete id isReversed completions) st
+  where
+    networks   = map mkId $ HashMap.keys $ view clientNetworkMap st
+    textBox    = view clientTextBox st
+    params     = words $ take (view EditBox.pos textBox)
+                              (view EditBox.content textBox)
+
+    completions
+      | length params == 2 = networks
+      | otherwise          = currentCompletionList st
 
 cmdWhois :: NetworkCommand
 cmdWhois _ cs st rest =
