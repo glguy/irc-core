@@ -26,6 +26,7 @@ import           Control.Lens
 import           Data.Foldable
 import qualified Data.Text as Text
 import           Data.Version
+import           Development.GitRev (gitHash, gitDirty)
 import           System.Console.GetOpt
 import           System.Environment
 import           System.Exit
@@ -89,7 +90,20 @@ helpTxt = usageInfo "glirc2 [FLAGS] INITIAL_NETWORKS..." options
 
 versionTxt :: String
 versionTxt = unlines
-  [ "glirc-" ++ showVersion version
+  [ "glirc-" ++ showVersion version ++ gitHashTxt ++ gitDirtyTxt
   , "Copyright 2016 Eric Mertens"
   ]
 
+-- | Returns @"-SOMEHASH"@ when in a git repository, @""@ otherwise.
+gitHashTxt :: String
+gitHashTxt
+  | hashTxt == "UNKNOWN" = ""
+  | otherwise            = '-':hashTxt
+  where
+    hashTxt = $gitHash
+
+-- | Returns @"-dirty"@ when in a dirty git repository, @""@ otherwise.
+gitDirtyTxt :: String
+gitDirtyTxt
+  | $gitDirty = "-dirty"
+  | otherwise = ""
