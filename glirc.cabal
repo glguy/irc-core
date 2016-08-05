@@ -57,6 +57,7 @@ executable glirc2
                        Irc.RawIrcMsg
                        Irc.UserInfo
                        LensUtils
+                       StrictUnit
                        Paths_glirc
 
   -- other-extensions:
@@ -76,7 +77,6 @@ executable glirc2
                        lens                 >=4.14   && <4.15,
                        memory               >=0.13   && <0.14,
                        network              >=2.6.2  && <2.7,
-                       profunctors          >=5.2    && <5.3,
                        split                >=0.2    && <0.3,
                        stm                  >=2.4    && <2.5,
                        text                 >=1.2.2  && <1.3,

@@ -9,8 +9,9 @@ This module provides functions that are useful with lenses.
 
 -}
 module LensUtils
-  ( Id'
-  , overStrict
+  (
+  -- * Strict update operations
+    overStrict
   , setStrict
 
   -- * time lenses
@@ -19,26 +20,17 @@ module LensUtils
   ) where
 
 import           Control.Lens
-import           Control.Applicative
-import           Data.Profunctor.Unsafe
 import           Data.Time
-
-newtype Id' a = Id' { runId' :: a }
-
--- | Strict function composition
-instance Functor Id' where
-  fmap = liftA
-
--- | Strict function application
-instance Applicative Id' where
-  pure = Id'
-  Id' f <*> Id' x = Id' (f $! x)
+import           StrictUnit
 
 -- | Modify the target of a 'Setter' with a function. The result
 -- is strict in the results of applying the function. Strict version
 -- of 'over'
-overStrict :: LensLike Id' s t a b -> (a -> b) -> s -> t
-overStrict l f = runId' #. l (Id' #. f)
+overStrict :: LensLike ((,) StrictUnit) s t a b -> (a -> b) -> s -> t
+overStrict l f = run . l (nur . f)
+  where
+    nur y = (y `seq` StrictUnit, y)
+    run (StrictUnit,y) = y
 {-# INLINE overStrict #-}
 
 -- | Set a value strictly in the set value. Strict version of 'set'.
@@ -46,8 +38,12 @@ setStrict :: ASetter s t a b -> b -> s -> t
 setStrict l x = set l $! x
 {-# INLINE setStrict #-}
 
+-- | 'Lens' to the 'LocalTime' component of a 'ZonedTime'
 zonedTimeLocalTime :: Lens' ZonedTime LocalTime
 zonedTimeLocalTime f (ZonedTime t z) = f t <&> \t' -> ZonedTime t' z
+{-# INLINE zonedTimeLocalTime #-}
 
+-- | 'Lens' to the 'TimeOfDay component of a 'LocalTime'.
 localTimeTimeOfDay :: Lens' LocalTime TimeOfDay
 localTimeTimeOfDay f (LocalTime d t) = LocalTime d <$> f t
+{-# INLINE localTimeTimeOfDay #-}
