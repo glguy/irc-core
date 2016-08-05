@@ -63,9 +63,16 @@ data ConfigurationFailure
 
 instance Exception ConfigurationFailure
 
-getConfigPath :: IO FilePath
-getConfigPath =
+-- | Uses 'getAppUserDataDirectory' to find @.glirc/config@
+getOldConfigPath :: IO FilePath
+getOldConfigPath =
   do dir <- getAppUserDataDirectory "glirc"
+     return (dir </> "config")
+
+-- | Uses 'getXdgDirectory' 'XdgConfig' to find @.config/glirc/config@
+getNewConfigPath :: IO FilePath
+getNewConfigPath =
+  do dir <- getXdgDirectory XdgConfig "glirc"
      return (dir </> "config")
 
 -- | Empty configuration file used when no path is specified
@@ -73,20 +80,48 @@ getConfigPath =
 emptyConfigFile :: Text
 emptyConfigFile = "{}\n"
 
+-- | Attempt to read a file using the given handler when
+-- a file does not exist. On failure a 'ConfigurationReadFailed'
+-- exception is throw.
+readFileCatchNotFound ::
+  FilePath {- ^ file to read -} ->
+  (IOError -> IO Text) {- ^ error handler for not found case -} ->
+  IO Text
+readFileCatchNotFound path onNotFound =
+  do res <- try (Text.readFile path)
+     case res of
+       Left e | isDoesNotExistError e -> onNotFound e
+              | otherwise -> throwIO (ConfigurationReadFailed (show e))
+       Right txt -> return txt
+
+-- | Either read a configuration file from one of the default
+-- locations, in which case no configuration found is equivalent
+-- to an empty configuration, or from the specified file where
+-- no configuration found is an error.
+readConfigurationFile ::
+  Maybe FilePath {- ^ just file or use default search paths -} ->
+  IO Text
+readConfigurationFile mbPath =
+  case mbPath of
+
+    Just path ->
+      readFileCatchNotFound path $ \e ->
+        throwIO (ConfigurationReadFailed (show e))
+
+    Nothing ->
+      do newPath <- getNewConfigPath
+         readFileCatchNotFound newPath $ \_ ->
+           do oldPath <- getOldConfigPath
+              readFileCatchNotFound oldPath $ \_ ->
+                return emptyConfigFile
+
+
 -- | Load the configuration file defaulting to @~/.glirc/config@.
 loadConfiguration ::
   Maybe FilePath {- ^ path to configuration file -} ->
   IO (Either ConfigurationFailure Configuration)
 loadConfiguration mbPath = try $
-  do path <- maybe getConfigPath return mbPath
-     fileRes <- try (Text.readFile path)
-     file <- case fileRes of
-       Right file -> return file
-       Left e | isNothing mbPath
-              , isDoesNotExistError e -> return emptyConfigFile
-              | otherwise ->
-                  throwIO (ConfigurationReadFailed (show e))
-
+  do file <- readConfigurationFile mbPath
      def  <- loadDefaultServerSettings
 
      rawcfg <-

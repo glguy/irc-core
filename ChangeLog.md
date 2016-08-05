@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.4
+
+* Support XDG configuration directory, e.g. `~/.config/glirc/config`
+* Add more window names. Shift selects second set of names.
+
 ## 2.3
 
 * Add commands `/znc`
