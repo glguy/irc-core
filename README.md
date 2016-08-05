@@ -198,7 +198,7 @@ Keyboard Shortcuts
 
 * `^N` next channel
 * `^P` previous channel
-* `M-#` jump to window - 1234567890qwertyuiop
+* `M-#` jump to window - 1234567890qwertyuiop!@#$%^&*()QWERTYUIOP
 * `M-A` jump to activity
 * `^A` beginning of line
 * `^E` end of line

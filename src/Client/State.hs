@@ -443,7 +443,7 @@ changeSubfocus focus
   . set clientSubfocus focus
 
 windowNames :: [Char]
-windowNames = "1234567890qwertyuiop"
+windowNames = "1234567890qwertyuiop!@#$%^&*()QWERTYUIOP"
 
 clientMatcher :: ClientState -> Text -> Bool
 clientMatcher st =
