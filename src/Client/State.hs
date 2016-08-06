@@ -262,12 +262,12 @@ msgImportance msg st =
         Notice _ tgt txt
           | isMe tgt  -> WLImportant
           | otherwise -> checkTxt txt
-        Ctcp _ _ _ _ -> WLNormal
+        Ctcp{} -> WLNormal
         Part who _ _ | isMe (userNick who) -> WLImportant
                      | otherwise           -> WLBoring
         Kick _ _ kicked _ | isMe kicked -> WLImportant
                           | otherwise   -> WLNormal
-        Error{}         -> WLImportant
+        Error{} -> WLImportant
         Reply cmd _ ->
           case replyCodeType (replyCodeInfo cmd) of
             ErrorReply -> WLImportant
@@ -379,34 +379,38 @@ markSeen st =
     FocusMessages -> overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
     _             -> st
 
+-- | Add the textbox input to the edit history and clear the textbox.
 consumeInput :: ClientState -> ClientState
 consumeInput = over clientTextBox Edit.success
 
+-- | Step focus to the next window when on message view. Otherwise
+-- switch to message view.
 advanceFocus :: ClientState -> ClientState
-advanceFocus st
-  | view clientSubfocus st /= FocusMessages = changeSubfocus FocusMessages st
-  | otherwise =
-  case Map.split oldFocus windows of
-    (l,r)
-      | Just ((k,_),_) <- Map.minViewWithKey r -> success k
-      | Just ((k,_),_) <- Map.minViewWithKey l -> success k
-      | otherwise                              -> st
-  where
-    success x = set clientScroll 0
-              $ set clientFocus x st
-    oldFocus = view clientFocus st
-    windows  = view clientWindows st
+advanceFocus = stepFocus False
 
+-- | Step focus to the previous window when on message view. Otherwise
+-- switch to message view.
 retreatFocus :: ClientState -> ClientState
-retreatFocus st
+retreatFocus = stepFocus True
+
+-- | Step focus to the next window when on message view. Otherwise
+-- switch to message view. Reverse the step order when argument is 'True'.
+stepFocus :: Bool {- ^ reversed -} -> ClientState -> ClientState
+stepFocus isReversed st
   | view clientSubfocus st /= FocusMessages = changeSubfocus FocusMessages st
-  | otherwise =
-  case Map.split oldFocus windows of
-    (l,r)
-      | Just ((k,_),_) <- Map.maxViewWithKey l -> success k
-      | Just ((k,_),_) <- Map.maxViewWithKey r -> success k
-      | otherwise                              -> st
+
+  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey l = success k
+  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey r = success k
+
+  | isForward , Just ((k,_),_) <- Map.minViewWithKey r = success k
+  | isForward , Just ((k,_),_) <- Map.minViewWithKey l = success k
+
+  | otherwise                                          = st
   where
+    isForward = not isReversed
+
+    (l,r) = Map.split oldFocus windows
+
     success x = set clientScroll 0
               $ set clientFocus x st
     oldFocus = view clientFocus st
