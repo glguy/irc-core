@@ -4,6 +4,8 @@
 
 * Support XDG configuration directory, e.g. `~/.config/glirc/config`
 * Add more window names. Shift selects second set of names.
+* Add `/channel` and `/say`
+* Improve `/focus` tab completion
 
 ## 2.3
 
