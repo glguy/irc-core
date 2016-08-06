@@ -150,7 +150,8 @@ Chat commands
 * `/msg <target> <msg>` - Send a message on the current server to target
 * `/notice <target> <msg>` - Send a notice message on the current server to target
 * `/ctcp <target> <command> <args>` - Send a ctcp command on the current server to target
-* `/me` - Send action message to channel
+* `/me <msg>` - Send action message to channel
+* `/say <msg>` - Send normal message to channel
 
 Channel management
 

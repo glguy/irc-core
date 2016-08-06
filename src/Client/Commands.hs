@@ -60,19 +60,22 @@ type ChannelCommand = NetworkName -> ConnectionState -> Identifier -> ClientStat
 -- The tab-completion logic is extended with a bool
 -- indicating that tab completion should be reversed
 data Command
-  = ClientCommand  ClientCommand  (Bool -> ClientCommand)
-  | NetworkCommand NetworkCommand (Bool -> NetworkCommand)
-  | ChannelCommand ChannelCommand (Bool -> ChannelCommand)
+  = ClientCommand  ClientCommand  (Bool -> ClientCommand) -- ^ no requirements
+  | NetworkCommand NetworkCommand (Bool -> NetworkCommand) -- ^ requires an active network
+  | ChatCommand    ChannelCommand (Bool -> ChannelCommand) -- ^ requires an active chat window
+  | ChannelCommand ChannelCommand (Bool -> ChannelCommand) -- ^ requires an active channel window
 
-
+-- | Resume the client without further state changes
 commandContinue :: Monad m => ClientState -> m CommandResult
 commandContinue = return . CommandContinue
 
+-- | Consider the text entry successful and resume the client
 commandSuccess :: Monad m => ClientState -> m CommandResult
-commandSuccess = return . CommandContinue . consumeInput
+commandSuccess = commandContinue . consumeInput
 
+-- | Consider the text entry a failure and resume the client
 commandFailure :: Monad m => ClientState -> m CommandResult
-commandFailure = return . CommandContinue . set clientBell True
+commandFailure = commandContinue . set clientBell True
 
 -- | Interpret whatever text is in the textbox. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message
@@ -154,6 +157,12 @@ executeCommand tabCompleteReversed str st =
           maybe exec tab tabCompleteReversed
             network cs channelId st rest
 
+    Just (ChatCommand exec tab)
+      | ChannelFocus network channelId <- view clientFocus st
+      , Just cs <- preview (clientConnection network) st ->
+          maybe exec tab tabCompleteReversed
+            network cs channelId st rest
+
     _ -> case tabCompleteReversed of
            Nothing         -> commandFailure st
            Just isReversed -> commandContinue (nickTabCompletion isReversed st)
@@ -199,12 +208,14 @@ commands = HashMap.fromList
   , (["kick"      ], ChannelCommand cmdKick   simpleChannelTab)
   , (["kickban"   ], ChannelCommand cmdKickBan simpleChannelTab)
   , (["remove"    ], ChannelCommand cmdRemove simpleChannelTab)
-  , (["me"        ], ChannelCommand cmdMe     simpleChannelTab)
   , (["part"      ], ChannelCommand cmdPart   simpleChannelTab)
 
   , (["users"     ], ChannelCommand cmdUsers  noChannelTab)
   , (["channelinfo"], ChannelCommand cmdChannelInfo noChannelTab)
   , (["masks"     ], ChannelCommand cmdMasks  noChannelTab)
+
+  , (["me"        ], ChatCommand cmdMe     simpleChannelTab)
+  , (["say"       ], ChatCommand cmdSay    simpleChannelTab)
   ]
 
 noClientTab :: Bool -> ClientCommand
@@ -507,6 +518,11 @@ cmdPart _ cs channelId st rest =
   do let msg = dropWhile isSpace rest
      sendMsg cs (ircPart channelId (Text.pack msg))
      commandSuccess st
+
+-- | This command is equivalent to chatting without a command. The primary use
+-- at the moment is to be able to send a leading @/@ to chat easily.
+cmdSay :: ChannelCommand
+cmdSay _network _cs _channelId st rest = executeChat rest st
 
 cmdInvite :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdInvite _ cs channelId st rest =
