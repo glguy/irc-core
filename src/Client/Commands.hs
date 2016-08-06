@@ -13,8 +13,8 @@ can show channel bans, quiets, invites, and exceptions.
 
 module Client.Commands
   ( CommandResult(..)
-  , executeCommand
-  , nickTabCompletion
+  , execute
+  , tabCompletion
   ) where
 
 import           Client.ConnectionState
@@ -73,6 +73,45 @@ commandSuccess = return . CommandContinue . consumeInput
 
 commandFailure :: Monad m => ClientState -> m CommandResult
 commandFailure = return . CommandContinue . set clientBell True
+
+-- | Interpret whatever text is in the textbox. Leading @/@ indicates a
+-- command. Otherwise if a channel or user query is focused a chat message
+-- will be sent.
+execute :: ClientState -> IO CommandResult
+execute st =
+  case clientInput st of
+    []          -> commandFailure st
+    '/':command -> executeCommand Nothing command st
+    msg         -> executeChat msg st
+
+-- | Respond to the TAB key being pressed. This can dispatch to a command
+-- specific completion mode when relevant. Otherwise this will complete
+-- input based on the users of the channel related to the current buffer.
+tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO CommandResult
+tabCompletion isReversed st =
+  case clientInput st of
+    '/':command -> executeCommand (Just isReversed) command st
+    _           -> commandContinue (nickTabCompletion isReversed st)
+
+-- | Treat the current text input as a chat message and send it.
+executeChat :: String -> ClientState -> IO CommandResult
+executeChat msg st =
+  case view clientFocus st of
+    ChannelFocus network channel
+      | Just cs <- preview (clientConnection network) st ->
+          do now <- getZonedTime
+             let msgTxt = Text.pack msg
+                 ircMsg = rawIrcMsg "PRIVMSG" [idText channel, msgTxt]
+                 myNick = UserInfo (view csNick cs) Nothing Nothing
+                 entry = ClientMessage
+                            { _msgTime = now
+                            , _msgNetwork = network
+                            , _msgBody = IrcBody (Privmsg myNick channel msgTxt)
+                            }
+             sendMsg cs ircMsg
+             commandSuccess $ recordChannelMessage network channel entry st
+
+    _ -> commandFailure st
 
 splitWord :: String -> (String, String)
 splitWord str = (w, drop 1 rest)

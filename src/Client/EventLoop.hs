@@ -34,13 +34,10 @@ import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Ord
-import qualified Data.Text as Text
 import           Data.Time
 import           Graphics.Vty
-import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
-import           Irc.UserInfo
 
 
 -- | Sum of the three possible event types the event loop handles
@@ -240,16 +237,24 @@ doKey key modifier st =
         KEnd       -> changeInput Edit.end
         KUp        -> changeInput $ \ed -> fromMaybe ed $ Edit.earlier ed
         KDown      -> changeInput $ \ed -> fromMaybe ed $ Edit.later ed
-        KEnter     -> execute st
         KPageUp    -> eventLoop (pageUp st)
         KPageDown  -> eventLoop (pageDown st)
-        KBackTab   -> tabCompletion True  st
-        KChar '\t' -> tabCompletion False st
+
+        KEnter     -> doCommandResult =<< execute st
+        KBackTab   -> doCommandResult =<< tabCompletion True  st
+        KChar '\t' -> doCommandResult =<< tabCompletion False st
+
         KChar c    -> changeInput (Edit.insert c)
         KFun 2     -> eventLoop (over clientDetailView not st)
         _          -> eventLoop st
 
     _ -> eventLoop st -- unsupported modifier
+
+doCommandResult :: CommandResult -> IO ()
+doCommandResult res =
+  case res of
+    CommandQuit        -> return ()
+    CommandContinue st -> eventLoop st
 
 -- | Scroll the current buffer to show older messages
 pageUp :: ClientState -> ClientState
@@ -287,51 +292,6 @@ jumpFocus i st
     windows = view clientWindows st
     (focus,_) = Map.elemAt i windows
 
--- | Respond to the TAB key being pressed. This can dispatch to a command
--- specific completion mode when relevant. Otherwise this will complete
--- input based on the users of the channel related to the current buffer.
-tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO ()
-tabCompletion isReversed st =
-  case clientInput st of
-    '/':command -> do res <- executeCommand (Just isReversed) command st
-                      case res of
-                        CommandQuit -> return ()
-                        CommandContinue st' -> eventLoop st'
-    _          -> eventLoop (nickTabCompletion isReversed st)
-
--- | Interpret whatever text is in the textbox. Leading @/@ indicates a
--- command. Otherwise if a channel or user query is focused a chat message
--- will be sent.
-execute :: ClientState -> IO ()
-execute st =
-  case clientInput st of
-    []          -> eventLoop (set clientBell True st)
-    '/':command -> do res <- executeCommand Nothing command st
-                      case res of
-                        CommandQuit -> return ()
-                        CommandContinue st' -> eventLoop st'
-    msg         -> executeChat msg st
-
--- | Treat the current text input as a chat message and send it.
-executeChat :: String -> ClientState -> IO ()
-executeChat msg st =
-  case view clientFocus st of
-    ChannelFocus network channel
-      | Just cs <- preview (clientConnection network) st ->
-          do now <- getZonedTime
-             let msgTxt = Text.pack msg
-                 ircMsg = rawIrcMsg "PRIVMSG" [idText channel, msgTxt]
-                 myNick = UserInfo (view csNick cs) Nothing Nothing
-                 entry = ClientMessage
-                            { _msgTime = now
-                            , _msgNetwork = network
-                            , _msgBody = IrcBody (Privmsg myNick channel msgTxt)
-                            }
-             sendMsg cs ircMsg
-             eventLoop $ recordChannelMessage network channel entry
-                       $ consumeInput st
-
-    _ -> eventLoop (set clientBell True st)
 
 -- | Respond to a timer event.
 doTimerEvent ::
