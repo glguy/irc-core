@@ -88,6 +88,7 @@ eventLoop st0 =
          vty = view clientVty st
          (pic, st) = clientPicture st1
 
+     -- check st0 for bell, it will be always be cleared in st1
      when (view clientBell st0) (beep vty)
      update vty pic
 
