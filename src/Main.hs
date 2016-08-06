@@ -31,14 +31,15 @@ withVty = bracket (mkVty def) shutdown
 
 -- | Main action for IRC client
 main :: IO ()
-main =
-  do args <- getCommandArguments
-     cfg  <- loadConfiguration' (view cmdArgConfigFile args)
-     withVty $ \vty ->
-       runInUnboundThread $
-         do st <- initialClientState cfg vty
-            st' <- addInitialNetworks (view cmdArgInitialNetworks args) st
-            eventLoop st'
+main = do
+  args <- getCommandArguments
+  cfg  <- loadConfiguration' (view cmdArgConfigFile args)
+  withVty $ \vty ->
+    runInUnboundThread $ do
+      initialClientState cfg vty >>= evalStateT (do
+        addInitialNetworks (view cmdArgInitialNetworks args)
+        forever $ eventLoop st'
+       )
 
 -- | Load configuration and handle errors along the way.
 loadConfiguration' :: Maybe FilePath -> IO Configuration
