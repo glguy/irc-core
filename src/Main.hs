@@ -38,7 +38,7 @@ main = do
     runInUnboundThread $ do
       initialClientState cfg vty >>= evalStateT (do
         addInitialNetworks (view cmdArgInitialNetworks args)
-        forever $ eventLoop st'
+        forever $ eventLoop
        )
 
 -- | Load configuration and handle errors along the way.
