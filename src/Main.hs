@@ -60,10 +60,7 @@ loadConfiguration' path =
 
 -- | Create connections for all the networks on the command line.
 -- Set the client focus to the first network listed.
-addInitialNetworks :: [NetworkName] -> ClientState -> IO ClientState
-addInitialNetworks networks st =
-  case networks of
-    []        -> return st
-    network:_ ->
-      do st' <- foldM (flip addConnection) st networks
-         return (set clientFocus (NetworkFocus network) st')
+addInitialNetworks :: (MonadIO m, MonadState ClientState m) => [NetworkName] -> m ()
+addInitialNetworks networks = do
+  traverse_ addConnection networks
+  _head (assign clientFocus . NetworkFocus) networks
