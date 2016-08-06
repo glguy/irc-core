@@ -23,6 +23,7 @@ module Irc.Commands
   , ircNotice
   , ircPart
   , ircPass
+  , ircPing
   , ircPong
   , ircPrivmsg
   , ircQuit
@@ -159,6 +160,12 @@ ircQuit msg
 -- | PASS command
 ircPass :: Text {- ^ password -} -> RawIrcMsg
 ircPass pass = rawIrcMsg "PASS" [pass]
+
+-- | PING command
+ircPing ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircPing = rawIrcMsg "PING"
 
 -- | PONG command
 ircPong ::

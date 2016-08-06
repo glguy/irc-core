@@ -190,7 +190,7 @@ doVtyEvent vtyEvent st =
          (w,h) <- displayBounds (outputIface vty)
          eventLoop $ set clientWidth w
                    $ set clientHeight h st
-    _                -> eventLoop st
+    _ -> eventLoop st
 
 
 -- | Map keyboard inputs to actions in the client
@@ -299,17 +299,6 @@ doTimerEvent ::
   NetworkId {- ^ Network related to event -} ->
   TimedAction {- ^ Action to perform -} ->
   ClientState -> IO ()
-doTimerEvent networkId action st =
-  do st' <- forOf (clientConnections . ix networkId) st $ \cs ->
-                  case action of
-                    TimedDisconnect ->
-                      do abortConnection (view csSocket cs)
-                         return $! set csNextPingTime Nothing cs
-
-                    TimedSendPing ->
-                      do now <- getCurrentTime
-                         let cs' = set csNextPingTime (Just $! addUTCTime 60 now)
-                                 $ set csPingStatus   (PingSent now) cs
-                         sendMsg cs' (rawIrcMsg "PING" ["ping"])
-                         return cs'
-     eventLoop st'
+doTimerEvent networkId action =
+  eventLoop <=< traverseOf (clientConnections . ix networkId)
+                           (applyTimedAction action)

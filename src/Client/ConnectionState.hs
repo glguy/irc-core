@@ -60,6 +60,7 @@ module Client.ConnectionState
   , PingStatus(..)
   , TimedAction(..)
   , nextTimedAction
+  , applyTimedAction
   ) where
 
 import           Client.ChannelState
@@ -763,4 +764,18 @@ doPong when cs = set csPingStatus (PingLatency delta) cs
     delta =
       case view csPingStatus cs of
         PingSent sent -> realToFrac (diffUTCTime (zonedTimeToUTC when) sent)
-        _ -> 0
+        _             -> 0
+
+-- | Apply the given 'TimedAction' to a connection state.
+applyTimedAction :: TimedAction -> ConnectionState -> IO ConnectionState
+applyTimedAction action cs =
+  case action of
+    TimedDisconnect ->
+      do abortConnection (view csSocket cs)
+         return $! set csNextPingTime Nothing cs
+
+    TimedSendPing ->
+      do now <- getCurrentTime
+         sendMsg cs (ircPing ["ping"])
+         return $! set csNextPingTime (Just $! addUTCTime 60 now)
+                $  set csPingStatus   (PingSent now) cs
