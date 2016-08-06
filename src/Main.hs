@@ -31,14 +31,15 @@ withVty = bracket (mkVty def) shutdown
 
 -- | Main action for IRC client
 main :: IO ()
-main =
-  do args <- getCommandArguments
-     cfg  <- loadConfiguration' (view cmdArgConfigFile args)
-     withVty $ \vty ->
-       runInUnboundThread $
-         do st <- initialClientState cfg vty
-            st' <- addInitialNetworks (view cmdArgInitialNetworks args) st
-            eventLoop st'
+main = do
+  args <- getCommandArguments
+  cfg  <- loadConfiguration' (view cmdArgConfigFile args)
+  withVty $ \vty ->
+    runInUnboundThread $ do
+      initialClientState cfg vty >>= evalStateT (do
+        addInitialNetworks (view cmdArgInitialNetworks args)
+        forever $ eventLoop
+       )
 
 -- | Load configuration and handle errors along the way.
 loadConfiguration' :: Maybe FilePath -> IO Configuration
@@ -60,10 +61,7 @@ loadConfiguration' path =
 
 -- | Create connections for all the networks on the command line.
 -- Set the client focus to the first network listed.
-addInitialNetworks :: [NetworkName] -> ClientState -> IO ClientState
-addInitialNetworks networks st =
-  case networks of
-    []        -> return st
-    network:_ ->
-      do st' <- foldM (flip addConnection) st networks
-         return (set clientFocus (NetworkFocus network) st')
+addInitialNetworks :: (MonadIO m, MonadState ClientState m) => [NetworkName] -> m ()
+addInitialNetworks networks = do
+  traverse_ addConnection networks
+  _head (assign clientFocus . NetworkFocus) networks

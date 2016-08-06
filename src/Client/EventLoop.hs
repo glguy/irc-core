@@ -82,8 +82,9 @@ getEvent st =
                          return (TimerEvent networkId action)
 
 -- | Apply this function to an initial 'ClientState' to launch the client.
-eventLoop :: ClientState -> IO ()
-eventLoop st0 =
+eventLoop :: (MonadState ClientState m, MonadIO m) => m ()
+eventLoop = do
+  clientTick
   do let st1 = clientTick st0
          vty = view clientVty st
          (pic, st) = clientPicture st1
