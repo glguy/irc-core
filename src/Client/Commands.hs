@@ -18,7 +18,7 @@ module Client.Commands
   ) where
 
 import           Client.ConnectionState
-import qualified Client.EditBox as EditBox
+import qualified Client.EditBox as Edit
 import           Client.Message
 import           Client.ServerSettings
 import           Client.ChannelState
@@ -45,7 +45,6 @@ import           Irc.Message
 import           Irc.UserInfo
 import           Irc.Modes
 import           LensUtils
-import qualified Client.EditBox as Edit
 
 -- | Possible results of running a command
 data CommandResult
@@ -405,8 +404,8 @@ tabFocus isReversed st _
   where
     networks   = map mkId $ HashMap.keys $ view clientNetworkMap st
     textBox    = view clientTextBox st
-    params     = words $ take (view EditBox.pos textBox)
-                              (view EditBox.content textBox)
+    params     = words $ take (view Edit.pos textBox)
+                              (view Edit.content textBox)
 
     completions
       | length params == 2 = networks
@@ -742,8 +741,8 @@ tabMode isReversed _ cs st rest =
 
   where
     textBox    = view clientTextBox st
-    paramIndex = length $ words $ take (view EditBox.pos textBox)
-                                       (view EditBox.content textBox)
+    paramIndex = length $ words $ take (view Edit.pos textBox)
+                                       (view Edit.content textBox)
 
 -- | Use the *!*@host masks of users for channel lists when setting list modes
 --

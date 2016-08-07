@@ -192,7 +192,7 @@ msgTarget me msg =
     Pong{}                        -> TargetHidden
     Error{}                       -> TargetNetwork
     Cap{}                         -> TargetNetwork
-    Reply {}                      -> TargetNetwork
+    Reply{}                       -> TargetNetwork
 
 -- | 'UserInfo' of the user responsible for a message.
 msgActor :: IrcMsg -> Maybe UserInfo
