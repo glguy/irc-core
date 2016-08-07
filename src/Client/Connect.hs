@@ -14,23 +14,25 @@ network settings from the client configuration into the
 network connection library.
 -}
 
-module Client.Connect (withConnection) where
+module Client.Connect
+  ( withConnection
+  ) where
 
-import Control.Lens
-import Control.Exception  (bracket)
-import Data.Default.Class (def)
-import Data.Maybe         (fromMaybe)
-import Data.Monoid        ((<>))
-import Data.X509          (CertificateChain(..))
-import Data.X509.CertificateStore (CertificateStore, makeCertificateStore)
-import Data.X509.File     (readSignedObject, readKeyFile)
-import Network.Connection
-import Network.Socket     (PortNumber)
-import Network.TLS
-import Network.TLS.Extra  (ciphersuite_all)
-import System.X509        (getSystemCertificateStore)
-
-import Client.ServerSettings
+import           Client.Configuration
+import           Client.ServerSettings
+import           Control.Exception  (bracket)
+import           Control.Lens
+import           Control.Monad
+import           Data.Default.Class (def)
+import           Data.Monoid        ((<>))
+import           Data.X509          (CertificateChain(..))
+import           Data.X509.CertificateStore (CertificateStore, makeCertificateStore)
+import           Data.X509.File     (readSignedObject, readKeyFile)
+import           Network.Connection
+import           Network.Socket     (PortNumber)
+import           Network.TLS
+import           Network.TLS.Extra  (ciphersuite_all)
+import           System.X509        (getSystemCertificateStore)
 
 buildConnectionParams :: ServerSettings -> IO ConnectionParams
 buildConnectionParams args =
@@ -60,7 +62,8 @@ ircPort args =
 buildCertificateStore :: ServerSettings -> IO CertificateStore
 buildCertificateStore args =
   do systemStore <- getSystemCertificateStore
-     userCerts   <- traverse readSignedObject (view ssServerCerts args)
+     userCerts   <- traverse (readSignedObject <=< resolveConfigurationPath)
+                             (view ssServerCerts args)
      let userStore = makeCertificateStore (concat userCerts)
      return (userStore <> systemStore)
 
@@ -96,8 +99,13 @@ loadClientCredentials args =
   case view ssTlsClientCert args of
     Nothing       -> return Nothing
     Just certPath ->
-      do cert  <- readSignedObject certPath
-         keys  <- readKeyFile (fromMaybe certPath (view ssTlsClientKey args))
+      do certPath' <- resolveConfigurationPath certPath
+         cert      <- readSignedObject certPath'
+
+         keyPath   <- case view ssTlsClientKey args of
+                        Nothing      -> return certPath'
+                        Just keyPath -> resolveConfigurationPath keyPath
+         keys  <- readKeyFile keyPath
          case keys of
            [key] -> return (Just (CertificateChain cert, key))
            []    -> fail "No private keys found"

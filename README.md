@@ -52,6 +52,8 @@ Configuration file
 A configuration file can currently be used to provide some default values instead of
 using command line arguments. If any value is missing the default will be used.
 
+Relative paths are relative to the home directory.
+
 Learn more about this file format at [config-value](http://hackage.haskell.org/package/config-value)
 
 ```

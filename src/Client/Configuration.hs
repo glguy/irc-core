@@ -24,6 +24,9 @@ module Client.Configuration
 
   -- * Loading configuration
   , loadConfiguration
+
+  -- * Resolving paths
+  , resolveConfigurationPath
   ) where
 
 import           Client.IdentifierColors
@@ -213,3 +216,11 @@ boolean key =
          "yes" -> return True
          "no"  -> return False
          _     -> liftConfigParser (failure "expected yes or no")
+
+-- | Resolve relative paths starting at the home directory rather than
+-- the current directory of the client.
+resolveConfigurationPath :: FilePath -> IO FilePath
+resolveConfigurationPath path
+  | isAbsolute path = return path
+  | otherwise = do home <- getHomeDirectory
+                   return (home </> path)
