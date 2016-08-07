@@ -17,16 +17,13 @@ module Client.Configuration.Colors
 import           Client.IdentifierColors (defaultNickColorPalette)
 import           Config
 import           Config.FromConfig
-import           Control.Exception
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Ratio
 import           Data.Text (Text)
-import qualified Data.Text as Text
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import           Graphics.Vty.Attributes
-import           System.IO.Unsafe
 
 parseColors :: Value -> ConfigParser (Vector Color)
 parseColors (List []) = failure "Empty color palette"
@@ -68,10 +65,11 @@ parseInteger v =
     _ -> Nothing
 
 parseRgb :: Integer -> Integer -> Integer -> ConfigParser Color
-parseRgb r g b =
-  case unsafePerformIO (try (evaluate (rgbColor r g b))) of
-    Left (ErrorCallWithLocation msg _) -> failure (Text.pack msg)
-    Right c -> return c
+parseRgb r g b
+  | valid r, valid g, valid b = return (rgbColor r g b)
+  | otherwise = failure "RGB values must be in range 0-255"
+  where
+    valid x = 0 <= x && x < 256
 
 namedColors :: HashMap Text Color
 namedColors = HashMap.fromList
