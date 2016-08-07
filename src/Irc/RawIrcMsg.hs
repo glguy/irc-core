@@ -27,6 +27,8 @@ module Irc.RawIrcMsg
   -- * Text format for IRC messages
   , parseRawIrcMsg
   , renderRawIrcMsg
+  , prefixParser
+  , simpleTokenParser
 
   -- * Permissive text decoder
   , asUtf8
@@ -49,6 +51,7 @@ import           Data.Time (UTCTime, parseTimeM, defaultTimeLocale)
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 
+import           Irc.Identifier
 import           Irc.UserInfo
 
 -- | 'RawIrcMsg' breaks down the IRC protocol into its most basic parts.

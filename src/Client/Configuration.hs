@@ -186,6 +186,7 @@ parseServerSettings !def =
        _ssChanservChannels <- fieldReq' ssChanservChannels (sectionOptIdentifiers "chanserv-channels")
        _ssFloodPenalty   <- fieldReq ssFloodPenalty   "flood-penalty"
        _ssFloodThreshold <- fieldReq ssFloodThreshold "flood-threshold"
+       _ssMessageHooks   <- fieldReq ssMessageHooks   "message-hooks"
        return ServerSettings{..}
   where
     field    l key = field'    l (sectionOpt key)

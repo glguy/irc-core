@@ -36,6 +36,7 @@ module Client.ServerSettings
   , ssChanservChannels
   , ssFloodPenalty
   , ssFloodThreshold
+  , ssMessageHooks
 
   -- * Load function
   , loadDefaultServerSettings
@@ -73,6 +74,7 @@ data ServerSettings = ServerSettings
   , _ssChanservChannels :: ![Identifier] -- ^ Channels with chanserv permissions
   , _ssFloodPenalty     :: !Rational -- ^ Flood limiter penalty (seconds)
   , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
+  , _ssMessageHooks     :: ![Text] -- ^ Initial message hooks
   }
   deriving Show
 
@@ -107,4 +109,5 @@ loadDefaultServerSettings =
        , _ssChanservChannels = []
        , _ssFloodPenalty     = 2 -- RFC 1459 defaults
        , _ssFloodThreshold   = 10
+       , _ssMessageHooks     = []
        }

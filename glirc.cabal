@@ -34,6 +34,9 @@ executable glirc2
                        Client.ConnectionState
                        Client.EditBox
                        Client.EventLoop
+                       Client.Hook
+                       Client.Hooks
+                       Client.Hook.Znc.Buffextras
                        Client.IdentifierColors
                        Client.Image
                        Client.Image.ChannelInfo
