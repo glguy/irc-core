@@ -7,6 +7,8 @@ Copyright   : (c) Dan Doel, 2016
 License     : ISC
 Maintainer  : dan.doel@gmail.com
 
+The collection of all hooks available in the client.
+
 -}
 
 module Client.Hooks
@@ -19,6 +21,7 @@ import Client.Hook
 
 import Client.Hook.Znc.Buffextras
 
+-- | All the available message hooks.
 messageHooks :: HashMap Text MessageHook
 messageHooks = fromList
   [ ("buffextras", buffextrasHook False)

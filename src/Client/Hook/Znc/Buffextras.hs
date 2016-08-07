@@ -62,6 +62,7 @@ prefixedParser chan = do
 sepMsg :: Text -> Parser ()
 sepMsg m = P.skipWhile (==' ') *> string m *> P.skipWhile (==' ')
 
+-- Parts and quits have a similar format.
 parseLeave
   :: Text
   -> (Maybe Text -> IrcMsg)
