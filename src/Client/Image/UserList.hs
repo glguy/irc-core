@@ -11,9 +11,9 @@ This module renders the lines used in the channel user list.
 module Client.Image.UserList where
 
 import           Client.ChannelState
+import           Client.Configuration
 import           Client.ConnectionState
 import           Client.Image.Message
-import           Client.ServerSettings
 import           Client.State
 import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
@@ -67,7 +67,7 @@ userListImages' cs channel st =
       | (sigil,n) <- Map.toList sigilCounts
       ]
 
-    palette = view (csSettings . ssNickColorPalette) cs
+    palette = view (clientConfig . configNickPalette) st
 
     usersHashMap =
       view (csChannels . ix channel . chanUsers) cs
@@ -89,7 +89,7 @@ userInfoImages' cs channel st = renderEntry <$> usersList
 
     myNicks = toListOf csNick cs
 
-    palette = view (csSettings . ssNickColorPalette) cs
+    palette = view (clientConfig . configNickPalette) st
 
     renderEntry (info, sigils) =
       string (withForeColor defAttr cyan) sigils <|>

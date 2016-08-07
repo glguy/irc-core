@@ -1,7 +1,10 @@
 # Revision history for glirc2
 
+## 2.5
+
 * Add facilities for hooks that can alter the irc message stream.
 * Implement a hook that handles the znc buffextras plugin.
+* Implement configurable nick color highlight palette.
 
 ## 2.4
 

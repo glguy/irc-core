@@ -17,13 +17,14 @@ module Client.Image.ChannelInfo
   ) where
 
 import           Client.ChannelState
+import           Client.Configuration
 import           Client.ConnectionState
 import           Client.Image.Message
 import           Client.MircFormatting
-import           Client.ServerSettings
 import           Client.State
 import           Control.Lens
 import           Data.Time
+import           Data.Vector (Vector)
 import           Graphics.Vty.Image
 import           Irc.Identifier
 
@@ -33,12 +34,15 @@ channelInfoImages network channelId st
 
   | Just cs      <- preview (clientConnection network) st
   , Just channel <- preview (csChannels . ix channelId) cs
-  = channelInfoImages' channel cs
+  = channelInfoImages'
+        (view (clientConfig . configNickPalette) st)
+        channel
+        cs
 
   | otherwise = [text' (withForeColor defAttr red) "No channel information"]
 
-channelInfoImages' :: ChannelState -> ConnectionState -> [Image]
-channelInfoImages' !channel !cs
+channelInfoImages' :: Vector Color -> ChannelState -> ConnectionState -> [Image]
+channelInfoImages' palette !channel !cs
     = topicLine
     : provenanceLines
    ++ creationLines
@@ -52,8 +56,6 @@ channelInfoImages' !channel !cs
     myNick = view csNick cs
 
     utcTimeImage = string defAttr . formatTime defaultTimeLocale "%F %T"
-
-    palette = view (csSettings . ssNickColorPalette) cs
 
     provenanceLines =
         case view chanTopicProvenance channel of
