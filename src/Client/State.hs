@@ -262,6 +262,9 @@ msgImportance msg st =
         Notice _ tgt txt
           | isMe tgt  -> WLImportant
           | otherwise -> checkTxt txt
+        Ctcp _ tgt "ACTION" txt
+          | isMe tgt  -> WLImportant
+          | otherwise -> checkTxt txt
         Ctcp{} -> WLNormal
         Part who _ _ | isMe (userNick who) -> WLImportant
                      | otherwise           -> WLBoring
