@@ -25,6 +25,7 @@ module Client.Configuration
   , loadConfiguration
   ) where
 
+import           Client.Configuration.Colors
 import           Client.ServerSettings
 import           Control.Applicative
 import           Control.Exception
@@ -187,6 +188,8 @@ parseServerSettings !def =
        _ssFloodPenalty   <- fieldReq ssFloodPenalty   "flood-penalty"
        _ssFloodThreshold <- fieldReq ssFloodThreshold "flood-threshold"
        _ssMessageHooks   <- fieldReq ssMessageHooks   "message-hooks"
+       _ssNickColorPalette <- fieldReq' ssNickColorPalette
+                                (sectionOptWith parseColors "nick-color-palette")
        return ServerSettings{..}
   where
     field    l key = field'    l (sectionOpt key)

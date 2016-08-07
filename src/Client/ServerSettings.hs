@@ -37,18 +37,22 @@ module Client.ServerSettings
   , ssFloodPenalty
   , ssFloodThreshold
   , ssMessageHooks
+  , ssNickColorPalette
 
   -- * Load function
   , loadDefaultServerSettings
 
   ) where
 
+import           Client.IdentifierColors
 import           Control.Lens
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
+import           Graphics.Vty.Attributes (Color)
 import           Irc.Identifier (Identifier)
 import           System.Environment
 import qualified Data.Text as Text
+import           Data.Vector (Vector)
 
 import Network.Socket (HostName, PortNumber)
 
@@ -75,6 +79,7 @@ data ServerSettings = ServerSettings
   , _ssFloodPenalty     :: !Rational -- ^ Flood limiter penalty (seconds)
   , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
   , _ssMessageHooks     :: ![Text] -- ^ Initial message hooks
+  , _ssNickColorPalette :: !(Vector Color) -- ^ Nickname color palette
   }
   deriving Show
 
@@ -110,4 +115,5 @@ loadDefaultServerSettings =
        , _ssFloodPenalty     = 2 -- RFC 1459 defaults
        , _ssFloodThreshold   = 10
        , _ssMessageHooks     = []
+       , _ssNickColorPalette = defaultNickColorPalette
        }

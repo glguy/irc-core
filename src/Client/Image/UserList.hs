@@ -13,6 +13,7 @@ module Client.Image.UserList where
 import           Client.ChannelState
 import           Client.ConnectionState
 import           Client.Image.Message
+import           Client.ServerSettings
 import           Client.State
 import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
@@ -30,6 +31,12 @@ userListImages ::
   Identifier  {- ^ Focused channel name -} ->
   ClientState -> [Image]
 userListImages network channel st =
+  case preview (clientConnection network) st of
+    Just cs -> userListImages' cs channel st
+    Nothing -> [text' (withForeColor defAttr red) "No connection"]
+
+userListImages' :: ConnectionState -> Identifier -> ClientState -> [Image]
+userListImages' cs channel st =
     [countImage, horizCat (intersperse gap (map renderUser usersList))]
   where
     countImage = text' (withForeColor defAttr green) "Users:" <|>
@@ -37,11 +44,11 @@ userListImages network channel st =
 
     matcher = clientMatcher st
 
-    myNicks = toListOf (clientConnection network . csNick) st
+    myNicks = toListOf csNick cs
 
     renderUser (ident, sigils) =
       string (withForeColor defAttr cyan) sigils <|>
-      coloredIdentifier myNicks ident
+      coloredIdentifier palette myNicks ident
 
     gap = char defAttr ' '
 
@@ -60,30 +67,38 @@ userListImages network channel st =
       | (sigil,n) <- Map.toList sigilCounts
       ]
 
+    palette = view (csSettings . ssNickColorPalette) cs
+
     usersHashMap =
-      view ( clientConnection network
-           . csChannels . ix channel
-           . chanUsers ) st
+      view (csChannels . ix channel . chanUsers) cs
 
 -- | Render lines for detailed channel user list which shows full user info.
 userInfoImages ::
   NetworkName {- ^ Focused network name -} ->
   Identifier  {- ^ Focused channel name -} ->
   ClientState -> [Image]
-userInfoImages network channel st = renderEntry <$> usersList
+userInfoImages network channel st =
+  case preview (clientConnection network) st of
+    Just cs -> userInfoImages' cs channel st
+    Nothing -> [text' (withForeColor defAttr red) "No connection"]
+
+userInfoImages' :: ConnectionState -> Identifier -> ClientState -> [Image]
+userInfoImages' cs channel st = renderEntry <$> usersList
   where
     matcher = clientMatcher st
 
-    myNicks = toListOf (clientConnection network . csNick) st
+    myNicks = toListOf csNick cs
+
+    palette = view (csSettings . ssNickColorPalette) cs
 
     renderEntry (info, sigils) =
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo DetailedRender myNicks info
+      coloredUserInfo palette DetailedRender myNicks info
 
     matcher' (info,sigils) =
       matcher (Text.pack sigils `Text.append` renderUserInfo info)
 
-    userInfos = view (clientConnection network . csUsers) st
+    userInfos = view csUsers cs
 
     toInfo nick =
       case view (at nick) userInfos of
@@ -95,7 +110,4 @@ userInfoImages network channel st = renderEntry <$> usersList
               $ map (over _1 toInfo)
               $ HashMap.toList usersHashMap
 
-    usersHashMap =
-      view ( clientConnection network
-           . csChannels . ix channel
-           . chanUsers ) st
+    usersHashMap = view (csChannels . ix channel . chanUsers) cs

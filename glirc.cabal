@@ -30,6 +30,7 @@ executable glirc2
                        Client.CommandArguments
                        Client.Commands
                        Client.Configuration
+                       Client.Configuration.Colors
                        Client.Connect
                        Client.ConnectionState
                        Client.EditBox

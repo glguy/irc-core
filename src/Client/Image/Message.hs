@@ -33,11 +33,12 @@ import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
+import           Data.Char
 import qualified Data.HashSet as HashSet
 import           Data.List
 import qualified Data.Text as Text
 import           Data.Text (Text)
-import           Data.Char
+import           Data.Vector (Vector)
 
 -- | Parameters used when rendering messages
 data MessageRendererParams = MessageRendererParams
@@ -45,6 +46,7 @@ data MessageRendererParams = MessageRendererParams
   , rendUserSigils :: [Char] -- ^ sender sigils
   , rendNicks      :: [Identifier] -- ^ nicknames to highlight
   , rendMyNicks    :: [Identifier] -- ^ nicknames to highlight in red
+  , rendPalette    :: Vector Color -- ^ nick color palette
   }
 
 -- | Default 'MessageRenderParams' with no sigils or nicknames specified
@@ -54,6 +56,7 @@ defaultRenderParams = MessageRendererParams
   , rendUserSigils = ""
   , rendNicks = []
   , rendMyNicks = []
+  , rendPalette = defaultNickColorPalette
   }
 
 -- | Construct a message given the time the message was received and its
@@ -64,7 +67,9 @@ msgImage ::
 msgImage when params body = horizCat
   [ timeImage when
   , statusMsgImage (rendStatusMsg params)
-  , bodyImage NormalRender (rendUserSigils params) (rendMyNicks params) (rendNicks params) body
+  , bodyImage NormalRender
+        (rendPalette params) (rendUserSigils params) (rendMyNicks params) (rendNicks params)
+        body
   ]
 
 -- | Construct a message given the time the message was received and its
@@ -73,7 +78,8 @@ detailedMsgImage :: ZonedTime -> MessageRendererParams -> MessageBody -> Image
 detailedMsgImage when params body = horizCat
   [ datetimeImage when
   , statusMsgImage (rendStatusMsg params)
-  , bodyImage DetailedRender (rendUserSigils params) (rendMyNicks params) (rendNicks params) body
+  , bodyImage DetailedRender
+      (rendPalette params) (rendUserSigils params) (rendMyNicks params) (rendNicks params) body
   ]
 
 -- | Render the sigils for a restricted message.
@@ -90,13 +96,14 @@ statusMsgImage modes
 -- highlight.
 bodyImage ::
   RenderMode ->
+  Vector Color {- ^ nick palette -} ->
   [Char] {- ^ sigils -} ->
   [Identifier] {- ^ my nicknames -} ->
   [Identifier] {- ^ nicknames to highlight -} ->
   MessageBody -> Image
-bodyImage rm modes myNicks nicks body =
+bodyImage rm palette modes myNicks nicks body =
   case body of
-    IrcBody irc  -> ircLineImage rm modes myNicks nicks irc
+    IrcBody irc  -> ircLineImage palette rm modes myNicks nicks irc
     ErrorBody ex -> string defAttr ("Exception: " ++ show ex)
     ExitBody     -> string defAttr "Thread finished"
 
@@ -132,12 +139,13 @@ quietAttr = withForeColor defAttr brightBlack
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
 ircLineImage ::
+  Vector Color {- ^ nick palette -} ->
   RenderMode ->
   [Char]       {- ^ sigils (e.g. \@+) -} ->
   [Identifier] {- ^ my nicknames to highlight -} ->
   [Identifier] {- ^ nicknames to highlight -} ->
   IrcMsg -> Image
-ircLineImage rm sigils myNicks nicks body =
+ircLineImage palette rm sigils myNicks nicks body =
   let detail img =
         case rm of
           NormalRender -> emptyImage
@@ -147,24 +155,24 @@ ircLineImage rm sigils myNicks nicks body =
     Nick old new ->
       detail (string quietAttr "nick ") <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks old <|>
+      coloredUserInfo palette rm myNicks old <|>
       string defAttr " became " <|>
-      coloredIdentifier myNicks new
+      coloredIdentifier palette myNicks new
 
     Join nick _chan ->
       string quietAttr "join " <|>
-      coloredUserInfo rm myNicks nick
+      coloredUserInfo palette rm myNicks nick
 
     Part nick _chan mbreason ->
       string quietAttr "part " <|>
-      coloredUserInfo rm myNicks nick <|>
+      coloredUserInfo palette rm myNicks nick <|>
       foldMap (\reason -> string quietAttr " (" <|>
                           parseIrcText reason <|>
                           string quietAttr ")") mbreason
 
     Quit nick mbreason ->
       string quietAttr "quit "   <|>
-      coloredUserInfo rm myNicks nick   <|>
+      coloredUserInfo palette rm myNicks nick   <|>
       foldMap (\reason -> string quietAttr " (" <|>
                           parseIrcText reason <|>
                           string quietAttr ")") mbreason
@@ -172,52 +180,52 @@ ircLineImage rm sigils myNicks nicks body =
     Kick kicker _channel kickee reason ->
       detail (string quietAttr "kick ") <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks kicker <|>
+      coloredUserInfo palette rm myNicks kicker <|>
       string defAttr " kicked " <|>
-      coloredIdentifier myNicks kickee <|>
+      coloredIdentifier palette myNicks kickee <|>
       string defAttr ": " <|>
       parseIrcText reason
 
     Topic src _dst txt ->
-      coloredUserInfo rm myNicks src <|>
+      coloredUserInfo palette rm myNicks src <|>
       string defAttr " changed topic to " <|>
       parseIrcText txt
 
     Notice src _dst txt ->
       detail (string quietAttr "note ") <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks src <|>
+      coloredUserInfo palette rm myNicks src <|>
       string (withForeColor defAttr red) ": " <|>
-      parseIrcTextWithNicks myNicks nicks txt
+      parseIrcTextWithNicks palette myNicks nicks txt
 
     Privmsg src _dst txt ->
       detail (string quietAttr "chat ") <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks src <|>
+      coloredUserInfo palette rm myNicks src <|>
       string defAttr ": " <|>
-      parseIrcTextWithNicks myNicks nicks txt
+      parseIrcTextWithNicks palette myNicks nicks txt
 
     Ctcp src _dst "ACTION" txt ->
       detail (string quietAttr "actp ") <|>
       string (withForeColor defAttr blue) "* " <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks src <|>
+      coloredUserInfo palette rm myNicks src <|>
       string defAttr " " <|>
-      parseIrcTextWithNicks myNicks nicks txt
+      parseIrcTextWithNicks palette myNicks nicks txt
 
     CtcpNotice src _dst "ACTION" txt ->
       detail (string quietAttr "actn ") <|>
       string (withForeColor defAttr red) "* " <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks src <|>
+      coloredUserInfo palette rm myNicks src <|>
       string defAttr " " <|>
-      parseIrcTextWithNicks myNicks nicks txt
+      parseIrcTextWithNicks palette myNicks nicks txt
 
     Ctcp src _dst cmd txt ->
       detail (string quietAttr "ctcp ") <|>
       string (withForeColor defAttr blue) "! " <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks src <|>
+      coloredUserInfo palette rm myNicks src <|>
       string defAttr " " <|>
       parseIrcText cmd <|>
       separatorImage <|>
@@ -227,7 +235,7 @@ ircLineImage rm sigils myNicks nicks body =
       detail (string quietAttr "ctcp ") <|>
       string (withForeColor defAttr red) "! " <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks src <|>
+      coloredUserInfo palette rm myNicks src <|>
       string defAttr " " <|>
       parseIrcText cmd <|>
       separatorImage <|>
@@ -253,7 +261,7 @@ ircLineImage rm sigils myNicks nicks body =
                     NormalRender   -> drop 1
 
     UnknownMsg irc ->
-      maybe emptyImage (\ui -> coloredUserInfo rm myNicks ui <|> char defAttr ' ')
+      maybe emptyImage (\ui -> coloredUserInfo palette rm myNicks ui <|> char defAttr ' ')
         (view msgPrefix irc) <|>
       text' defAttr (view msgCommand irc) <|>
       char defAttr ' ' <|>
@@ -269,7 +277,7 @@ ircLineImage rm sigils myNicks nicks body =
     Mode nick _chan params ->
       detail (string quietAttr "mode ") <|>
       string (withForeColor defAttr cyan) sigils <|>
-      coloredUserInfo rm myNicks nick <|>
+      coloredUserInfo palette rm myNicks nick <|>
       string defAttr " set mode: " <|>
       separatedParams params
 
@@ -298,24 +306,34 @@ renderReplyCode rm code@(ReplyCode w) =
 
 
 -- | Render a nickname in its hash-based color.
-coloredIdentifier :: [Identifier] {- ^ my nicknames -} -> Identifier -> Image
-coloredIdentifier myNicks ident =
+coloredIdentifier ::
+  Vector Color {- ^ palette -} ->
+  [Identifier] {- ^ my nicknames -} ->
+  Identifier ->
+  Image
+coloredIdentifier palette myNicks ident =
   text' (withForeColor defAttr color) (idText ident)
   where
     color
       | ident `elem` myNicks = red
-      | otherwise            = identifierColor ident
+      | otherwise            = identifierColor palette ident
 
 -- | Render an a full user. In normal mode only the nickname will be rendered.
 -- If detailed mode the full user info including the username and hostname parts
 -- will be rendered. The nickname will be colored.
-coloredUserInfo :: RenderMode -> [Identifier] -> UserInfo -> Image
-coloredUserInfo NormalRender myNicks ui = coloredIdentifier myNicks (userNick ui)
-coloredUserInfo DetailedRender myNicks !ui = horizCat
-  [ coloredIdentifier myNicks (userNick ui)
-  , aux '!' (userName ui)
-  , aux '@' (userHost ui)
-  ]
+coloredUserInfo ::
+  Vector Color {- ^ palette -} ->
+  RenderMode ->
+  [Identifier] {- ^ my nicks -} ->
+  UserInfo -> Image
+coloredUserInfo palette NormalRender myNicks ui =
+  coloredIdentifier palette myNicks (userNick ui)
+coloredUserInfo palette DetailedRender myNicks !ui =
+  horizCat
+    [ coloredIdentifier palette myNicks (userNick ui)
+    , aux '!' (userName ui)
+    , aux '@' (userHost ui)
+    ]
   where
     aux x xs
       | Text.null xs = emptyImage
@@ -331,25 +349,27 @@ quietIdentifier ident =
 -- the formatting codes. Otherwise the nicknames in the message are
 -- highlighted.
 parseIrcTextWithNicks ::
+  Vector Color {- ^ palette -} ->
   [Identifier] {- ^ my nicks -} ->
   [Identifier] {- ^ other nicks -} ->
   Text -> Image
-parseIrcTextWithNicks myNicks nicks txt
+parseIrcTextWithNicks palette myNicks nicks txt
   | Text.any isControl txt = parseIrcText txt
-  | otherwise              = highlightNicks myNicks nicks txt
+  | otherwise              = highlightNicks palette myNicks nicks txt
 
 -- | Given a list of nicknames and a chat message, this will generate
 -- an image where all of the occurrences of those nicknames are colored.
 highlightNicks ::
+  Vector Color {- ^ palette -} ->
   [Identifier] {- ^ my nicks -} ->
   [Identifier] {- ^ other nicks -} ->
   Text -> Image
-highlightNicks myNicks nicks txt = horizCat (highlight1 <$> txtParts)
+highlightNicks palette myNicks nicks txt = horizCat (highlight1 <$> txtParts)
   where
     nickSet = HashSet.fromList nicks
     txtParts = nickSplit txt
     highlight1 part
-      | HashSet.member partId nickSet = coloredIdentifier myNicks partId
+      | HashSet.member partId nickSet = coloredIdentifier palette myNicks partId
       | otherwise                     = text' defAttr part
       where
         partId = mkId part

@@ -68,6 +68,7 @@ import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
+import           Client.IdentifierColors
 import           Client.Image.Message
 import           Client.Message
 import           Client.NetworkConnection
@@ -230,8 +231,11 @@ recordChannelMessage network channel msg st =
       , rendUserSigils = computeMsgLineSigils network channel' msg st
       , rendNicks      = channelUserList network channel' st
       , rendMyNicks    = myNicks
+      , rendPalette    = palette
       }
 
+    palette = fromMaybe defaultNickColorPalette
+            $ preview (clientConnection network . csSettings . ssNickColorPalette) st
     -- on failure returns mempty/""
     possibleStatusModes = view (clientConnection network . csStatusMsg) st
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel

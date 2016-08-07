@@ -20,6 +20,7 @@ import           Client.ChannelState
 import           Client.ConnectionState
 import           Client.Image.Message
 import           Client.MircFormatting
+import           Client.ServerSettings
 import           Client.State
 import           Control.Lens
 import           Data.Time
@@ -52,11 +53,14 @@ channelInfoImages' !channel !cs
 
     utcTimeImage = string defAttr . formatTime defaultTimeLocale "%F %T"
 
+    palette = view (csSettings . ssNickColorPalette) cs
+
     provenanceLines =
         case view chanTopicProvenance channel of
           Nothing -> []
           Just !prov ->
-            [ label "Topic set by: " <|> coloredUserInfo DetailedRender [myNick] (view topicAuthor prov)
+            [ label "Topic set by: " <|>
+                coloredUserInfo palette DetailedRender [myNick] (view topicAuthor prov)
             , label "Topic set on: " <|> utcTimeImage (view topicTime prov)
             ]
 
