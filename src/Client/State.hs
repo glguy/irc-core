@@ -68,7 +68,6 @@ import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
-import           Client.Hook
 import           Client.Image.Message
 import           Client.Message
 import           Client.NetworkConnection

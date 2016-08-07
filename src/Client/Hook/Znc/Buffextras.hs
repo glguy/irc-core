@@ -17,7 +17,6 @@ module Client.Hook.Znc.Buffextras
   ( buffextrasHook
   ) where
 
-import Control.Lens
 import Data.Attoparsec.Text as P
 import Data.Monoid
 import Data.Text as T hiding (head)
@@ -28,10 +27,12 @@ import Irc.Message
 import Irc.RawIrcMsg
 import Irc.UserInfo
 
-buffextrasHook :: Bool -> MessageHook
+buffextrasHook :: Bool {- ^ enable debugging -} -> MessageHook
 buffextrasHook = MessageHook "buffextras" False . remap
 
-remap :: Bool -> IrcMsg -> MessageResult
+remap ::
+  Bool {- ^ enable debugging -} ->
+  IrcMsg -> MessageResult
 remap debug (Privmsg user chan msg)
   | userNick user == mkId "*buffextras"
   , Right newMsg <- parseOnly (mainParser chan) msg
@@ -51,13 +52,11 @@ mainParser = prefixedParser
 prefixedParser :: Identifier -> Parser IrcMsg
 prefixedParser chan = do
     pfx <- prefixParser
-    choice [ Join pfx chan <$ sepMsg "joined"
-           , parseLeave "quit" (Quit pfx)
-           , parseLeave "parted" (Part pfx chan)
-           , sepMsg "is now known as" *> fmap (Nick pfx . mkId) simpleTokenParser
+    choice [ Join pfx chan   <$  sepMsg "joined"
+           , Quit pfx        <$> parseLeave "quit"
+           , Part pfx chan   <$> parseLeave "parted"
+           , Nick pfx . mkId <$  sepMsg "is now known as" <*> simpleTokenParser
            ]
- where
- remap cmd parms = set msgCommand cmd . over msgParams (parms . head)
 
 sepMsg :: Text -> Parser ()
 sepMsg m = P.skipWhile (==' ') *> string m *> P.skipWhile (==' ')
@@ -65,12 +64,11 @@ sepMsg m = P.skipWhile (==' ') *> string m *> P.skipWhile (==' ')
 -- Parts and quits have a similar format.
 parseLeave
   :: Text
-  -> (Maybe Text -> IrcMsg)
-  -> Parser IrcMsg
-parseLeave small cmd = do
-  sepMsg (small <> " with message:")
-  P.skipWhile (==' ')
-  char '[' *> fmap (cmd . filterEmpty) (P.takeWhile (/=']')) <* char ']'
+  -> Parser (Maybe Text)
+parseLeave small =
+  do sepMsg (small <> " with message:")
+     P.skipWhile (==' ')
+     filterEmpty <$ char '[' <*> P.takeWhile (/=']') <* char ']'
 
 filterEmpty :: Text -> Maybe Text
 filterEmpty tx

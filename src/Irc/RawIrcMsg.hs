@@ -51,7 +51,6 @@ import           Data.Time (UTCTime, parseTimeM, defaultTimeLocale)
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 
-import           Irc.Identifier
 import           Irc.UserInfo
 
 -- | 'RawIrcMsg' breaks down the IRC protocol into its most basic parts.
