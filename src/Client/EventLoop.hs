@@ -32,7 +32,6 @@ import           Control.Monad
 import           Data.ByteString (ByteString)
 import           Data.Foldable
 import qualified Data.IntMap as IntMap
-import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -162,32 +161,42 @@ doNetworkLine networkId time line st =
 
         Just raw ->
           do let time' = case view msgServerTime raw of
-                           Nothing -> time
+                           Nothing    -> time
                            Just stime -> utcToZonedTime (zonedTimeZone time) stime
-                 hooks = catMaybes $ (`HashMap.lookup`messageHooks)
-                                        <$> view csMessageHooks cs
-                 (stateHook, viewHook) =
-                    over both applyMessageHooks
-                      $ partition (view messageHookStateful) hooks
-             st' <- fromMaybe (pure st) $ do
-               irc <- stateHook (cookIrcMsg raw)
-               let myNick = view csNick cs
-                   target = msgTarget myNick irc
-                   recSt = fromMaybe st $ do
-                             ircBody <- IrcBody <$> viewHook irc
-                             let msg = ClientMessage
-                                     { _msgTime = time'
-                                     , _msgNetwork = network
-                                     , _msgBody = ircBody
-                                     }
-                             pure $ recordIrcMessage network target msg st
 
-               -- record messages *before* applying the changes
-               let (msgs, st')
-                      = applyMessageToClientState time irc networkId cs recSt
+                 (stateHook, viewHook)
+                      = over both applyMessageHooks
+                      $ partition (view messageHookStateful)
+                      $ lookups
+                          (view csMessageHooks cs)
+                          messageHooks
 
-               pure $ st' <$ traverse_ (sendMsg cs) msgs
-             eventLoop st'
+             case stateHook (cookIrcMsg raw) of
+               Nothing  -> eventLoop st -- Message ignored
+               Just irc -> do traverse_ (sendMsg cs) replies
+                              eventLoop st'
+                 where
+                   -- state with message recorded
+                   recSt = case viewHook irc of
+                             Nothing   -> st -- Message hidden
+                             Just irc' -> recordIrcMessage network target msg st
+                               where
+                                 myNick = view csNick cs
+                                 target = msgTarget myNick irc
+                                 msg = ClientMessage
+                                         { _msgTime    = time'
+                                         , _msgNetwork = network
+                                         , _msgBody    = IrcBody irc'
+                                         }
+
+                   -- record messages *before* applying the changes
+                   (replies, st') = applyMessageToClientState time irc networkId cs recSt
+
+
+-- | Returns the list of values that were stored at the given indexes, if
+-- a value was stored at that index.
+lookups :: Ixed m => [Index m] -> m -> [IxValue m]
+lookups ks m = mapMaybe (\k -> preview (ix k) m) ks
 
 
 -- | Respond to a VTY event.
