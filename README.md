@@ -114,6 +114,7 @@ Settings
 * `chanserv-channels` - list of text - list of channels with chanserv op permission
 * `flood-penalty` - number - cost in seconds per message
 * `flood-threshold` - number - threshold of seconds for burst
+* `message-hooks` - list of text - names of hooks to enable
 
 
 Commands
@@ -221,3 +222,12 @@ Keyboard Shortcuts
 * `^_` underline
 * `^]` italic
 * `^O` reset formatting
+
+Hooks
+=====
+
+buffextras
+----------
+
+Enable this hook when using ZNC and the `buffextra` module in order to reinterpret
+this module's messages natively in the client.
