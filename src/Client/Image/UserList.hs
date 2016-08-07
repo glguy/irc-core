@@ -87,8 +87,8 @@ userInfoImages network channel st = renderEntry <$> usersList
 
     toInfo nick =
       case view (at nick) userInfos of
-        Just (UserAndHost n h) -> UserInfo nick (Just n) (Just h)
-        Nothing                -> UserInfo nick Nothing Nothing
+        Just (UserAndHost n h) -> UserInfo nick n h
+        Nothing                -> UserInfo nick "" ""
 
     usersList = sortBy (flip (comparing (userNick . fst)))
               $ filter matcher'

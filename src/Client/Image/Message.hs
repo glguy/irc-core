@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, BangPatterns #-}
 {-|
 Module      : Client.Image.Message
 Description : Renderer for message lines
@@ -311,11 +311,15 @@ coloredIdentifier myNicks ident =
 -- will be rendered. The nickname will be colored.
 coloredUserInfo :: RenderMode -> [Identifier] -> UserInfo -> Image
 coloredUserInfo NormalRender myNicks ui = coloredIdentifier myNicks (userNick ui)
-coloredUserInfo DetailedRender myNicks ui = horizCat
+coloredUserInfo DetailedRender myNicks !ui = horizCat
   [ coloredIdentifier myNicks (userNick ui)
-  , foldMap (\user -> char defAttr '!' <|> text' quietAttr user) (userName ui)
-  , foldMap (\host -> char defAttr '@' <|> text' quietAttr host) (userHost ui)
+  , aux '!' (userName ui)
+  , aux '@' (userHost ui)
   ]
+  where
+    aux x xs
+      | Text.null xs = emptyImage
+      | otherwise    = char defAttr x <|> text' quietAttr xs
 
 -- | Render an identifier without using colors. This is useful for metadata.
 quietIdentifier :: Identifier -> Image

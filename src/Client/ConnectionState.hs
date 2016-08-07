@@ -182,7 +182,7 @@ newConnectionState ::
   ConnectionState
 newConnectionState networkId network settings sock = ConnectionState
   { _csNetworkId    = networkId
-  , _csUserInfo     = UserInfo (mkId (view ssNick settings)) Nothing Nothing
+  , _csUserInfo     = UserInfo (mkId (view ssNick settings)) "" ""
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
   , _csChannelTypes = "#&"
@@ -388,8 +388,9 @@ doRpl cmd msgWhen args =
       case args of
         _me:_tgt:uname:host:_server:nick:_ ->
           over csTransaction $ \t ->
-            let !xs = view _WhoTransaction t
-            in WhoTransaction (UserInfo (mkId nick) (Just uname) (Just host) : xs)
+            let !x  = UserInfo (mkId nick) uname host
+                !xs = view _WhoTransaction t
+            in WhoTransaction (x : xs)
         _ -> id
 
     RPL_ENDOFWHO -> massRegistration
@@ -398,9 +399,10 @@ doRpl cmd msgWhen args =
       case args of
         _me:chan:modes:params ->
               snd -- channel mode reply shouldn't trigger messages
-            . doMode msgWhen (UserInfo (mkId "*") Nothing Nothing) chanId modes params
+            . doMode msgWhen who chanId modes params
             . set (csChannels . ix chanId . chanModes) Map.empty
             where chanId = mkId chan
+                  !who = UserInfo (mkId "*") "" ""
         _ -> id
     _ -> id
 
@@ -699,11 +701,10 @@ csUser :: Functor f => Identifier -> LensLike' f ConnectionState (Maybe UserAndH
 csUser i = csUsers . at i
 
 recordUser :: UserInfo -> ConnectionState -> ConnectionState
-recordUser user =
-  case (userName user, userHost user) of
-    (Just u, Just h) -> set (csUsers . at (userNick user))
-                            (Just (UserAndHost u h))
-    _ -> id
+recordUser (UserInfo nick user host)
+  | Text.null user || Text.null host = id
+  | otherwise = set (csUsers . at nick)
+                    (Just (UserAndHost user host))
 
 forgetUser :: Identifier -> ConnectionState -> ConnectionState
 forgetUser nick = set (csUsers . at nick) Nothing
@@ -733,11 +734,11 @@ massRegistration cs
 
     updateUsers users = foldl' updateUser users infos
 
-    updateUser users !info
-      | Just u <- userName info
-      , Just h <- userHost info
-      , HashSet.member (userNick info) channelUsers =
-              HashMap.insert (userNick info) (UserAndHost u h) users
+    updateUser users (UserInfo nick user host)
+      | not (Text.null user)
+      , not (Text.null host)
+      , HashSet.member nick channelUsers =
+              HashMap.insert nick (UserAndHost user host) users
       | otherwise = users
 
 -- | Timer-based events

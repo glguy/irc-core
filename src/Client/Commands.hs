@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 {-|
 Module      : Client.Commands
@@ -101,11 +101,11 @@ executeChat :: String -> ClientState -> IO CommandResult
 executeChat msg st =
   case view clientFocus st of
     ChannelFocus network channel
-      | Just cs <- preview (clientConnection network) st ->
+      | Just !cs <- preview (clientConnection network) st ->
           do now <- getZonedTime
              let msgTxt = Text.pack msg
                  ircMsg = rawIrcMsg "PRIVMSG" [idText channel, msgTxt]
-                 myNick = UserInfo (view csNick cs) Nothing Nothing
+                 myNick = UserInfo (view csNick cs) "" ""
                  entry = ClientMessage
                             { _msgTime = now
                             , _msgNetwork = network
@@ -281,7 +281,7 @@ cmdMe :: ChannelCommand
 cmdMe network cs channelId st rest =
   do now <- getZonedTime
      let actionTxt = Text.pack ("\^AACTION " ++ rest ++ "\^A")
-         myNick = UserInfo (view csNick cs) Nothing Nothing
+         !myNick = UserInfo (view csNick cs) "" ""
          entry = ClientMessage
                     { _msgTime = now
                     , _msgNetwork = network
@@ -353,7 +353,7 @@ chatCommand con targetsTxt network cs st =
   do now <- getZonedTime
      let targetTxts = Text.split (==',') targetsTxt
          targetIds  = mkId <$> targetTxts
-         myNick = UserInfo (view csNick cs) Nothing Nothing
+         !myNick = UserInfo (view csNick cs) "" ""
          entries = [ (targetId,
                           ClientMessage
                           { _msgTime = now
@@ -615,8 +615,8 @@ cmdKickBan _ cs channelId st rest =
 computeBanUserInfo :: Identifier -> ConnectionState -> UserInfo
 computeBanUserInfo who cs =
   case view (csUser who) cs of
-    Nothing                   -> UserInfo who        (Just "*") (Just "*")
-    Just (UserAndHost _ host) -> UserInfo (mkId "*") (Just "*") (Just host)
+    Nothing                   -> UserInfo who        "*" "*"
+    Just (UserAndHost _ host) -> UserInfo (mkId "*") "*" host
 
 cmdRemove :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
 cmdRemove _ cs channelId st rest =

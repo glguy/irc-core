@@ -28,9 +28,9 @@ import           Control.Lens
 -- | 'UserInfo' packages a nickname along with the username and hsotname
 -- if they are known in the current context.
 data UserInfo = UserInfo
-  { userNick :: !Identifier   -- ^ nickname
-  , userName :: !(Maybe Text) -- ^ username
-  , userHost :: !(Maybe Text) -- ^ hostname
+  { userNick :: {-# UNPACK #-} !Identifier   -- ^ nickname
+  , userName :: {-# UNPACK #-} !Text -- ^ username, empty when missing
+  , userHost :: {-# UNPACK #-} !Text -- ^ hostname, empty when missing
   }
   deriving (Read, Show)
 
@@ -40,9 +40,10 @@ uiNick f ui@UserInfo{userNick = n} = (\n' -> ui{userNick = n'}) <$> f n
 
 -- | Render 'UserInfo' as @nick!username\@hostname@
 renderUserInfo :: UserInfo -> Text
-renderUserInfo u = idText (userNick u)
-                <> maybe "" ("!" <>) (userName u)
-                <> maybe "" ("@" <>) (userHost u)
+renderUserInfo (UserInfo a b c)
+    = idText a
+   <> (if Text.null b then "" else "!" <> b)
+   <> (if Text.null c then "" else "@" <> c)
 
 -- | Split up a hostmask into a nickname, username, and hostname.
 -- The username and hostname might not be defined but are delimited by
@@ -50,8 +51,8 @@ renderUserInfo u = idText (userNick u)
 parseUserInfo :: Text -> UserInfo
 parseUserInfo x = UserInfo
   { userNick = mkId nick
-  , userName = if Text.null user then Nothing else Just $! Text.drop 1 user
-  , userHost = if Text.null host then Nothing else Just $! Text.drop 1 host
+  , userName = Text.drop 1 user
+  , userHost = Text.drop 1 host
   }
   where
   (nickuser,host) = Text.break (=='@') x
