@@ -37,6 +37,7 @@ module Client.ConnectionState
   , csNetwork
   , csNextPingTime
   , csPingStatus
+  , csMessageHooks
 
   , newConnectionState
 
@@ -107,6 +108,7 @@ data ConnectionState = ConnectionState
   , _csNetwork      :: !Text
   , _csNextPingTime :: !(Maybe UTCTime)
   , _csPingStatus   :: !PingStatus
+  , _csMessageHooks :: ![Text]
   }
   deriving Show
 
@@ -196,6 +198,7 @@ newConnectionState networkId network settings sock = ConnectionState
   , _csNetwork      = network
   , _csPingStatus   = PingNever
   , _csNextPingTime = Nothing
+  , _csMessageHooks = view ssMessageHooks settings
   }
 
 

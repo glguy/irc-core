@@ -18,6 +18,8 @@ module Client.EventLoop
 import           Client.Commands
 import           Client.ConnectionState
 import qualified Client.EditBox     as Edit
+import           Client.Hook
+import           Client.Hooks
 import           Client.Image
 import           Client.Message
 import           Client.NetworkConnection
@@ -30,6 +32,7 @@ import           Control.Monad
 import           Data.ByteString (ByteString)
 import           Data.Foldable
 import qualified Data.IntMap as IntMap
+import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -158,24 +161,32 @@ doNetworkLine networkId time line st =
              eventLoop (recordNetworkMessage msg st)
 
         Just raw ->
-          do let irc = cookIrcMsg raw
-                 time' = case view msgServerTime raw of
+          do let time' = case view msgServerTime raw of
                            Nothing -> time
                            Just stime -> utcToZonedTime (zonedTimeZone time) stime
-                 msg = ClientMessage
-                         { _msgTime = time'
-                         , _msgNetwork = network
-                         , _msgBody = IrcBody irc
-                         }
-                 myNick = view csNick cs
-                 target = msgTarget myNick irc
+                 hooks = catMaybes $ (`HashMap.lookup`messageHooks)
+                                        <$> view csMessageHooks cs
+                 (stateHook, viewHook) =
+                    over both applyMessageHooks
+                      $ partition (view messageHookStateful) hooks
+             st' <- fromMaybe (pure st) $ do
+               irc <- stateHook (cookIrcMsg raw)
+               let myNick = view csNick cs
+                   target = msgTarget myNick irc
+                   recSt = fromMaybe st $ do
+                             ircBody <- IrcBody <$> viewHook irc
+                             let msg = ClientMessage
+                                     { _msgTime = time'
+                                     , _msgNetwork = network
+                                     , _msgBody = ircBody
+                                     }
+                             pure $ recordIrcMessage network target msg st
 
-             -- record messages *before* applying the changes
-             let (msgs, st')
-                    = applyMessageToClientState time irc networkId cs
-                    $ recordIrcMessage network target msg st
+               -- record messages *before* applying the changes
+               let (msgs, st')
+                      = applyMessageToClientState time irc networkId cs recSt
 
-             traverse_ (sendMsg cs) msgs
+               pure $ st' <$ traverse_ (sendMsg cs) msgs
              eventLoop st'
 
 

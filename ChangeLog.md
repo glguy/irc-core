@@ -1,5 +1,8 @@
 # Revision history for glirc2
 
+* Add facilities for hooks that can alter the irc message stream.
+* Implement a hook that handles the znc buffextras plugin.
+
 ## 2.4
 
 * Support XDG configuration directory, e.g. `~/.config/glirc/config`
