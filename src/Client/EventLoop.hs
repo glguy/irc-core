@@ -36,6 +36,7 @@ import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Ord
+import qualified Data.Text as Text
 import           Data.Time
 import           Graphics.Vty
 import           Irc.Message
@@ -160,9 +161,7 @@ doNetworkLine networkId time line st =
              eventLoop (recordNetworkMessage msg st)
 
         Just raw ->
-          do let time' = case view msgServerTime raw of
-                           Nothing    -> time
-                           Just stime -> utcToZonedTime (zonedTimeZone time) stime
+          do let time' = computeEffectiveTime time (view msgTags raw)
 
                  (stateHook, viewHook)
                       = over both applyMessageHooks
@@ -191,6 +190,20 @@ doNetworkLine networkId time line st =
 
                    -- record messages *before* applying the changes
                    (replies, st') = applyMessageToClientState time irc networkId cs recSt
+
+-- | Find the ZNC provided server time
+computeEffectiveTime :: ZonedTime -> [TagEntry] -> ZonedTime
+computeEffectiveTime time tags = fromMaybe time zncTime
+  where
+    isTimeTag (TagEntry key _) = key == "time"
+    zncTime =
+      do TagEntry _ (Just txt) <- find isTimeTag tags
+         tagTime <- parseZncTime (Text.unpack txt)
+         return (utcToZonedTime (zonedTimeZone time) tagTime)
+
+-- | Parses the time format used by ZNC for buffer playback
+parseZncTime :: String -> Maybe UTCTime
+parseZncTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%Z"
 
 
 -- | Returns the list of values that were stored at the given indexes, if

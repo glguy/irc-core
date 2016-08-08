@@ -18,8 +18,9 @@ module Irc.RawIrcMsg
   (
   -- * Low-level IRC messages
     RawIrcMsg(..)
+  , TagEntry(..)
   , rawIrcMsg
-  , msgServerTime
+  , msgTags
   , msgPrefix
   , msgCommand
   , msgParams
@@ -47,7 +48,6 @@ import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           Data.Time (UTCTime, parseTimeM, defaultTimeLocale)
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 
@@ -66,11 +66,14 @@ import           Irc.UserInfo
 --
 -- @:prefix COMMAND param0 param1 param2 .. paramN@
 data RawIrcMsg = RawIrcMsg
-  { _msgServerTime :: Maybe UTCTime -- ^ Time from znc.in/server-time-iso extension
+  { _msgTags       :: [TagEntry] -- ^ IRCv3.2 message tags
   , _msgPrefix     :: Maybe UserInfo -- ^ Optional sender of message
   , _msgCommand    :: !Text -- ^ command
   , _msgParams     :: [Text] -- ^ command parameters
   }
+  deriving (Read, Show)
+
+data TagEntry = TagEntry Text (Maybe Text)
   deriving (Read, Show)
 
 makeLenses ''RawIrcMsg
@@ -112,15 +115,15 @@ maxMiddleParams = 14
 -- invalid messages!
 rawIrcMsgParser :: Parser RawIrcMsg
 rawIrcMsgParser =
-  do time   <- guarded (string "@time=") timeParser
+  do tags   <- fromMaybe [] <$> guarded (char '@') tagParser
      prefix <- guarded (char ':') prefixParser
      cmd    <- simpleTokenParser
      params <- paramsParser maxMiddleParams
      return $! RawIrcMsg
-       { _msgServerTime = time
-       , _msgPrefix     = prefix
-       , _msgCommand    = cmd
-       , _msgParams     = params
+       { _msgTags    = tags
+       , _msgPrefix  = prefix
+       , _msgCommand = cmd
+       , _msgParams  = params
        }
 
 -- | Parse the list of parameters in a raw message. The RFC
@@ -148,17 +151,28 @@ paramsParser !n =
        xs <- paramsParser (n-1)
        return (x:xs)
 
--- | Parse the server-time message prefix:
--- @time=2015-03-04T22:29:04.064Z
-timeParser :: Parser UTCTime
-timeParser =
-  do timeBytes <- simpleTokenParser
-     case parseIrcTime (Text.unpack timeBytes) of
-       Nothing -> fail "Bad server-time format"
-       Just t  -> return t
+tagParser :: Parser [TagEntry]
+tagParser =
+  do tags <- simpleTokenParser
+     return (splitTag <$> Text.split (==';') tags)
 
-parseIrcTime :: String -> Maybe UTCTime
-parseIrcTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%Z"
+splitTag :: Text -> TagEntry
+splitTag txt = TagEntry key val'
+  where
+    (key, val) = Text.break (=='=') txt
+    val' = do (_,esc) <- Text.uncons val
+              return (unescapeTagVal esc)
+
+unescapeTagVal :: Text -> Text
+unescapeTagVal = Text.pack . aux . Text.unpack
+  where
+    aux ('\\':':':xs) = ';':aux xs
+    aux ('\\':'s':xs) = ' ':aux xs
+    aux ('\\':'\\':xs) = '\\':aux xs
+    aux ('\\':'r':xs) = '\r':aux xs
+    aux ('\\':'n':xs) = '\n':aux xs
+    aux (x:xs)        = x : aux xs
+    aux ""            = ""
 
 prefixParser :: Parser UserInfo
 prefixParser =
@@ -181,7 +195,8 @@ simpleTokenParser =
 -- | Serialize a structured IRC protocol message back into its wire
 -- format. This command adds the required trailing newline.
 renderRawIrcMsg :: RawIrcMsg -> ByteString
-renderRawIrcMsg m = L.toStrict $ Builder.toLazyByteString $
+renderRawIrcMsg !m = L.toStrict $ Builder.toLazyByteString $
+  -- TODO: render tags
      maybe mempty renderPrefix (view msgPrefix m)
   <> Text.encodeUtf8Builder (view msgCommand m)
   <> buildParams (view msgParams m)
@@ -192,7 +207,7 @@ renderRawIrcMsg m = L.toStrict $ Builder.toLazyByteString $
 rawIrcMsg ::
   Text {- ^ command -} ->
   [Text] {- ^ parameters -} -> RawIrcMsg
-rawIrcMsg = RawIrcMsg Nothing Nothing
+rawIrcMsg = RawIrcMsg [] Nothing
 
 renderPrefix :: UserInfo -> Builder
 renderPrefix u = Builder.char8 ':'
