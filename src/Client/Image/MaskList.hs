@@ -14,7 +14,9 @@ module Client.Image.MaskList
   ) where
 
 import           Client.ChannelState
+import           Client.Configuration
 import           Client.ConnectionState
+import           Client.Image.Palette
 import           Client.State
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
@@ -34,10 +36,11 @@ maskListImages ::
   ClientState -> [Image]
 maskListImages mode network channel st =
   case mbEntries of
-    Nothing      -> [text' (withForeColor defAttr red) "Mask list not loaded"]
+    Nothing      -> [text' (view palError pal) "Mask list not loaded"]
     Just entries -> maskListImages' entries st
 
   where
+    pal = view (clientConfig . configPalette) st
     mbEntries = preview
                 ( clientConnection network
                 . csChannels . ix channel
@@ -47,9 +50,11 @@ maskListImages mode network channel st =
 maskListImages' :: HashMap Text MaskListEntry -> ClientState -> [Image]
 maskListImages' entries st = countImage : images
   where
-    countImage = text' (withForeColor defAttr green) "Masks (visible/total): " <|>
+    pal = view (clientConfig . configPalette) st
+
+    countImage = text' (view palLabel pal) "Masks (visible/total): " <|>
                  string defAttr (show (length entryList)) <|>
-                 char (withForeColor defAttr green) '/' <|>
+                 char (view palLabel pal) '/' <|>
                  string defAttr (show (HashMap.size entries))
 
     matcher = clientMatcher st

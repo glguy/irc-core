@@ -34,22 +34,21 @@ channelInfoImages network channelId st
 
   | Just cs      <- preview (clientConnection network) st
   , Just channel <- preview (csChannels . ix channelId) cs
-  = channelInfoImages'
-        (view (clientConfig . configPalette) st)
-        channel
-        cs
+  = channelInfoImages' pal channel cs
 
-  | otherwise = [text' (withForeColor defAttr red) "No channel information"]
+  | otherwise = [text' (view palError pal) "No channel information"]
+  where
+    pal = view (clientConfig . configPalette) st
 
 channelInfoImages' :: Palette -> ChannelState -> ConnectionState -> [Image]
-channelInfoImages' palette !channel !cs
+channelInfoImages' pal !channel !cs
     = topicLine
     : provenanceLines
    ++ creationLines
    ++ urlLines
 
   where
-    label = text' (withForeColor defAttr green)
+    label = text' (view palLabel pal)
 
     topicLine = label "Topic: " <|> parseIrcText (view chanTopic channel)
 
@@ -62,7 +61,7 @@ channelInfoImages' palette !channel !cs
           Nothing -> []
           Just !prov ->
             [ label "Topic set by: " <|>
-                coloredUserInfo palette DetailedRender [myNick] (view topicAuthor prov)
+                coloredUserInfo pal DetailedRender [myNick] (view topicAuthor prov)
             , label "Topic set on: " <|> utcTimeImage (view topicTime prov)
             ]
 
