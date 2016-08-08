@@ -210,6 +210,7 @@ doVtyEvent vtyEvent st =
          (w,h) <- displayBounds (outputIface vty)
          eventLoop $ set clientWidth w
                    $ set clientHeight h st
+    EvPaste s -> eventLoop (over clientTextBox (Edit.insertString s) st)
     _ -> eventLoop st
 
 
