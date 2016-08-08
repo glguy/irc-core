@@ -119,8 +119,8 @@ maxMiddleParams = 14
 -- invalid messages!
 rawIrcMsgParser :: Parser RawIrcMsg
 rawIrcMsgParser =
-  do tags   <- fromMaybe [] <$> guarded (char '@') tagParser
-     prefix <- guarded (char ':') prefixParser
+  do tags   <- fromMaybe [] <$> guarded '@' tagsParser
+     prefix <- guarded ':' prefixParser
      cmd    <- simpleTokenParser
      params <- paramsParser maxMiddleParams
      return $! RawIrcMsg
@@ -138,8 +138,8 @@ paramsParser !n =
   do end <- P.atEnd
      if end
        then return []
-       else do mbColon <- optional (char ':')
-               if n == 0 || isJust mbColon
+       else do isColon <- optionalChar ':'
+               if isColon || n == 0
                  then finalParam
                  else middleParam
 
@@ -155,19 +155,18 @@ paramsParser !n =
        xs <- paramsParser (n-1)
        return (x:xs)
 
-tagParser :: Parser [TagEntry]
+tagsParser :: Parser [TagEntry]
+tagsParser = tagParser `sepBy1` (char ';') <* char ' '
+
+tagParser :: Parser TagEntry
 tagParser =
-  do tags <- simpleTokenParser
-     let res = splitTag <$> Text.split (==';') tags
-     forceList res `seq` return res
+  do key <- P.takeWhile (notInClass " =;")
+     hasValue <- optionalChar '='
+     val <- if hasValue
+              then unescapeTagVal <$> P.takeWhile (notInClass " ;")
+              else return ""
+     return $! TagEntry key val
 
-forceList :: [a] -> ()
-forceList = foldl' (\_ x -> x`seq`()) ()
-
-splitTag :: Text -> TagEntry
-splitTag txt = TagEntry key (unescapeTagVal (Text.drop 1 val))
-  where
-    (key, val) = Text.break (=='=') txt
 
 unescapeTagVal :: Text -> Text
 unescapeTagVal = Text.pack . aux . Text.unpack
@@ -207,8 +206,10 @@ simpleTokenParser =
 -- | Serialize a structured IRC protocol message back into its wire
 -- format. This command adds the required trailing newline.
 renderRawIrcMsg :: RawIrcMsg -> ByteString
-renderRawIrcMsg !m = L.toStrict $ Builder.toLazyByteString $
-     renderTags (view msgTags m)
+renderRawIrcMsg !m
+   = L.toStrict
+   $ Builder.toLazyByteString
+   $ renderTags (view msgTags m)
   <> maybe mempty renderPrefix (view msgPrefix m)
   <> Text.encodeUtf8Builder (view msgCommand m)
   <> buildParams (view msgParams m)
@@ -235,9 +236,10 @@ renderTag (TagEntry key val)
   <> Text.encodeUtf8Builder (escapeTagVal val)
 
 renderPrefix :: UserInfo -> Builder
-renderPrefix u = Builder.char8 ':'
-              <> Text.encodeUtf8Builder (renderUserInfo u)
-              <> Builder.char8 ' '
+renderPrefix u
+   = Builder.char8 ':'
+  <> Text.encodeUtf8Builder (renderUserInfo u)
+  <> Builder.char8 ' '
 
 -- | Build concatenate a list of parameters into a single, space-
 -- delimited bytestring. Use a colon for the last parameter if it contains
@@ -250,14 +252,17 @@ buildParams (x:xs)
   = Builder.char8 ' ' <> Text.encodeUtf8Builder x <> buildParams xs
 buildParams [] = mempty
 
--- | When the first parser succeeds require the second parser to succeed.
--- Otherwise return Nothing
-guarded :: Parser a -> Parser b -> Parser (Maybe b)
-guarded pa pb =
-  do mb <- optional pa
-     case mb of
-       Nothing -> return Nothing
-       Just{}  -> fmap Just pb
+-- | When the current input matches the given character parse
+-- using the given parser.
+guarded :: Char -> Parser b -> Parser (Maybe b)
+guarded c p =
+  do success <- optionalChar c
+     if success then Just <$> p else pure Nothing
+
+
+-- | Returns 'True' iff next character in stream matches argument.
+optionalChar :: Char -> Parser Bool
+optionalChar c = True <$ char c <|> pure False
 
 
 -- | Try to decode a message as UTF-8. If that fails interpret it as Windows CP1252
