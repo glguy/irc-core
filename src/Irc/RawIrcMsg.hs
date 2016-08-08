@@ -156,7 +156,7 @@ paramsParser !n =
        return (x:xs)
 
 tagsParser :: Parser [TagEntry]
-tagsParser = tagParser `sepBy1` (char ';') <* char ' '
+tagsParser = tagParser `sepBy1` char ';' <* char ' '
 
 tagParser :: Parser TagEntry
 tagParser =
@@ -273,6 +273,7 @@ asUtf8 x = case Text.decodeUtf8' x of
              Right txt -> txt
              Left{}    -> decodeCP1252 x
 
+-- | Decode a 'ByteString' as CP1252
 decodeCP1252 :: ByteString -> Text
 decodeCP1252 bs = Text.pack [ cp1252 Vector.! fromIntegral x | x <- B.unpack bs ]
 

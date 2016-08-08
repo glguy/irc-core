@@ -71,15 +71,17 @@ data CapCmd
   | CapReq -- ^ request activation of cap
   | CapAck -- ^ request accepted
   | CapNak -- ^ request denied
+  | CapEnd -- ^ end negotiation
   deriving (Show, Eq, Ord)
 
 -- | Match command text to structured cap sub-command
 cookCapCmd :: Text -> Maybe CapCmd
 cookCapCmd "LS"   = Just CapLs
 cookCapCmd "LIST" = Just CapList
-cookCapCmd "REQ"  = Just CapReq
 cookCapCmd "ACK"  = Just CapAck
 cookCapCmd "NAK"  = Just CapNak
+cookCapCmd "END"  = Just CapEnd
+cookCapCmd "REQ"  = Just CapReq
 cookCapCmd _      = Nothing
 
 -- | Interpret a low-level 'RawIrcMsg' as a high-level 'IrcMsg'.

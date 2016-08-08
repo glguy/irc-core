@@ -261,8 +261,8 @@ ircLineImage rm !rp body =
       separatedParams (view msgParams irc)
 
     Cap cmd args ->
-      string defAttr (show cmd) <|>
-      char defAttr ' ' <|>
+      text' (withForeColor defAttr magenta) (renderCapCmd cmd) <|>
+      text' defAttr ": " <|>
       separatedParams args
 
     Authenticate{} -> string defAttr "AUTHENTICATE ***"
@@ -273,6 +273,16 @@ ircLineImage rm !rp body =
       coloredUserInfo pal rm myNicks nick <|>
       string defAttr " set mode: " <|>
       separatedParams params
+
+renderCapCmd :: CapCmd -> Text
+renderCapCmd cmd =
+  case cmd of
+    CapLs   -> "caps available"
+    CapList -> "caps active"
+    CapAck  -> "caps acknowledged"
+    CapNak  -> "caps rejected"
+    CapEnd  -> "caps finished" -- server shouldn't send this
+    CapReq  -> "caps requested" -- server shouldn't send this
 
 separatorImage :: Image
 separatorImage = char (withForeColor defAttr blue) '·'
