@@ -180,6 +180,17 @@ unescapeTagVal = Text.pack . aux . Text.unpack
     aux (x:xs)        = x : aux xs
     aux ""            = ""
 
+escapeTagVal :: Text -> Text
+escapeTagVal = Text.concatMap aux
+  where
+    aux ';'  = "\\:"
+    aux ' '  = "\\s"
+    aux '\\' = "\\\\"
+    aux '\r' = "\\r"
+    aux '\n' = "\\n"
+    aux x = Text.singleton x
+
+-- | Parse a rendered 'UserInfo' token.
 prefixParser :: Parser UserInfo
 prefixParser =
   do tok <- simpleTokenParser
@@ -192,18 +203,13 @@ simpleTokenParser =
      P.skipWhile (== ' ')
      return $! Text.copy xs
 
--- | Take the bytes up to the next space delimiter.
--- If the first character of this token is a ':'
--- then take the whole remaining bytestring
-
-
 
 -- | Serialize a structured IRC protocol message back into its wire
 -- format. This command adds the required trailing newline.
 renderRawIrcMsg :: RawIrcMsg -> ByteString
 renderRawIrcMsg !m = L.toStrict $ Builder.toLazyByteString $
-  -- TODO: render tags
-     maybe mempty renderPrefix (view msgPrefix m)
+     renderTags (view msgTags m)
+  <> maybe mempty renderPrefix (view msgPrefix m)
   <> Text.encodeUtf8Builder (view msgCommand m)
   <> buildParams (view msgParams m)
   <> Builder.char8 '\r'
@@ -214,6 +220,19 @@ rawIrcMsg ::
   Text {- ^ command -} ->
   [Text] {- ^ parameters -} -> RawIrcMsg
 rawIrcMsg = RawIrcMsg [] Nothing
+
+renderTags :: [TagEntry] -> Builder
+renderTags [] = mempty
+renderTags xs
+    = Builder.char8 '@'
+   <> mconcat (intersperse (Builder.char8 ';') (map renderTag xs))
+   <> Builder.char8 ' '
+
+renderTag :: TagEntry -> Builder
+renderTag (TagEntry key val)
+   = Text.encodeUtf8Builder key
+  <> Builder.char8 '='
+  <> Text.encodeUtf8Builder (escapeTagVal val)
 
 renderPrefix :: UserInfo -> Builder
 renderPrefix u = Builder.char8 ':'

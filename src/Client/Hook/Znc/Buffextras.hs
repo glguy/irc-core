@@ -59,7 +59,7 @@ prefixedParser chan = do
            , Quit pfx        <$> parseLeave "quit"
            , Part pfx chan   <$> parseLeave "parted"
            , Nick pfx . mkId <$  sepMsg "is now known as" <*> simpleTokenParser
-           , Mode pfx chan   <$ sepMsg "set mode:" <*> allTokens
+           , Mode pfx chan   <$  sepMsg "set mode:" <*> allTokens
            ]
 
 allTokens :: Parser [Text]
