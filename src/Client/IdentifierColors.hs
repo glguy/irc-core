@@ -11,11 +11,10 @@ This module provides the color mapping for nick highlighting.
 
 module Client.IdentifierColors
   ( identifierColor
-  , defaultNickColorPalette
   ) where
 
+import           Client.Image.Palette
 import qualified Data.ByteString as B
-import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import           Irc.Identifier
 import           Graphics.Vty.Image
@@ -23,17 +22,13 @@ import           Graphics.Vty.Image
 -- | Compute a color from the denotation of an identifier.
 -- This color will be consistent for different capitalizations
 -- and will be consistent across program executions.
-identifierColor :: Vector Color -> Identifier -> Color
-identifierColor nickColorPalette ident = nickColorPalette Vector.! i
+identifierColor :: Palette -> Identifier -> Color
+identifierColor palette ident = v Vector.! i
   where
-    i = hashIdentity ident `mod` Vector.length nickColorPalette
+    v = palNicks palette
+    i = hashIdentity ident `mod` Vector.length v
 
 hashIdentity :: Identifier -> Int
 hashIdentity ident =
     let h1 = B.foldl' (\acc b -> fromIntegral b + 33 * acc) 0 (idDenote ident)
     in h1 + (h1 `quot` 32)
-
-defaultNickColorPalette :: Vector Color
-defaultNickColorPalette = Vector.fromList
-  [cyan, magenta, green, yellow, blue,
-   brightCyan, brightMagenta, brightGreen, brightBlue]

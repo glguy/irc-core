@@ -23,6 +23,7 @@ module Client.Image.Message
   ) where
 
 import           Client.IdentifierColors
+import           Client.Image.Palette
 import           Client.Message
 import           Client.MircFormatting
 import           Control.Lens
@@ -38,7 +39,6 @@ import qualified Data.HashSet as HashSet
 import           Data.List
 import qualified Data.Text as Text
 import           Data.Text (Text)
-import           Data.Vector (Vector)
 
 -- | Parameters used when rendering messages
 data MessageRendererParams = MessageRendererParams
@@ -46,7 +46,7 @@ data MessageRendererParams = MessageRendererParams
   , rendUserSigils :: [Char] -- ^ sender sigils
   , rendNicks      :: [Identifier] -- ^ nicknames to highlight
   , rendMyNicks    :: [Identifier] -- ^ nicknames to highlight in red
-  , rendPalette    :: Vector Color -- ^ nick color palette
+  , rendPalette    :: Palette -- ^ nick color palette
   }
 
 -- | Default 'MessageRenderParams' with no sigils or nicknames specified
@@ -56,7 +56,7 @@ defaultRenderParams = MessageRendererParams
   , rendUserSigils = ""
   , rendNicks = []
   , rendMyNicks = []
-  , rendPalette = defaultNickColorPalette
+  , rendPalette = defaultPalette
   }
 
 -- | Construct a message given the time the message was received and its
@@ -96,7 +96,7 @@ statusMsgImage modes
 -- highlight.
 bodyImage ::
   RenderMode ->
-  Vector Color {- ^ nick palette -} ->
+  Palette ->
   [Char] {- ^ sigils -} ->
   [Identifier] {- ^ my nicknames -} ->
   [Identifier] {- ^ nicknames to highlight -} ->
@@ -139,7 +139,7 @@ quietAttr = withForeColor defAttr brightBlack
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
 ircLineImage ::
-  Vector Color {- ^ nick palette -} ->
+  Palette ->
   RenderMode ->
   [Char]       {- ^ sigils (e.g. \@+) -} ->
   [Identifier] {- ^ my nicknames to highlight -} ->
@@ -307,7 +307,7 @@ renderReplyCode rm code@(ReplyCode w) =
 
 -- | Render a nickname in its hash-based color.
 coloredIdentifier ::
-  Vector Color {- ^ palette -} ->
+  Palette ->
   [Identifier] {- ^ my nicknames -} ->
   Identifier ->
   Image
@@ -322,7 +322,7 @@ coloredIdentifier palette myNicks ident =
 -- If detailed mode the full user info including the username and hostname parts
 -- will be rendered. The nickname will be colored.
 coloredUserInfo ::
-  Vector Color {- ^ palette -} ->
+  Palette ->
   RenderMode ->
   [Identifier] {- ^ my nicks -} ->
   UserInfo -> Image
@@ -349,7 +349,7 @@ quietIdentifier ident =
 -- the formatting codes. Otherwise the nicknames in the message are
 -- highlighted.
 parseIrcTextWithNicks ::
-  Vector Color {- ^ palette -} ->
+  Palette ->
   [Identifier] {- ^ my nicks -} ->
   [Identifier] {- ^ other nicks -} ->
   Text -> Image
@@ -360,7 +360,7 @@ parseIrcTextWithNicks palette myNicks nicks txt
 -- | Given a list of nicknames and a chat message, this will generate
 -- an image where all of the occurrences of those nicknames are colored.
 highlightNicks ::
-  Vector Color {- ^ palette -} ->
+  Palette ->
   [Identifier] {- ^ my nicks -} ->
   [Identifier] {- ^ other nicks -} ->
   Text -> Image

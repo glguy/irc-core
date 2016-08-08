@@ -233,7 +233,7 @@ recordChannelMessage network channel msg st =
       , rendPalette    = palette
       }
 
-    palette = view (clientConfig . configNickPalette) st
+    palette = view (clientConfig . configPalette) st
 
     -- on failure returns mempty/""
     possibleStatusModes = view (clientConnection network . csStatusMsg) st

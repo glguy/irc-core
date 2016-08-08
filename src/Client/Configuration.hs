@@ -20,7 +20,7 @@ module Client.Configuration
   , ConfigurationFailure(..)
   , configDefaults
   , configServers
-  , configNickPalette
+  , configPalette
 
   -- * Loading configuration
   , loadConfiguration
@@ -29,7 +29,7 @@ module Client.Configuration
   , resolveConfigurationPath
   ) where
 
-import           Client.IdentifierColors
+import           Client.Image.Palette
 import           Client.Configuration.Colors
 import           Client.ServerSettings
 import           Control.Applicative
@@ -44,8 +44,6 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import           Data.Traversable
-import           Data.Vector (Vector)
-import           Graphics.Vty.Attributes (Color)
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName)
 import           System.Directory
@@ -56,9 +54,9 @@ import           System.IO.Error
 -- server configuration from '_configServers' is used where possible,
 -- otherwise '_configDefaults' is used.
 data Configuration = Configuration
-  { _configDefaults :: !ServerSettings -- ^ Default connection settings
-  , _configServers  :: !(HashMap HostName ServerSettings) -- ^ Host-specific settings
-  , _configNickPalette :: !(Vector Color)
+  { _configDefaults :: ServerSettings -- ^ Default connection settings
+  , _configServers  :: (HashMap HostName ServerSettings) -- ^ Host-specific settings
+  , _configPalette  :: Palette
   }
   deriving Show
 
@@ -152,10 +150,17 @@ parseConfiguration def = parseSections $
      _configServers  <- fromMaybe HashMap.empty
                     <$> sectionOptWith (parseServers _configDefaults) "servers"
 
-     _configNickPalette <- fromMaybe defaultNickColorPalette
-                    <$> sectionOptWith parseColors "nick-color-palette"
+     _configPalette <- fromMaybe defaultPalette
+                    <$> sectionOptWith parsePalette "palette"
 
      return Configuration{..}
+
+parsePalette :: Value -> ConfigParser Palette
+parsePalette = parseSections $
+
+  do nicks <- fromMaybe (palNicks defaultPalette) <$> sectionOptWith parseColors "nick-colors"
+
+     return defaultPalette { palNicks = nicks }
 
 parseServers :: ServerSettings -> Value -> ConfigParser (HashMap HostName ServerSettings)
 parseServers def (List xs) =

@@ -14,7 +14,6 @@ module Client.Configuration.Colors
   ( parseColors
   ) where
 
-import           Client.IdentifierColors (defaultNickColorPalette)
 import           Config
 import           Config.FromConfig
 import           Data.HashMap.Strict (HashMap)
@@ -28,7 +27,6 @@ import           Graphics.Vty.Attributes
 parseColors :: Value -> ConfigParser (Vector Color)
 parseColors (List []) = failure "Empty color palette"
 parseColors (List xs) = traverse parseColor (Vector.fromList xs)
-parseColors (Atom "default") = return defaultNickColorPalette
 parseColors _ = failure "Expected list of colors or default"
 
 -- | Parse a color. Support formats are:

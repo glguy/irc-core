@@ -19,12 +19,12 @@ module Client.Image.ChannelInfo
 import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
+import           Client.Image.Palette
 import           Client.Image.Message
 import           Client.MircFormatting
 import           Client.State
 import           Control.Lens
 import           Data.Time
-import           Data.Vector (Vector)
 import           Graphics.Vty.Image
 import           Irc.Identifier
 
@@ -35,13 +35,13 @@ channelInfoImages network channelId st
   | Just cs      <- preview (clientConnection network) st
   , Just channel <- preview (csChannels . ix channelId) cs
   = channelInfoImages'
-        (view (clientConfig . configNickPalette) st)
+        (view (clientConfig . configPalette) st)
         channel
         cs
 
   | otherwise = [text' (withForeColor defAttr red) "No channel information"]
 
-channelInfoImages' :: Vector Color -> ChannelState -> ConnectionState -> [Image]
+channelInfoImages' :: Palette -> ChannelState -> ConnectionState -> [Image]
 channelInfoImages' palette !channel !cs
     = topicLine
     : provenanceLines

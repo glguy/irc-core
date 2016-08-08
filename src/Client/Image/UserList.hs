@@ -67,7 +67,7 @@ userListImages' cs channel st =
       | (sigil,n) <- Map.toList sigilCounts
       ]
 
-    palette = view (clientConfig . configNickPalette) st
+    palette = view (clientConfig . configPalette) st
 
     usersHashMap =
       view (csChannels . ix channel . chanUsers) cs
@@ -89,7 +89,7 @@ userInfoImages' cs channel st = renderEntry <$> usersList
 
     myNicks = toListOf csNick cs
 
-    palette = view (clientConfig . configNickPalette) st
+    palette = view (clientConfig . configPalette) st
 
     renderEntry (info, sigils) =
       string (withForeColor defAttr cyan) sigils <|>
