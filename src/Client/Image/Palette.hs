@@ -9,7 +9,9 @@ Maintainer  : emertens@gmail.com
 This module provides names for all of the colors used in the UI.
 -}
 module Client.Image.Palette
-  ( Palette(..)
+  (
+  -- * Palette type
+    Palette(..)
   , palNicks
   , palTime
   , palMeta
@@ -31,6 +33,7 @@ import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import           Graphics.Vty.Attributes
 
+-- | Color palette used for rendering the client UI
 data Palette = Palette
   { _palNicks      :: Vector Color -- ^ colors for highlighting nicknames
   , _palTime       :: Attr -- ^ color of message timestamps
@@ -48,6 +51,7 @@ data Palette = Palette
 
 makeLenses ''Palette
 
+-- | Default UI colors that look nice in my dark solarized color scheme
 defaultPalette :: Palette
 defaultPalette = Palette
   { _palNicks      = defaultNickColorPalette
@@ -63,6 +67,8 @@ defaultPalette = Palette
   , _palMention    = withForeColor defAttr red
   }
 
+-- | Default nick highlighting colors that look nice in my dark solarized
+-- color scheme.
 defaultNickColorPalette :: Vector Color
 defaultNickColorPalette = Vector.fromList
   [cyan, magenta, green, yellow, blue,

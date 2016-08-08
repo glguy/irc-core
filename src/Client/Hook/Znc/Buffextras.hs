@@ -19,7 +19,7 @@ module Client.Hook.Znc.Buffextras
 
 import Data.Attoparsec.Text as P
 import Data.Monoid
-import Data.Text as T hiding (head)
+import Data.Text as Text hiding (head)
 
 import Client.Hook
 import Irc.Identifier
@@ -27,6 +27,9 @@ import Irc.Message
 import Irc.RawIrcMsg
 import Irc.UserInfo
 
+-- | Map ZNC's buffextras messages to native client messages.
+-- Set debugging to pass through buffextras messages that
+-- the hook doesn't understand.
 buffextrasHook :: Bool {- ^ enable debugging -} -> MessageHook
 buffextrasHook = MessageHook "buffextras" False . remap
 
@@ -56,7 +59,11 @@ prefixedParser chan = do
            , Quit pfx        <$> parseLeave "quit"
            , Part pfx chan   <$> parseLeave "parted"
            , Nick pfx . mkId <$  sepMsg "is now known as" <*> simpleTokenParser
+           , Mode pfx chan   <$ sepMsg "set mode:" <*> allTokens
            ]
+
+allTokens :: Parser [Text]
+allTokens = Text.words <$> P.takeText
 
 sepMsg :: Text -> Parser ()
 sepMsg m = P.skipWhile (==' ') *> string m *> P.skipWhile (==' ')
@@ -72,5 +79,5 @@ parseLeave small =
 
 filterEmpty :: Text -> Maybe Text
 filterEmpty tx
-  | T.null tx = Nothing
+  | Text.null tx = Nothing
   | otherwise = Just tx

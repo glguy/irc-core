@@ -1,7 +1,7 @@
 {-# Language OverloadedStrings #-}
 {-|
 Module      : Irc.Commands
-Description : Smart constructors for 'RawIrcMsg'
+Description : Smart constructors for "RawIrcMsg"
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com

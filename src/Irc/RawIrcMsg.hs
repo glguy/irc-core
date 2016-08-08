@@ -74,6 +74,9 @@ data RawIrcMsg = RawIrcMsg
   }
   deriving (Read, Show)
 
+-- | Key value pair representing an IRCv3.2 message tag.
+-- The value in this pair has had the message tag unescape
+-- algorithm applied.
 data TagEntry = TagEntry {-# UNPACK #-} !Text {-# UNPACK #-} !Text
   deriving (Read, Show)
 

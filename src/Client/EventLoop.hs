@@ -105,6 +105,8 @@ eventLoop st0 =
            NetworkError network time ex   -> doNetworkError network time ex st
            NetworkClose network time      -> doNetworkClose network time st
 
+-- | Sound the terminal bell assuming that the @BEL@ control code
+-- is supported.
 beep :: Vty -> IO ()
 beep vty = outputByteBuffer (outputIface vty) "\BEL"
 
@@ -284,6 +286,8 @@ doKey key modifier st =
 
     _ -> eventLoop st -- unsupported modifier
 
+-- | Process 'CommandResult' by either running the 'eventLoop' with the
+-- new 'ClientState' or returning.
 doCommandResult :: CommandResult -> IO ()
 doCommandResult res =
   case res of
