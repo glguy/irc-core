@@ -25,7 +25,7 @@ import           Graphics.Vty.Image
 identifierColor :: Palette -> Identifier -> Color
 identifierColor palette ident = v Vector.! i
   where
-    v = palNicks palette
+    v = _palNicks palette
     i = hashIdentity ident `mod` Vector.length v
 
 hashIdentity :: Identifier -> Int

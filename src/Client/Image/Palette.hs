@@ -1,3 +1,4 @@
+{-# Language TemplateHaskell #-}
 {-|
 Module      : Client.Image.Palette
 Description : Palette of colors used to render the UI
@@ -9,33 +10,57 @@ This module provides names for all of the colors used in the UI.
 -}
 module Client.Image.Palette
   ( Palette(..)
+  , palNicks
+  , palTime
+  , palMeta
+  , palSigil
+  , palLabel
+  , palLatency
+  , palWindowName
+  , palError
+  , palTextBox
+  , palActivity
+  , palMention
+
+  -- * Defaults
   , defaultPalette
   ) where
 
+import           Control.Lens
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import           Graphics.Vty.Attributes
 
 data Palette = Palette
-  { palNicks      :: Vector Color -- ^ colors for highlighting nicknames
-  , palTime       :: Attr -- ^ color of message timestamps
-  , palMeta       :: Attr -- ^ color of coalesced metadata
-  , palSigil      :: Attr -- ^ color of sigils (e.g. @+)
-  , palLabel      :: Attr -- ^ color of information labels
-  , palLatency    :: Attr -- ^ color of ping latency
-  , palWindowName :: Attr -- ^ color of window name
+  { _palNicks      :: Vector Color -- ^ colors for highlighting nicknames
+  , _palTime       :: Attr -- ^ color of message timestamps
+  , _palMeta       :: Attr -- ^ color of coalesced metadata
+  , _palSigil      :: Attr -- ^ color of sigils (e.g. @+)
+  , _palLabel      :: Attr -- ^ color of information labels
+  , _palLatency    :: Attr -- ^ color of ping latency
+  , _palWindowName :: Attr -- ^ color of window name
+  , _palError      :: Attr -- ^ color of error messages
+  , _palTextBox    :: Attr -- ^ color of textbox markers
+  , _palActivity   :: Attr -- ^ color of window name with activity
+  , _palMention    :: Attr -- ^ color of window name with mention
   }
   deriving Show
 
+makeLenses ''Palette
+
 defaultPalette :: Palette
 defaultPalette = Palette
-  { palNicks      = defaultNickColorPalette
-  , palTime       = withForeColor defAttr brightBlack
-  , palMeta       = withForeColor defAttr brightBlack
-  , palSigil      = withForeColor defAttr cyan
-  , palLabel      = withForeColor defAttr green
-  , palLatency    = withForeColor defAttr yellow
-  , palWindowName = withForeColor defAttr cyan
+  { _palNicks      = defaultNickColorPalette
+  , _palTime       = withForeColor defAttr brightBlack
+  , _palMeta       = withForeColor defAttr brightBlack
+  , _palSigil      = withForeColor defAttr cyan
+  , _palLabel      = withForeColor defAttr green
+  , _palLatency    = withForeColor defAttr yellow
+  , _palWindowName = withForeColor defAttr cyan
+  , _palError      = withForeColor defAttr red
+  , _palTextBox    = withForeColor defAttr brightBlack
+  , _palActivity   = withForeColor defAttr green
+  , _palMention    = withForeColor defAttr red
   }
 
 defaultNickColorPalette :: Vector Color

@@ -34,6 +34,7 @@ import           Client.Configuration.Colors
 import           Client.ServerSettings
 import           Control.Applicative
 import           Control.Exception
+import           Control.Monad
 import           Config
 import           Config.FromConfig
 import           Control.Lens hiding (List)
@@ -44,6 +45,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import           Data.Traversable
+import           Graphics.Vty.Attributes
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName)
 import           System.Directory
@@ -156,11 +158,33 @@ parseConfiguration def = parseSections $
      return Configuration{..}
 
 parsePalette :: Value -> ConfigParser Palette
-parsePalette = parseSections $
+parsePalette (Sections ss) = foldM paletteHelper defaultPalette ss
+parsePalette _             = failure "Expected sections"
 
-  do nicks <- fromMaybe (palNicks defaultPalette) <$> sectionOptWith parseColors "nick-colors"
+paletteHelper :: Palette -> Section -> ConfigParser Palette
+paletteHelper p (Section k v) =
+  extendLoc k $
+  case k of
+    "nick-colors" -> do xs <- parseColors v
+                        return $! set palNicks xs p
 
-     return defaultPalette { palNicks = nicks }
+    "time"        -> setAttr palTime
+    "meta"        -> setAttr palMeta
+    "sigil"       -> setAttr palSigil
+    "label"       -> setAttr palLabel
+    "latency"     -> setAttr palLatency
+    "error"       -> setAttr palError
+    "textbox"     -> setAttr palTextBox
+    "window-name" -> setAttr palWindowName
+    "activity"    -> setAttr palActivity
+    "mention"     -> setAttr palMention
+    _             -> failure "Unknown palette entry"
+  where
+    setAttr l =
+      do x <- parseColor v
+         let !attr = withForeColor defAttr x
+         return $! set l attr p
+
 
 parseServers :: ServerSettings -> Value -> ConfigParser (HashMap HostName ServerSettings)
 parseServers def (List xs) =

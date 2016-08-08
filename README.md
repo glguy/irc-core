@@ -86,16 +86,18 @@ servers:
     server-certificates:
       * "/path/to/extra/certificate.pem"
 
-nick-color-palette:
-  [ cyan, magenta, green, yellow, blue
-  , bright-cyan, bright-magenta, bright-green, bright-blue
-  , 218,  88,  89, 124, 160, 205, 212, 224 -- reds
-  ,  94, 130, 166, 172, 208, 214, 216, 180 -- oranges
-  ,  58, 226, 229, 184, 187, 100, 142, 220 -- yellows
-  ,  22,  34,  40,  82,  70,  64,  48,  85 -- greens
-  ,  25,  27,  33,  39,  51,  80,  81,  75 -- blues
-  ,  69,  61,  56,  54, 129,  93,  99, 147 -- purples
-  ]
+palette:
+  time: [10,10,10] -- RGB values for color for timestamps
+  nick-colors:
+    [ cyan, magenta, green, yellow, blue
+    , bright-cyan, bright-magenta, bright-green, bright-blue
+    , 218,  88,  89, 124, 160, 205, 212, 224 -- reds
+    ,  94, 130, 166, 172, 208, 214, 216, 180 -- oranges
+    ,  58, 226, 229, 184, 187, 100, 142, 220 -- yellows
+    ,  22,  34,  40,  82,  70,  64,  48,  85 -- greens
+    ,  25,  27,  33,  39,  51,  80,  81,  75 -- blues
+    ,  69,  61,  56,  54, 129,  93,  99, 147 -- purples
+    ]
 ```
 
 Configuration sections:
@@ -103,7 +105,7 @@ Configuration sections:
 
 * `defaults` - These settings are used for all connections
 * `servers` - These settings are used to override defaults when the hostname matches
-* `nick-color-palette` - List of colors to use for highlighting nicknames
+* `palette` - Client color overrides
 
 Settings
 --------
@@ -129,6 +131,20 @@ Settings
 * `flood-threshold` - number - threshold of seconds for burst
 * `message-hooks` - list of text - names of hooks to enable
 
+Palette
+-------
+
+* `nick-colors` - List of colors - Use for nick highlights
+* `time` - color - color for timestamp
+* `meta` - color - color for metadata
+* `sigil` - color - color for sigils
+* `label` - color - color for information labels
+* `latency` - color - color for latency time
+* `error` - color - color for error messages
+* `textbox` - color - color for textbox edges
+* `window-name` - color - color for current window name
+* `activity` - color - color for activity notification
+* `mention` - color - color for mention notification
 
 Commands
 ========

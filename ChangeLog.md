@@ -6,6 +6,7 @@
 * Implement a hook that handles the znc buffextras plugin.
 * Implement configurable nick color highlight palette.
 * Resolve relative paths starting at the home directory.
+* Significantly configurable UI colors
 
 ## 2.4
 

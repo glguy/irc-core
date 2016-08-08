@@ -12,6 +12,7 @@ This module defines the top-level configuration information for the client.
 
 module Client.Configuration.Colors
   ( parseColors
+  , parseColor
   ) where
 
 import           Config

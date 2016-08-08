@@ -18,6 +18,7 @@ module Config.FromConfig
   , decodeConfig
   , runConfigParser
   , failure
+  , extendLoc
   , FromConfig(parseConfig)
 
   -- * Section parsing

@@ -12,11 +12,13 @@ This module provides the renderer for the client's UI.
 module Client.Image (clientPicture) where
 
 import           Client.ChannelState
+import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
 import           Client.Image.ChannelInfo
 import           Client.Image.MaskList
 import           Client.Image.Message
+import           Client.Image.Palette
 import           Client.Image.UserList
 import           Client.Message
 import           Client.MircFormatting
@@ -125,7 +127,8 @@ windowLinesToImagesMd st acc who wwls =
             else windowLinesToImagesMd st (finish <|> char defAttr ' ' <|> img) ident wls
     _ -> finish : windowLinesToImages st wwls
   where
-    finish = acc <|> maybe emptyImage quietIdentifier who
+    palette = view (clientConfig . configPalette) st
+    finish = acc <|> maybe emptyImage (quietIdentifier palette) who
 
 
 metadataWindowLine :: ClientState -> WindowLine -> Maybe (Image, Maybe Identifier)
@@ -133,8 +136,10 @@ metadataWindowLine st wl =
   case view wlBody wl of
     IrcBody irc
       | Just who <- ircIgnorable irc st -> Just (ignoreImage, Just who)
-      | otherwise                       -> metadataImg irc
+      | otherwise                       -> metadataImg palette irc
     _                                   -> Nothing
+  where
+    palette = view (clientConfig . configPalette) st
 
 lineWrap :: Int -> Image -> Image
 lineWrap w img
@@ -166,18 +171,22 @@ scrollImage st
   | 0 == view clientScroll st = emptyImage
   | otherwise = horizCat
       [ string defAttr "─("
-      , string (withForeColor defAttr red) "scroll"
+      , string attr "scroll"
       , string defAttr ")"
       ]
+  where
+    attr = view (clientConfig . configPalette . palLabel) st
 
 detailImage :: ClientState -> Image
 detailImage st
   | view clientDetailView st = horizCat
       [ string defAttr "─("
-      , string (withForeColor defAttr red) "detail"
+      , string attr "detail"
       , string defAttr ")"
       ]
   | otherwise = emptyImage
+  where
+    attr = view (clientConfig . configPalette . palLabel) st
 
 activityImage :: ClientState -> Image
 activityImage st
@@ -192,10 +201,11 @@ activityImage st
     aux [] = []
     aux ((i,w):ws)
       | view winUnread w == 0 = aux ws
-      | otherwise = char (withForeColor defAttr color) i : aux ws
+      | otherwise = char attr i : aux ws
       where
-        color | view winMention w = red
-              | otherwise        = green
+        pal = view (clientConfig . configPalette) st
+        attr | view winMention w = view palMention pal
+             | otherwise         = view palActivity pal
 
 
 myNickImage :: ClientState -> Image
@@ -205,10 +215,11 @@ myNickImage st =
     ChannelFocus network chan -> nickPart network (Just chan)
     Unfocused                 -> emptyImage
   where
+    pal = view (clientConfig . configPalette) st
     nickPart network mbChan =
       case preview (clientConnection network) st of
         Nothing -> emptyImage
-        Just cs -> string (withForeColor defAttr cyan) myChanModes
+        Just cs -> string (view palSigil pal) myChanModes
                <|> text' defAttr (idText nick)
                <|> parens defAttr (string defAttr ('+' : view csModes cs))
                <|> char defAttr '─'
@@ -224,11 +235,12 @@ focusImage :: ClientState -> Image
 focusImage st = parens defAttr majorImage <|> renderedSubfocus
   where
     majorImage = horizCat
-      [ char (withForeColor defAttr cyan) windowName
+      [ char (view palWindowName pal) windowName
       , char defAttr ':'
       , renderedFocus
       ]
 
+    pal = view (clientConfig . configPalette) st
     focus = view clientFocus st
     windowName =
       case Map.lookupIndex focus (view clientWindows st) of
@@ -238,12 +250,12 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
     subfocusName =
       case view clientSubfocus st of
         FocusMessages -> Nothing
-        FocusInfo     -> Just $ string (withForeColor defAttr green) "info"
-        FocusUsers    -> Just $ string (withForeColor defAttr green) "users"
+        FocusInfo     -> Just $ string (view palLabel pal) "info"
+        FocusUsers    -> Just $ string (view palLabel pal) "users"
         FocusMasks m  -> Just $ horizCat
-          [ string (withForeColor defAttr green) "masks"
+          [ string (view palLabel pal) "masks"
           , char defAttr ':'
-          , char (withForeColor defAttr green) m
+          , char (view palLabel pal) m
           ]
 
     renderedSubfocus =
@@ -256,13 +268,13 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
     renderedFocus =
       case focus of
         Unfocused ->
-          char (withForeColor defAttr red) '*'
+          char (view palError pal) '*'
         NetworkFocus network ->
-          text' (withForeColor defAttr green) network
+          text' (view palLabel pal) network
         ChannelFocus network channel ->
-          text' (withForeColor defAttr green) network <|>
+          text' (view palLabel pal) network <|>
           char defAttr ':' <|>
-          text' (withForeColor defAttr green) (idText channel) <|>
+          text' (view palLabel pal) (idText channel) <|>
           channelModesImage network channel st
 
 channelModesImage :: Text -> Identifier -> ClientState -> Image
@@ -286,8 +298,9 @@ textboxImage st
     | 1+pos < width = cropRight width
     | otherwise     = cropLeft  width . cropRight (pos+2)
 
-  beginning = char (withForeColor defAttr brightBlack) '^'
-  ending    = char (withForeColor defAttr brightBlack) '$'
+  attr      = view (clientConfig . configPalette . palTextBox) st
+  beginning = char attr '^'
+  ending    = char attr '$'
 
 latencyImage :: ClientState -> Image
 latencyImage st
@@ -298,7 +311,9 @@ latencyImage st
     PingSent {} -> emptyImage
     PingLatency delta -> horizCat
       [ string defAttr "─("
-      , string (withForeColor defAttr yellow) (showFFloat (Just 2) delta "s")
+      , string (view palLatency pal) (showFFloat (Just 2) delta "s")
       , string defAttr ")"
       ]
   | otherwise = emptyImage
+  where
+    pal = view (clientConfig . configPalette) st

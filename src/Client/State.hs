@@ -69,6 +69,7 @@ import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
 import           Client.Image.Message
+import           Client.Image.Palette
 import           Client.Message
 import           Client.NetworkConnection
 import           Client.ServerSettings
@@ -314,7 +315,8 @@ recordIrcMessage network target msg st =
                              (addToWindow WLBoring wl) st')
            st chans
       where
-        wl = toWindowLine' msg
+        pal = view (clientConfig . configPalette) st
+        wl = toWindowLine' pal msg
         chans = user
               : case preview (clientConnection network . csChannels) st of
                   Nothing -> []
@@ -362,7 +364,8 @@ recordNetworkMessage msg st =
        st
   where
     network = view msgNetwork msg
-    wl = toWindowLine' msg
+    pal = view (clientConfig . configPalette) st
+    wl = toWindowLine' pal msg
 
 toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
 toWindowLine params msg = WindowLine
@@ -372,8 +375,8 @@ toWindowLine params msg = WindowLine
   , _wlFullImage = force $ detailedMsgImage (view msgTime msg) params (view msgBody msg)
   }
 
-toWindowLine' :: ClientMessage -> WindowLine
-toWindowLine' = toWindowLine defaultRenderParams
+toWindowLine' :: Palette -> ClientMessage -> WindowLine
+toWindowLine' pal = toWindowLine defaultRenderParams { rendPalette = pal }
 
 clientTick :: ClientState -> ClientState
 clientTick = set clientBell False . markSeen
