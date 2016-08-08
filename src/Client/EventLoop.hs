@@ -197,7 +197,7 @@ computeEffectiveTime time tags = fromMaybe time zncTime
   where
     isTimeTag (TagEntry key _) = key == "time"
     zncTime =
-      do TagEntry _ (Just txt) <- find isTimeTag tags
+      do TagEntry _ txt <- find isTimeTag tags
          tagTime <- parseZncTime (Text.unpack txt)
          return (utcToZonedTime (zonedTimeZone time) tagTime)
 

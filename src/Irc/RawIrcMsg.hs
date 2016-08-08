@@ -43,6 +43,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
+import           Data.List
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Text (Text)
@@ -73,7 +74,7 @@ data RawIrcMsg = RawIrcMsg
   }
   deriving (Read, Show)
 
-data TagEntry = TagEntry Text (Maybe Text)
+data TagEntry = TagEntry {-# UNPACK #-} !Text {-# UNPACK #-} !Text
   deriving (Read, Show)
 
 makeLenses ''RawIrcMsg
@@ -154,14 +155,16 @@ paramsParser !n =
 tagParser :: Parser [TagEntry]
 tagParser =
   do tags <- simpleTokenParser
-     return (splitTag <$> Text.split (==';') tags)
+     let res = splitTag <$> Text.split (==';') tags
+     forceList res `seq` return res
+
+forceList :: [a] -> ()
+forceList = foldl' (\_ x -> x`seq`()) ()
 
 splitTag :: Text -> TagEntry
-splitTag txt = TagEntry key val'
+splitTag txt = TagEntry key (unescapeTagVal (Text.drop 1 val))
   where
     (key, val) = Text.break (=='=') txt
-    val' = do (_,esc) <- Text.uncons val
-              return (unescapeTagVal esc)
 
 unescapeTagVal :: Text -> Text
 unescapeTagVal = Text.pack . aux . Text.unpack
