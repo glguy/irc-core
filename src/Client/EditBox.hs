@@ -72,15 +72,20 @@ updateYankBuffer str
   | otherwise = set yankBuffer str
 
 -- | Indicate that the contents of the text box were successfully used
--- by the program. This clears the contents and cursor and updates the
--- history.
+-- by the program. This clears the first line of the contents and updates
+-- the history.
 success :: EditBox -> EditBox
 success e
-  = over history (cons (view content e))
-  $ set  content ""
+  = over history (cons sent)
+  $ set  content rest
   $ set  tabSeed Nothing
   $ set  historyPos (-1)
-  $ set  pos        0 e
+  $ over pos shift
+  $ e
+ where
+ (sent, (sep, rest)) = fmap (splitAt 1) . break (=='\n') $ view content e
+ n = length sent + length sep
+ shift = max 0 . subtract n
 
 -- | Update the editbox to reflect the earlier element in the history.
 earlier :: EditBox -> Maybe EditBox
@@ -193,9 +198,10 @@ insert c
 insertString :: String -> EditBox -> EditBox
 insertString str e
   = over pos (+length str)
-  $ set content (a ++ str ++ b) e
+  $ set content (a ++ str' ++ b) e
   where
   (a,b) = splitAt (view pos e) (view content e)
+  str' = map (\c -> if c == '\^M' then '\^J' else c) str
 
 -- | Move the cursor left.
 left :: EditBox -> EditBox

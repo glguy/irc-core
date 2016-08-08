@@ -102,7 +102,7 @@ executeChat msg st =
     ChannelFocus network channel
       | Just !cs <- preview (clientConnection network) st ->
           do now <- getZonedTime
-             let msgTxt = Text.pack msg
+             let msgTxt = Text.pack $ takeWhile (/='\n') msg
                  ircMsg = rawIrcMsg "PRIVMSG" [idText channel, msgTxt]
                  myNick = UserInfo (view csNick cs) "" ""
                  entry = ClientMessage

@@ -241,6 +241,7 @@ doKey key modifier st =
 
     [MMeta] ->
       case key of
+        KEnter    -> changeInput (Edit.insert '\^J')
         KBS       -> changeInput (Edit.killWord True)
         KChar 'b' -> changeInput Edit.leftWord
         KChar 'f' -> changeInput Edit.rightWord
