@@ -22,7 +22,6 @@ module Client.Image.Message
   , coloredIdentifier
   ) where
 
-import           Client.IdentifierColors
 import           Client.Image.Palette
 import           Client.Message
 import           Client.MircFormatting
@@ -35,10 +34,12 @@ import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           Data.Char
+import           Data.Hashable (hash)
 import qualified Data.HashSet as HashSet
 import           Data.List
 import qualified Data.Text as Text
 import           Data.Text (Text)
+import qualified Data.Vector as Vector
 
 -- | Parameters used when rendering messages
 data MessageRendererParams = MessageRendererParams
@@ -308,7 +309,10 @@ coloredIdentifier palette myNicks ident =
   where
     color
       | ident `elem` myNicks = red
-      | otherwise            = identifierColor palette ident
+      | otherwise            = v Vector.! i
+
+    v = _palNicks palette
+    i = hash ident `mod` Vector.length v
 
 -- | Render an a full user. In normal mode only the nickname will be rendered.
 -- If detailed mode the full user info including the username and hostname parts

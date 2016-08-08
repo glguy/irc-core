@@ -16,18 +16,23 @@ module Irc.Identifier
   , idDenote
   , mkId
   , idText
+  , idPrefix
   ) where
 
-import           Data.ByteString       (ByteString)
-import qualified Data.ByteString       as B
-import qualified Data.ByteString.Char8 as B8
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString as B
+import           Data.Char
 import           Data.Function
-import           Data.Hashable         (Hashable (hashWithSalt))
-import           Data.Text             (Text)
-import qualified Data.Text.Encoding    as Text
+import           Data.Hashable
+import           Data.Primitive.ByteArray
+import           Data.Text (Text)
+import qualified Data.Text.Encoding as Text
+import qualified Data.Vector.Primitive as PV
+import           Data.Word
 
 -- | Identifier representing channels and nicknames
-data Identifier = Identifier Text ByteString
+data Identifier = Identifier {-# UNPACK #-} !Text
+                             {-# UNPACK #-} !(PV.Vector Word8)
   deriving (Read, Show)
 
 -- | Equality on normalized identifier
@@ -40,7 +45,11 @@ instance Ord Identifier where
 
 -- | Hash on normalized identifier
 instance Hashable Identifier where
-  hashWithSalt s = hashWithSalt s . idDenote
+  hashWithSalt s = hashPV8WithSalt s . idDenote
+
+hashPV8WithSalt :: Int -> PV.Vector Word8 -> Int
+hashPV8WithSalt salt (PV.Vector off len (ByteArray arr)) =
+  hashByteArrayWithSalt arr off len salt
 
 -- | Construct an 'Identifier' from a 'ByteString'
 mkId :: Text -> Identifier
@@ -52,15 +61,20 @@ idText (Identifier x _) = x
 
 -- | Returns the case-normalized 'ByteString' of an 'Identifier'
 -- which is suitable for comparison or hashing.
-idDenote :: Identifier -> ByteString
+idDenote :: Identifier -> PV.Vector Word8
 idDenote (Identifier _ x) = x
+
+-- | Returns 'True' when the first argument is a prefix of the second.
+idPrefix :: Identifier -> Identifier -> Bool
+idPrefix (Identifier _ x) (Identifier _ y) = x == PV.take (PV.length x) y
 
 -- | Capitalize a string according to RFC 2812
 -- Latin letters are capitalized and {|}~ are mapped to [\]^
-ircFoldCase :: ByteString -> ByteString
-ircFoldCase = B.map (B.index casemap . fromIntegral)
+ircFoldCase :: ByteString -> PV.Vector Word8
+ircFoldCase = PV.fromList . map (\i -> casemap PV.! fromIntegral i) . B.unpack
 
-casemap :: ByteString
+casemap :: PV.Vector Word8
 casemap
-  = B8.pack
+  = PV.fromList
+  $ map (fromIntegral . ord)
   $ ['\x00'..'`'] ++ "ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^" ++ ['\x7f'..'\xff']

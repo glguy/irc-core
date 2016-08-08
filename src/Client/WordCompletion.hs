@@ -15,10 +15,8 @@ module Client.WordCompletion
 import Irc.Identifier
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.ByteString as B
 import qualified Data.Set as Set
 import Data.Char
-import Data.Function
 import Data.List
 import Control.Lens
 import Client.EditBox as Edit
@@ -61,9 +59,6 @@ replaceWith leadingCase str box =
         str1 | view Edit.pos box1 == 0 = leadingCase str
              | otherwise               = str
     in Edit.insertString str1 box1
-
-idPrefix :: Identifier -> Identifier -> Bool
-idPrefix = B.isPrefixOf `on` idDenote
 
 idString :: Identifier -> String
 idString = Text.unpack . idText
