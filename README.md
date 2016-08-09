@@ -235,7 +235,7 @@ Keyboard Shortcuts
 
 * `^N` next channel
 * `^P` previous channel
-* `M-#` jump to window - 1234567890qwertyuiop!@#$%^&*()QWERTYUIOP
+* `M-#` jump to window - `1234567890qwertyuiop!@#$%^&*()QWERTYUIOP`
 * `M-A` jump to activity
 * `^A` beginning of line
 * `^E` end of line
@@ -258,6 +258,7 @@ Keyboard Shortcuts
 * `^_` underline
 * `^]` italic
 * `^O` reset formatting
+* `M-Enter` insert newline
 
 Hooks
 =====
