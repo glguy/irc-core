@@ -52,19 +52,10 @@ executable glirc2
                        Client.Window
                        Client.WordCompletion
                        Config.FromConfig
-                       Irc.Codes
-                       Irc.Commands
-                       Irc.Identifier
-                       Irc.Message
-                       Irc.Modes
-                       Irc.RateLimit
-                       Irc.RawIrcMsg
-                       Irc.UserInfo
                        LensUtils
                        StrictUnit
                        Paths_glirc
 
-  -- other-extensions:
   build-depends:       base                 >=4.9    && <4.10,
                        async                >=2.1    && < 2.2,
                        attoparsec           >=0.13   && <0.14,
@@ -78,10 +69,9 @@ executable glirc2
                        filepath             >=1.4.1  && <1.5,
                        gitrev               >=1.2    && <1.3,
                        hashable             >=1.2.4  && <1.3,
+                       irc-core             >=2.0    && <2.1,
                        lens                 >=4.14   && <4.15,
-                       memory               >=0.13   && <0.14,
                        network              >=2.6.2  && <2.7,
-                       primitive            >=0.6    && <0.7,
                        split                >=0.2    && <0.3,
                        stm                  >=2.4    && <2.5,
                        text                 >=1.2.2  && <1.3,
