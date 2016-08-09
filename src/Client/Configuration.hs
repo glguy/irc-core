@@ -171,6 +171,7 @@ paletteHelper p k v =
     "nick-colors" -> do xs <- parseColors v
                         return $! set palNicks xs p
 
+    "self"        -> setAttr palSelf
     "time"        -> setAttr palTime
     "meta"        -> setAttr palMeta
     "sigil"       -> setAttr palSigil
