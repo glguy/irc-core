@@ -33,7 +33,8 @@ module Client.EditBox
   , end
   , killHome
   , killEnd
-  , killWord
+  , killWordBackward
+  , killWordForward
   , paste
   , left
   , right
@@ -356,8 +357,8 @@ paste e = over content (insertString (view yankBuffer e)) e
 
 -- | Kill the content from the cursor back to the previous word boundary.
 -- When @yank@ is set the yank buffer will be updated.
-killWord :: Bool {- ^ yank -} -> EditBox -> EditBox
-killWord yank e
+killWordBackward :: Bool {- ^ yank -} -> EditBox -> EditBox
+killWordBackward yank e
   = sometimesUpdateYank
   $ set (content.current) (Line (length l') (l'++r))
   $ e
@@ -368,6 +369,24 @@ killWord yank e
   (wd,l2) = break isSpace l1
   l' = reverse l2
   yanked = reverse (sp++wd)
+
+  sometimesUpdateYank
+    | yank = updateYankBuffer yanked
+    | otherwise = id
+
+-- | Kill the content from the curser forward to the next word boundary.
+-- When @yank@ is set the yank buffer will be updated
+killWordForward :: Bool {- ^ yank -} -> EditBox -> EditBox
+killWordForward yank e
+  = sometimesUpdateYank
+  $ set (content.current) (Line (length l) (l++r2))
+  $ e
+  where
+  Line n txt = view (content.current) e
+  (l,r) = splitAt n txt
+  (sp,r1) = span  isSpace r
+  (wd,r2) = break isSpace r1
+  yanked = sp++wd
 
   sometimesUpdateYank
     | yank = updateYankBuffer yanked

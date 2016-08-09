@@ -55,7 +55,7 @@ wordComplete leadingCase isReversed vals box =
 
 replaceWith :: (String -> String) -> String -> Edit.EditBox -> Edit.EditBox
 replaceWith leadingCase str box =
-    let box1 = Edit.killWord False box
+    let box1 = Edit.killWordBackward False box
         str1 | view Edit.pos box1 == 0 = leadingCase str
              | otherwise               = str
     in over Edit.content (Edit.insertString str1) box1

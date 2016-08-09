@@ -288,7 +288,7 @@ doKey key modifier st =
         KChar 'u' -> changeEditor Edit.killHome
         KChar 'k' -> changeEditor Edit.killEnd
         KChar 'y' -> changeEditor Edit.paste
-        KChar 'w' -> changeEditor (Edit.killWord True)
+        KChar 'w' -> changeEditor (Edit.killWordBackward True)
         KChar 'b' -> changeEditor (Edit.insert '\^B')
         KChar 'c' -> changeEditor (Edit.insert '\^C')
         KChar ']' -> changeEditor (Edit.insert '\^]')
@@ -303,7 +303,8 @@ doKey key modifier st =
     [MMeta] ->
       case key of
         KEnter    -> changeEditor (Edit.insert '\^J')
-        KBS       -> changeEditor (Edit.killWord True)
+        KBS       -> changeEditor (Edit.killWordBackward True)
+        KChar 'd' -> changeEditor (Edit.killWordForward True)
         KChar 'b' -> changeContent Edit.leftWord
         KChar 'f' -> changeContent Edit.rightWord
         KChar 'a' -> eventLoop (jumpToActivity st)
