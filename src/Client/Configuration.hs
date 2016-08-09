@@ -21,6 +21,7 @@ module Client.Configuration
   , configDefaults
   , configServers
   , configPalette
+  , configWindowNames
 
   -- * Loading configuration
   , loadConfiguration
@@ -57,6 +58,7 @@ data Configuration = Configuration
   { _configDefaults :: ServerSettings -- ^ Default connection settings
   , _configServers  :: (HashMap HostName ServerSettings) -- ^ Host-specific settings
   , _configPalette  :: Palette
+  , _configWindowNames :: Text -- ^ Names of windows, used when alt-jumping
   }
   deriving Show
 
@@ -69,6 +71,9 @@ data ConfigurationFailure
   deriving Show
 
 instance Exception ConfigurationFailure
+
+defaultWindowNames :: Text
+defaultWindowNames = "1234567890qwertyuiop!@#$%^&*()QWERTYUIOP"
 
 -- | Uses 'getAppUserDataDirectory' to find @.glirc/config@
 getOldConfigPath :: IO FilePath
@@ -152,6 +157,9 @@ parseConfiguration def = parseSections $
 
      _configPalette <- fromMaybe defaultPalette
                     <$> sectionOptWith parsePalette "palette"
+
+     _configWindowNames <- fromMaybe defaultWindowNames
+                    <$> sectionOpt "window-names"
 
      return Configuration{..}
 

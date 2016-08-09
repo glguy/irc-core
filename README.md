@@ -106,6 +106,7 @@ Configuration sections:
 * `defaults` - These settings are used for all connections
 * `servers` - These settings are used to override defaults when the hostname matches
 * `palette` - Client color overrides
+* `window-names` - text - Names of windows (typically overridden on non QWERTY layouts)
 
 Settings
 --------

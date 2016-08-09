@@ -61,7 +61,6 @@ module Client.State
   , changeSubfocus
   , advanceFocus
   , retreatFocus
-  , windowNames
 
   ) where
 
@@ -459,9 +458,6 @@ changeSubfocus :: ClientSubfocus -> ClientState -> ClientState
 changeSubfocus focus
   = set clientScroll 0
   . set clientSubfocus focus
-
-windowNames :: [Char]
-windowNames = "1234567890qwertyuiop!@#$%^&*()QWERTYUIOP"
 
 clientMatcher :: ClientState -> Text -> Bool
 clientMatcher st =

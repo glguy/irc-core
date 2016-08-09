@@ -196,7 +196,8 @@ activityImage st
                       string defAttr "]"
   where
     windows = views clientWindows Map.elems st
-    winNames = windowNames ++ repeat '?'
+    windowNames = view (clientConfig . configWindowNames) st
+    winNames = Text.unpack windowNames ++ repeat '?'
     indicators = aux (zip winNames windows)
     aux [] = []
     aux ((i,w):ws)
@@ -242,10 +243,12 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
 
     pal = view (clientConfig . configPalette) st
     focus = view clientFocus st
+    windowNames = view (clientConfig . configWindowNames) st
+
     windowName =
       case Map.lookupIndex focus (view clientWindows st) of
-        Nothing -> '?'
-        Just i  -> (windowNames ++ repeat '?') !! i
+        Just i | i < Text.length windowNames -> Text.index windowNames i
+        _ -> '?'
 
     subfocusName =
       case view clientSubfocus st of

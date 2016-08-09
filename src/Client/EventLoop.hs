@@ -16,6 +16,7 @@ module Client.EventLoop
   ) where
 
 import           Client.Commands
+import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox     as Edit
 import           Client.Hook
@@ -262,7 +263,8 @@ doKey key modifier st =
         KChar 'b' -> changeContent Edit.leftWord
         KChar 'f' -> changeContent Edit.rightWord
         KChar 'a' -> eventLoop (jumpToActivity st)
-        KChar c   | Just i <- elemIndex c windowNames ->
+        KChar c   | let names = view (clientConfig . configWindowNames) st
+                  , Just i <- Text.findIndex (==c) names ->
                             eventLoop (jumpFocus i st)
         _ -> eventLoop st
 
