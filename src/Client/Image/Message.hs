@@ -319,11 +319,11 @@ coloredIdentifier ::
   Identifier ->
   Image
 coloredIdentifier palette myNicks ident =
-  text' (withForeColor defAttr color) (idText ident)
+  text' color (idText ident)
   where
     color
-      | ident `elem` myNicks = red
-      | otherwise            = v Vector.! i
+      | ident `elem` myNicks = _palSelf palette
+      | otherwise            = withForeColor defAttr $ v Vector.! i
 
     v = _palNicks palette
     i = hash ident `mod` Vector.length v
