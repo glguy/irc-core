@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.6
+
+* connect-cmds now use actual client commands instead of raw IRC messages. For example `msg user my message` or `join #mychannel`
+* Multiple lines can be held in the textbox at once. Pasting mutiple lines insert those lines into the textbox rather than sending them immediately.
+
 ## 2.5
 
 * Add facilities for hooks that can alter the irc message stream.

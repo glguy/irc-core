@@ -14,6 +14,7 @@ can show channel bans, quiets, invites, and exceptions.
 module Client.Commands
   ( CommandResult(..)
   , execute
+  , executeCommand
   , tabCompletion
   ) where
 
@@ -48,9 +49,10 @@ import           LensUtils
 
 -- | Possible results of running a command
 data CommandResult
-  = CommandContinue ClientState -- ^ Continue running client with updated state
-  | CommandSuccess ClientState
+  = CommandSuccess ClientState
     -- ^ Continue running the client, consume input if command was from input
+  | CommandFailure ClientState
+    -- ^ Continue running the client, report an error
   | CommandQuit -- ^ Client should close
 
 type ClientCommand = ClientState -> String -> IO CommandResult
@@ -66,17 +68,13 @@ data Command
   | ChatCommand    ChannelCommand (Bool -> ChannelCommand) -- ^ requires an active chat window
   | ChannelCommand ChannelCommand (Bool -> ChannelCommand) -- ^ requires an active channel window
 
--- | Resume the client without further state changes
-commandContinue :: Monad m => ClientState -> m CommandResult
-commandContinue = return . CommandContinue
-
 -- | Consider the text entry successful and resume the client
 commandSuccess :: Monad m => ClientState -> m CommandResult
 commandSuccess = return . CommandSuccess
 
 -- | Consider the text entry a failure and resume the client
 commandFailure :: Monad m => ClientState -> m CommandResult
-commandFailure = commandContinue . set clientBell True
+commandFailure = return . CommandFailure
 
 -- | Interpret the given chat message or command. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message
@@ -97,7 +95,7 @@ tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO CommandResult
 tabCompletion isReversed st =
   case snd $ clientLine st of
     '/':command -> executeCommand (Just isReversed) command st
-    _           -> commandContinue (nickTabCompletion isReversed st)
+    _           -> commandSuccess (nickTabCompletion isReversed st)
 
 -- | Treat the current text input as a chat message and send it.
 executeChat :: String -> ClientState -> IO CommandResult
@@ -136,7 +134,7 @@ nextWord str =
 executeCommand :: Maybe Bool -> String -> ClientState -> IO CommandResult
 
 executeCommand (Just isReversed) _ st
-  | Just st' <- commandNameCompletion isReversed st = commandContinue st'
+  | Just st' <- commandNameCompletion isReversed st = commandSuccess st'
 
 executeCommand tabCompleteReversed str st =
   let (cmd, rest) = splitWord str
@@ -168,7 +166,7 @@ executeCommand tabCompleteReversed str st =
 
     _ -> case tabCompleteReversed of
            Nothing         -> commandFailure st
-           Just isReversed -> commandContinue (nickTabCompletion isReversed st)
+           Just isReversed -> commandSuccess (nickTabCompletion isReversed st)
 
 -- Expands each alias to have its own copy of the command callbacks
 expandAliases :: [([a],b)] -> [(a,b)]
@@ -232,15 +230,15 @@ noChannelTab _ _ _ _ st _ = commandFailure st
 
 simpleClientTab :: Bool -> ClientCommand
 simpleClientTab isReversed st _ =
-  commandContinue (nickTabCompletion isReversed st)
+  commandSuccess (nickTabCompletion isReversed st)
 
 simpleNetworkTab :: Bool -> NetworkCommand
 simpleNetworkTab isReversed _ _ st _ =
-  commandContinue (nickTabCompletion isReversed st)
+  commandSuccess (nickTabCompletion isReversed st)
 
 simpleChannelTab :: Bool -> ChannelCommand
 simpleChannelTab isReversed _ _ _ st _ =
-  commandContinue (nickTabCompletion isReversed st)
+  commandSuccess (nickTabCompletion isReversed st)
 
 cmdExit :: ClientCommand
 cmdExit _ _ = return CommandQuit
@@ -402,7 +400,7 @@ cmdFocus st rest =
 -- the current networks are used.
 tabFocus :: Bool -> ClientCommand
 tabFocus isReversed st _
-  = commandContinue
+  = commandSuccess
   $ fromMaybe st
   $ clientTextBox (wordComplete id isReversed completions) st
   where
@@ -534,12 +532,12 @@ cmdInvite _ cs channelId st rest =
          cs' <- if freeTarget
                   then cs <$ sendMsg cs cmd
                   else sendModeration channelId [cmd] cs
-         commandContinueUpdateCS cs' st
+         commandSuccessUpdateCS cs' st
 
     _ -> commandFailure st
 
-commandContinueUpdateCS :: ConnectionState -> ClientState -> IO CommandResult
-commandContinueUpdateCS cs st =
+commandSuccessUpdateCS :: ConnectionState -> ClientState -> IO CommandResult
+commandSuccessUpdateCS cs st =
   let networkId = view csNetworkId cs in
   commandSuccess
     $ setStrict (clientConnections . ix networkId) cs st
@@ -568,7 +566,7 @@ tabTopic _ _ cs channelId st rest
   , Just topic <- preview (csChannels . ix channelId . chanTopic) cs =
      do let textBox = Edit.end
                     . set Edit.line (Edit.endLine $ "/topic " ++ Text.unpack topic)
-        commandContinue (over clientTextBox textBox st)
+        commandSuccess (over clientTextBox textBox st)
 
   | otherwise = commandFailure st
 
@@ -594,7 +592,7 @@ cmdKick _ cs channelId st rest =
       do let msg = Text.pack (dropWhile isSpace reason)
              cmd = ircKick channelId (Text.pack who) msg
          cs' <- sendModeration channelId [cmd] cs
-         commandContinueUpdateCS cs' st
+         commandSuccessUpdateCS cs' st
 
 
 cmdKickBan :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
@@ -611,7 +609,7 @@ cmdKickBan _ cs channelId st rest =
                     , ircKick channelId whoTxt msg
                     ]
          cs' <- sendModeration channelId cmds cs
-         commandContinueUpdateCS cs' st
+         commandSuccessUpdateCS cs' st
 
 computeBanUserInfo :: Identifier -> ConnectionState -> UserInfo
 computeBanUserInfo who cs =
@@ -627,7 +625,7 @@ cmdRemove _ cs channelId st rest =
       do let msg = Text.pack (dropWhile isSpace reason)
              cmd = ircRemove channelId (Text.pack who) msg
          cs' <- sendModeration channelId [cmd] cs
-         commandContinueUpdateCS cs' st
+         commandSuccessUpdateCS cs' st
 
 cmdJoin :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
 cmdJoin network cs st rest =
@@ -720,7 +718,7 @@ modeCommand modes cs st =
              cs' <- if needOp
                       then sendModeration chan cmds cs
                       else cs <$ traverse_ (sendMsg cs) cmds
-             commandContinueUpdateCS cs' st
+             commandSuccessUpdateCS cs' st
 
     _ -> commandFailure st
 
@@ -735,11 +733,11 @@ tabMode isReversed _ cs st rest =
               [ (pol,mode) | (pol,mode,arg) <- parsedModes, not (Text.null arg) ]
       , (pol,mode):_      <- drop (paramIndex-3) parsedModesWithParams
       , let completions = computeModeCompletion pol mode channel cs
-      -> commandContinue
+      -> commandSuccess
        $ fromMaybe st
        $ clientTextBox (wordComplete id isReversed completions) st
 
-    _ -> commandContinue st
+    _ -> commandSuccess st
 
   where
     paramIndex = length $ words $ uncurry take $ clientLine st

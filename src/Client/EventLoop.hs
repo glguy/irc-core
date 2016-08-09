@@ -24,6 +24,7 @@ import           Client.Hooks
 import           Client.Image
 import           Client.Message
 import           Client.NetworkConnection
+import           Client.ServerSettings
 import           Client.State
 import           Client.Window
 import           Control.Concurrent.STM
@@ -36,10 +37,13 @@ import qualified Data.IntMap as IntMap
 import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
+import           Data.Monoid
 import           Data.Ord
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
 import           Graphics.Vty
+import           Irc.Codes
 import           Irc.Message
 import           Irc.RawIrcMsg
 
@@ -176,7 +180,8 @@ doNetworkLine networkId time line st =
              case stateHook (cookIrcMsg raw) of
                Nothing  -> eventLoop st -- Message ignored
                Just irc -> do traverse_ (sendMsg cs) replies
-                              eventLoop st'
+                              st2 <- clientResponse time' irc cs st1
+                              eventLoop st2
                  where
                    -- state with message recorded
                    recSt = case viewHook irc of
@@ -192,7 +197,47 @@ doNetworkLine networkId time line st =
                                          }
 
                    -- record messages *before* applying the changes
-                   (replies, st') = applyMessageToClientState time irc networkId cs recSt
+                   (replies, st1) = applyMessageToClientState time irc networkId cs recSt
+
+-- | Client-level responses to specific IRC messages.
+-- This is in contrast to the connection state tracking logic in
+-- "Client.ConnectionState"
+clientResponse :: ZonedTime -> IrcMsg -> ConnectionState -> ClientState -> IO ClientState
+clientResponse now irc cs st =
+  case irc of
+    Reply RPL_WELCOME _ ->
+      foldM
+        (processConnectCmd now cs)
+        st
+        (view (csSettings . ssConnectCmds) cs)
+    _ -> return st
+
+processConnectCmd ::
+  ZonedTime       {- ^ now             -} ->
+  ConnectionState {- ^ current network -} ->
+  ClientState                             ->
+  Text            {- ^ command         -} ->
+  IO ClientState
+processConnectCmd now cs st0 cmdTxt =
+  do res <- executeCommand Nothing (Text.unpack cmdTxt) st0
+     return $! case res of
+       CommandFailure st -> reportConnectCmdError now cs cmdTxt st
+       CommandSuccess st -> st
+       CommandQuit       -> st0 -- not supported
+
+
+reportConnectCmdError ::
+  ZonedTime       {- ^ now             -} ->
+  ConnectionState {- ^ current network -} ->
+  Text            {- ^ bad command     -} ->
+  ClientState ->
+  ClientState
+reportConnectCmdError now cs cmdTxt =
+  recordNetworkMessage ClientMessage
+    { _msgTime    = now
+    , _msgNetwork = view csNetwork cs
+    , _msgBody    = IrcBody (Error ("Bad connect-cmd: " <> cmdTxt))
+    }
 
 -- | Find the ZNC provided server time
 computeEffectiveTime :: ZonedTime -> [TagEntry] -> ZonedTime
@@ -281,9 +326,9 @@ doKey key modifier st =
         KPageUp    -> eventLoop (pageUp st)
         KPageDown  -> eventLoop (pageDown st)
 
-        KEnter     -> doCommandResult =<< executeInput st
-        KBackTab   -> doCommandResult =<< tabCompletion True  st
-        KChar '\t' -> doCommandResult =<< tabCompletion False st
+        KEnter     -> doCommandResult True  =<< executeInput st
+        KBackTab   -> doCommandResult False =<< tabCompletion True  st
+        KChar '\t' -> doCommandResult False =<< tabCompletion False st
 
         KChar c    -> changeEditor (Edit.insert c)
         KFun 2     -> eventLoop (over clientDetailView not st)
@@ -293,12 +338,12 @@ doKey key modifier st =
 
 -- | Process 'CommandResult' by either running the 'eventLoop' with the
 -- new 'ClientState' or returning.
-doCommandResult :: CommandResult -> IO ()
-doCommandResult res =
+doCommandResult :: Bool -> CommandResult -> IO ()
+doCommandResult clearOnSuccess res =
   case res of
-    CommandQuit        -> return ()
-    CommandContinue st -> eventLoop st
-    CommandSuccess st -> eventLoop (consumeInput st)
+    CommandQuit       -> return ()
+    CommandSuccess st -> eventLoop (if clearOnSuccess then consumeInput st else st)
+    CommandFailure st -> eventLoop (set clientBell True st)
 
 executeInput :: ClientState -> IO CommandResult
 executeInput st = execute (clientFirstLine st) st

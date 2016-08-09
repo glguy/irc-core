@@ -268,13 +268,10 @@ doWelcome ::
   ZonedTime  {- ^ message received -} ->
   Identifier {- ^ my nickname      -} ->
   ConnectionState -> ([RawIrcMsg], ConnectionState)
-doWelcome msgWhen me cs = (reply, update cs)
-  where
-    reply = mapMaybe parseRawIrcMsg (view (csSettings . ssConnectCmds) cs)
-
-    update
-      = set csNick me
-      . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
+doWelcome msgWhen me
+  = noReply
+  . set csNick me
+  . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> ConnectionState -> ConnectionState
 doTopic when user chan topic =
