@@ -60,7 +60,7 @@ replaceWith leadingCase str box =
     let box1 = Edit.killWord False box
         str1 | view Edit.pos box1 == 0 = leadingCase str
              | otherwise               = str
-    in Edit.insertString str1 box1
+    in over content (Edit.insertString str1) box1
 
 idPrefix :: Identifier -> Identifier -> Bool
 idPrefix = B.isPrefixOf `on` idDenote
@@ -74,7 +74,8 @@ currentWord box
   $ takeWhile (not . isSpace)
   $ dropWhile (\x -> x==' ' || x==':')
   $ reverse
-  $ take (view Edit.pos box) (view Edit.content box)
+  $ take n txt
+ where Line n txt = view (Edit.content . Edit.current) box
 
 class            Prefix a          where isPrefix :: a -> a -> Bool
 instance         Prefix Identifier where isPrefix = idPrefix

@@ -91,7 +91,7 @@ execute st =
 -- input based on the users of the channel related to the current buffer.
 tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO CommandResult
 tabCompletion isReversed st =
-  case clientInput st of
+  case snd $ clientLine st of
     '/':command -> executeCommand (Just isReversed) command st
     _           -> commandContinue (nickTabCompletion isReversed st)
 
@@ -403,9 +403,7 @@ tabFocus isReversed st _
   $ clientTextBox (wordComplete id isReversed completions) st
   where
     networks   = map mkId $ HashMap.keys $ view clientNetworkMap st
-    textBox    = view clientTextBox st
-    params     = words $ take (view Edit.pos textBox)
-                              (view Edit.content textBox)
+    params     = words $ uncurry take $ clientLine st
 
     completions
       | length params == 2 = networks
@@ -565,7 +563,7 @@ tabTopic _ _ cs channelId st rest
   | all isSpace rest
   , Just topic <- preview (csChannels . ix channelId . chanTopic) cs =
      do let textBox = Edit.end
-                    . set Edit.content ("/topic " ++ Text.unpack topic)
+                    . set Edit.line (Edit.endLine $ "/topic " ++ Text.unpack topic)
         commandContinue (over clientTextBox textBox st)
 
   | otherwise = commandFailure st
@@ -740,9 +738,7 @@ tabMode isReversed _ cs st rest =
     _ -> commandContinue st
 
   where
-    textBox    = view clientTextBox st
-    paramIndex = length $ words $ take (view Edit.pos textBox)
-                                       (view Edit.content textBox)
+    paramIndex = length $ words $ uncurry take $ clientLine st
 
 -- | Use the *!*@host masks of users for channel lists when setting list modes
 --
@@ -778,8 +774,8 @@ commandNameCompletion isReversed st =
      clientTextBox (wordComplete id isReversed possibilities) st
   where
     n = length leadingPart
-    leadingPart = takeWhile (not . isSpace) (clientInput st)
-    cursorPos   = view (clientTextBox . Edit.pos) st
+    (cursorPos, line) = clientLine st
+    leadingPart = takeWhile (not . isSpace) line
     possibilities = mkId . Text.cons '/' <$> HashMap.keys commands
 
 -- | Complete the nickname at the current cursor position using the

@@ -37,21 +37,21 @@ import           Numeric
 clientPicture :: ClientState -> (Picture, ClientState)
 clientPicture st = (pic, st')
     where
-      (img, st') = clientImage st
+      (pos, img, st') = clientImage st
       pic0 = picForImage img
       pic  = pic0 { picCursor = cursor }
-      cursor = Cursor (min (view clientWidth st - 1)
-                           (view (clientTextBox . Edit.pos) st+1))
+      cursor = Cursor (min (view clientWidth st - 1) (pos+1))
                       (view clientHeight st - 1)
 
-clientImage :: ClientState -> (Image, ClientState)
-clientImage st = (img, st')
+clientImage :: ClientState -> (Int, Image, ClientState)
+clientImage st = (pos, img, st')
   where
     (mp, st') = messagePane st
+    (pos, tbImg) = textboxImage st'
     img = vertCat
             [ mp
             , horizDividerImage st'
-            , textboxImage st'
+            , tbImg
             ]
 
 messagePaneImages :: ClientState -> [Image]
@@ -274,20 +274,33 @@ channelModesImage network channel st =
       where (modes,args) = unzip (Map.toList modeMap)
     _ -> emptyImage
 
-textboxImage :: ClientState -> Image
+textboxImage :: ClientState -> (Int, Image)
 textboxImage st
-  = applyCrop
-  $ beginning <|> content <|> ending
+  = (pos, applyCrop $ beginning <|> content <|> ending)
   where
-  pos = view (clientTextBox . Edit.pos) st
   width = view clientWidth st
-  content = parseIrcTextExplicit (Text.pack (view (clientTextBox . Edit.content) st))
+  (pos, content) = views (clientTextBox . Edit.content) renderContent st
   applyCrop
     | 1+pos < width = cropRight width
     | otherwise     = cropLeft  width . cropRight (pos+2)
 
   beginning = char (withForeColor defAttr brightBlack) '^'
   ending    = char (withForeColor defAttr brightBlack) '$'
+
+renderContent :: Edit.Content -> (Int, Image)
+renderContent c = (imgPos, wholeImg)
+  where
+  as = view Edit.above c
+  bs = view Edit.below c
+  cur = view Edit.current c
+
+  imgPos = view Edit.pos cur + length as + sum (map length as)
+
+  renderLine l = parseIrcTextExplicit $ Text.pack l
+
+  curImg = views Edit.text renderLine cur
+  rightImg = foldl (\i b -> i <|> renderLine ('\n':b)) curImg bs
+  wholeImg = foldl (\i a -> renderLine (a ++ "\n") <|> i) rightImg as
 
 latencyImage :: ClientState -> Image
 latencyImage st
