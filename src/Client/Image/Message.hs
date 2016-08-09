@@ -14,7 +14,6 @@ module Client.Image.Message
   , RenderMode(..)
   , defaultRenderParams
   , msgImage
-  , detailedMsgImage
   , metadataImg
   , ignoreImage
   , quietIdentifier
@@ -63,22 +62,27 @@ defaultRenderParams = MessageRendererParams
 -- | Construct a message given the time the message was received and its
 -- render parameters.
 msgImage ::
+  RenderMode ->
   ZonedTime {- ^ time of message -} ->
   MessageRendererParams -> MessageBody -> Image
-msgImage when params body = horizCat
-  [ timeImage (rendPalette params) when
+msgImage rm when params body = horizCat
+  [ renderTime rm (rendPalette params) when
   , statusMsgImage (rendStatusMsg params)
-  , bodyImage NormalRender params body
+  , bodyImage rm params body
   ]
 
--- | Construct a message given the time the message was received and its
--- render parameters using a detailed view.
-detailedMsgImage :: ZonedTime -> MessageRendererParams -> MessageBody -> Image
-detailedMsgImage when params body = horizCat
-  [ datetimeImage (rendPalette params) when
-  , statusMsgImage (rendStatusMsg params)
-  , bodyImage DetailedRender params body
+errorImage ::
+  MessageRendererParams ->
+  String {- ^ error message -} ->
+  Image
+errorImage params txt = horizCat
+  [ text' (view palError (rendPalette params)) "Error "
+  , string defAttr txt
   ]
+
+renderTime :: RenderMode -> Palette -> ZonedTime -> Image
+renderTime DetailedRender = datetimeImage
+renderTime NormalRender   = timeImage
 
 -- | Render the sigils for a restricted message.
 statusMsgImage :: [Char] {- ^ sigils -} -> Image
@@ -98,9 +102,9 @@ bodyImage ::
   MessageBody -> Image
 bodyImage rm params body =
   case body of
-    IrcBody irc  -> ircLineImage rm params irc
-    ErrorBody ex -> string defAttr ("Exception: " ++ show ex)
-    ExitBody     -> string defAttr "Thread finished"
+    IrcBody irc   -> ircLineImage rm params irc
+    ErrorBody txt -> errorImage params txt
+    ExitBody      -> string defAttr "Thread finished"
 
 -- | Render a 'ZonedTime' as time using quiet attributes
 --

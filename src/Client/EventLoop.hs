@@ -37,7 +37,6 @@ import qualified Data.IntMap as IntMap
 import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Ord
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -236,7 +235,7 @@ reportConnectCmdError now cs cmdTxt =
   recordNetworkMessage ClientMessage
     { _msgTime    = now
     , _msgNetwork = view csNetwork cs
-    , _msgBody    = IrcBody (Error ("Bad connect-cmd: " <> cmdTxt))
+    , _msgBody    = ErrorBody ("Bad connect-cmd: " ++ Text.unpack cmdTxt)
     }
 
 -- | Find the ZNC provided server time

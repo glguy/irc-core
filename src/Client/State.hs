@@ -375,8 +375,8 @@ toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
 toWindowLine params msg = WindowLine
   { _wlBody      = view msgBody msg
   , _wlText      = views msgBody msgText msg
-  , _wlImage     = force $ msgImage         (view msgTime msg) params (view msgBody msg)
-  , _wlFullImage = force $ detailedMsgImage (view msgTime msg) params (view msgBody msg)
+  , _wlImage     = force $ msgImage NormalRender (view msgTime msg) params (view msgBody msg)
+  , _wlFullImage = force $ msgImage DetailedRender (view msgTime msg) params (view msgBody msg)
   }
 
 toWindowLine' :: Palette -> ClientMessage -> WindowLine
