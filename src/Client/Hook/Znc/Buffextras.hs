@@ -17,15 +17,16 @@ module Client.Hook.Znc.Buffextras
   ( buffextrasHook
   ) where
 
-import Data.Attoparsec.Text as P
-import Data.Monoid
-import Data.Text as Text hiding (head)
+import           Control.Monad
+import           Data.Attoparsec.Text as P
+import           Data.Monoid
+import           Data.Text as Text hiding (head)
 
-import Client.Hook
-import Irc.Identifier
-import Irc.Message
-import Irc.RawIrcMsg
-import Irc.UserInfo
+import           Client.Hook
+import           Irc.Identifier
+import           Irc.Message
+import           Irc.RawIrcMsg
+import           Irc.UserInfo
 
 -- | Map ZNC's buffextras messages to native client messages.
 -- Set debugging to pass through buffextras messages that
@@ -38,7 +39,7 @@ remap ::
   IrcMsg -> MessageResult
 remap debug (Privmsg user chan msg)
   | userNick user == mkId "*buffextras"
-  , Right newMsg <- parseOnly (mainParser chan) msg
+  , Right newMsg <- parseOnly (prefixedParser chan) msg
   = RemapMessage newMsg
 
   | userNick user == mkId "*buffextras"
@@ -47,37 +48,35 @@ remap debug (Privmsg user chan msg)
 
 remap _ _ = PassMessage
 
--- Note: the "Server set mode:" message is intentionally not handled at this
--- time.
-mainParser :: Identifier -> Parser IrcMsg
-mainParser = prefixedParser
-
 prefixedParser :: Identifier -> Parser IrcMsg
 prefixedParser chan = do
     pfx <- prefixParser
-    choice [ Join pfx chan   <$  sepMsg "joined"
-           , Quit pfx        <$> parseLeave "quit"
-           , Part pfx chan   <$> parseLeave "parted"
-           , Nick pfx . mkId <$  sepMsg "is now known as" <*> simpleTokenParser
-           , Mode pfx chan   <$  sepMsg "set mode:" <*> allTokens
-           ]
+    choice
+      [ Join pfx chan <$ skipToken "joined"
+      , Quit pfx . filterEmpty <$ skipToken "quit with message:" <*> parseReason
+      , Part pfx chan . filterEmpty <$ skipToken "parted with message:" <*> parseReason
+      , Nick pfx . mkId <$ skipToken "is now known as" <*> simpleTokenParser
+      , Mode pfx chan <$ skipToken "set mode:" <*> allTokens
+      , Kick pfx chan <$ skipToken "kicked" <*> parseId <* skipToken "Reason:" <*> parseReason
+      ]
 
 allTokens :: Parser [Text]
 allTokens = Text.words <$> P.takeText
 
-sepMsg :: Text -> Parser ()
-sepMsg m = P.skipWhile (==' ') *> string m *> P.skipWhile (==' ')
+skipToken :: Text -> Parser ()
+skipToken m = string m *> P.skipWhile (==' ')
 
--- Parts and quits have a similar format.
-parseLeave
-  :: Text
-  -> Parser (Maybe Text)
-parseLeave small =
-  do sepMsg (small <> " with message:")
-     P.skipWhile (==' ')
-     filterEmpty <$ char '[' <*> P.takeWhile (/=']') <* char ']'
+parseId :: Parser Identifier
+parseId = mkId <$> simpleTokenParser
 
 filterEmpty :: Text -> Maybe Text
-filterEmpty tx
-  | Text.null tx = Nothing
-  | otherwise = Just tx
+filterEmpty txt
+  | Text.null txt = Nothing
+  | otherwise     = Just txt
+
+parseReason :: Parser Text
+parseReason =
+  do char '['
+     txt <- P.takeText
+     guard (not (Text.null txt) && Text.last txt == ']')
+     return (Text.init txt)
