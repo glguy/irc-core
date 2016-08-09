@@ -37,6 +37,7 @@ module Client.ServerSettings
   , ssFloodPenalty
   , ssFloodThreshold
   , ssMessageHooks
+  , ssName
 
   -- * Load function
   , loadDefaultServerSettings
@@ -75,6 +76,7 @@ data ServerSettings = ServerSettings
   , _ssFloodPenalty     :: !Rational -- ^ Flood limiter penalty (seconds)
   , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
   , _ssMessageHooks     :: ![Text] -- ^ Initial message hooks
+  , _ssName             :: !(Maybe Text) -- ^ The name referencing the server in commands
   }
   deriving Show
 
@@ -110,4 +112,5 @@ loadDefaultServerSettings =
        , _ssFloodPenalty     = 2 -- RFC 1459 defaults
        , _ssFloodThreshold   = 10
        , _ssMessageHooks     = []
+       , _ssName             = Nothing
        }

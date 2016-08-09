@@ -56,7 +56,7 @@ import           System.IO.Error
 -- otherwise '_configDefaults' is used.
 data Configuration = Configuration
   { _configDefaults :: ServerSettings -- ^ Default connection settings
-  , _configServers  :: (HashMap HostName ServerSettings) -- ^ Host-specific settings
+  , _configServers  :: (HashMap Text ServerSettings) -- ^ Host-specific settings
   , _configPalette  :: Palette
   , _configWindowNames :: Text -- ^ Names of windows, used when alt-jumping
   }
@@ -195,10 +195,10 @@ parseSectionsWith p start s =
     Sections xs -> foldM (\x (Section k v) -> extendLoc k (p x k v)) start xs
     _ -> failure "Expected sections"
 
-parseServers :: ServerSettings -> Value -> ConfigParser (HashMap HostName ServerSettings)
+parseServers :: ServerSettings -> Value -> ConfigParser (HashMap Text ServerSettings)
 parseServers def v =
   do ys <- parseList (parseServerSettings def) v
-     return (HashMap.fromList [(view ssHostName ss, ss) | ss <- ys])
+     return (HashMap.fromList [(fromMaybe (Text.pack (view ssHostName ss)) (view ssName ss), ss) | ss <- ys])
 
 parseServerSettings :: ServerSettings -> Value -> ConfigParser ServerSettings
 parseServerSettings = parseSectionsWith parseServerSetting
@@ -227,6 +227,7 @@ parseServerSetting ss k v =
     "flood-penalty"       -> setField       ssFloodPenalty
     "flood-threshold"     -> setField       ssFloodThreshold
     "message-hooks"       -> setField       ssMessageHooks
+    "name"                -> setFieldMb     ssName
     _                     -> failure "Unknown section"
   where
     setField   l = setFieldWith   l parseConfig
