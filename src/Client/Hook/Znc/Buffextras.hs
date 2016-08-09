@@ -19,7 +19,6 @@ module Client.Hook.Znc.Buffextras
 
 import           Control.Monad
 import           Data.Attoparsec.Text as P
-import           Data.Monoid
 import           Data.Text as Text hiding (head)
 
 import           Client.Hook
@@ -76,7 +75,6 @@ filterEmpty txt
 
 parseReason :: Parser Text
 parseReason =
-  do char '['
-     txt <- P.takeText
+  do txt <- char '[' *> P.takeText
      guard (not (Text.null txt) && Text.last txt == ']')
      return (Text.init txt)

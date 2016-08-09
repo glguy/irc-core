@@ -32,7 +32,6 @@ module Client.Configuration
 import           Client.Image.Palette
 import           Client.Configuration.Colors
 import           Client.ServerSettings
-import           Control.Applicative
 import           Control.Exception
 import           Control.Monad
 import           Config
@@ -44,7 +43,6 @@ import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import           Data.Traversable
 import           Graphics.Vty.Attributes
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName)
@@ -158,12 +156,10 @@ parseConfiguration def = parseSections $
      return Configuration{..}
 
 parsePalette :: Value -> ConfigParser Palette
-parsePalette (Sections ss) = foldM paletteHelper defaultPalette ss
-parsePalette _             = failure "Expected sections"
+parsePalette = parseSectionsWith paletteHelper defaultPalette
 
-paletteHelper :: Palette -> Section -> ConfigParser Palette
-paletteHelper p (Section k v) =
-  extendLoc k $
+paletteHelper :: Palette -> Text -> Value -> ConfigParser Palette
+paletteHelper p k v =
   case k of
     "nick-colors" -> do xs <- parseColors v
                         return $! set palNicks xs p
@@ -185,66 +181,74 @@ paletteHelper p (Section k v) =
          let !attr = withForeColor defAttr x
          return $! set l attr p
 
+parseSectionsWith :: (a -> Text -> Value -> ConfigParser a) -> a -> Value -> ConfigParser a
+parseSectionsWith p start s =
+  case s of
+    Sections xs -> foldM (\x (Section k v) -> extendLoc k (p x k v)) start xs
+    _ -> failure "Expected sections"
 
 parseServers :: ServerSettings -> Value -> ConfigParser (HashMap HostName ServerSettings)
-parseServers def (List xs) =
-  do ys <- traverse (parseServerSettings def) xs
+parseServers def v =
+  do ys <- parseList (parseServerSettings def) v
      return (HashMap.fromList [(view ssHostName ss, ss) | ss <- ys])
-parseServers _ _ = failure "expected list"
-
-sectionOptString :: Text -> SectionParser (Maybe String)
-sectionOptString key = fmap Text.unpack <$> sectionOpt key
-
-sectionOptStrings :: Text -> SectionParser (Maybe [String])
-sectionOptStrings key = fmap (fmap Text.unpack) <$> sectionOpt key
-
-sectionOptNum :: Num a => Text -> SectionParser (Maybe a)
-sectionOptNum key = fmap fromInteger <$> sectionOpt key
-
-sectionOptIdentifiers :: Text -> SectionParser (Maybe [Identifier])
-sectionOptIdentifiers key = fmap (fmap mkId) <$> sectionOpt key
 
 parseServerSettings :: ServerSettings -> Value -> ConfigParser ServerSettings
-parseServerSettings !def =
-  parseSections $
-    do _ssNick           <- fieldReq  ssNick          "nick"
-       _ssUser           <- fieldReq  ssUser          "username"
-       _ssReal           <- fieldReq  ssReal          "realname"
-       _ssUserInfo       <- fieldReq  ssUserInfo      "userinfo"
-       _ssPassword       <- field     ssPassword      "password"
-       _ssSaslUsername   <- field     ssSaslUsername  "sasl-username"
-       _ssSaslPassword   <- field     ssSaslPassword  "sasl-password"
-       _ssHostName       <- fieldReq' ssHostName      (sectionOptString "hostname")
-       _ssPort           <- field'    ssPort          (sectionOptNum "port")
-       _ssTls            <- fieldReq' ssTls           (boolean "tls")
-       _ssTlsInsecure    <- fieldReq' ssTlsInsecure   (boolean "tls-insecure")
-       _ssTlsClientCert  <- field'    ssTlsClientCert (sectionOptString "tls-client-cert")
-       _ssTlsClientKey   <- field'    ssTlsClientKey  (sectionOptString "tls-client-key")
-       _ssConnectCmds    <- fieldReq  ssConnectCmds   "connect-cmds"
-       _ssSocksHost      <- field'    ssSocksHost     (sectionOptString "socks-host")
-       _ssSocksPort      <- fieldReq' ssSocksPort     (sectionOptNum "socks-port")
-       _ssServerCerts    <- fieldReq' ssServerCerts   (sectionOptStrings "server-certificates")
-       _ssChanservChannels <- fieldReq' ssChanservChannels (sectionOptIdentifiers "chanserv-channels")
-       _ssFloodPenalty   <- fieldReq ssFloodPenalty   "flood-penalty"
-       _ssFloodThreshold <- fieldReq ssFloodThreshold "flood-threshold"
-       _ssMessageHooks   <- fieldReq ssMessageHooks   "message-hooks"
-       return ServerSettings{..}
+parseServerSettings = parseSectionsWith parseServerSetting
+
+parseServerSetting :: ServerSettings -> Text -> Value -> ConfigParser ServerSettings
+parseServerSetting ss k v =
+  case k of
+    "nick"                -> setField       ssNick
+    "username"            -> setField       ssUser
+    "realname"            -> setField       ssReal
+    "userinfo"            -> setField       ssUserInfo
+    "password"            -> setFieldMb     ssPassword
+    "sasl-username"       -> setFieldMb     ssSaslUsername
+    "sasl-password"       -> setFieldMb     ssSaslPassword
+    "hostname"            -> setFieldWith   ssHostName      parseString
+    "port"                -> setFieldWithMb ssPort          parseNum
+    "tls"                 -> setFieldWith   ssTls           parseBoolean
+    "tls-insecure"        -> setFieldWith   ssTlsInsecure   parseBoolean
+    "tls-client-cert"     -> setFieldWithMb ssTlsClientCert parseString
+    "tls-client-key"      -> setFieldWithMb ssTlsClientKey  parseString
+    "server-certificates" -> setFieldWith   ssServerCerts   (parseList parseString)
+    "connect-cmds"        -> setField       ssConnectCmds
+    "socks-host"          -> setFieldWithMb ssSocksHost     parseString
+    "socks-port"          -> setFieldWith   ssSocksPort     parseNum
+    "chanserv-channels"   -> setFieldWith   ssChanservChannels (parseList parseIdentifier)
+    "flood-penalty"       -> setField       ssFloodPenalty
+    "flood-threshold"     -> setField       ssFloodThreshold
+    "message-hooks"       -> setField       ssMessageHooks
+    _                     -> failure "Unknown section"
   where
-    field    l key = field'    l (sectionOpt key)
-    fieldReq l key = fieldReq' l (sectionOpt key)
+    setField   l = setFieldWith   l parseConfig
+    setFieldMb l = setFieldWithMb l parseConfig
 
-    fieldReq' l p = fromMaybe (view l def) <$> p
+    setFieldWith l p =
+      do x <- p v
+         return $! set l x ss
 
-    field' l p = (<|> view l def) <$> p
+    setFieldWithMb l p =
+      do x <- p v
+         return $! set l (Just x) ss
 
-boolean :: Text -> SectionParser (Maybe Bool)
-boolean key =
-  do mb <- sectionOpt key
-     for mb $ \a ->
-       case atomName a of
-         "yes" -> return True
-         "no"  -> return False
-         _     -> liftConfigParser (failure "expected yes or no")
+parseBoolean :: Value -> ConfigParser Bool
+parseBoolean (Atom "yes") = return True
+parseBoolean (Atom "no")  = return False
+parseBoolean _            = failure "expected yes or no"
+
+parseList :: (Value -> ConfigParser a) -> Value -> ConfigParser [a]
+parseList p (List xs) = traverse p xs
+parseList _ _         = failure "expected list"
+
+parseNum :: Num a => Value -> ConfigParser a
+parseNum v = fromInteger <$> parseConfig v
+
+parseIdentifier :: Value -> ConfigParser Identifier
+parseIdentifier v = mkId <$> parseConfig v
+
+parseString :: Value -> ConfigParser String
+parseString v = Text.unpack <$> parseConfig v
 
 -- | Resolve relative paths starting at the home directory rather than
 -- the current directory of the client.
