@@ -41,6 +41,7 @@ module Client.State
   , currentCompletionList
   , ircIgnorable
   , clientInput
+  , clientLine
   , abortNetwork
   , addConnection
   , removeNetwork
@@ -170,7 +171,11 @@ clientConnection network f st =
 
 -- | Full content of the edit box
 clientInput :: ClientState -> String
-clientInput = view (clientTextBox . Edit.content)
+clientInput = views (clientTextBox . Edit.content) Edit.crush
+
+-- | The line under the cursor in the edit box.
+clientLine :: ClientState -> (Int, String)
+clientLine = views (clientTextBox . Edit.line) (\(Edit.Line n t) -> (n, t))
 
 -- | Return the network associated with the current focus
 focusNetwork :: ClientFocus -> Maybe NetworkName

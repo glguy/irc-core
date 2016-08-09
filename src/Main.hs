@@ -27,7 +27,7 @@ import Client.State
 -- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
 -- once the continuation finishes.
 withVty :: (Vty -> IO a) -> IO a
-withVty = bracket (mkVty def) shutdown
+withVty = bracket (mkVty def{bracketedPasteMode = Just True}) shutdown
 
 -- | Main action for IRC client
 main :: IO ()

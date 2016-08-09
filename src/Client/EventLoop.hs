@@ -225,29 +225,31 @@ doVtyEvent vtyEvent st =
          (w,h) <- displayBounds (outputIface vty)
          eventLoop $ set clientWidth w
                    $ set clientHeight h st
+    EvPaste s -> eventLoop (over (clientTextBox . Edit.content) (Edit.insertString s) st)
     _ -> eventLoop st
 
 
 -- | Map keyboard inputs to actions in the client
 doKey :: Key -> [Modifier] -> ClientState -> IO ()
 doKey key modifier st =
-  let changeInput f = eventLoop (over clientTextBox f st) in
+  let changeEditor f = eventLoop (over clientTextBox f st)
+      changeContent f = eventLoop (over (clientTextBox . Edit.content) f st) in
   case modifier of
     [MCtrl] ->
       case key of
-        KChar 'd' -> changeInput Edit.delete
-        KChar 'a' -> changeInput Edit.home
-        KChar 'e' -> changeInput Edit.end
-        KChar 'u' -> changeInput Edit.killHome
-        KChar 'k' -> changeInput Edit.killEnd
-        KChar 'y' -> changeInput Edit.paste
-        KChar 'w' -> changeInput (Edit.killWord True)
-        KChar 'b' -> changeInput (Edit.insert '\^B')
-        KChar 'c' -> changeInput (Edit.insert '\^C')
-        KChar ']' -> changeInput (Edit.insert '\^]')
-        KChar '_' -> changeInput (Edit.insert '\^_')
-        KChar 'o' -> changeInput (Edit.insert '\^O')
-        KChar 'v' -> changeInput (Edit.insert '\^V')
+        KChar 'd' -> changeContent Edit.delete
+        KChar 'a' -> changeEditor Edit.home
+        KChar 'e' -> changeEditor Edit.end
+        KChar 'u' -> changeEditor Edit.killHome
+        KChar 'k' -> changeEditor Edit.killEnd
+        KChar 'y' -> changeEditor Edit.paste
+        KChar 'w' -> changeEditor (Edit.killWord True)
+        KChar 'b' -> changeEditor (Edit.insert '\^B')
+        KChar 'c' -> changeEditor (Edit.insert '\^C')
+        KChar ']' -> changeEditor (Edit.insert '\^]')
+        KChar '_' -> changeEditor (Edit.insert '\^_')
+        KChar 'o' -> changeEditor (Edit.insert '\^O')
+        KChar 'v' -> changeEditor (Edit.insert '\^V')
         KChar 'p' -> eventLoop (retreatFocus st)
         KChar 'n' -> eventLoop (advanceFocus st)
         KChar 'l' -> refresh (view clientVty st) >> eventLoop st
@@ -255,9 +257,10 @@ doKey key modifier st =
 
     [MMeta] ->
       case key of
-        KBS       -> changeInput (Edit.killWord True)
-        KChar 'b' -> changeInput Edit.leftWord
-        KChar 'f' -> changeInput Edit.rightWord
+        KEnter    -> changeEditor (Edit.insert '\^J')
+        KBS       -> changeEditor (Edit.killWord True)
+        KChar 'b' -> changeContent Edit.leftWord
+        KChar 'f' -> changeContent Edit.rightWord
         KChar 'a' -> eventLoop (jumpToActivity st)
         KChar c   | Just i <- elemIndex c windowNames ->
                             eventLoop (jumpFocus i st)
@@ -265,14 +268,14 @@ doKey key modifier st =
 
     [] -> -- no modifier
       case key of
-        KBS        -> changeInput Edit.backspace
-        KDel       -> changeInput Edit.delete
-        KLeft      -> changeInput Edit.left
-        KRight     -> changeInput Edit.right
-        KHome      -> changeInput Edit.home
-        KEnd       -> changeInput Edit.end
-        KUp        -> changeInput $ \ed -> fromMaybe ed $ Edit.earlier ed
-        KDown      -> changeInput $ \ed -> fromMaybe ed $ Edit.later ed
+        KBS        -> changeContent Edit.backspace
+        KDel       -> changeContent Edit.delete
+        KLeft      -> changeContent Edit.left
+        KRight     -> changeContent Edit.right
+        KHome      -> changeEditor Edit.home
+        KEnd       -> changeEditor Edit.end
+        KUp        -> changeEditor $ \ed -> fromMaybe ed $ Edit.earlier ed
+        KDown      -> changeEditor $ \ed -> fromMaybe ed $ Edit.later ed
         KPageUp    -> eventLoop (pageUp st)
         KPageDown  -> eventLoop (pageDown st)
 
@@ -280,7 +283,7 @@ doKey key modifier st =
         KBackTab   -> doCommandResult =<< tabCompletion True  st
         KChar '\t' -> doCommandResult =<< tabCompletion False st
 
-        KChar c    -> changeInput (Edit.insert c)
+        KChar c    -> changeEditor (Edit.insert c)
         KFun 2     -> eventLoop (over clientDetailView not st)
         _          -> eventLoop st
 
