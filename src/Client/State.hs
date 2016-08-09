@@ -489,11 +489,10 @@ removeNetwork networkId st =
 
 addConnection :: Text -> ClientState -> IO ClientState
 addConnection network st =
-  do let host = Text.unpack network
-         defSettings = (view (clientConfig . configDefaults) st)
-                     { _ssHostName = host }
+  do let defSettings = (view (clientConfig . configDefaults) st)
+                     { _ssName = Just network }
          settings = fromMaybe defSettings
-                              (view (clientConfig . configServers . at host) st)
+                              (firstOf (clientConfig . configServers . at network . _Just) st)
 
      let (i,st') = st & clientNextConnectionId <+~ 1
      c <- createConnection

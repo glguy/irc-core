@@ -133,6 +133,7 @@ Settings
 * `flood-penalty` - number - cost in seconds per message
 * `flood-threshold` - number - threshold of seconds for burst
 * `message-hooks` - list of text - names of hooks to enable
+* `name` - name used to reference in a server (needed for connectiong to multiple servers on the same hostname)
 
 Palette
 -------
