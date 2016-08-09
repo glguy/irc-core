@@ -242,10 +242,12 @@ Keyboard Shortcuts
 * `^K` delete to end
 * `^U` delete to beginning
 * `^D` delete at cursor
-* `^W` delete word
+* `^W` delete word backwards
 * `^Y` paste from yank buffer
 * `M-F` forward word
 * `M-B` backward word
+* `M-BACKSPACE` delete word backwards
+* `M-D` delete word forwards
 * `TAB` nickname completion
 * `F2` toggle detailed view
 * `Page Up` scroll up
