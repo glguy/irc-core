@@ -46,7 +46,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import           Graphics.Vty.Attributes
 import           Irc.Identifier (Identifier, mkId)
-import           Network.Socket (HostName)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Error
@@ -197,8 +196,12 @@ parseSectionsWith p start s =
 
 parseServers :: ServerSettings -> Value -> ConfigParser (HashMap Text ServerSettings)
 parseServers def v =
-  do ys <- parseList (parseServerSettings def) v
-     return (HashMap.fromList [(fromMaybe (Text.pack (view ssHostName ss)) (view ssName ss), ss) | ss <- ys])
+  do sss <- parseList (parseServerSettings def) v
+     return (HashMap.fromList [(serverSettingName ss, ss) | ss <- sss])
+  where
+    serverSettingName ss =
+      fromMaybe (views ssHostName Text.pack ss)
+                (view ssName ss)
 
 parseServerSettings :: ServerSettings -> Value -> ConfigParser ServerSettings
 parseServerSettings = parseSectionsWith parseServerSetting

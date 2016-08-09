@@ -23,6 +23,7 @@ module Client.Hook
   ) where
 
 import Control.Lens
+import Data.Semigroup
 import Data.Text
 
 import Irc.Message
@@ -35,10 +36,13 @@ data MessageResult
   | OmitMessage
   | RemapMessage IrcMsg
 
+instance Semigroup MessageResult where
+  PassMessage <> r = r
+  l           <> _ = l
+
 instance Monoid MessageResult where
   mempty = PassMessage
-  PassMessage `mappend` r = r
-  l `mappend` _ = l
+  mappend = (<>)
 
 maybeFromResult :: IrcMsg -> MessageResult -> Maybe IrcMsg
 maybeFromResult original PassMessage = Just original

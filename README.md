@@ -78,7 +78,8 @@ servers:
     socks-host:    "socks5.example.com"
     socks-port:    8080 -- defaults to 1080
 
-  * hostname:      "example.com"
+  * name: "example"
+    hostname:      "example.com"
     port:          7000
     connect-cmds:
       * "JOIN #favoritechannel,#otherchannel"
@@ -113,6 +114,7 @@ Configuration sections:
 Settings
 --------
 
+* `name` - text - name of server entry, defaults to `hostname`
 * `hostname` - text - hostname used to connect and to specify the server
 * `port` - number - port number, defaults to 6667 without TLS and 6697 with TLS
 * `nick` - text - nickname
@@ -133,7 +135,6 @@ Settings
 * `flood-penalty` - number - cost in seconds per message
 * `flood-threshold` - number - threshold of seconds for burst
 * `message-hooks` - list of text - names of hooks to enable
-* `name` - name used to reference in a server (needed for connectiong to multiple servers on the same hostname)
 
 Palette
 -------
@@ -157,7 +158,7 @@ Client commands
 
 * `/exit` - Terminate the client
 * `/quit` - Gracefully terminate connection to the current server
-* `/connect <hostname>` - Connect to the given hostname
+* `/connect <name>` - Connect to the given server
 * `/disconnect` - Forcefully terminate connection to the current server
 * `/reconnect` - Reconnect to the current server
 

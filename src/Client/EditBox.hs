@@ -94,7 +94,7 @@ shift (Content a@(_:_) l b) = (last a, Content (init a) l b)
 shift (Content [] l (b:bs)) = (view text l, Content [] (endLine b) bs)
 
 firstLine :: Content -> String
-firstLine (Content a c b) = head (reverse a ++ [_text c])
+firstLine (Content a c _) = head (reverse a ++ [_text c])
 
 jumpLeft :: Content -> Content
 jumpLeft c
@@ -207,8 +207,8 @@ backspace c
             . set current (Line (length a) (a ++ s))
             $ c
 
-  | (pre, post) <- splitAt (n-1) s
-  = set current (Line (n-1) (pre ++ drop 1 post)) c
+  | (preS, postS) <- splitAt (n-1) s
+  = set current (Line (n-1) (preS ++ drop 1 postS)) c
  where
  Line n s = view current c
 
@@ -222,21 +222,21 @@ delete c
             . set current (Line n (s ++ b))
             $ c
 
-  | (pre, post) <- splitAt n s
-  = set current (Line n (pre ++ drop 1 post)) c
+  | (preS, postS) <- splitAt n s
+  = set current (Line n (preS ++ drop 1 postS)) c
  where
  Line n s = view current c
 
 insertString :: String -> Content -> Content
-insertString ins c = case push (view above c) ((pre ++ l) : ls) of
+insertString ins c = case push (view above c) (preS ++ l) ls of
   (newAbove, newCurrent) -> set above newAbove . set current newCurrent $ c
  where
  l:ls = lines (ins ++ "\n")
  Line n txt = view current c
- (pre, post) = splitAt n txt
+ (preS, postS) = splitAt n txt
 
- push stk [x] = (stk, Line (length x) $ x ++ post)
- push stk (x:xs) = push (x:stk) xs
+ push stk x []     = (stk, Line (length x) (x ++ postS))
+ push stk x (y:ys) = push (x:stk) y ys
 
 data EditBox = EditBox
   { _content :: !Content

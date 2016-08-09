@@ -491,8 +491,9 @@ addConnection :: Text -> ClientState -> IO ClientState
 addConnection network st =
   do let defSettings = (view (clientConfig . configDefaults) st)
                      { _ssName = Just network }
+
          settings = fromMaybe defSettings
-                              (firstOf (clientConfig . configServers . at network . _Just) st)
+                  $ preview (clientConfig . configServers . ix network) st
 
      let (i,st') = st & clientNextConnectionId <+~ 1
      c <- createConnection

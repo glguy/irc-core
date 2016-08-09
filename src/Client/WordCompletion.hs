@@ -19,7 +19,7 @@ import qualified Data.Set as Set
 import Data.Char
 import Data.List
 import Control.Lens
-import Client.EditBox as Edit
+import qualified Client.EditBox as Edit
 import Control.Monad
 
 -- | Perform word completion on a text box.
@@ -50,7 +50,7 @@ wordComplete leadingCase isReversed vals box =
 
        _ ->
          do next <- tabSearch isReversed cur cur vals
-            Just $ set tabSeed (Just current)
+            Just $ set Edit.tabSeed (Just current)
                  $ replaceWith leadingCase (idString next) box
 
 replaceWith :: (String -> String) -> String -> Edit.EditBox -> Edit.EditBox
@@ -58,7 +58,7 @@ replaceWith leadingCase str box =
     let box1 = Edit.killWord False box
         str1 | view Edit.pos box1 == 0 = leadingCase str
              | otherwise               = str
-    in over content (Edit.insertString str1) box1
+    in over Edit.content (Edit.insertString str1) box1
 
 idString :: Identifier -> String
 idString = Text.unpack . idText
@@ -70,7 +70,7 @@ currentWord box
   $ dropWhile (\x -> x==' ' || x==':')
   $ reverse
   $ take n txt
- where Line n txt = view (Edit.content . Edit.current) box
+ where Edit.Line n txt = view (Edit.content . Edit.current) box
 
 class            Prefix a          where isPrefix :: a -> a -> Bool
 instance         Prefix Identifier where isPrefix = idPrefix
