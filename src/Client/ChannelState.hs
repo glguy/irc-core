@@ -15,7 +15,7 @@ a channel is it destroyed.
 
 module Client.ChannelState
   (
-  -- * Channel state type
+  -- * Channel state
     ChannelState(..)
   , chanTopic
   , chanTopicProvenance

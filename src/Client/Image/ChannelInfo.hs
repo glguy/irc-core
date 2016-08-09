@@ -29,7 +29,10 @@ import           Graphics.Vty.Image
 import           Irc.Identifier
 
 -- | Render the lines used in a channel mask list
-channelInfoImages :: NetworkName -> Identifier -> ClientState -> [Image]
+channelInfoImages ::
+  NetworkName {- ^ network -} ->
+  Identifier  {- ^ channel -} ->
+  ClientState -> [Image]
 channelInfoImages network channelId st
 
   | Just cs      <- preview (clientConnection network) st

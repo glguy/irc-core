@@ -18,8 +18,10 @@ the server and updating the connection state accordingly.
 
 module Client.ConnectionState
   (
-  -- * Connection state type
+  -- * Connection state
     ConnectionState(..)
+  , newConnectionState
+
   , csNick
   , csChannels
   , csSocket
@@ -38,8 +40,6 @@ module Client.ConnectionState
   , csNextPingTime
   , csPingStatus
   , csMessageHooks
-
-  , newConnectionState
 
   -- * User information
   , UserAndHost(..)
@@ -92,33 +92,38 @@ import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
 
+-- | State tracked for each IRC connection
 data ConnectionState = ConnectionState
-  { _csNetworkId    :: !NetworkId
-  , _csChannels     :: !(HashMap Identifier ChannelState)
-  , _csSocket       :: !NetworkConnection
-  , _csModeTypes    :: !ModeTypes
-  , _csChannelTypes :: ![Char]
-  , _csTransaction  :: !Transaction
-  , _csModes        :: ![Char]
-  , _csStatusMsg    :: ![Char]
-  , _csSettings     :: !ServerSettings
-  , _csUserInfo     :: !UserInfo
-  , _csUsers        :: !(HashMap Identifier UserAndHost)
-  , _csModeCount    :: !Int
-  , _csNetwork      :: !Text
-  , _csNextPingTime :: !(Maybe UTCTime)
-  , _csPingStatus   :: !PingStatus
-  , _csMessageHooks :: ![Text]
+  { _csNetworkId    :: !NetworkId -- ^ network connection identifier
+  , _csChannels     :: !(HashMap Identifier ChannelState) -- ^ joined channels
+  , _csSocket       :: !NetworkConnection -- ^ network socket
+  , _csModeTypes    :: !ModeTypes -- ^ channel mode meanings
+  , _csChannelTypes :: ![Char] -- ^ channel identifier prefixes
+  , _csTransaction  :: !Transaction -- ^ state for multi-message sequences
+  , _csModes        :: ![Char] -- ^ modes for the connected user
+  , _csStatusMsg    :: ![Char] -- ^ modes that prefix statusmsg channel names
+  , _csSettings     :: !ServerSettings -- ^ settings used for this connection
+  , _csUserInfo     :: !UserInfo -- ^ usermask used by the server for this connection
+  , _csUsers        :: !(HashMap Identifier UserAndHost) -- ^ user and hostname for other nicks
+  , _csModeCount    :: !Int -- ^ maximum mode changes per MODE command
+  , _csNetwork      :: !Text -- ^ name of network connection
+  , _csNextPingTime :: !(Maybe UTCTime) -- ^ time for next ping event
+  , _csPingStatus   :: !PingStatus -- ^ state of ping timer
+  , _csMessageHooks :: ![Text] -- ^ names of message hooks to apply to this connection
   }
   deriving Show
 
-data UserAndHost = UserAndHost {-# UNPACK #-} !Text {-# UNPACK #-} !Text
+-- | Pair of username and hostname. Empty strings represent missing information.
+data UserAndHost =
+  UserAndHost {-# UNPACK #-} !Text {-# UNPACK #-} !Text
+  -- ^ username hostname
   deriving Show
 
+-- | Status of the ping timer
 data PingStatus
-  = PingSent    !UTCTime
-  | PingLatency !Double -- seconds
-  | PingNever
+  = PingSent    !UTCTime -- ^ ping sent waiting for pong
+  | PingLatency !Double -- ^ latency in seconds for last ping
+  | PingNever -- ^ no ping sent
   deriving Show
 
 data Transaction
