@@ -23,7 +23,7 @@ module Client.EditBox
   , current
   , below
   , singleLine
-  , crush
+  , firstLine
   , EditBox
   , content
   , tabSeed
@@ -93,8 +93,8 @@ shift (Content [] l []) = (view text l, noContent)
 shift (Content a@(_:_) l b) = (last a, Content (init a) l b)
 shift (Content [] l (b:bs)) = (view text l, Content [] (endLine b) bs)
 
-crush :: Content -> String
-crush (Content a c b) = unlines $ reverse a ++ _text c : b
+firstLine :: Content -> String
+firstLine (Content a c b) = head (reverse a ++ [_text c])
 
 jumpLeft :: Content -> Content
 jumpLeft c

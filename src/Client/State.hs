@@ -40,7 +40,7 @@ module Client.State
   , consumeInput
   , currentCompletionList
   , ircIgnorable
-  , clientInput
+  , clientFirstLine
   , clientLine
   , abortNetwork
   , addConnection
@@ -170,8 +170,8 @@ clientConnection network f st =
     Just i  -> clientConnections (ix i f) st
 
 -- | Full content of the edit box
-clientInput :: ClientState -> String
-clientInput = views (clientTextBox . Edit.content) Edit.crush
+clientFirstLine :: ClientState -> String
+clientFirstLine = views (clientTextBox . Edit.content) Edit.firstLine
 
 -- | The line under the cursor in the edit box.
 clientLine :: ClientState -> (Int, String)
@@ -465,7 +465,7 @@ windowNames = "1234567890qwertyuiop!@#$%^&*()QWERTYUIOP"
 
 clientMatcher :: ClientState -> Text -> Bool
 clientMatcher st =
-  case break (==' ') (clientInput st) of
+  case break (==' ') (clientFirstLine st) of
     ("/grep" ,_:reStr) -> go [] reStr
     ("/grepi",_:reStr) -> go [ICU.CaseInsensitive] reStr
     _                  -> const True

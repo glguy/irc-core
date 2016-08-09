@@ -81,7 +81,7 @@ commandFailure = commandContinue . set clientBell True
 -- will be sent.
 execute :: ClientState -> IO CommandResult
 execute st =
-  case clientInput st of
+  case clientFirstLine st of
     []          -> commandFailure st
     '/':command -> executeCommand Nothing command st
     msg         -> executeChat msg st
