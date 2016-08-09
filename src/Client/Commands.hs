@@ -49,6 +49,8 @@ import           LensUtils
 -- | Possible results of running a command
 data CommandResult
   = CommandContinue ClientState -- ^ Continue running client with updated state
+  | CommandSuccess ClientState
+    -- ^ Continue running the client, consume input if command was from input
   | CommandQuit -- ^ Client should close
 
 type ClientCommand = ClientState -> String -> IO CommandResult
@@ -70,18 +72,20 @@ commandContinue = return . CommandContinue
 
 -- | Consider the text entry successful and resume the client
 commandSuccess :: Monad m => ClientState -> m CommandResult
-commandSuccess = commandContinue . consumeInput
+commandSuccess = return . CommandSuccess
 
 -- | Consider the text entry a failure and resume the client
 commandFailure :: Monad m => ClientState -> m CommandResult
 commandFailure = commandContinue . set clientBell True
 
--- | Interpret whatever text is in the textbox. Leading @/@ indicates a
+-- | Interpret the given chat message or command. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message
 -- will be sent.
-execute :: ClientState -> IO CommandResult
-execute st =
-  case clientFirstLine st of
+execute ::
+  String {- ^ chat or command -} ->
+  ClientState -> IO CommandResult
+execute str st =
+  case str of
     []          -> commandFailure st
     '/':command -> executeCommand Nothing command st
     msg         -> executeChat msg st

@@ -281,7 +281,7 @@ doKey key modifier st =
         KPageUp    -> eventLoop (pageUp st)
         KPageDown  -> eventLoop (pageDown st)
 
-        KEnter     -> doCommandResult =<< execute st
+        KEnter     -> doCommandResult =<< executeInput st
         KBackTab   -> doCommandResult =<< tabCompletion True  st
         KChar '\t' -> doCommandResult =<< tabCompletion False st
 
@@ -298,6 +298,10 @@ doCommandResult res =
   case res of
     CommandQuit        -> return ()
     CommandContinue st -> eventLoop st
+    CommandSuccess st -> eventLoop (consumeInput st)
+
+executeInput :: ClientState -> IO CommandResult
+executeInput st = execute (clientFirstLine st) st
 
 -- | Scroll the current buffer to show older messages
 pageUp :: ClientState -> ClientState
