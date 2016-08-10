@@ -90,7 +90,6 @@ import qualified Data.Map as Map
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.ICU as ICU
 import           Data.Time
 import           Graphics.Vty
 import           Irc.Codes
@@ -99,6 +98,9 @@ import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
+import           Text.Regex.TDFA
+import           Text.Regex.TDFA.String (compile)
+import           Text.Regex.TDFA.Text () -- RegexLike Regex Text orphan
 import           Network.Connection
 
 -- | Textual name of a network connection
@@ -462,14 +464,14 @@ changeSubfocus focus
 clientMatcher :: ClientState -> Text -> Bool
 clientMatcher st =
   case break (==' ') (clientFirstLine st) of
-    ("/grep" ,_:reStr) -> go [] reStr
-    ("/grepi",_:reStr) -> go [ICU.CaseInsensitive] reStr
+    ("/grep" ,_:reStr) -> go True reStr
+    ("/grepi",_:reStr) -> go False reStr
     _                  -> const True
   where
-    go opts reStr
-      | not (null reStr)
-      , Right r <- ICU.regex' opts (Text.pack reStr) = isJust . ICU.find r
-      | otherwise                                    = const True
+    go sensitive reStr =
+      case compile defaultCompOpt{caseSensitive=sensitive} defaultExecOpt reStr of
+        Left{}   -> const True
+        Right re -> match re :: Text -> Bool
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the networkconnection exists and should

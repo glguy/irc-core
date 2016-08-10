@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.7
+
+* Switch to regex-tdfa (easier to install on macOS than text-icu)
+
 ## 2.6
 
 * connect-cmds now use actual client commands instead of raw IRC messages. For example `msg user my message` or `join #mychannel`

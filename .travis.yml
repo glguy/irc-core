@@ -16,7 +16,7 @@ matrix:
   include:
     - env: CABALVER=1.24 GHCVER=8.0.1 ALEXVER=3.1.7 HAPPYVER=1.19.5
       compiler: ": #GHC 8.0.1"
-      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,alex-3.1.7,happy-1.19.5,libicu-dev], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
 
 before_install:
  - unset CC
