@@ -24,6 +24,8 @@ import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString           as B
 import qualified Data.ByteString.Char8     as B8
 
+import Irc.Format (Identifier)
+
 -- | ad-hoc structure for not confuse the args, only the name and size
 -- are processed the C functions underlying expect Bytestrings and not
 -- value as input
@@ -41,15 +43,19 @@ data Transfer =
       , _tSize     :: Int
       , _tcurSize  :: Int
       , _threadId  :: ThreadId
-      , _tProgress :: MVar Int }
+      , _tProgress :: Progress }
   | Finished
-      { _tName :: FilePath
-      , _tSize :: Int }
-
-makeLenses ''Transfer
+      { _tName   :: FilePath
+      , _tSize   :: Int }
+  | Failed
+      { _tName    :: FilePath
+      , _tSize    :: Int
+      , _tcurSize :: Int }
 
 -- current size of transfer.
 type Progress = MVar Int
+
+makeLenses ''Transfer
 
 data DCCError = ParseIPPort
               | ParseDottedIP
@@ -64,7 +70,7 @@ type FourTuple a = (a, a, a, a)
 -- Smart constructor
 parseDccOffer :: UTCTime -> FilePath -> FourTuple B.ByteString -> DCCOffer
 parseDccOffer ctime outDir (bName, bAddr, bPort, bSize) =
-    let fullpath = outDir ++ "/" ++ (B8.unpack bName)
+    let fullpath = outDir </> (B8.unpack bName) -- handles trailing /
         size     = read (B8.unpack bSize)
      in DCCOffer fullpath bAddr bPort size ctime
 

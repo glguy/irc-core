@@ -114,7 +114,6 @@ main = do
                , _clientNickColors      = defaultNickColors
                , _clientAutomation      = [dccHandler outDir, ctcpHandler
                                           ,cancelDeopTimerOnDeop, connectCmds]
-               , _clientDCCTransfers    = mempty
                , _clientTimers          = mempty
                , _clientTimeZone        = zone
                }
@@ -161,7 +160,7 @@ startIrcConnection recvChan settings hErr =
          , _ccSendChan       = Just (connectedRef, sendChan)
          , _ccRecvThread     = Just recvThreadId
          , _ccSendThread     = Just sendThreadId
-         , _ccHoldDccTrans   = Map.empty
+         , _ccHoldDccTrans   = (Map.empty, Map.empty)
          }
 
   connectionFailed (SomeException e) =
@@ -177,7 +176,7 @@ startIrcConnection recvChan settings hErr =
          , _ccSendChan       = Nothing
          , _ccRecvThread     = Nothing
          , _ccSendThread     = Nothing
-         , _ccHoldDccTrans   = Map.empty
+         , _ccHoldDccTrans   = (Map.empty, Map.empty)
          }
 
 initializeConnection ::
@@ -446,10 +445,10 @@ commandEvent st = commandsParser (clientInput st)
  dccCommand :: (String, [String], Parser (IO KeyEventResult))
  dccCommand =
    let popAndLaunch = fmap (fmap KeepGoing) $ startOffer st'
-       justPop      = fmap (fmap KeepGoing) $ cancelOffer st'
+       popOrKill    = fmap (fmap KeepGoing) $ cancelOffer st'
        cmdBranch a = case a of
                        "accept" -> popAndLaunch
-                       "cancel" -> justPop
+                       "cancel" -> popOrKill
                        _        -> Nothing
 
     in ("dcc", [], pValidToken "(accept|cancel)" cmdBranch )
@@ -755,9 +754,10 @@ doChannelInfoCmd st
 
 doDccTransfers :: ClientState -> IO ClientState
 doDccTransfers st =
-  case view clientFocus st of
-    DCCFocus _ -> return $ st   -- No DCCFocus (DCCFocus (..))
-    oldFocus -> return $ set clientFocus (DCCFocus oldFocus) st
+  return . clearInput $
+    case view clientFocus st of
+      DCCFocus _ -> st   -- No recursive DCCFocus
+      oldFocus   -> set clientFocus (DCCFocus oldFocus) st
 
 doMasksCmd ::
   Char       {- ^ mode    -} ->

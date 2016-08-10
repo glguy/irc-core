@@ -75,6 +75,7 @@ Learn more about this file format at [config-value](http://hackage.haskell.org/p
 ```
 -- Optional file to dump raw server messages
 debug-file: "debug.txt"
+download-dir: "~/downloads"
 
 -- Defaults used when not specified on command line
 defaults:
@@ -169,7 +170,7 @@ DCC commands
 
 * `/transfers` - Show the DCC Offers and the ongoing progress
 * `/dcc accept` - On the sender window starts the download
-* `/dcc cancel` - as above but drops the offer and informs the sender with xdcc cancel
+* `/dcc cancel` - as above but drops the offer/transfer
 
 Keyboard Shortcuts
 ==================

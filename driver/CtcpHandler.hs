@@ -82,9 +82,10 @@ dccHandler outDir = EventHandler
 
 queueOffer :: FilePath -> Identifier -> IrcMessage
            -> ClientState -> ClientState
-queueOffer outDir _ msg st = fromJust $
-    (notIgnored >> isCtcpMsg >>= isDCCcommand
-     >>= pure . userConfirm sender . storeOffer) <|> Just st
+queueOffer outDir _ msg st =
+  fromMaybe st $
+    notIgnored >> isCtcpMsg >>= isDCCcommand
+    >>= pure . userConfirm sender . storeOffer
   where
     space = 0x20
     sender = views mesgSender userNick msg
@@ -108,7 +109,7 @@ queueOffer outDir _ msg st = fromJust $
     -- Store the offer until the user accepts it on /dcc accept
     storeOffer :: FourTuple ByteString -> ClientState
     storeOffer offer =
-      set (clientServer0 . ccHoldDccTrans . at sender)
+      set (clientServer0 . ccHoldDccTrans . _1 . at sender)
           (Just (parseDccOffer ctime outDir offer)) st
 
 -- todo(slack): better message to the user (this is a hack)
@@ -116,6 +117,7 @@ queueOffer outDir _ msg st = fromJust $
 userConfirm :: Identifier -> ClientState -> ClientState
 userConfirm sender st =
   let questionText =
-        PrivMsgType $ "You have a pending DCC transfer. Issue "
-                       <>  "/dcc accept or /dcc cancel"
-  in addMessage sender (set mesgType questionText defaultIrcMessage) st
+        "You have a pending DCC transfer from this sender. Issue /dcc "
+        <> "accept or /dcc cancel. If started, you can issue /dcc cancel "
+        <> "to stop the transfer from this window"
+  in addMessage sender (set mesgType (PrivMsgType questionText) defaultIrcMessage) st
