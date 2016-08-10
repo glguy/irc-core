@@ -4,6 +4,10 @@
 
 * connect-cmds now use actual client commands instead of raw IRC messages. For example `msg user my message` or `join #mychannel`
 * Multiple lines can be held in the textbox at once. Pasting mutiple lines insert those lines into the textbox rather than sending them immediately.
+* Added `M-d` and `M-Enter` key bindings
+* Added `name` field to server configuration
+* Extract irc-core library again
+* Configurable self color
 
 ## 2.5
 
