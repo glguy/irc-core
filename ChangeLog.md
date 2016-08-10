@@ -5,6 +5,8 @@
 * Switch to regex-tdfa (easier to install on macOS than text-icu)
 * Tab-complete starts with most recent nick
 * Add `/reload`
+* Add custom palette entry for self highlights
+* Add ability to set background colors and styles in palette
 
 ## 2.6
 

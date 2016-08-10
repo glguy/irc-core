@@ -265,10 +265,6 @@ parseBoolean (Atom "yes") = return True
 parseBoolean (Atom "no")  = return False
 parseBoolean _            = failure "expected yes or no"
 
-parseList :: (Value -> ConfigParser a) -> Value -> ConfigParser [a]
-parseList p (List xs) = traverse p xs
-parseList _ _         = failure "expected list"
-
 parseNum :: Num a => Value -> ConfigParser a
 parseNum v = fromInteger <$> parseConfig v
 

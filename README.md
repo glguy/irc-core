@@ -169,6 +169,16 @@ Attributes
 
 * `fg` - foreground color
 * `bg` - background color
+* `style` - single style or list of styles
+
+Styles
+
+* `blink`
+* `bold`
+* `dim`
+* `standout`
+* `reverse-video`
+* `underline`
 
 Commands
 ========

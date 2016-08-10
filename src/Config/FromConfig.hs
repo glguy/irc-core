@@ -21,6 +21,9 @@ module Config.FromConfig
   , extendLoc
   , FromConfig(parseConfig)
 
+  -- * Parser wrappers
+  , parseList
+
   -- * Section parsing
   , SectionParser
   , parseSections
@@ -168,3 +171,7 @@ parseSectionsWith p start s =
   case s of
     Sections xs -> foldM (\x (Section k v) -> extendLoc k (p x k v)) start xs
     _ -> failure "Expected sections"
+
+parseList :: (Value -> ConfigParser a) -> Value -> ConfigParser [a]
+parseList p (List xs) = traverse p xs
+parseList _ _         = failure "expected list"

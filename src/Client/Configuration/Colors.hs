@@ -19,10 +19,9 @@ import           Config
 import           Config.FromConfig
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import           Data.Foldable
 import           Data.Ratio
 import           Data.Text (Text)
-import           Data.Vector (Vector)
-import qualified Data.Vector as Vector
 import           Graphics.Vty.Attributes
 
 -- | Parse a text attribute. This value should be a sections with the @fg@ and/or
@@ -37,11 +36,31 @@ parseAttrEntry acc k v =
     case k of
         "fg" -> parseColor' withForeColor
         "bg" -> parseColor' withBackColor
+        "style" -> parseStyle'
         _    -> failure "Unknown attribute entry"
   where
+    parseStyle' =
+      do xs <- parseStyles v
+         return $! foldl' withStyle acc xs
+
     parseColor' f =
       do c <- parseColor v
          return $! f acc c
+
+parseStyles :: Value -> ConfigParser [Style]
+parseStyles (List xs) = parseList parseStyle (List xs)
+parseStyles v         = pure <$> parseStyle v
+
+parseStyle :: Value -> ConfigParser Style
+parseStyle v =
+  case v of
+    Atom "blink"         -> pure blink -- You're the boss...
+    Atom "bold"          -> pure bold
+    Atom "dim"           -> pure bold
+    Atom "reverse-video" -> pure reverseVideo
+    Atom "standout"      -> pure standout
+    Atom "underline"     -> pure underline
+    _ -> failure "expected blink, bold, dim, reverse-video, standout, underline"
 
 
 -- | Parse a color. Support formats are:
