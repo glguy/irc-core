@@ -3,6 +3,8 @@
 ## 2.7
 
 * Switch to regex-tdfa (easier to install on macOS than text-icu)
+* Tab-complete starts with most recent nick
+* Add `/reload`
 
 ## 2.6
 

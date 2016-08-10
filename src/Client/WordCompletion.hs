@@ -13,6 +13,7 @@ module Client.WordCompletion
   ) where
 
 import Irc.Identifier
+import Control.Applicative
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
@@ -29,13 +30,16 @@ import Control.Monad
 -- when auto-completing a nick and including a trailing colon.
 --
 -- The @reversed@ parameter indicates that tab-completion should return the
--- previous entry.
+-- previous entry. When starting a fresh tab completion the priority completions
+-- will be considered in order before resorting to the set of possible
+-- completions.
 wordComplete ::
   (String -> String) {- ^ leading update operation -} ->
   Bool               {- ^ reversed -} ->
+  [Identifier]       {- ^ priority completions -} ->
   [Identifier]       {- ^ possible completions -} ->
   Edit.EditBox -> Maybe Edit.EditBox
-wordComplete leadingCase isReversed vals box =
+wordComplete leadingCase isReversed hint vals box =
   do let current = currentWord box
      guard (not (null current))
      let cur = mkId (Text.pack current)
@@ -49,7 +53,8 @@ wordComplete leadingCase isReversed vals box =
            pat = mkId (Text.pack patternStr)
 
        _ ->
-         do next <- tabSearch isReversed cur cur vals
+         do next <- find (idPrefix cur) hint <|>
+                    tabSearch isReversed cur cur vals
             Just $ set Edit.tabSeed (Just current)
                  $ replaceWith leadingCase (idString next) box
 

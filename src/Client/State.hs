@@ -471,8 +471,8 @@ clientMatcher st =
   where
     go sensitive reStr =
       case compile defaultCompOpt{caseSensitive=sensitive} defaultExecOpt reStr of
-        Left{}   -> const True
-        Right re -> match re :: Text -> Bool
+        Left{}  -> const True
+        Right r -> match r :: Text -> Bool
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the networkconnection exists and should

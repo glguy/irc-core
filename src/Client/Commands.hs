@@ -404,7 +404,7 @@ tabFocus :: Bool -> ClientCommand
 tabFocus isReversed st _
   = commandSuccess
   $ fromMaybe st
-  $ clientTextBox (wordComplete id isReversed completions) st
+  $ clientTextBox (wordComplete id isReversed [] completions) st
   where
     networks   = map mkId $ HashMap.keys $ view clientNetworkMap st
     params     = words $ uncurry take $ clientLine st
@@ -754,26 +754,44 @@ tabMode isReversed _ cs st rest =
       , let parsedModesWithParams =
               [ (pol,mode) | (pol,mode,arg) <- parsedModes, not (Text.null arg) ]
       , (pol,mode):_      <- drop (paramIndex-3) parsedModesWithParams
-      , let completions = computeModeCompletion pol mode channel cs
+      , let (hint, completions) = computeModeCompletion pol mode channel cs st
       -> commandSuccess
        $ fromMaybe st
-       $ clientTextBox (wordComplete id isReversed completions) st
+       $ clientTextBox (wordComplete id isReversed hint completions) st
 
     _ -> commandSuccess st
 
   where
     paramIndex = length $ words $ uncurry take $ clientLine st
 
+activeNicks ::
+  ClientState ->
+  [Identifier]
+activeNicks st =
+  toListOf
+    ( clientWindows    . ix focus
+    . winMessages      . folded
+    . wlBody           . _IrcBody
+    . folding msgActor . to userNick) st
+  where
+    focus = view clientFocus st
+
 -- | Use the *!*@host masks of users for channel lists when setting list modes
 --
 -- Use the channel's mask list for removing modes
 --
 -- Use the nick list otherwise
-computeModeCompletion :: Bool -> Char -> Identifier -> ConnectionState -> [Identifier]
-computeModeCompletion pol mode channel cs
+computeModeCompletion ::
+  Bool {- ^ mode polarity -} ->
+  Char {- ^ mode          -} ->
+  Identifier {- ^ channel -} ->
+  ConnectionState ->
+  ClientState ->
+  ([Identifier],[Identifier]) {- ^ (hint, complete) -}
+computeModeCompletion pol mode channel cs st
   | mode `elem` view modesLists modeSettings =
-        if pol then usermasks else masks
-  | otherwise = nicks
+        if pol then ([],usermasks) else ([],masks)
+  | otherwise = (activeNicks st, nicks)
   where
     modeSettings = view csModeTypes cs
     nicks = HashMap.keys (view (csChannels . ix channel . chanUsers) cs)
@@ -795,7 +813,7 @@ isPublicChannelMode _                  = False
 commandNameCompletion :: Bool -> ClientState -> Maybe ClientState
 commandNameCompletion isReversed st =
   do guard (cursorPos == n)
-     clientTextBox (wordComplete id isReversed possibilities) st
+     clientTextBox (wordComplete id isReversed [] possibilities) st
   where
     n = length leadingPart
     (cursorPos, line) = clientLine st
@@ -807,8 +825,9 @@ commandNameCompletion isReversed st =
 nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> ClientState
 nickTabCompletion isReversed st
   = fromMaybe st
-  $ clientTextBox (wordComplete (++": ") isReversed completions) st
+  $ clientTextBox (wordComplete (++": ") isReversed hint completions) st
   where
+    hint = activeNicks st
     completions = currentCompletionList st
 
 sendModeration :: Identifier -> [RawIrcMsg] -> ConnectionState -> IO ConnectionState
