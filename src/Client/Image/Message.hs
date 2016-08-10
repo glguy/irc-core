@@ -82,6 +82,7 @@ errorImage params txt = horizCat
   , string defAttr txt
   ]
 
+-- | Render the given time according to the current mode and palette.
 renderTime :: RenderMode -> Palette -> ZonedTime -> Image
 renderTime DetailedRender = datetimeImage
 renderTime NormalRender   = timeImage
@@ -136,10 +137,11 @@ data RenderMode
 -- | Optionally insert padding on the right of an 'Image' until it has
 -- the minimum width.
 rightPad :: RenderMode -> Maybe Integer -> Image -> Image
-rightPad DetailedRender _ i = i
-rightPad NormalRender Nothing i = i
 rightPad NormalRender (Just minWidth) i =
-    pad 0 0 (max 0 (fromIntegral minWidth - imageWidth i)) 0 i
+  let h = 1
+      w = max 0 (fromIntegral minWidth - imageWidth i)
+  in i <|> backgroundFill w h
+rightPad _ _ i = i
 
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
@@ -201,14 +203,16 @@ ircLineImage rm !rp body =
     Notice src _dst txt ->
       detail (string quietAttr "note ") <|>
       string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks src <|>
+      rightPad rm (rendNickPadding rp)
+        (coloredUserInfo pal rm myNicks src) <|>
       string (withForeColor defAttr red) ": " <|>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Privmsg src _dst txt ->
       detail (string quietAttr "chat ") <|>
       string (view palSigil pal) sigils <|>
-      rightPad rm (rendNickPadding rp) (coloredUserInfo pal rm myNicks src) <|>
+      rightPad rm (rendNickPadding rp)
+        (coloredUserInfo pal rm myNicks src) <|>
       string defAttr ": " <|>
       parseIrcTextWithNicks pal myNicks nicks txt
 
