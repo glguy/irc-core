@@ -238,6 +238,7 @@ recordChannelMessage network channel msg st =
       , rendNicks      = channelUserList network channel' st
       , rendMyNicks    = myNicks
       , rendPalette    = palette
+      , rendNickPadding = view (clientConfig . configNickPadding) st
       }
 
     palette = view (clientConfig . configPalette) st

@@ -110,6 +110,7 @@ Configuration sections:
 * `servers` - These settings are used to override defaults when the hostname matches
 * `palette` - Client color overrides
 * `window-names` - text - Names of windows (typically overridden on non QWERTY layouts)
+* `nick-padding` - nonnegative integer - Nicks are padded until they have the specified length
 
 Settings
 --------
