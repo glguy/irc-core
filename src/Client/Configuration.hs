@@ -188,6 +188,7 @@ paletteHelper p k v =
                         return $! set palNicks xs p
 
     "self"           -> parseAttr palSelf
+    "self-highlight" -> parseAttr palSelfHighlight
     "time"           -> parseAttr palTime
     "meta"           -> parseAttr palMeta
     "sigil"          -> parseAttr palSigil
@@ -214,6 +215,7 @@ attrHelper attr k v =
     parseColor' f =
       do c <- parseColor v
          return $! f attr c
+
 parseSectionsWith :: (a -> Text -> Value -> ConfigParser a) -> a -> Value -> ConfigParser a
 parseSectionsWith p start s =
   case s of

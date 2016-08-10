@@ -12,6 +12,7 @@ This module provides image renderers for messages.
 module Client.Image.Message
   ( MessageRendererParams(..)
   , RenderMode(..)
+  , IdentifierColorMode(..)
   , defaultRenderParams
   , msgImage
   , metadataImg
@@ -166,7 +167,7 @@ ircLineImage rm !rp body =
       string (view palSigil pal) sigils <|>
       coloredUserInfo pal rm myNicks old <|>
       string defAttr " became " <|>
-      coloredIdentifier pal myNicks new
+      coloredIdentifier pal NormalIdentifier myNicks new
 
     Join nick _chan ->
       string quietAttr "join " <|>
@@ -191,7 +192,7 @@ ircLineImage rm !rp body =
       string (view palSigil pal) sigils <|>
       coloredUserInfo pal rm myNicks kicker <|>
       string defAttr " kicked " <|>
-      coloredIdentifier pal myNicks kickee <|>
+      coloredIdentifier pal NormalIdentifier myNicks kickee <|>
       string defAttr ": " <|>
       parseIrcText reason
 
@@ -325,19 +326,27 @@ renderReplyCode rm code@(ReplyCode w) =
 
     attr = withForeColor defAttr color
 
+data IdentifierColorMode
+  = PrivmsgIdentifier -- ^ An identifier in a PRIVMSG
+  | NormalIdentifier  -- ^ An identifier somewhere else
 
 -- | Render a nickname in its hash-based color.
 coloredIdentifier ::
   Palette ->
+  IdentifierColorMode ->
   [Identifier] {- ^ my nicknames -} ->
   Identifier ->
   Image
-coloredIdentifier palette myNicks ident =
+coloredIdentifier palette icm myNicks ident =
   text' color (idText ident)
   where
     color
-      | ident `elem` myNicks = _palSelf palette
-      | otherwise            = withForeColor defAttr $ v Vector.! i
+      | ident `elem` myNicks =
+          case icm of
+            PrivmsgIdentifier -> _palSelfHighlight palette
+            NormalIdentifier  -> _palSelf palette
+      | otherwise            = 
+          withForeColor defAttr $ v Vector.! i
 
     v = _palNicks palette
     i = hash ident `mod` Vector.length v
@@ -351,10 +360,10 @@ coloredUserInfo ::
   [Identifier] {- ^ my nicks -} ->
   UserInfo -> Image
 coloredUserInfo palette NormalRender myNicks ui =
-  coloredIdentifier palette myNicks (userNick ui)
+  coloredIdentifier palette NormalIdentifier myNicks (userNick ui)
 coloredUserInfo palette DetailedRender myNicks !ui =
   horizCat
-    [ coloredIdentifier palette myNicks (userNick ui)
+    [ coloredIdentifier palette NormalIdentifier myNicks (userNick ui)
     , aux '!' (userName ui)
     , aux '@' (userHost ui)
     ]
@@ -394,7 +403,7 @@ highlightNicks palette myNicks nicks txt = horizCat (highlight1 <$> txtParts)
     nickSet = HashSet.fromList nicks
     txtParts = nickSplit txt
     highlight1 part
-      | HashSet.member partId nickSet = coloredIdentifier palette myNicks partId
+      | HashSet.member partId nickSet = coloredIdentifier palette PrivmsgIdentifier myNicks partId
       | otherwise                     = text' defAttr part
       where
         partId = mkId part

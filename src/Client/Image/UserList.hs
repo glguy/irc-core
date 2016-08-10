@@ -51,7 +51,7 @@ userListImages' cs channel st =
 
     renderUser (ident, sigils) =
       string (view palSigil pal) sigils <|>
-      coloredIdentifier pal myNicks ident
+      coloredIdentifier pal NormalIdentifier myNicks ident
 
     gap = char defAttr ' '
 

@@ -142,6 +142,8 @@ Palette
 -------
 
 * `nick-colors` - List of colors - Use for nick highlights
+* `self` - attr - attr of our own nickname(s) outside of mentions
+* `self-highlight` - attr - attr of our own nickname(s) in mentions
 * `time` - attr - attr for timestamp
 * `meta` - attr - attr for metadata
 * `sigil` - attr - attr for sigils
