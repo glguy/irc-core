@@ -90,7 +90,8 @@ servers:
       * "/path/to/extra/certificate.pem"
 
 palette:
-  time: [10,10,10] -- RGB values for color for timestamps
+  time:
+    fg: [10,10,10] -- RGB values for color for timestamps
   nick-colors:
     [ cyan, magenta, green, yellow, blue
     , bright-cyan, bright-magenta, bright-green, bright-blue
@@ -141,16 +142,21 @@ Palette
 -------
 
 * `nick-colors` - List of colors - Use for nick highlights
-* `time` - color - color for timestamp
-* `meta` - color - color for metadata
-* `sigil` - color - color for sigils
-* `label` - color - color for information labels
-* `latency` - color - color for latency time
-* `error` - color - color for error messages
-* `textbox` - color - color for textbox edges
-* `window-name` - color - color for current window name
-* `activity` - color - color for activity notification
-* `mention` - color - color for mention notification
+* `time` - attr - attr for timestamp
+* `meta` - attr - attr for metadata
+* `sigil` - attr - attr for sigils
+* `label` - attr - attr for information labels
+* `latency` - attr - attr for latency time
+* `error` - attr - attr for error messages
+* `textbox` - attr - attr for textbox edges
+* `window-name` - attr - attr for current window name
+* `activity` - attr - attr for activity notification
+* `mention` - attr - attr for mention notification
+
+Attr
+-------
+* `fg` - foreground color
+* `bg` - background color
 
 Commands
 ========

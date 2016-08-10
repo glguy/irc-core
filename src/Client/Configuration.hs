@@ -187,24 +187,33 @@ paletteHelper p k v =
     "nick-colors" -> do xs <- parseColors v
                         return $! set palNicks xs p
 
-    "self"        -> setAttr palSelf
-    "time"        -> setAttr palTime
-    "meta"        -> setAttr palMeta
-    "sigil"       -> setAttr palSigil
-    "label"       -> setAttr palLabel
-    "latency"     -> setAttr palLatency
-    "error"       -> setAttr palError
-    "textbox"     -> setAttr palTextBox
-    "window-name" -> setAttr palWindowName
-    "activity"    -> setAttr palActivity
-    "mention"     -> setAttr palMention
-    _             -> failure "Unknown palette entry"
+    "self"           -> parseAttr palSelf
+    "time"           -> parseAttr palTime
+    "meta"           -> parseAttr palMeta
+    "sigil"          -> parseAttr palSigil
+    "label"          -> parseAttr palLabel
+    "latency"        -> parseAttr palLatency
+    "error"          -> parseAttr palError
+    "textbox"        -> parseAttr palTextBox
+    "window-name"    -> parseAttr palWindowName
+    "activity"       -> parseAttr palActivity
+    "mention"        -> parseAttr palMention
+    _                -> failure "Unknown palette entry"
   where
-    setAttr l =
-      do x <- parseColor v
-         let !attr = withForeColor defAttr x
+    parseAttr l =
+      do !attr <- parseSectionsWith attrHelper defAttr v
          return $! set l attr p
 
+attrHelper :: Attr -> Text -> Value -> ConfigParser Attr
+attrHelper attr k v =
+    case k of
+        "fg" -> parseColor' withForeColor
+        "bg" -> parseColor' withBackColor
+        _ -> failure "Unknown attribute entry"
+  where
+    parseColor' f =
+      do c <- parseColor v
+         return $! f attr c
 parseSectionsWith :: (a -> Text -> Value -> ConfigParser a) -> a -> Value -> ConfigParser a
 parseSectionsWith p start s =
   case s of
