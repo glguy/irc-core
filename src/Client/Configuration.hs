@@ -23,6 +23,7 @@ module Client.Configuration
   , configPalette
   , configWindowNames
   , configNickPadding
+  , configConfigPath
 
   -- * Loading configuration
   , loadConfiguration
@@ -61,6 +62,8 @@ data Configuration = Configuration
   , _configPalette  :: Palette
   , _configWindowNames :: Text -- ^ Names of windows, used when alt-jumping)
   , _configNickPadding :: Maybe Integer -- ^ Padding of nicks
+  , _configConfigPath :: Maybe FilePath
+        -- ^ manually specified configuration path, used for reloading
   }
   deriving Show
 
@@ -143,13 +146,17 @@ loadConfiguration mbPath = try $
          Left parseError -> throwIO (ConfigurationParseFailed parseError)
          Right rawcfg -> return rawcfg
 
-     case runConfigParser (parseConfiguration def rawcfg) of
+     case runConfigParser (parseConfiguration mbPath def rawcfg) of
        Left loadError -> throwIO (ConfigurationMalformed (Text.unpack loadError))
        Right cfg -> return cfg
 
 
-parseConfiguration :: ServerSettings -> Value -> ConfigParser Configuration
-parseConfiguration def = parseSections $
+parseConfiguration ::
+  Maybe FilePath {- ^ optionally specified path to config -} ->
+  ServerSettings {- ^ prepopulated default server settings -} ->
+  Value ->
+  ConfigParser Configuration
+parseConfiguration _configConfigPath def = parseSections $
 
   do _configDefaults <- fromMaybe def
                     <$> sectionOptWith (parseServerSettings def) "defaults"

@@ -162,6 +162,8 @@ Client commands
 * `/connect <name>` - Connect to the given server
 * `/disconnect` - Forcefully terminate connection to the current server
 * `/reconnect` - Reconnect to the current server
+* `/reload` - Reload the previous configuration file (not retroactive!)
+* `/reload <path>` - Load a new configuration file
 
 Connection commands
 

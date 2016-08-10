@@ -18,6 +18,7 @@ module Client.Commands
   , tabCompletion
   ) where
 
+import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
 import           Client.Message
@@ -181,6 +182,7 @@ commands = HashMap.fromList
   , (["clear"     ], ClientCommand cmdClear   noClientTab)
   , (["reconnect" ], ClientCommand cmdReconnect noClientTab)
   , (["ignore"    ], ClientCommand cmdIgnore simpleClientTab)
+  , (["reload"    ], ClientCommand cmdReload  tabReload)
 
   , (["quote"     ], NetworkCommand cmdQuote  simpleNetworkTab)
   , (["j","join"  ], NetworkCommand cmdJoin   simpleNetworkTab)
@@ -686,6 +688,26 @@ cmdIgnore st rest =
         updateIgnores :: HashSet Identifier -> HashSet Identifier
         updateIgnores s = foldl' updateIgnore s xs
         updateIgnore s x = over (contains x) not s
+
+-- | Implementation of @/reload@
+--
+-- Attempt to reload the configuration file
+cmdReload :: ClientCommand
+cmdReload st rest =
+  do let path | null rest = view (clientConfig . configConfigPath) st
+              | otherwise = Just rest
+     res <- loadConfiguration path
+     case res of
+       Left{} -> commandFailure st
+       Right cfg ->
+         commandSuccess $! set clientConfig cfg st
+
+-- | Support file name tab completion when providing an alternative
+-- configuration file.
+--
+-- /NOT IMPLEMENTED/
+tabReload :: Bool {- ^ reversed -} -> ClientCommand
+tabReload _ st _ = commandFailure st
 
 modeCommand :: [Text] -> ConnectionState -> ClientState -> IO CommandResult
 modeCommand modes cs st =
