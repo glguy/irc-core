@@ -92,6 +92,7 @@ servers:
 palette:
   time:
     fg: [10,10,10] -- RGB values for color for timestamps
+    bg: blue
   nick-colors:
     [ cyan, magenta, green, yellow, blue
     , bright-cyan, bright-magenta, bright-green, bright-blue
@@ -141,9 +142,9 @@ Settings
 Palette
 -------
 
-* `nick-colors` - List of colors - Use for nick highlights
+* `nick-colors` - List of attr - Use for nick highlights
 * `self` - attr - attr of our own nickname(s) outside of mentions
-* `self-highlight` - attr - attr of our own nickname(s) in mentions
+* `self-highlight` - attr - attr of our own nickname(s) in mentions (defaults to `self`)
 * `time` - attr - attr for timestamp
 * `meta` - attr - attr for metadata
 * `sigil` - attr - attr for sigils
@@ -155,8 +156,17 @@ Palette
 * `activity` - attr - attr for activity notification
 * `mention` - attr - attr for mention notification
 
-Attr
--------
+Text Attributes
+---------------
+
+Text attributes can be specified either as a single foreground color or section of attributes.
+
+* `<number>` - Maps to a terminal color
+* `<name>` - Direct selection of standard 16 terminal colors
+* `[red-number, blue-number, green-number]` - List of 3 numbers in range 0-255 map to an approximation of the RGB color.
+
+Attributes
+
 * `fg` - foreground color
 * `bg` - background color
 

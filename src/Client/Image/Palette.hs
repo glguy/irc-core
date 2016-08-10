@@ -37,9 +37,9 @@ import           Graphics.Vty.Attributes
 
 -- | Color palette used for rendering the client UI
 data Palette = Palette
-  { _palNicks         :: Vector Color -- ^ colors for highlighting nicknames
+  { _palNicks         :: Vector Attr -- ^ colors for highlighting nicknames
   , _palSelf          :: Attr -- ^ color of our own nickname(s)
-  , _palSelfHighlight :: Attr -- ^ color of our own nickname(s) in mentions
+  , _palSelfHighlight :: Maybe Attr -- ^ color of our own nickname(s) in mentions
   , _palTime          :: Attr -- ^ color of message timestamps
   , _palMeta          :: Attr -- ^ color of coalesced metadata
   , _palSigil         :: Attr -- ^ color of sigils (e.g. @+)
@@ -60,7 +60,7 @@ defaultPalette :: Palette
 defaultPalette = Palette
   { _palNicks         = defaultNickColorPalette
   , _palSelf          = withForeColor defAttr red
-  , _palSelfHighlight = withForeColor defAttr red
+  , _palSelfHighlight = Nothing
   , _palTime          = withForeColor defAttr brightBlack
   , _palMeta          = withForeColor defAttr brightBlack
   , _palSigil         = withForeColor defAttr cyan
@@ -75,7 +75,9 @@ defaultPalette = Palette
 
 -- | Default nick highlighting colors that look nice in my dark solarized
 -- color scheme.
-defaultNickColorPalette :: Vector Color
-defaultNickColorPalette = Vector.fromList
-  [cyan, magenta, green, yellow, blue,
-   brightCyan, brightMagenta, brightGreen, brightBlue]
+defaultNickColorPalette :: Vector Attr
+defaultNickColorPalette
+  = fmap (withForeColor defAttr)
+  $ Vector.fromList
+     [cyan, magenta, green, yellow, blue,
+      brightCyan, brightMagenta, brightGreen, brightBlue]

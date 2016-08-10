@@ -47,7 +47,7 @@ import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import           Graphics.Vty.Attributes
+import qualified Data.Vector as Vector
 import           Irc.Identifier (Identifier, mkId)
 import           System.Directory
 import           System.FilePath
@@ -184,43 +184,31 @@ parsePalette = parseSectionsWith paletteHelper defaultPalette
 paletteHelper :: Palette -> Text -> Value -> ConfigParser Palette
 paletteHelper p k v =
   case k of
-    "nick-colors" -> do xs <- parseColors v
+    "nick-colors" -> do xs <- Vector.fromList <$> parseList parseAttr v
+                        when (null xs) (failure "Empty palette")
                         return $! set palNicks xs p
 
-    "self"           -> parseAttr palSelf
-    "self-highlight" -> parseAttr palSelfHighlight
-    "time"           -> parseAttr palTime
-    "meta"           -> parseAttr palMeta
-    "sigil"          -> parseAttr palSigil
-    "label"          -> parseAttr palLabel
-    "latency"        -> parseAttr palLatency
-    "error"          -> parseAttr palError
-    "textbox"        -> parseAttr palTextBox
-    "window-name"    -> parseAttr palWindowName
-    "activity"       -> parseAttr palActivity
-    "mention"        -> parseAttr palMention
+    "self"           -> setAttr palSelf
+    "self-highlight" -> setAttrMb palSelfHighlight
+    "time"           -> setAttr palTime
+    "meta"           -> setAttr palMeta
+    "sigil"          -> setAttr palSigil
+    "label"          -> setAttr palLabel
+    "latency"        -> setAttr palLatency
+    "error"          -> setAttr palError
+    "textbox"        -> setAttr palTextBox
+    "window-name"    -> setAttr palWindowName
+    "activity"       -> setAttr palActivity
+    "mention"        -> setAttr palMention
     _                -> failure "Unknown palette entry"
   where
-    parseAttr l =
-      do !attr <- parseSectionsWith attrHelper defAttr v
+    setAttr l =
+      do !attr <- parseAttr v
          return $! set l attr p
 
-attrHelper :: Attr -> Text -> Value -> ConfigParser Attr
-attrHelper attr k v =
-    case k of
-        "fg" -> parseColor' withForeColor
-        "bg" -> parseColor' withBackColor
-        _ -> failure "Unknown attribute entry"
-  where
-    parseColor' f =
-      do c <- parseColor v
-         return $! f attr c
-
-parseSectionsWith :: (a -> Text -> Value -> ConfigParser a) -> a -> Value -> ConfigParser a
-parseSectionsWith p start s =
-  case s of
-    Sections xs -> foldM (\x (Section k v) -> extendLoc k (p x k v)) start xs
-    _ -> failure "Expected sections"
+    setAttrMb l =
+      do !attr <- parseAttr v
+         return $! set l (Just attr) p
 
 parseServers :: ServerSettings -> Value -> ConfigParser (HashMap Text ServerSettings)
 parseServers def v =

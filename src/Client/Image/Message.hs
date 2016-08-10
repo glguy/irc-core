@@ -37,6 +37,7 @@ import           Data.Char
 import           Data.Hashable (hash)
 import qualified Data.HashSet as HashSet
 import           Data.List
+import           Data.Maybe
 import qualified Data.Text as Text
 import           Data.Text (Text)
 import qualified Data.Vector as Vector
@@ -70,6 +71,7 @@ msgImage ::
   MessageRendererParams -> MessageBody -> Image
 msgImage rm when params body = horizCat
   [ renderTime rm (rendPalette params) when
+  , char defAttr ' '
   , statusMsgImage (rendStatusMsg params)
   , bodyImage rm params body
   ]
@@ -118,7 +120,7 @@ bodyImage rm params body =
 timeImage :: Palette -> ZonedTime -> Image
 timeImage palette
   = string (view palTime palette)
-  . formatTime defaultTimeLocale "%R "
+  . formatTime defaultTimeLocale "%R"
 
 -- | Render a 'ZonedTime' as full date and time user quiet attributes
 --
@@ -128,7 +130,7 @@ timeImage palette
 datetimeImage :: Palette -> ZonedTime -> Image
 datetimeImage palette
   = string (view palTime palette)
-  . formatTime defaultTimeLocale "%F %T "
+  . formatTime defaultTimeLocale "%F %T"
 
 -- | Level of detail to use when rendering
 data RenderMode
@@ -343,12 +345,14 @@ coloredIdentifier palette icm myNicks ident =
     color
       | ident `elem` myNicks =
           case icm of
-            PrivmsgIdentifier -> _palSelfHighlight palette
-            NormalIdentifier  -> _palSelf palette
-      | otherwise            = 
-          withForeColor defAttr $ v Vector.! i
+            PrivmsgIdentifier -> fromMaybe
+                                   (view palSelf palette)
+                                   (view palSelfHighlight palette)
+            NormalIdentifier  -> view palSelf palette
 
-    v = _palNicks palette
+      | otherwise = v Vector.! i
+
+    v = view palNicks palette
     i = hash ident `mod` Vector.length v
 
 -- | Render an a full user. In normal mode only the nickname will be rendered.

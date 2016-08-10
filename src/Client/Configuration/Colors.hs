@@ -11,8 +11,8 @@ This module defines the top-level configuration information for the client.
 -}
 
 module Client.Configuration.Colors
-  ( parseColors
-  , parseColor
+  ( parseColor
+  , parseAttr
   ) where
 
 import           Config
@@ -25,10 +25,24 @@ import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import           Graphics.Vty.Attributes
 
-parseColors :: Value -> ConfigParser (Vector Color)
-parseColors (List []) = failure "Empty color palette"
-parseColors (List xs) = traverse parseColor (Vector.fromList xs)
-parseColors _ = failure "Expected list of colors or default"
+-- | Parse a text attribute. This value should be a sections with the @fg@ and/or
+-- @bg@ attributes. Otherwise it should be a color entry that will be used
+-- for the foreground color. An empty sections value will result in 'defAttr'
+parseAttr :: Value -> ConfigParser Attr
+parseAttr (Sections xs) = parseSectionsWith parseAttrEntry defAttr (Sections xs)
+parseAttr v             = withForeColor defAttr <$> parseColor v
+
+parseAttrEntry :: Attr -> Text -> Value -> ConfigParser Attr
+parseAttrEntry acc k v =
+    case k of
+        "fg" -> parseColor' withForeColor
+        "bg" -> parseColor' withBackColor
+        _    -> failure "Unknown attribute entry"
+  where
+    parseColor' f =
+      do c <- parseColor v
+         return $! f acc c
+
 
 -- | Parse a color. Support formats are:
 --

@@ -28,6 +28,7 @@ module Config.FromConfig
   , sectionOpt
   , sectionOptWith
   , liftConfigParser
+  , parseSectionsWith
   ) where
 
 import           Config
@@ -161,3 +162,9 @@ toHashMap xs = HashMap.fromList [ (k,v) | Section k v <- xs ] -- todo: handle du
 
 floatingToRatio :: Integral a => Integer -> Integer -> Ratio a
 floatingToRatio c e = fromIntegral c * 10 ^^ e
+
+parseSectionsWith :: (a -> Text -> Value -> ConfigParser a) -> a -> Value -> ConfigParser a
+parseSectionsWith p start s =
+  case s of
+    Sections xs -> foldM (\x (Section k v) -> extendLoc k (p x k v)) start xs
+    _ -> failure "Expected sections"
