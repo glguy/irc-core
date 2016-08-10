@@ -47,6 +47,7 @@ data MessageRendererParams = MessageRendererParams
   , rendNicks      :: [Identifier] -- ^ nicknames to highlight
   , rendMyNicks    :: [Identifier] -- ^ nicknames to highlight in red
   , rendPalette    :: Palette -- ^ nick color palette
+  , rendNickPadding :: Maybe Integer -- ^ nick padding
   }
 
 -- | Default 'MessageRenderParams' with no sigils or nicknames specified
@@ -57,6 +58,7 @@ defaultRenderParams = MessageRendererParams
   , rendNicks = []
   , rendMyNicks = []
   , rendPalette = defaultPalette
+  , rendNickPadding = Nothing
   }
 
 -- | Construct a message given the time the message was received and its
@@ -131,6 +133,14 @@ data RenderMode
   = NormalRender -- ^ only render nicknames
   | DetailedRender -- ^ render full user info
 
+-- | Optionally insert padding on the right of an 'Image' until it has
+-- the minimum width.
+rightPad :: RenderMode -> Maybe Integer -> Image -> Image
+rightPad DetailedRender _ i = i
+rightPad NormalRender Nothing i = i
+rightPad NormalRender (Just minWidth) i =
+    pad 0 0 (max 0 (fromIntegral minWidth - imageWidth i)) 0 i
+
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
 ircLineImage ::
@@ -198,7 +208,7 @@ ircLineImage rm !rp body =
     Privmsg src _dst txt ->
       detail (string quietAttr "chat ") <|>
       string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks src <|>
+      rightPad rm (rendNickPadding rp) (coloredUserInfo pal rm myNicks src) <|>
       string defAttr ": " <|>
       parseIrcTextWithNicks pal myNicks nicks txt
 

@@ -22,6 +22,7 @@ module Client.Configuration
   , configServers
   , configPalette
   , configWindowNames
+  , configNickPadding
 
   -- * Loading configuration
   , loadConfiguration
@@ -38,6 +39,7 @@ import           Control.Monad
 import           Config
 import           Config.FromConfig
 import           Control.Lens hiding (List)
+import           Data.Foldable (for_)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Maybe
@@ -57,7 +59,8 @@ data Configuration = Configuration
   { _configDefaults :: ServerSettings -- ^ Default connection settings
   , _configServers  :: (HashMap Text ServerSettings) -- ^ Host-specific settings
   , _configPalette  :: Palette
-  , _configWindowNames :: Text -- ^ Names of windows, used when alt-jumping
+  , _configWindowNames :: Text -- ^ Names of windows, used when alt-jumping)
+  , _configNickPadding :: Maybe Integer -- ^ Padding of nicks
   }
   deriving Show
 
@@ -159,6 +162,12 @@ parseConfiguration def = parseSections $
 
      _configWindowNames <- fromMaybe defaultWindowNames
                     <$> sectionOpt "window-names"
+
+     _configNickPadding <- sectionOpt "nick-padding"
+     for_ _configNickPadding (\padding ->
+       when (padding < 0)
+            (liftConfigParser $
+               failure "nick-padding has to be a non negative number"))
 
      return Configuration{..}
 
