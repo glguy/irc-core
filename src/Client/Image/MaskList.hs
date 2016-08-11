@@ -31,7 +31,7 @@ import           Irc.Identifier
 -- | Render the lines used in a channel mask list
 maskListImages ::
   Char        {- ^ Mask mode -} ->
-  NetworkName {- ^ network   -} ->
+  Text        {- ^ network   -} ->
   Identifier  {- ^ channel   -} ->
   ClientState -> [Image]
 maskListImages mode network channel st =

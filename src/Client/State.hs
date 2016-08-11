@@ -13,8 +13,7 @@ state tracks everything about the client.
 module Client.State
   (
   -- * Client state type
-    NetworkName
-  , ClientState(..)
+    ClientState(..)
   , clientWindows
   , clientTextBox
   , clientConnections
@@ -103,21 +102,18 @@ import           Text.Regex.TDFA.String (compile)
 import           Text.Regex.TDFA.Text () -- RegexLike Regex Text orphan
 import           Network.Connection
 
--- | Textual name of a network connection
-type NetworkName = Text
-
 -- | Currently focused window
 data ClientFocus
- = Unfocused -- ^ No network
- | NetworkFocus !NetworkName -- ^ Network
- | ChannelFocus !NetworkName !Identifier -- ^ Channel on network
+ = Unfocused                      -- ^ No network
+ | NetworkFocus !Text             -- ^ Network
+ | ChannelFocus !Text !Identifier -- ^ Network Channel/Nick
   deriving Eq
 
 -- | Subfocus for a channel view
 data ClientSubfocus
-  = FocusMessages -- ^ Show chat messages
-  | FocusInfo -- ^ Show channel metadata
-  | FocusUsers -- ^ Show user list
+  = FocusMessages    -- ^ Show chat messages
+  | FocusInfo        -- ^ Show channel metadata
+  | FocusUsers       -- ^ Show user list
   | FocusMasks !Char -- ^ Show mask list for given mode
   deriving Eq
 
@@ -144,9 +140,8 @@ data ClientState = ClientState
   , _clientConnections       :: !(IntMap ConnectionState) -- ^ state of active connections
   , _clientNextConnectionId  :: !Int
   , _clientConnectionContext :: !ConnectionContext        -- ^ network connection context
-  , _clientEvents            :: !(TQueue NetworkEvent)     -- ^ incoming network event queue
-  , _clientNetworkMap        :: !(HashMap NetworkName NetworkId)
-                                                          -- ^ network name to connection ID
+  , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
+  , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
 
   , _clientVty               :: !Vty                      -- ^ VTY handle
   , _clientTextBox           :: !Edit.EditBox             -- ^ primary text box
@@ -164,7 +159,10 @@ makeLenses ''ClientState
 
 -- | 'Traversal' for finding the 'ConnectionState' associated with a given network
 -- if that connection is currently active.
-clientConnection :: Applicative f => NetworkName -> LensLike' f ClientState ConnectionState
+clientConnection ::
+  Applicative f =>
+  Text {- ^ network -} ->
+  LensLike' f ClientState ConnectionState
 clientConnection network f st =
   case view (clientNetworkMap . at network) st of
     Nothing -> pure st
@@ -175,11 +173,11 @@ clientFirstLine :: ClientState -> String
 clientFirstLine = views (clientTextBox . Edit.content) Edit.firstLine
 
 -- | The line under the cursor in the edit box.
-clientLine :: ClientState -> (Int, String)
+clientLine :: ClientState -> (Int, String) {- ^ line number, line content -}
 clientLine = views (clientTextBox . Edit.line) (\(Edit.Line n t) -> (n, t))
 
 -- | Return the network associated with the current focus
-focusNetwork :: ClientFocus -> Maybe NetworkName
+focusNetwork :: ClientFocus -> Maybe Text {- ^ network -}
 focusNetwork Unfocused = Nothing
 focusNetwork (NetworkFocus network) = Just network
 focusNetwork (ChannelFocus network _) = Just network
@@ -212,7 +210,9 @@ initialClientState cfg vty =
 
 -- | Forcefully terminate the connection currently associated
 -- with a given network name.
-abortNetwork :: NetworkName -> ClientState -> IO ClientState
+abortNetwork ::
+  Text {- ^ network -} ->
+  ClientState -> IO ClientState
 abortNetwork network st =
   case preview (clientConnection network) st of
     Nothing -> return st
@@ -221,32 +221,29 @@ abortNetwork network st =
 
 -- | Add a message to the window associated with a given channel
 recordChannelMessage ::
-  NetworkName ->
+  Text       {- ^ network -} ->
   Identifier {- ^ channel -} ->
-  ClientMessage -> ClientState -> ClientState
+  ClientMessage ->
+  ClientState -> ClientState
 recordChannelMessage network channel msg st =
-  over (clientWindows . at focus)
-       (\w -> Just $! addToWindow importance wl (fromMaybe emptyWindow w))
-       st
+  recordWindowLine focus importance wl st
   where
-    focus = ChannelFocus network channel'
-    wl = toWindowLine rendParams msg
-    myNicks = toListOf (clientConnection network . csNick) st
+    focus      = ChannelFocus network channel'
+    wl         = toWindowLine rendParams msg
+
     rendParams = MessageRendererParams
-      { rendStatusMsg  = statusModes
-      , rendUserSigils = computeMsgLineSigils network channel' msg st
-      , rendNicks      = channelUserList network channel' st
-      , rendMyNicks    = myNicks
-      , rendPalette    = palette
+      { rendStatusMsg   = statusModes
+      , rendUserSigils  = computeMsgLineSigils network channel' msg st
+      , rendNicks       = channelUserList network channel' st
+      , rendMyNicks     = toListOf (clientConnection network . csNick) st
+      , rendPalette     = view (clientConfig . configPalette) st
       , rendNickPadding = view (clientConfig . configNickPadding) st
       }
 
-    palette = view (clientConfig . configPalette) st
-
     -- on failure returns mempty/""
-    possibleStatusModes = view (clientConnection network . csStatusMsg) st
+    possibleStatusModes     = view (clientConnection network . csStatusMsg) st
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
-    importance = msgImportance msg st
+    importance              = msgImportance msg st
 
 -- | Compute the importance of a message to be used when computing
 -- change notifications in the client.
@@ -310,20 +307,23 @@ ircIgnorable msg st =
 
 -- | Record a message in the windows corresponding to the given target
 recordIrcMessage ::
-  NetworkName -> MessageTarget -> ClientMessage -> ClientState -> ClientState
+  Text {- ^ network -} ->
+  MessageTarget ->
+  ClientMessage ->
+  ClientState -> ClientState
 recordIrcMessage network target msg st =
   case target of
-    TargetHidden -> st
-    TargetNetwork -> recordNetworkMessage msg st
+    TargetHidden      -> st
+    TargetNetwork     -> recordNetworkMessage msg st
     TargetWindow chan -> recordChannelMessage network chan msg st
-    TargetUser user ->
+    TargetUser user   ->
       foldl' (\st' chan -> overStrict
                              (clientWindows . ix (ChannelFocus network chan))
                              (addToWindow WLBoring wl) st')
            st chans
       where
-        cfg = view clientConfig st
-        wl = toWindowLine' cfg msg
+        cfg   = view clientConfig st
+        wl    = toWindowLine' cfg msg
         chans = user
               : case preview (clientConnection network . csChannels) st of
                   Nothing -> []
@@ -341,7 +341,7 @@ splitStatusMsgModes possible ident = (Text.unpack modes, mkId ident')
 
 -- | Compute the sigils of the user who sent a message.
 computeMsgLineSigils ::
-  NetworkName ->
+  Text       {- ^ network -} ->
   Identifier {- ^ channel -} ->
   ClientMessage ->
   ClientState ->
@@ -353,7 +353,7 @@ computeMsgLineSigils network channel msg st =
 
 -- | Compute sigils for a user on a channel
 computeUserSigils ::
-  NetworkName ->
+  Text       {- ^ network -} ->
   Identifier {- ^ channel -} ->
   Identifier {- ^ user    -} ->
   ClientState ->
@@ -365,23 +365,37 @@ computeUserSigils network channel user =
 
 -- | Record a message on a network window
 recordNetworkMessage :: ClientMessage -> ClientState -> ClientState
-recordNetworkMessage msg st =
-  over (clientWindows . at (NetworkFocus network))
-       (\w -> Just $! addToWindow (msgImportance msg st) wl (fromMaybe emptyWindow w))
-       st
+recordNetworkMessage msg st = recordWindowLine focus importance wl st
   where
-    network = view msgNetwork msg
-    cfg = view clientConfig st
-    wl = toWindowLine' cfg msg
+    focus      = NetworkFocus (view msgNetwork msg)
+    importance = msgImportance msg st
+    wl         = toWindowLine' cfg msg
+
+    cfg        = view clientConfig st
+
+-- | Record window line at the given focus creating the window if necessary
+recordWindowLine ::
+  ClientFocus ->
+  WindowLineImportance ->
+  WindowLine ->
+  ClientState -> ClientState
+recordWindowLine focus importance wl st =
+  over (clientWindows . at focus)
+       (\w -> Just $! addToWindow importance wl (fromMaybe emptyWindow w))
+       st
 
 toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
 toWindowLine params msg = WindowLine
   { _wlBody      = view msgBody msg
-  , _wlText      = views msgBody msgText msg
-  , _wlImage     = force $ msgImage NormalRender (view msgTime msg) params (view msgBody msg)
-  , _wlFullImage = force $ msgImage DetailedRender (view msgTime msg) params (view msgBody msg)
+  , _wlText      = msgText (view msgBody msg)
+  , _wlImage     = mkImage NormalRender
+  , _wlFullImage = mkImage DetailedRender
   }
+  where
+    mkImage mode =
+      force (msgImage mode (view msgTime msg) params (view msgBody msg))
 
+-- | 'toWindowLine' but with mostly defaulted parameters.
 toWindowLine' :: Configuration -> ClientMessage -> WindowLine
 toWindowLine' config =
   toWindowLine defaultRenderParams
@@ -389,10 +403,13 @@ toWindowLine' config =
     , rendNickPadding = view configNickPadding config
     }
 
+
+-- | Function applied to the client state every redraw.
 clientTick :: ClientState -> ClientState
 clientTick = set clientBell False . markSeen
 
 
+-- | Mark the messages on the current window as seen.
 markSeen :: ClientState -> ClientState
 markSeen st =
   case view clientSubfocus st of
@@ -419,39 +436,38 @@ stepFocus :: Bool {- ^ reversed -} -> ClientState -> ClientState
 stepFocus isReversed st
   | view clientSubfocus st /= FocusMessages = changeSubfocus FocusMessages st
 
-  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey l = success k
-  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey r = success k
+  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey l = changeFocus k st
+  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey r = changeFocus k st
 
-  | isForward , Just ((k,_),_) <- Map.minViewWithKey r = success k
-  | isForward , Just ((k,_),_) <- Map.minViewWithKey l = success k
+  | isForward , Just ((k,_),_) <- Map.minViewWithKey r = changeFocus k st
+  | isForward , Just ((k,_),_) <- Map.minViewWithKey l = changeFocus k st
 
   | otherwise                                          = st
   where
     isForward = not isReversed
-
-    (l,r) = Map.split oldFocus windows
-
-    success x = set clientScroll 0
-              $ set clientFocus x st
-    oldFocus = view clientFocus st
-    windows  = view clientWindows st
+    (l,r)     = Map.split (view clientFocus st) (view clientWindows st)
 
 -- | Returns the current network's channels and current channel's users.
 currentCompletionList :: ClientState -> [Identifier]
 currentCompletionList st =
   case view clientFocus st of
-    NetworkFocus network ->
-         networkChannelList network st
-    ChannelFocus network chan ->
-         networkChannelList network st
-      ++ channelUserList network chan st
+    NetworkFocus network      -> networkChannelList network st
+    ChannelFocus network chan -> networkChannelList network st
+                              ++ channelUserList network chan st
     _                         -> []
 
-networkChannelList :: NetworkName -> ClientState -> [Identifier]
+networkChannelList ::
+  Text         {- ^ network -} ->
+  ClientState                  ->
+  [Identifier] {- ^ channels -}
 networkChannelList network =
   views (clientConnection network . csChannels) HashMap.keys
 
-channelUserList :: NetworkName -> Identifier -> ClientState -> [Identifier]
+channelUserList ::
+  Text         {- ^ network -} ->
+  Identifier   {- ^ channel -} ->
+  ClientState                  ->
+  [Identifier] {- ^ nicks   -}
 channelUserList network channel =
   views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys
 
@@ -466,10 +482,11 @@ changeSubfocus focus
   = set clientScroll 0
   . set clientSubfocus focus
 
+-- | Construct a text matching predicate used to filter the message window.
 clientMatcher :: ClientState -> Text -> Bool
 clientMatcher st =
   case break (==' ') (clientFirstLine st) of
-    ("/grep" ,_:reStr) -> go True reStr
+    ("/grep" ,_:reStr) -> go True  reStr
     ("/grepi",_:reStr) -> go False reStr
     _                  -> const True
   where
@@ -518,9 +535,9 @@ addConnection network st =
             $ set (clientConnections . at i) (Just cs) st'
 
 applyMessageToClientState ::
-  ZonedTime                  {- ^ message received         -} ->
+  ZonedTime                  {- ^ timestamp                -} ->
   IrcMsg                     {- ^ message recieved         -} ->
-  NetworkId                  {- ^ messge network           -} ->
+  NetworkId                  {- ^ message network          -} ->
   ConnectionState            {- ^ network connection state -} ->
   ClientState                                                 ->
   ([RawIrcMsg], ClientState) {- ^ response , updated state -}
@@ -528,13 +545,16 @@ applyMessageToClientState time irc networkId cs st =
   cs' `seq` (reply, st')
   where
     (reply, cs') = applyMessage time irc cs
-    network = view csNetwork cs
-    st' = applyWindowRenames network irc
-        $ set (clientConnections . ix networkId) cs' st
+    network      = view csNetwork cs
+    st'          = applyWindowRenames network irc
+                 $ set (clientConnections . ix networkId) cs' st
 
 -- | When a nick change happens and there is an open query window for that nick
 -- and there isn't an open query window for the new nick, rename the window.
-applyWindowRenames :: NetworkName -> IrcMsg -> ClientState -> ClientState
+applyWindowRenames ::
+  Text {- ^ network -} ->
+  IrcMsg               ->
+  ClientState -> ClientState
 applyWindowRenames network (Nick old new) st
   | hasWindow old'
   , not (hasWindow new) = over clientFocus moveFocus

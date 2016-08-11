@@ -21,6 +21,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
 import           Data.List
 import           Data.Ord
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Image
 import           Irc.Identifier
@@ -28,9 +29,10 @@ import           Irc.UserInfo
 
 -- | Render the lines used in a simple user list window.
 userListImages ::
-  NetworkName {- ^ Focused network name -} ->
-  Identifier  {- ^ Focused channel name -} ->
-  ClientState -> [Image]
+  Text        {- ^ network -} ->
+  Identifier  {- ^ channel -} ->
+  ClientState                 ->
+  [Image]
 userListImages network channel st =
   case preview (clientConnection network) st of
     Just cs -> userListImages' cs channel st
@@ -77,9 +79,10 @@ userListImages' cs channel st =
 
 -- | Render lines for detailed channel user list which shows full user info.
 userInfoImages ::
-  NetworkName {- ^ Focused network name -} ->
-  Identifier  {- ^ Focused channel name -} ->
-  ClientState -> [Image]
+  Text        {- ^ network -} ->
+  Identifier  {- ^ channel -} ->
+  ClientState                 ->
+  [Image]
 userInfoImages network channel st =
   case preview (clientConnection network) st of
     Just cs -> userInfoImages' cs channel st

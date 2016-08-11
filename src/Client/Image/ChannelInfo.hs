@@ -24,13 +24,14 @@ import           Client.Image.Message
 import           Client.MircFormatting
 import           Client.State
 import           Control.Lens
+import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Image
 import           Irc.Identifier
 
 -- | Render the lines used in a channel mask list
 channelInfoImages ::
-  NetworkName {- ^ network -} ->
+  Text        {- ^ network -} ->
   Identifier  {- ^ channel -} ->
   ClientState -> [Image]
 channelInfoImages network channelId st

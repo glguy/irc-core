@@ -56,9 +56,28 @@ data CommandResult
     -- ^ Continue running the client, report an error
   | CommandQuit -- ^ Client should close
 
-type ClientCommand = ClientState -> String -> IO CommandResult
-type NetworkCommand = NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
-type ChannelCommand = NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+-- | Type of commands that always work
+type ClientCommand =
+  ClientState                                      ->
+  String          {- ^ command arguments        -} ->
+  IO CommandResult
+
+-- | Type of commands that require an active network to be focused
+type NetworkCommand =
+  Text            {- ^ focused network          -} ->
+  ConnectionState {- ^ focused connection state -} ->
+  ClientState                                      ->
+  String          {- ^ command arguments        -} ->
+  IO CommandResult
+
+-- | Type of commands that require an active channel to be focused
+type ChannelCommand =
+  Text            {- ^ focused network          -} ->
+  ConnectionState {- ^ focused connection state -} ->
+  Identifier      {- ^ focused channel          -} ->
+  ClientState                                      ->
+  String          {- ^ command arguments        -} ->
+  IO CommandResult
 
 -- | Pair of implementations for executing a command and tab completing one.
 -- The tab-completion logic is extended with a bool
@@ -345,12 +364,13 @@ cmdMsg network cs st rest =
             tgtTxt
             network cs st
 
+-- | Common logic for @/msg@ and @/notice@
 chatCommand ::
   (UserInfo -> Identifier -> IrcMsg) ->
-  Text {- ^ target -} ->
-  NetworkName ->
-  ConnectionState ->
-  ClientState ->
+  Text {- ^ target  -} ->
+  Text {- ^ network -} ->
+  ConnectionState      ->
+  ClientState          ->
   IO CommandResult
 chatCommand con targetsTxt network cs st =
   do now <- getZonedTime
@@ -525,7 +545,7 @@ cmdPart _ cs channelId st rest =
 cmdSay :: ChannelCommand
 cmdSay _network _cs _channelId st rest = executeChat rest st
 
-cmdInvite :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdInvite :: ChannelCommand
 cmdInvite _ cs channelId st rest =
   case words rest of
     [nick] ->
@@ -544,7 +564,7 @@ commandSuccessUpdateCS cs st =
   commandSuccess
     $ setStrict (clientConnections . ix networkId) cs st
 
-cmdTopic :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdTopic :: ChannelCommand
 cmdTopic _ cs channelId st rest =
   do let cmd =
            case dropWhile isSpace rest of
@@ -558,10 +578,7 @@ cmdTopic _ cs channelId st rest =
 
 tabTopic ::
   Bool {- ^ reversed -} ->
-  NetworkName ->
-  ConnectionState ->
-  Identifier {- ^ channel -} ->
-  ClientState -> String -> IO CommandResult
+  ChannelCommand
 tabTopic _ _ cs channelId st rest
 
   | all isSpace rest
@@ -586,7 +603,7 @@ cmdMasks _ cs _ st rest =
         commandSuccess (changeSubfocus (FocusMasks mode) st)
     _ -> commandFailure st
 
-cmdKick :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdKick :: ChannelCommand
 cmdKick _ cs channelId st rest =
   case nextWord rest of
     Nothing -> commandFailure st
@@ -597,7 +614,7 @@ cmdKick _ cs channelId st rest =
          commandSuccessUpdateCS cs' st
 
 
-cmdKickBan :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdKickBan :: ChannelCommand
 cmdKickBan _ cs channelId st rest =
   case nextWord rest of
     Nothing -> commandFailure st
@@ -619,7 +636,7 @@ computeBanUserInfo who cs =
     Nothing                   -> UserInfo who        "*" "*"
     Just (UserAndHost _ host) -> UserInfo (mkId "*") "*" host
 
-cmdRemove :: NetworkName -> ConnectionState -> Identifier -> ClientState -> String -> IO CommandResult
+cmdRemove :: ChannelCommand
 cmdRemove _ cs channelId st rest =
   case nextWord rest of
     Nothing -> commandFailure st
@@ -629,7 +646,7 @@ cmdRemove _ cs channelId st rest =
          cs' <- sendModeration channelId [cmd] cs
          commandSuccessUpdateCS cs' st
 
-cmdJoin :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdJoin :: NetworkCommand
 cmdJoin network cs st rest =
   let ws = words rest
       doJoin channelStr keyStr =
@@ -654,13 +671,13 @@ cmdChannel network _ st rest =
     _ -> commandFailure st
 
 
-cmdQuit :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdQuit :: NetworkCommand
 cmdQuit _ cs st rest =
   do let msg = Text.pack (dropWhile isSpace rest)
      sendMsg cs (ircQuit msg)
      commandSuccess st
 
-cmdDisconnect :: NetworkName -> ConnectionState -> ClientState -> String -> IO CommandResult
+cmdDisconnect :: NetworkCommand
 cmdDisconnect network _ st _ =
   do st' <- abortNetwork network st
      commandSuccess st'
@@ -668,7 +685,7 @@ cmdDisconnect network _ st _ =
 -- | Reconnect to the currently focused network. It's possible
 -- that we're not currently connected to a network, so
 -- this is implemented as a client command.
-cmdReconnect :: ClientState -> String -> IO CommandResult
+cmdReconnect :: ClientCommand
 cmdReconnect st _
   | Just network <- views clientFocus focusNetwork st =
 
@@ -678,7 +695,7 @@ cmdReconnect st _
 
   | otherwise = commandFailure st
 
-cmdIgnore :: ClientState -> String -> IO CommandResult
+cmdIgnore :: ClientCommand
 cmdIgnore st rest =
   case mkId . Text.pack <$> words rest of
     [] -> commandFailure st
@@ -709,7 +726,11 @@ cmdReload st rest =
 tabReload :: Bool {- ^ reversed -} -> ClientCommand
 tabReload _ st _ = commandFailure st
 
-modeCommand :: [Text] -> ConnectionState -> ClientState -> IO CommandResult
+modeCommand ::
+  [Text] {- mode parameters -} ->
+  ConnectionState              ->
+  ClientState                  ->
+  IO CommandResult
 modeCommand modes cs st =
   case view clientFocus st of
 

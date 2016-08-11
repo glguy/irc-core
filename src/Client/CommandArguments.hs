@@ -24,6 +24,7 @@ module Client.CommandArguments
 import           Client.State
 import           Control.Lens
 import           Data.Foldable
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Version
 import           Development.GitRev (gitHash, gitDirty)
@@ -36,9 +37,9 @@ import           Paths_glirc (version)
 -- | Command-line arguments
 data CommandArguments = CommandArguments
   { _cmdArgConfigFile      :: Maybe FilePath -- ^ configuration file path
-  , _cmdArgInitialNetworks :: [NetworkName] -- ^ initial networks
-  , _cmdArgShowHelp        :: Bool -- ^ show help message
-  , _cmdArgShowVersion     :: Bool -- ^ show version message
+  , _cmdArgInitialNetworks :: [Text]         -- ^ initial networks
+  , _cmdArgShowHelp        :: Bool           -- ^ show help message
+  , _cmdArgShowVersion     :: Bool           -- ^ show version message
   }
 
 makeLenses ''CommandArguments

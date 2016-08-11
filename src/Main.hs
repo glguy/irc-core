@@ -15,6 +15,7 @@ import Control.Exception
 import Control.Lens
 import Control.Monad
 import Data.Default.Class
+import Data.Text (Text)
 import Graphics.Vty
 import System.IO
 import System.Exit
@@ -60,7 +61,10 @@ loadConfiguration' path =
 
 -- | Create connections for all the networks on the command line.
 -- Set the client focus to the first network listed.
-addInitialNetworks :: [NetworkName] -> ClientState -> IO ClientState
+addInitialNetworks ::
+  [Text] {- networks -} ->
+  ClientState           ->
+  IO ClientState
 addInitialNetworks networks st =
   case networks of
     []        -> return st
