@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell #-}
+{-# Language TemplateHaskell, OverloadedLists #-}
 {-|
 Module      : Client.Image.Palette
 Description : Palette of colors used to render the UI
@@ -32,7 +32,6 @@ module Client.Image.Palette
 
 import           Control.Lens
 import           Data.Vector (Vector)
-import qualified Data.Vector as Vector
 import           Graphics.Vty.Attributes
 
 -- | Color palette used for rendering the client UI
@@ -76,8 +75,7 @@ defaultPalette = Palette
 -- | Default nick highlighting colors that look nice in my dark solarized
 -- color scheme.
 defaultNickColorPalette :: Vector Attr
-defaultNickColorPalette
-  = fmap (withForeColor defAttr)
-  $ Vector.fromList
-     [cyan, magenta, green, yellow, blue,
-      brightCyan, brightMagenta, brightGreen, brightBlue]
+defaultNickColorPalette =
+  withForeColor defAttr <$>
+    [cyan, magenta, green, yellow, blue,
+     brightCyan, brightMagenta, brightGreen, brightBlue]

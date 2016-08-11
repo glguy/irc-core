@@ -156,7 +156,7 @@ leftWord :: Content -> Content
 leftWord c
   | n == 0
   = case view above c of
-      [] -> c
+      []     -> c
       (a:as) -> leftWord
               . set  current (endLine a)
               . over below (cons txt)
@@ -164,7 +164,7 @@ leftWord c
               $ c
   | otherwise
   = case search of
-      [] -> set (current.pos) 0 c
+      []      -> set (current.pos) 0     c
       (i,_):_ -> set (current.pos) (i+1) c
   where
   Line n txt = view current c

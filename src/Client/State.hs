@@ -378,10 +378,9 @@ recordWindowLine ::
   WindowLineImportance ->
   WindowLine ->
   ClientState -> ClientState
-recordWindowLine focus importance wl st =
+recordWindowLine focus importance wl =
   over (clientWindows . at focus)
        (\w -> Just $! addToWindow importance wl (fromMaybe emptyWindow w))
-       st
 
 toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
 toWindowLine params msg = WindowLine
