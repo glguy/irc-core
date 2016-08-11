@@ -14,10 +14,11 @@ can show channel bans, quiets, invites, and exceptions.
 module Client.Commands
   ( CommandResult(..)
   , execute
-  , executeCommand
+  , executeUserCommand
   , tabCompletion
   ) where
 
+import           Client.Commands.Interpolation
 import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
@@ -105,8 +106,26 @@ execute ::
 execute str st =
   case str of
     []          -> commandFailure st
-    '/':command -> executeCommand Nothing command st
+    '/':command -> executeUserCommand command st
     msg         -> executeChat msg st
+
+-- | Execute command provided by user, resolve aliases if necessary.
+executeUserCommand :: String -> ClientState -> IO CommandResult
+executeUserCommand command st =
+  let key = Text.pack (takeWhile (/=' ') command) in
+  -- TODO: support arguments, support actual expansions
+  case preview (clientConfig . configAliases . ix key) st of
+    Nothing -> executeCommand Nothing command st
+    Just cmdExs -> do let cmds = map (resolveExpansions HashMap.empty) cmdExs
+                      process cmds st
+  where
+    process [] st0 = commandSuccess st0
+    process (c:cs) st0 =
+      do res <- executeCommand Nothing (Text.unpack c) st0
+         case res of
+           CommandSuccess st1 -> process cs st1
+           CommandFailure st1 -> process cs st1 -- ?
+           CommandQuit        -> return CommandQuit
 
 -- | Respond to the TAB key being pressed. This can dispatch to a command
 -- specific completion mode when relevant. Otherwise this will complete
@@ -840,7 +859,9 @@ commandNameCompletion isReversed st =
     n = length leadingPart
     (cursorPos, line) = clientLine st
     leadingPart = takeWhile (not . isSpace) line
-    possibilities = mkId . Text.cons '/' <$> HashMap.keys commands
+    possibilities = mkId . Text.cons '/' <$> commandNames
+    commandNames = HashMap.keys commands
+                ++ HashMap.keys (view (clientConfig . configAliases) st)
 
 -- | Complete the nickname at the current cursor position using the
 -- userlist for the currently focused channel (if any)

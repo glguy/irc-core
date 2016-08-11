@@ -28,6 +28,7 @@ module Config.FromConfig
   , SectionParser
   , parseSections
   , sectionReq
+  , sectionReqWith
   , sectionOpt
   , sectionOptWith
   , liftConfigParser
@@ -107,10 +108,7 @@ instance FromConfig Atom where
 -- | Matches 'List' values, extends the error location with a zero-based
 -- index
 instance FromConfig a => FromConfig [a] where
-  parseConfig (List xs)         = ifor xs $ \i x ->
-                                    extendLoc (Text.pack (show (i+1)))
-                                              (parseConfig x)
-  parseConfig _                 = failure "expected list"
+  parseConfig = parseList parseConfig
 
 ------------------------------------------------------------------------
 
@@ -154,8 +152,12 @@ sectionOptWith p key = SectionParser $
 
 -- | Parse the value at the given section or fail.
 sectionReq :: FromConfig a => Text -> SectionParser a
-sectionReq key =
-  do mb <- sectionOpt key
+sectionReq = sectionReqWith parseConfig
+
+-- | Parse the value at the given section or fail.
+sectionReqWith :: (Value -> ConfigParser a) -> Text -> SectionParser a
+sectionReqWith p key =
+  do mb <- sectionOptWith p key
      liftConfigParser $ case mb of
                           Nothing -> failure ("section required: " <> key)
                           Just x  -> return x
@@ -173,5 +175,6 @@ parseSectionsWith p start s =
     _ -> failure "Expected sections"
 
 parseList :: (Value -> ConfigParser a) -> Value -> ConfigParser [a]
-parseList p (List xs) = traverse p xs
+parseList p (List xs) = ifor xs $ \i x ->
+                          extendLoc (Text.pack (show (i+1))) (p x)
 parseList _ _         = failure "expected list"

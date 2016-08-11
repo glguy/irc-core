@@ -24,6 +24,7 @@ module Client.Configuration
   , configWindowNames
   , configNickPadding
   , configConfigPath
+  , configAliases
 
   -- * Loading configuration
   , loadConfiguration
@@ -34,6 +35,7 @@ module Client.Configuration
 
 import           Client.Image.Palette
 import           Client.Configuration.Colors
+import           Client.Commands.Interpolation
 import           Client.ServerSettings
 import           Control.Exception
 import           Control.Monad
@@ -64,6 +66,7 @@ data Configuration = Configuration
   , _configNickPadding :: Maybe Integer -- ^ Padding of nicks
   , _configConfigPath :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
+  , _configAliases :: HashMap Text [[ExpansionChunk]] -- ^ command aliases
   }
   deriving Show
 
@@ -169,6 +172,9 @@ parseConfiguration _configConfigPath def = parseSections $
 
      _configWindowNames <- fromMaybe defaultWindowNames
                     <$> sectionOpt "window-names"
+
+     _configAliases <- fromMaybe HashMap.empty
+                    <$> sectionOptWith parseAliasMap "aliases"
 
      _configNickPadding <- sectionOpt "nick-padding"
      for_ _configNickPadding (\padding ->
@@ -281,3 +287,19 @@ resolveConfigurationPath path
   | isAbsolute path = return path
   | otherwise = do home <- getHomeDirectory
                    return (home </> path)
+
+parseAliasMap :: Value -> ConfigParser (HashMap Text [[ExpansionChunk]])
+parseAliasMap v = HashMap.fromList <$> parseList parseAlias v
+
+parseAlias :: Value -> ConfigParser (Text, [[ExpansionChunk]])
+parseAlias = parseSections $
+  do name     <- sectionReq "name"
+     commands <- sectionReqWith (parseList parseAliasCommand) "commands"
+     return (name, commands)
+
+parseAliasCommand :: Value -> ConfigParser [ExpansionChunk]
+parseAliasCommand v =
+  do txt <- parseConfig v
+     case parseExpansion txt of
+       Nothing -> failure "bad alias command"
+       Just ex -> return ex

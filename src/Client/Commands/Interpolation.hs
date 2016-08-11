@@ -14,12 +14,16 @@ by the current context.
 module Client.Commands.Interpolation
   ( ExpansionChunk(..)
   , parseExpansion
+  , resolveExpansions
   ) where
 
 import           Control.Applicative
-import           Data.Text (Text)
+import           Control.Lens
 import           Data.Attoparsec.Text as P
 import           Data.Char
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.Text as Text
+import           Data.Text (Text)
 
 data ExpansionChunk
   = LiteralChunk !Text -- ^ regular text
@@ -38,5 +42,11 @@ parseChunk =
     [ LiteralChunk     <$> P.takeWhile1 (/= '$')
     , LiteralChunk "$" <$  P.string "$$"
     , Variable         <$  string "${" <*> P.takeTill (=='}') <* char '}'
-    , Variable         <$  char '$' <*> P.takeWhile1 isAlpha
+    , Variable         <$  char '$' <*> P.takeWhile1 isAlphaNum
     ]
+
+resolveExpansions :: HashMap Text Text -> [ExpansionChunk] -> Text
+resolveExpansions m xs = Text.concat (map resolve1 xs)
+  where
+    resolve1 (LiteralChunk lit) = lit
+    resolve1 (Variable var)     = view (ix var) m

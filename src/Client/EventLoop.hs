@@ -220,7 +220,7 @@ processConnectCmd ::
   Text            {- ^ command         -} ->
   IO ClientState
 processConnectCmd now cs st0 cmdTxt =
-  do res <- executeCommand Nothing (Text.unpack cmdTxt) st0
+  do res <- executeUserCommand (Text.unpack cmdTxt) st0
      return $! case res of
        CommandFailure st -> reportConnectCmdError now cs cmdTxt st
        CommandSuccess st -> st
