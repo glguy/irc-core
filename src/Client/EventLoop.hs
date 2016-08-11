@@ -27,6 +27,7 @@ import           Client.NetworkConnection
 import           Client.ServerSettings
 import           Client.State
 import           Client.Window
+import qualified Codec.Binary.UTF8.String as UTF8
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
@@ -270,7 +271,11 @@ doVtyEvent vtyEvent st =
          (w,h) <- displayBounds (outputIface vty)
          eventLoop $ set clientWidth w
                    $ set clientHeight h st
-    EvPaste s -> eventLoop (over (clientTextBox . Edit.content) (Edit.insertString s) st)
+    EvPaste utf8 ->
+       -- I think this is technically a bug in VTY
+       -- https://github.com/coreyoconnor/vty/issues/103
+       let s = UTF8.decodeString utf8
+       in eventLoop (over (clientTextBox . Edit.content) (Edit.insertString s) st)
     _ -> eventLoop st
 
 
