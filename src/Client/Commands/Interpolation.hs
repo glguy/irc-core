@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+
 {-|
 Module      : Client.Commands.Interpolation
 Description : Parser and evaluator for string interpolation in commands
@@ -32,25 +34,9 @@ parseExpansion txt =
 
 parseChunk :: Parser ExpansionChunk
 parseChunk =
-  do isVar <- checkChar '$'
-     if isVar
-       then Variable     <$> parseVar
-       else LiteralChunk <$> parseLiteral
-
--- | Take until @$@
-parseLiteral :: Parser Text
-parseLiteral = P.takeWhile1 (/= '$')
-
--- | Parse @$variable@ and @${variable}@ returning @variable@.
--- The braces are needed if variable is anything other than letters.
-parseVar :: Parser Text
-parseVar =
-  do isWrapped <- checkChar '{'
-     if isWrapped
-        then P.takeTill (=='}') <* char '}'
-        else P.takeWhile isAlpha
-
--- Return 'True' and consume if the next available character matches
--- otherwise return 'False'
-checkChar :: Char -> Parser Bool
-checkChar c = True <$ char c <|> pure False
+  choice
+    [ LiteralChunk     <$> P.takeWhile1 (/= '$')
+    , LiteralChunk "$" <$  P.string "$$"
+    , Variable         <$  string "${" <*> P.takeTill (=='}') <* char '}'
+    , Variable         <$  char '$' <*> P.takeWhile1 isAlpha
+    ]
