@@ -379,7 +379,7 @@ cmdMsg network cs st rest =
 
          sendMsg cs (ircPrivmsg (mkId tgtTxt) restTxt)
          chatCommand
-            (\src tgt -> Notice src tgt restTxt)
+            (\src tgt -> Privmsg src tgt restTxt)
             tgtTxt
             network cs st
 
