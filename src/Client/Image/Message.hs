@@ -266,7 +266,7 @@ ircLineImage rm !rp body =
       parseIrcText reason
 
     Reply code params ->
-      renderReplyCode rm code <|>
+      renderReplyCode rm rp code <|>
       char defAttr ' ' <|>
       separatedParams (dropFst params)
       where
@@ -311,12 +311,14 @@ separatorImage = char (withForeColor defAttr blue) '·'
 separatedParams :: [Text] -> Image
 separatedParams = horizCat . intersperse separatorImage . map parseIrcText
 
-renderReplyCode :: RenderMode -> ReplyCode -> Image
-renderReplyCode rm code@(ReplyCode w) =
+renderReplyCode :: RenderMode -> MessageRendererParams -> ReplyCode -> Image
+renderReplyCode rm rp code@(ReplyCode w) =
   case rm of
     DetailedRender -> string attr (show w)
-    NormalRender   -> text' attr (Text.toLower (replyCodeText info)) <|>
-                      char defAttr ':'
+    NormalRender   ->
+      rightPad rm (rendNickPadding rp)
+        (text' attr (Text.toLower (replyCodeText info))) <|>
+      char defAttr ':'
   where
     info = replyCodeInfo code
 

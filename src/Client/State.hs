@@ -322,8 +322,8 @@ recordIrcMessage network target msg st =
                              (addToWindow WLBoring wl) st')
            st chans
       where
-        pal = view (clientConfig . configPalette) st
-        wl = toWindowLine' pal msg
+        cfg = view clientConfig st
+        wl = toWindowLine' cfg msg
         chans = user
               : case preview (clientConnection network . csChannels) st of
                   Nothing -> []
@@ -371,8 +371,8 @@ recordNetworkMessage msg st =
        st
   where
     network = view msgNetwork msg
-    pal = view (clientConfig . configPalette) st
-    wl = toWindowLine' pal msg
+    cfg = view clientConfig st
+    wl = toWindowLine' cfg msg
 
 toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
 toWindowLine params msg = WindowLine
@@ -382,8 +382,12 @@ toWindowLine params msg = WindowLine
   , _wlFullImage = force $ msgImage DetailedRender (view msgTime msg) params (view msgBody msg)
   }
 
-toWindowLine' :: Palette -> ClientMessage -> WindowLine
-toWindowLine' pal = toWindowLine defaultRenderParams { rendPalette = pal }
+toWindowLine' :: Configuration -> ClientMessage -> WindowLine
+toWindowLine' config =
+  toWindowLine defaultRenderParams
+    { rendPalette     = view configPalette     config
+    , rendNickPadding = view configNickPadding config
+    }
 
 clientTick :: ClientState -> ClientState
 clientTick = set clientBell False . markSeen
