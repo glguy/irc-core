@@ -512,7 +512,8 @@ cmdZncPlayback _ cs st rest =
     _ -> commandFailure st
 
   where
-    timeFormats = ["%T","%R"]
+    -- %k doesn't require a leading 0 for times before 10AM
+    timeFormats = ["%k:%M:%S","%k:%M"]
     dateFormats = ["%F"]
     parse formats str =
       asum (map (parseTimeM False defaultTimeLocale ?? str) formats)
