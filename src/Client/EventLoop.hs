@@ -27,7 +27,6 @@ import           Client.NetworkConnection
 import           Client.ServerSettings
 import           Client.State
 import           Client.Window
-import qualified Codec.Binary.UTF8.String as UTF8
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
@@ -41,6 +40,8 @@ import           Data.Maybe
 import           Data.Ord
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as Text
 import           Data.Time
 import           Graphics.Vty
 import           Irc.Codes
@@ -272,10 +273,9 @@ doVtyEvent vtyEvent st =
          eventLoop $ set clientWidth w
                    $ set clientHeight h st
     EvPaste utf8 ->
-       -- I think this is technically a bug in VTY
-       -- https://github.com/coreyoconnor/vty/issues/103
-       let s = UTF8.decodeString utf8
-       in eventLoop (over (clientTextBox . Edit.content) (Edit.insertString s) st)
+       let str = Text.unpack (Text.decodeUtf8With Text.lenientDecode utf8)
+           st' = over (clientTextBox . Edit.content) (Edit.insertString str) st
+       in eventLoop st'
     _ -> eventLoop st
 
 

@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.8
+
+* Support `vty-5.8`
+
 ## 2.7
 
 * Switch to regex-tdfa (easier to install on macOS than text-icu)
