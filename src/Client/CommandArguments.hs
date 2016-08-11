@@ -21,7 +21,6 @@ module Client.CommandArguments
   , getCommandArguments
   ) where
 
-import           Client.State
 import           Control.Lens
 import           Data.Foldable
 import           Data.Text (Text)

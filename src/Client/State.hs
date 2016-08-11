@@ -68,7 +68,6 @@ import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
 import           Client.Image.Message
-import           Client.Image.Palette
 import           Client.Message
 import           Client.NetworkConnection
 import           Client.ServerSettings
