@@ -29,6 +29,7 @@ executable glirc2
   other-modules:       Client.ChannelState
                        Client.CommandArguments
                        Client.Commands
+                       Client.Commands.Interpolation
                        Client.Configuration
                        Client.Configuration.Colors
                        Client.Connect
