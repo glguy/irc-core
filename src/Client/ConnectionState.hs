@@ -559,7 +559,7 @@ doMyModes changes = over csModes $ \modes -> sort (foldl' applyOne modes changes
     applyOne modes (False, mode, _) = delete mode modes
 
 supportedCaps :: ConnectionState -> [Text]
-supportedCaps cs = sasl ++ ["multi-prefix", "znc.in/playback", "znc.in/server-time-iso"]
+supportedCaps cs = sasl ++ ["multi-prefix", "znc.in/playback", "znc.in/server-time-iso", "znc.in/self-message"]
   where
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslUsername ss)
