@@ -3,6 +3,8 @@
 ## 2.8
 
 * Support `vty-5.8`
+* Implement inital support for macros
+* Support `znc.in/self-message`
 
 ## 2.7
 
