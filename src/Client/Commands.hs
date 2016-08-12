@@ -114,7 +114,7 @@ executeUserCommand :: String -> ClientState -> IO CommandResult
 executeUserCommand command st =
   let key = Text.pack (takeWhile (/=' ') command) in
 
-  case preview (clientConfig . configAliases . ix key) st of
+  case preview (clientConfig . configMacros . ix key) st of
     Nothing -> executeCommand Nothing command st
     Just cmdExs ->
       case traverse (resolveExpansions expandVar expandInt) cmdExs of
@@ -876,7 +876,7 @@ commandNameCompletion isReversed st =
     leadingPart = takeWhile (not . isSpace) line
     possibilities = mkId . Text.cons '/' <$> commandNames
     commandNames = HashMap.keys commands
-                ++ HashMap.keys (view (clientConfig . configAliases) st)
+                ++ HashMap.keys (view (clientConfig . configMacros) st)
 
 -- | Complete the nickname at the current cursor position using the
 -- userlist for the currently focused channel (if any)

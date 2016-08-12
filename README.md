@@ -89,7 +89,7 @@ servers:
     server-certificates:
       * "/path/to/extra/certificate.pem"
 
-aliases:
+macros:
   * name: "wipe"
     commands:
       * "clear"
@@ -297,20 +297,20 @@ Keyboard Shortcuts
 * `^O` reset formatting
 * `M-Enter` insert newline
 
-Aliases
-=====
+Macros
+======
 
-The `aliases` configuration section allows you to define aliases
-for a sequence of commands. These aliases can contain expansions.
+The `macros` configuration section allows you to define
+sequences of commands. These commands can contain expansions.
 
 Configuration
------------
+-------------
 
-* `name` - text - name of alias
-* `commands` - list of text - commands to send for alias
+* `name` - text - name of macro
+* `commands` - list of text - commands to send after expansion
 
 Expansions
-------------
+----------
 
 Variable names and integer indexes can be used when defining commands.
 Variables are specified with a leading `$`. For disambiguation a variable

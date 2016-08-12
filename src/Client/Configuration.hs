@@ -24,7 +24,7 @@ module Client.Configuration
   , configWindowNames
   , configNickPadding
   , configConfigPath
-  , configAliases
+  , configMacros
 
   -- * Loading configuration
   , loadConfiguration
@@ -66,7 +66,7 @@ data Configuration = Configuration
   , _configNickPadding :: Maybe Integer -- ^ Padding of nicks
   , _configConfigPath :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
-  , _configAliases :: HashMap Text [[ExpansionChunk]] -- ^ command aliases
+  , _configMacros :: HashMap Text [[ExpansionChunk]] -- ^ command macros
   }
   deriving Show
 
@@ -173,8 +173,8 @@ parseConfiguration _configConfigPath def = parseSections $
      _configWindowNames <- fromMaybe defaultWindowNames
                     <$> sectionOpt "window-names"
 
-     _configAliases <- fromMaybe HashMap.empty
-                    <$> sectionOptWith parseAliasMap "aliases"
+     _configMacros <- fromMaybe HashMap.empty
+                    <$> sectionOptWith parseMacroMap "macros"
 
      _configNickPadding <- sectionOpt "nick-padding"
      for_ _configNickPadding (\padding ->
@@ -288,18 +288,18 @@ resolveConfigurationPath path
   | otherwise = do home <- getHomeDirectory
                    return (home </> path)
 
-parseAliasMap :: Value -> ConfigParser (HashMap Text [[ExpansionChunk]])
-parseAliasMap v = HashMap.fromList <$> parseList parseAlias v
+parseMacroMap :: Value -> ConfigParser (HashMap Text [[ExpansionChunk]])
+parseMacroMap v = HashMap.fromList <$> parseList parseMacro v
 
-parseAlias :: Value -> ConfigParser (Text, [[ExpansionChunk]])
-parseAlias = parseSections $
+parseMacro :: Value -> ConfigParser (Text, [[ExpansionChunk]])
+parseMacro = parseSections $
   do name     <- sectionReq "name"
-     commands <- sectionReqWith (parseList parseAliasCommand) "commands"
+     commands <- sectionReqWith (parseList parseMacroCommand) "commands"
      return (name, commands)
 
-parseAliasCommand :: Value -> ConfigParser [ExpansionChunk]
-parseAliasCommand v =
+parseMacroCommand :: Value -> ConfigParser [ExpansionChunk]
+parseMacroCommand v =
   do txt <- parseConfig v
      case parseExpansion txt of
-       Nothing -> failure "bad alias command"
+       Nothing -> failure "bad macro line"
        Just ex -> return ex
