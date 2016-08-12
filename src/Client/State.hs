@@ -54,6 +54,9 @@ module Client.State
 
   -- * Focus information
   , ClientFocus(..)
+  , _ChannelFocus
+  , _NetworkFocus
+  , _Unfocused
   , ClientSubfocus(..)
   , focusNetwork
   , changeFocus
@@ -107,6 +110,8 @@ data ClientFocus
  | NetworkFocus !Text             -- ^ Network
  | ChannelFocus !Text !Identifier -- ^ Network Channel/Nick
   deriving Eq
+
+makePrisms ''ClientFocus
 
 -- | Subfocus for a channel view
 data ClientSubfocus

@@ -18,16 +18,15 @@ module Client.Commands.Interpolation
   ) where
 
 import           Control.Applicative
-import           Control.Lens
 import           Data.Attoparsec.Text as P
 import           Data.Char
-import           Data.HashMap.Strict (HashMap)
 import qualified Data.Text as Text
 import           Data.Text (Text)
 
 data ExpansionChunk
-  = LiteralChunk !Text -- ^ regular text
-  | Variable     !Text -- ^ inline variable @$x@ or @${x y}@
+  = LiteralChunk Text -- ^ regular text
+  | VariableChunk Text -- ^ inline variable @$x@ or @${x y}@
+  | IntegerChunk Integer -- ^ inline variable @$1@ or @${1}@
   deriving Show
 
 parseExpansion :: Text -> Maybe [ExpansionChunk]
@@ -41,12 +40,21 @@ parseChunk =
   choice
     [ LiteralChunk     <$> P.takeWhile1 (/= '$')
     , LiteralChunk "$" <$  P.string "$$"
-    , Variable         <$  string "${" <*> P.takeTill (=='}') <* char '}'
-    , Variable         <$  char '$' <*> P.takeWhile1 isAlphaNum
+    , string "${" *> parseVariable <* char '}'
+    , char '$' *> parseVariable
     ]
 
-resolveExpansions :: HashMap Text Text -> [ExpansionChunk] -> Text
-resolveExpansions m xs = Text.concat (map resolve1 xs)
+parseVariable :: Parser ExpansionChunk
+parseVariable = IntegerChunk  <$> P.decimal
+            <|> VariableChunk <$> P.takeWhile1 isAlpha
+
+resolveExpansions ::
+  (Text    -> Maybe Text) {- ^ variable resolution       -} ->
+  (Integer -> Maybe Text) {- ^ argument index resolution -} ->
+  [ExpansionChunk]                                          ->
+  Maybe Text
+resolveExpansions var arg xs = Text.concat <$> traverse resolve1 xs
   where
-    resolve1 (LiteralChunk lit) = lit
-    resolve1 (Variable var)     = view (ix var) m
+    resolve1 (LiteralChunk lit) = Just lit
+    resolve1 (VariableChunk v)  = var v
+    resolve1 (IntegerChunk i)   = arg i

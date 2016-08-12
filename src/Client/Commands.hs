@@ -113,12 +113,27 @@ execute str st =
 executeUserCommand :: String -> ClientState -> IO CommandResult
 executeUserCommand command st =
   let key = Text.pack (takeWhile (/=' ') command) in
-  -- TODO: support arguments, support actual expansions
+
   case preview (clientConfig . configAliases . ix key) st of
     Nothing -> executeCommand Nothing command st
-    Just cmdExs -> do let cmds = map (resolveExpansions HashMap.empty) cmdExs
-                      process cmds st
+    Just cmdExs ->
+      case traverse (resolveExpansions expandVar expandInt) cmdExs of
+        Nothing   -> commandFailure st
+        Just cmds -> process cmds st
   where
+    args = Text.words (Text.pack command)
+
+    expandInt i = preview (ix (fromInteger i)) args
+
+    expandVar v =
+      case v of
+        "network" -> views clientFocus focusNetwork st
+        "channel" -> previews (clientFocus . _ChannelFocus . _2) idText st
+        "nick"    -> do net <- views clientFocus focusNetwork st
+                        cs  <- preview (clientConnection net) st
+                        return (views csNick idText cs)
+        _         -> Nothing
+
     process [] st0 = commandSuccess st0
     process (c:cs) st0 =
       do res <- executeCommand Nothing (Text.unpack c) st0
@@ -873,7 +888,15 @@ nickTabCompletion isReversed st
     hint = activeNicks st
     completions = currentCompletionList st
 
-sendModeration :: Identifier -> [RawIrcMsg] -> ConnectionState -> IO ConnectionState
+-- | Used to send commands that require ops to perform.
+-- If this channel is one that the user has chanserv access and ops are needed
+-- then ops are requested and the commands are queued, otherwise send them
+-- directly.
+sendModeration ::
+  Identifier      {- ^ channel       -} ->
+  [RawIrcMsg]     {- ^ commands      -} ->
+  ConnectionState {- ^ network state -} ->
+  IO ConnectionState
 sendModeration channel cmds cs
   | useChanServ channel cs =
       do sendMsg cs (ircPrivmsg (mkId "ChanServ") ("OP " <> idText channel))

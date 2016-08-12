@@ -89,6 +89,12 @@ servers:
     server-certificates:
       * "/path/to/extra/certificate.pem"
 
+aliases:
+  * name: "wipe"
+    commands:
+      * "clear"
+      * "znc *status clearbuffer $channel"
+
 palette:
   time:
     fg: [10,10,10] -- RGB values for color for timestamps
@@ -290,6 +296,37 @@ Keyboard Shortcuts
 * `^]` italic
 * `^O` reset formatting
 * `M-Enter` insert newline
+
+Aliases
+=====
+
+The `aliases` configuration section allows you to define aliases
+for a sequence of commands. These aliases can contain expansions.
+
+Configuration
+-----------
+
+* `name` - text - name of alias
+* `commands` - list of text - commands to send for alias
+
+Expansions
+------------
+
+Variable names and integer indexes can be used when defining commands.
+Variables are specified with a leading `$`. For disambiguation a variable
+name can be surrounded by `{}`. `$channel` and `${channel}` are
+equivalent.
+
+* `channel` - current channel
+* `network` - current network name
+* `nick` - current nickname
+
+The arguments to a command will be mapped to integer indexes. The command
+itself is at index zero.
+
+* `0` - command
+* `1` - first argument
+* `2` - second argument (etc.)
 
 Hooks
 =====
