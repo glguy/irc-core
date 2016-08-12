@@ -15,6 +15,7 @@ module Client.EventLoop
   ( eventLoop
   ) where
 
+import           Client.CApi
 import           Client.Commands
 import           Client.Configuration
 import           Client.ConnectionState
@@ -169,7 +170,8 @@ doNetworkLine networkId time line st =
              eventLoop (recordNetworkMessage msg st)
 
         Just raw ->
-          do let time' = computeEffectiveTime time (view msgTags raw)
+          do notifyExtensions network raw (view clientExtensions st)
+             let time' = computeEffectiveTime time (view msgTags raw)
 
                  (stateHook, viewHook)
                       = over both applyMessageHooks

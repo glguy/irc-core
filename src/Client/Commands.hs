@@ -18,6 +18,7 @@ module Client.Commands
   , tabCompletion
   ) where
 
+import           Client.CApi
 import           Client.Commands.Interpolation
 import           Client.Configuration
 import           Client.ConnectionState
@@ -752,7 +753,11 @@ cmdReload st rest =
      case res of
        Left{} -> commandFailure st
        Right cfg ->
-         commandSuccess $! set clientConfig cfg st
+         do traverse_ deactivateExtension (view clientExtensions st)
+            exts <- traverse (activateExtension <=< resolveConfigurationPath)
+                             (view configExtensions cfg)
+            commandSuccess $! set clientConfig cfg
+                           $  set clientExtensions exts st
 
 -- | Support file name tab completion when providing an alternative
 -- configuration file.

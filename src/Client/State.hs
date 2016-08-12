@@ -32,6 +32,7 @@ module Client.State
   , clientIgnores
   , clientConnection
   , clientBell
+  , clientExtensions
   , initialClientState
 
   -- * Client operations
@@ -66,6 +67,7 @@ module Client.State
 
   ) where
 
+import           Client.CApi
 import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
@@ -78,6 +80,7 @@ import           Client.Window
 import           Control.Concurrent.STM
 import           Control.DeepSeq
 import           Control.Lens
+import           Control.Monad
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -157,6 +160,8 @@ data ClientState = ClientState
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
   , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored nicknames
+
+  , _clientExtensions        :: [ActiveExtension]       -- ^ Active extensions
   }
 
 makeLenses ''ClientState
@@ -192,6 +197,8 @@ initialClientState cfg vty =
   do (width,height) <- displayBounds (outputIface vty)
      cxt            <- initConnectionContext
      events         <- atomically newTQueue
+     exts           <- traverse (activateExtension <=< resolveConfigurationPath)
+                                (view configExtensions cfg)
      return ClientState
         { _clientWindows           = _Empty # ()
         , _clientTextBox           = Edit.empty
@@ -210,6 +217,7 @@ initialClientState cfg vty =
         , _clientNetworkMap        = HashMap.empty
         , _clientIgnores           = HashSet.empty
         , _clientBell              = False
+        , _clientExtensions        = exts
         }
 
 -- | Forcefully terminate the connection currently associated

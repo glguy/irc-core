@@ -1,5 +1,7 @@
 # Revision history for glirc2
 
+## 2.9
+
 ## 2.8
 
 * Support `vty-5.8`

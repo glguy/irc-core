@@ -25,6 +25,7 @@ module Client.Configuration
   , configNickPadding
   , configConfigPath
   , configMacros
+  , configExtensions
 
   -- * Loading configuration
   , loadConfiguration
@@ -67,6 +68,7 @@ data Configuration = Configuration
   , _configConfigPath :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
   , _configMacros :: HashMap Text [[ExpansionChunk]] -- ^ command macros
+  , _configExtensions :: [FilePath] -- ^ paths to shared library
   }
   deriving Show
 
@@ -175,6 +177,9 @@ parseConfiguration _configConfigPath def = parseSections $
 
      _configMacros <- fromMaybe HashMap.empty
                     <$> sectionOptWith parseMacroMap "macros"
+
+     _configExtensions <- fromMaybe []
+                    <$> sectionOptWith (parseList parseString) "extensions"
 
      _configNickPadding <- sectionOpt "nick-padding"
      for_ _configNickPadding (\padding ->
