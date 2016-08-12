@@ -56,7 +56,7 @@ data CommandResult
     -- ^ Continue running the client, consume input if command was from input
   | CommandFailure ClientState
     -- ^ Continue running the client, report an error
-  | CommandQuit -- ^ Client should close
+  | CommandQuit ClientState -- ^ Client should close
 
 -- | Type of commands that always work
 type ClientCommand =
@@ -141,7 +141,7 @@ executeUserCommand command st =
          case res of
            CommandSuccess st1 -> process cs st1
            CommandFailure st1 -> process cs st1 -- ?
-           CommandQuit        -> return CommandQuit
+           CommandQuit st1    -> return (CommandQuit st1)
 
 -- | Respond to the TAB key being pressed. This can dispatch to a command
 -- specific completion mode when relevant. Otherwise this will complete
@@ -297,7 +297,7 @@ simpleChannelTab isReversed _ _ _ st _ =
   commandSuccess (nickTabCompletion isReversed st)
 
 cmdExit :: ClientCommand
-cmdExit _ _ = return CommandQuit
+cmdExit st _ = return (CommandQuit st)
 
 -- | When used on a channel that the user is currently
 -- joined to this command will clear the messages but

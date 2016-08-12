@@ -226,7 +226,7 @@ processConnectCmd now cs st0 cmdTxt =
      return $! case res of
        CommandFailure st -> reportConnectCmdError now cs cmdTxt st
        CommandSuccess st -> st
-       CommandQuit       -> st0 -- not supported
+       CommandQuit    st -> st -- not supported
 
 
 reportConnectCmdError ::
@@ -348,7 +348,7 @@ doKey key modifier st =
 doCommandResult :: Bool -> CommandResult -> IO ()
 doCommandResult clearOnSuccess res =
   case res of
-    CommandQuit       -> return ()
+    CommandQuit    st -> clientShutdown st
     CommandSuccess st -> eventLoop (if clearOnSuccess then consumeInput st else st)
     CommandFailure st -> eventLoop (set clientBell True st)
 

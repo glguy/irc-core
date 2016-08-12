@@ -34,6 +34,7 @@ module Client.State
   , clientBell
   , clientExtensions
   , initialClientState
+  , clientShutdown
 
   -- * Client operations
   , clientMatcher
@@ -588,3 +589,7 @@ applyWindowRenames network (Nick old new) st
       | otherwise         = x
 
 applyWindowRenames _ _ st = st
+
+clientShutdown :: ClientState -> IO ()
+clientShutdown st =
+  traverse_ deactivateExtension (view clientExtensions st)
