@@ -5,7 +5,7 @@
 
 #include "glirc-api.h"
 
-#define PROC_KEY "glirc-process-message-callback"
+#define CALLBACK_MODULE_KEY "glirc-callback-module"
 
 static void get_glirc_string(lua_State *L, struct glirc_string *s) {
         s->str = lua_tolstring(L, -1, &s->len);
@@ -59,7 +59,7 @@ static void *start(void) {
 
         int res = luaL_dofile(L, "glirc.lua");
         if (!res) {
-          lua_setfield(L, LUA_REGISTRYINDEX, PROC_KEY);
+          lua_setfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
         }
 
         lua_settop(L, 0);
@@ -75,6 +75,17 @@ static void stop(void * S) {
         if (S == NULL) return;
 
         lua_State *L = S;
+
+        int ty;
+        ty = lua_getfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
+        if (ty != LUA_TNIL) {
+            ty = lua_getfield(L, -1, "stop");
+            if (ty != LUA_TNIL) {
+                lua_rotate(L, -2, 1);
+                (void)lua_pcall(L, 1, 0, 0);
+            }
+        }
+
         lua_close(L);
 }
 
@@ -96,7 +107,7 @@ static void push_glirc_message
   ( lua_State *L
   , const struct glirc_message *msg
   ) {
-        lua_createtable(L, 0, 4);
+        lua_createtable(L, 0, 5);
 
         push_glirc_string(L, &msg->network);
         lua_setfield(L,-2,"network");
@@ -107,7 +118,7 @@ static void push_glirc_message
         push_glirc_string(L, &msg->command);
         lua_setfield(L,-2,"command");
 
-        {
+        { /* populate params */
                 const size_t nrec = 0, narr = msg->params_n;
                 lua_createtable(L, narr, nrec);
 
@@ -139,9 +150,20 @@ static void process_message(void *glirc, void * S, const struct glirc_message *m
         lua_State *L = S;
         memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
 
-        (void)lua_getfield(L, LUA_REGISTRYINDEX, PROC_KEY);
-        push_glirc_message(L, msg);
-        (void)lua_pcall(L, 1, 0, 0);
+        int ty;
+        ty = lua_getfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
+        if (ty != LUA_TNIL) {
+
+            ty = lua_getfield(L, -1, "process_message");
+            if (ty != LUA_TNIL) {
+                lua_rotate(L, -2, 1);
+                push_glirc_message(L, msg);
+                (void)lua_pcall(L, 2, 0, 0);
+            }
+
+        }
+
+        lua_settop(L, 0);
 }
 
 struct glirc_extension extension = {
