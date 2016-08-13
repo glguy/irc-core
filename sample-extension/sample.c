@@ -3,12 +3,12 @@
 
 #include "glirc-api.h"
 
-static void *start(void) {
+static void *start(void *glirc) {
         FILE *file = fopen("sample-output.txt", "w");
         return file;
 }
 
-static void stop(void * S) {
+static void stop(void *glirc, void * S) {
         FILE *file = S;
         fclose(file);
 }
