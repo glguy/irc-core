@@ -104,6 +104,9 @@ static void process_message(void *glirc, void * S, const struct glirc_message *m
 }
 
 struct glirc_extension extension = {
+        .name            = "Lua",
+        .major_version   = 1,
+        .minor_version   = 0,
         .start           = start,
         .stop            = stop,
         .process_message = process_message

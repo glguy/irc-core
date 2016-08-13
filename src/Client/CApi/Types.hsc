@@ -1,4 +1,4 @@
-{-# Language ForeignFunctionInterface #-}
+{-# Language ForeignFunctionInterface, RecordWildCards #-}
 
 {-|
 Module      : Client.CApi.Types
@@ -43,19 +43,27 @@ data FgnExtension = FgnExtension
   { fgnStart   :: FunPtr StartExtension
   , fgnStop    :: FunPtr StopExtension
   , fgnProcess :: FunPtr ProcessMessage
+  , fgnName    :: CString
+  , fgnMajorVersion, fgnMinorVersion :: CInt
   }
 
 instance Storable FgnExtension where
   alignment _ = #alignment struct glirc_extension
   sizeOf    _ = #size      struct glirc_extension
   peek p      = FgnExtension
-            <$> (#peek struct glirc_extension, start   ) p
-            <*> (#peek struct glirc_extension, stop    ) p
+            <$> (#peek struct glirc_extension, start          ) p
+            <*> (#peek struct glirc_extension, stop           ) p
             <*> (#peek struct glirc_extension, process_message) p
-  poke p (FgnExtension x y z) =
-     do (#poke struct glirc_extension, start   ) p x
-        (#poke struct glirc_extension, stop    ) p y
-        (#poke struct glirc_extension, process_message) p z
+            <*> (#peek struct glirc_extension, name           ) p
+            <*> (#peek struct glirc_extension, major_version  ) p
+            <*> (#peek struct glirc_extension, minor_version  ) p
+  poke p FgnExtension{..} =
+     do (#poke struct glirc_extension, start          ) p fgnStart
+        (#poke struct glirc_extension, stop           ) p fgnStop
+        (#poke struct glirc_extension, process_message) p fgnProcess
+        (#poke struct glirc_extension, name           ) p fgnName
+        (#poke struct glirc_extension, major_version  ) p fgnMajorVersion
+        (#poke struct glirc_extension, minor_version  ) p fgnMinorVersion
 
 ------------------------------------------------------------------------
 
@@ -89,7 +97,6 @@ instance Storable FgnMsg where
         poke ((#ptr struct glirc_message, command) p) y
         (#poke struct glirc_message, params) p z
         (#poke struct glirc_message, params_n) p zn
-        (#poke struct glirc_message, params) p z
         (#poke struct glirc_message, tagkeys) p tk
         (#poke struct glirc_message, tagvals) p tv
         (#poke struct glirc_message, tags_n) p tn

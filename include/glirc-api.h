@@ -25,6 +25,8 @@ typedef void stop_type(void *);
 typedef void process_message_type(void *, void *, const struct glirc_message *);
 
 struct glirc_extension {
+        char *name;
+        int major_version, minor_version;
         start_type *start;
         stop_type  *stop;
         process_message_type *process_message;
