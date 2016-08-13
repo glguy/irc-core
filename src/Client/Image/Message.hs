@@ -205,17 +205,17 @@ ircLineImage rm !rp body =
 
     Notice src _dst txt ->
       detail (string quietAttr "note ") <|>
-      string (view palSigil pal) sigils <|>
       rightPad rm (rendNickPadding rp)
-        (coloredUserInfo pal rm myNicks src) <|>
+        (string (view palSigil pal) sigils <|>
+         coloredUserInfo pal rm myNicks src) <|>
       string (withForeColor defAttr red) ": " <|>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Privmsg src _dst txt ->
       detail (string quietAttr "chat ") <|>
-      string (view palSigil pal) sigils <|>
       rightPad rm (rendNickPadding rp)
-        (coloredUserInfo pal rm myNicks src) <|>
+        (string (view palSigil pal) sigils <|>
+         coloredUserInfo pal rm myNicks src) <|>
       string defAttr ": " <|>
       parseIrcTextWithNicks pal myNicks nicks txt
 
