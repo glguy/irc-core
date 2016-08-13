@@ -753,11 +753,8 @@ cmdReload st rest =
      case res of
        Left{} -> commandFailure st
        Right cfg ->
-         do traverse_ deactivateExtension (view clientExtensions st)
-            exts <- traverse (activateExtension <=< resolveConfigurationPath)
-                             (view configExtensions cfg)
-            commandSuccess $! set clientConfig cfg
-                           $  set clientExtensions exts st
+         do st1 <- clientStartExtensions (set clientConfig cfg st)
+            commandSuccess st1
 
 -- | Support file name tab completion when providing an alternative
 -- configuration file.

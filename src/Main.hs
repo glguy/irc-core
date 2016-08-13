@@ -37,9 +37,10 @@ main =
      cfg  <- loadConfiguration' (view cmdArgConfigFile args)
      withVty $ \vty ->
        runInUnboundThread $
-         do st <- initialClientState cfg vty
-            st' <- addInitialNetworks (view cmdArgInitialNetworks args) st
-            eventLoop st'
+         initialClientState cfg vty >>=
+         clientStartExtensions      >>=
+         addInitialNetworks (view cmdArgInitialNetworks args) >>=
+         eventLoop
 
 -- | Load configuration and handle errors along the way.
 loadConfiguration' :: Maybe FilePath -> IO Configuration

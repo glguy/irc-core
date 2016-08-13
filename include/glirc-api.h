@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 
+
 struct glirc_string {
         const char *str;
         size_t len;

@@ -35,6 +35,7 @@ module Client.State
   , clientExtensions
   , initialClientState
   , clientShutdown
+  , clientStartExtensions
 
   -- * Client operations
   , clientMatcher
@@ -80,9 +81,11 @@ import           Client.ServerSettings
 import           Client.Window
 import           Control.Concurrent.STM
 import           Control.DeepSeq
+import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Data.Foldable
+import           Data.Either
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (HashSet)
@@ -380,7 +383,9 @@ computeUserSigils network channel user =
 recordNetworkMessage :: ClientMessage -> ClientState -> ClientState
 recordNetworkMessage msg st = recordWindowLine focus importance wl st
   where
-    focus      = NetworkFocus (view msgNetwork msg)
+    network    = view msgNetwork msg
+    focus      | Text.null network = Unfocused
+               | otherwise         = NetworkFocus (view msgNetwork msg)
     importance = msgImportance msg st
     wl         = toWindowLine' cfg msg
 
@@ -591,5 +596,27 @@ applyWindowRenames network (Nick old new) st
 applyWindowRenames _ _ st = st
 
 clientShutdown :: ClientState -> IO ()
-clientShutdown st =
-  traverse_ deactivateExtension (view clientExtensions st)
+clientShutdown st = () <$ clientStopExtensions st
+ -- other shutdown stuff might be added here later
+
+clientStopExtensions :: ClientState -> IO ClientState
+clientStopExtensions =
+  traverseOf clientExtensions $ \ exts ->
+    do traverse_ deactivateExtension exts
+       return []
+
+-- | Start extensions after ensuring existing ones are stopped
+clientStartExtensions :: ClientState -> IO ClientState
+clientStartExtensions st =
+  do let cfg = view clientConfig st
+     st1 <- clientStopExtensions st
+     res <- traverse (try . activateExtension <=< resolveConfigurationPath)
+                     (view configExtensions cfg)
+     now <- getZonedTime
+     let (errors, exts) = partitionEithers res
+         addError st1 e = recordNetworkMessage ClientMessage
+                            { _msgTime = now
+                            , _msgBody = ErrorBody (show (e :: IOError))
+                            , _msgNetwork = ""
+                            } st1
+     return $! foldl' addError (set clientExtensions exts st1) errors
