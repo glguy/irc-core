@@ -15,6 +15,9 @@ struct glirc_message {
         struct glirc_string command;
         struct glirc_string *params;
         size_t params_n;
+        struct glirc_string *tagkeys;
+        struct glirc_string *tagvals;
+        size_t tags_n;
 };
 
 typedef void * start_type(void);

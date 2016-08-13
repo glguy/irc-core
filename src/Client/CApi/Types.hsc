@@ -65,6 +65,9 @@ data FgnMsg = FgnMsg
   , fgnCommand :: FgnStringLen
   , fgnParams  :: Ptr FgnStringLen
   , fgnParamN  :: CSize
+  , fgnTagKeys :: Ptr FgnStringLen
+  , fgnTagVals :: Ptr FgnStringLen
+  , fgnTagN    :: CSize
   }
 
 instance Storable FgnMsg where
@@ -76,13 +79,20 @@ instance Storable FgnMsg where
             <*> peek ((#ptr struct glirc_message, prefix ) p)
             <*> (#peek struct glirc_message, params ) p
             <*> (#peek struct glirc_message, params_n) p
+            <*> (#peek struct glirc_message, tagkeys ) p
+            <*> (#peek struct glirc_message, tagvals ) p
+            <*> (#peek struct glirc_message, tags_n) p
 
-  poke p (FgnMsg w x y z zn) =
+  poke p (FgnMsg w x y z zn tk tv tn) =
      do poke ((#ptr struct glirc_message, network) p) w
-        poke ((#ptr struct glirc_message, prefix) p) y
+        poke ((#ptr struct glirc_message, prefix) p) x
         poke ((#ptr struct glirc_message, command) p) y
         (#poke struct glirc_message, params) p z
         (#poke struct glirc_message, params_n) p zn
+        (#poke struct glirc_message, params) p z
+        (#poke struct glirc_message, tagkeys) p tk
+        (#poke struct glirc_message, tagvals) p tv
+        (#poke struct glirc_message, tags_n) p tn
 
 data FgnStringLen = FgnStringLen CString CSize
 

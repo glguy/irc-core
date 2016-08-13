@@ -89,8 +89,19 @@ withRawIrcMsg network msg =
      pfx     <- withText $ maybe Text.empty renderUserInfo $ view msgPrefix msg
      cmd     <- withText $ view msgCommand msg
      prms    <- traverse withText $ view msgParams msg
-     (n,prm) <- contT2 $ withArrayLen prms
-     ContT $ with $ FgnMsg net pfx cmd prm $ fromIntegral n
+     tags    <- traverse withTag  $ view msgTags   msg
+     let (keys,vals) = unzip tags
+     (tagN,keysPtr) <- contT2 $ withArrayLen keys
+     valsPtr        <- ContT  $ withArray vals
+     (prmN,prmPtr)  <- contT2 $ withArrayLen prms
+     ContT $ with $ FgnMsg net pfx cmd prmPtr (fromIntegral prmN)
+                                       keysPtr valsPtr (fromIntegral tagN)
+
+withTag :: TagEntry -> ContT a IO (FgnStringLen, FgnStringLen)
+withTag (TagEntry k v) =
+  do pk <- withText k
+     pv <- withText v
+     return (pk,pv)
 
 withText :: Text -> ContT a IO FgnStringLen
 withText txt =

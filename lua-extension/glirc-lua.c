@@ -67,16 +67,30 @@ static void push_glirc_message
         push_glirc_string(L, &msg->command);
         lua_setfield(L,-2,"command");
 
-        const size_t nrec = 0, narr = msg->params_n;
-        lua_createtable(L, narr, nrec);
+        {
+                const size_t nrec = 0, narr = msg->params_n;
+                lua_createtable(L, narr, nrec);
 
-        /* initialize table */
-        for (size_t i = 0; i < narr; i++) {
-                push_glirc_string(L, &msg->params[i]);
-                lua_seti(L, -2, i+1);
+                /* initialize table */
+                for (size_t i = 0; i < narr; i++) {
+                        push_glirc_string(L, &msg->params[i]);
+                        lua_seti(L, -2, i+1);
+                }
+                lua_setfield(L,-2,"params");
         }
 
-        lua_setfield(L,-2,"params");
+        { /* populate tags */
+                const size_t nrec = msg->tags_n, narr = 0;
+                lua_createtable(L, narr, nrec);
+
+                /* initialize table */
+                for (size_t i = 0; i < nrec; i++) {
+                        push_glirc_string(L, &msg->tagkeys[i]);
+                        push_glirc_string(L, &msg->tagvals[i]);
+                        lua_rawset(L, -3);
+                }
+                lua_setfield(L,-2,"tags");
+        }
 }
 
 static void process_message(void *glirc, void * S, const struct glirc_message *msg) {
