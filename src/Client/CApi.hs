@@ -14,6 +14,8 @@ module Client.CApi
   ) where
 
 import           Client.CApi.Types
+import           Client.ConnectionState
+import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Trans.Class
@@ -24,6 +26,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Foreign as Text
 import           Foreign.Marshal
 import           Foreign.Ptr
+import           Foreign.StablePtr
 import           Foreign.Storable
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
@@ -62,15 +65,20 @@ deactivateExtension ae =
         (runStopExtension f (aeSession ae))
      dlclose (aeDL ae)
 
-notifyExtensions :: Text -> RawIrcMsg -> [ActiveExtension] -> IO ()
-notifyExtensions network msg aes = evalContT $
+notifyExtensions ::
+  Text -> ConnectionState -> RawIrcMsg -> [ActiveExtension] -> IO ()
+notifyExtensions network cs msg aes = evalContT $
   do let getFun = fgnProcess . aeFgn
          aes' = filter (\ae -> getFun ae /= nullFunPtr) aes
 
      contT0 $ unless $ null aes'
-     p  <- withRawIrcMsg network msg
-     ae <- ContT $ for_ aes'
-     lift (runProcessMessage (getFun ae) (aeSession ae) p)
+     msgPtr <- withRawIrcMsg network msg
+     csPtr  <- withStablePtr cs
+     ae     <- ContT $ for_ aes'
+     lift (runProcessMessage (getFun ae) (castStablePtrToPtr csPtr) (aeSession ae) msgPtr)
+
+withStablePtr :: a -> ContT r IO (StablePtr a)
+withStablePtr x = ContT $ bracket (newStablePtr x) freeStablePtr
 
 withRawIrcMsg ::
   Text                 {- ^ network      -} ->

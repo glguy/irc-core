@@ -13,7 +13,7 @@ static void stop(void * S) {
         fclose(file);
 }
 
-static void process_message(void * S, struct glirc_message *msg) {
+static void process_message(void *glirc, void *S, const struct glirc_message *msg) {
         FILE *file = S;
         char *cmd  = strndup(msg->command.str, msg->command.len);
         fprintf(file, "%s\n", cmd);
@@ -22,7 +22,7 @@ static void process_message(void * S, struct glirc_message *msg) {
 }
 
 struct glirc_extension extension = {
-        .start = start,
-        .stop  = stop,
+        .start           = start,
+        .stop            = stop,
         .process_message = process_message
 };

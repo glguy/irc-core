@@ -170,7 +170,7 @@ doNetworkLine networkId time line st =
              eventLoop (recordNetworkMessage msg st)
 
         Just raw ->
-          do notifyExtensions network raw (view clientExtensions st)
+          do notifyExtensions network cs raw (view clientExtensions st)
              let time' = computeEffectiveTime time (view msgTags raw)
 
                  (stateHook, viewHook)

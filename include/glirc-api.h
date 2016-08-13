@@ -19,7 +19,7 @@ struct glirc_message {
 
 typedef void * start_type(void);
 typedef void stop_type(void *);
-typedef void process_message_type(void *, const struct glirc_message *);
+typedef void process_message_type(void *, void *, const struct glirc_message *);
 
 struct glirc_extension {
         start_type *start;

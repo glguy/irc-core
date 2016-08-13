@@ -27,9 +27,9 @@ import Foreign.C
 import Foreign.Ptr
 import Foreign.Storable
 
-type StartExtension    = IO (Ptr ())
-type StopExtension     = Ptr () -> IO ()
-type ProcessMessage = Ptr () -> Ptr FgnMsg -> IO ()
+type StartExtension = IO (Ptr ())
+type StopExtension  = Ptr () -> IO ()
+type ProcessMessage = Ptr () -> Ptr () -> Ptr FgnMsg -> IO ()
 
 type Dynamic a = FunPtr a -> a
 

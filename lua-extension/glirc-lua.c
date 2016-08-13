@@ -56,8 +56,6 @@ static void push_glirc_message
   ( lua_State *L
   , const struct glirc_message *msg
   ) {
-        if (S == NULL) return;
-
         lua_createtable(L, 0, 4);
 
         push_glirc_string(L, &msg->network);
@@ -73,7 +71,7 @@ static void push_glirc_message
         lua_createtable(L, narr, nrec);
 
         /* initialize table */
-        for (size_t i = 0; i < n; i++) {
+        for (size_t i = 0; i < narr; i++) {
                 push_glirc_string(L, &msg->params[i]);
                 lua_seti(L, -2, i+1);
         }
@@ -81,7 +79,9 @@ static void push_glirc_message
         lua_setfield(L,-2,"params");
 }
 
-static void process_message(void * S, const struct glirc_message *msg) {
+static void process_message(void *glirc, void * S, const struct glirc_message *msg) {
+        if (S == NULL) return;
+
         lua_State *L = S;
 
         (void)lua_getfield(L, LUA_REGISTRYINDEX, PROC_KEY);
