@@ -16,12 +16,15 @@ static int glirc_lua_send_message(lua_State *L) {
 
         luaL_checkany(L, 1);
 
+        size_t netlen = 0;
+        const char *net = luaL_checklstring(L, 2, &netlen);
+
         struct glirc_message msg = { 0 };
 
-        lua_getfield(L, -1, "command");
+        lua_getfield(L, 1, "command");
         get_glirc_string(L, &msg.command);
 
-        lua_getfield(L, -1, "params");
+        lua_getfield(L, 1, "params");
         lua_len(L, -1);
         lua_Integer n = lua_tointeger(L,-1);
         lua_settop(L, -2);
@@ -31,13 +34,13 @@ static int glirc_lua_send_message(lua_State *L) {
         msg.params_n = n;
 
         for (lua_Integer i = 0; i < n; i++) {
-                lua_geti(L, -1, i+1);
+                lua_geti(L, 1, i+1);
                 get_glirc_string(L, &params[i]);
         }
 
         void *glirc;
         memcpy(&glirc, lua_getextraspace(L), sizeof(glirc));
-        if (glirc_send_message(glirc, &msg)) {
+        if (glirc_send_message(glirc, net, netlen, &msg)) {
                 luaL_error(L, "failure in client");
         }
         return 0;
@@ -48,33 +51,40 @@ static int glirc_lua_send_message(lua_State *L) {
  * the callback for message processing.
  *
  */
-static void *start(void) {
+static void *start(void *glirc) {
         lua_State *L = luaL_newstate();
         if (L == NULL) return NULL;
+        memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
 
         luaL_openlibs(L);
 
         lua_pushcfunction(L, glirc_lua_send_message);
         lua_setglobal(L, "send_message");
 
-        int res = luaL_dofile(L, "glirc.lua");
-        if (!res) {
-          lua_setfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
+        if (luaL_dofile(L, "glirc.lua")) {
+                size_t len = 0;
+                const char *msg = lua_tolstring(L, -1, &len);
+                glirc_report_error(glirc, msg, len);
+
+                lua_close(L);
+                return NULL;
+        } else {
+                lua_setfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
+                lua_settop(L, 0);
+                return L;
         }
 
-        lua_settop(L, 0);
-
-        return L;
 }
 
 /* Shutdown the Lua interpreter
  *
  * [-0, +0, -]
  */
-static void stop(void * S) {
+static void stop(void * glirc, void * S) {
         if (S == NULL) return;
 
         lua_State *L = S;
+        memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
 
         int ty;
         ty = lua_getfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
@@ -158,7 +168,12 @@ static void process_message(void *glirc, void * S, const struct glirc_message *m
             if (ty != LUA_TNIL) {
                 lua_rotate(L, -2, 1);
                 push_glirc_message(L, msg);
-                (void)lua_pcall(L, 2, 0, 0);
+                int res = lua_pcall(L, 2, 0, 0);
+                if (res == LUA_ERRRUN) {
+                        size_t len = 0;
+                        const char *msg = lua_tolstring(L, -1, &len);
+                        glirc_report_error(glirc, msg, len);
+                }
             }
 
         }

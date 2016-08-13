@@ -17,11 +17,16 @@ module Client.CApi
   , activateExtension
   , deactivateExtension
   , notifyExtensions
+  , withStableMVar
   ) where
 
 import           Client.CApi.Types
 import           Client.ConnectionState
+import           Client.Message
+import           Client.State
+import           Control.Concurrent.MVar
 import           Control.Exception
+import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Cont
@@ -29,6 +34,7 @@ import           Data.Foldable
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Foreign as Text
+import           Data.Time
 import           Foreign.C
 import           Foreign.Marshal
 import           Foreign.Ptr
@@ -61,16 +67,17 @@ data ActiveExtension = ActiveExtension
 -- callback. The result of the start callback is saved to be
 -- passed to any subsequent calls into the extension.
 activateExtension ::
+  Ptr () ->
   FilePath {- ^ path to extension -} ->
   IO ActiveExtension
-activateExtension path =
-  do dl <- dlopen path [RTLD_LAZY, RTLD_LOCAL]
+activateExtension stab path =
+  do dl <- dlopen path [RTLD_NOW, RTLD_LOCAL]
      p  <- dlsym dl extensionSymbol
      md <- peek (castFunPtrToPtr p)
      let f = fgnStart md
      s  <- if nullFunPtr == f
              then return nullPtr
-             else runStartExtension f
+             else runStartExtension f stab
      return ActiveExtension
        { aeFgn     = md
        , aeDL      = dl
@@ -79,39 +86,45 @@ activateExtension path =
 
 -- | Call the stop callback of the extension if it is defined
 -- and unload the shared object.
-deactivateExtension :: ActiveExtension -> IO ()
-deactivateExtension ae =
+deactivateExtension :: Ptr () -> ActiveExtension -> IO ()
+deactivateExtension stab ae =
   do let f = fgnStop (aeFgn ae)
-     unless (nullFunPtr == f)
-        (runStopExtension f (aeSession ae))
+     unless (nullFunPtr == f) $
+       (runStopExtension f stab (aeSession ae))
      dlclose (aeDL ae)
 
 -- | Call all of the process message callbacks in the list of extensions.
 -- This operation marshals the IRC message once and shares that across
 -- all of the callbacks.
 notifyExtensions ::
+  Ptr () {- ^ clientstate stable pointer -} ->
   Text              {- ^ network              -} ->
-  ConnectionState   {- ^ state for network    -} ->
   RawIrcMsg         {- ^ current message      -} ->
-  [ActiveExtension] {- ^ extensions to notify -} ->
+  [ActiveExtension] ->
   IO ()
-notifyExtensions network cs msg aes = evalContT $
+notifyExtensions stab network msg aes
+  | null aes' = return ()
+  | otherwise = evalContT doNotifications
+  where
+    aes' = [ (f,s) | ae <- aes
+                  , let f = fgnProcess (aeFgn ae)
+                        s = aeSession ae
+                  , f /= nullFunPtr ]
 
-  do let aes' = [ (f,s) | ae <- aes
-                        , let f = fgnProcess (aeFgn ae)
-                              s = aeSession ae
-                        , f /= nullFunPtr ]
-
-     contT0 $ unless $ null aes' -- optimization, avoid unecessary marshal
-     msgPtr <- withRawIrcMsg network msg
-     csPtr  <- withStablePtr cs
-     (f,s)  <- ContT $ for_ aes'
-     lift $ runProcessMessage f (castStablePtrToPtr csPtr) s msgPtr
+    doNotifications :: ContT () IO ()
+    doNotifications =
+      do msgPtr <- withRawIrcMsg network msg
+         (f,s)  <- ContT $ for_ aes'
+         lift $ runProcessMessage f stab s msgPtr
 
 -- | Create a 'StablePtr' which will be valid for the remainder
 -- of the computation.
-withStablePtr :: a -> ContT r IO (StablePtr a)
-withStablePtr x = ContT $ bracket (newStablePtr x) freeStablePtr
+withStableMVar :: a -> (Ptr () -> IO b) -> IO (a,b)
+withStableMVar x k =
+  do mvar <- newMVar x
+     res <- bracket (newStablePtr mvar) freeStablePtr (k . castStablePtrToPtr)
+     x' <- takeMVar mvar
+     return (x', res)
 
 -- | Marshal a 'RawIrcMsg' into a 'FgnMsg' which will be valid for
 -- the remainder of the computation.
@@ -156,7 +169,7 @@ peekFgnMsg :: FgnMsg -> IO RawIrcMsg
 peekFgnMsg FgnMsg{..} =
   do let strArray n p = traverse peekFgnStringLen =<<
                         peekArray (fromIntegral n) p
-        
+
      tagKeys <- strArray fgnTagN fgnTagKeys
      tagVals <- strArray fgnTagN fgnTagVals
      prefix  <- peekFgnStringLen fgnPrefix
@@ -179,14 +192,40 @@ peekFgnStringLen (FgnStringLen ptr len) =
 
 ------------------------------------------------------------------------
 
-type CApiSendMessage = Ptr () -> Ptr FgnMsg -> IO CInt
+type ApiState        = MVar ClientState
+type CApiSendMessage = Ptr () -> CString -> CSize -> Ptr FgnMsg -> IO CInt
 
 foreign export ccall "glirc_send_message" capiSendMessage :: CApiSendMessage
 
 capiSendMessage :: CApiSendMessage
-capiSendMessage csPtr msgPtr =
-  do cs  <- deRefStablePtr (castPtrToStablePtr csPtr)
-     msg <- peekFgnMsg =<< peek msgPtr
-     sendMsg cs msg
+capiSendMessage stPtr networkPtr networkLen msgPtr =
+  do mvar    <- deRefStablePtr (castPtrToStablePtr stPtr) :: IO ApiState
+     msg     <- peekFgnMsg =<< peek msgPtr
+     network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
+     withMVar mvar $ \st ->
+       case preview (clientConnection network) st of
+         Nothing -> return 1
+         Just cs -> do sendMsg cs msg
+                       return 0
+  `catch` \SomeException{} -> return 1
+
+------------------------------------------------------------------------
+
+type CApiReportError = Ptr () -> CString -> CSize -> IO CInt
+
+foreign export ccall "glirc_report_error" capiReportError :: CApiReportError
+
+capiReportError :: CApiReportError
+capiReportError stPtr msgPtr msgLen =
+  do mvar <- deRefStablePtr (castPtrToStablePtr stPtr) :: IO ApiState
+     txt  <- peekCStringLen (msgPtr, fromIntegral msgLen)
+     now <- getZonedTime
+     let msg = ClientMessage
+                 { _msgBody = ErrorBody txt
+                 , _msgTime = now
+                 , _msgNetwork = Text.empty
+                 }
+     modifyMVar_ mvar $ \st ->
+       do return (recordNetworkMessage msg st)
      return 0
   `catch` \SomeException{} -> return 1

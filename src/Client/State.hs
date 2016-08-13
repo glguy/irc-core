@@ -69,7 +69,7 @@ module Client.State
 
   ) where
 
-import           Client.CApi
+import {-# SOURCE #-} Client.CApi
 import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
@@ -201,8 +201,6 @@ initialClientState cfg vty =
   do (width,height) <- displayBounds (outputIface vty)
      cxt            <- initConnectionContext
      events         <- atomically newTQueue
-     exts           <- traverse (activateExtension <=< resolveConfigurationPath)
-                                (view configExtensions cfg)
      return ClientState
         { _clientWindows           = _Empty # ()
         , _clientTextBox           = Edit.empty
@@ -221,7 +219,7 @@ initialClientState cfg vty =
         , _clientNetworkMap        = HashMap.empty
         , _clientIgnores           = HashSet.empty
         , _clientBell              = False
-        , _clientExtensions        = exts
+        , _clientExtensions        = []
         }
 
 -- | Forcefully terminate the connection currently associated
@@ -600,17 +598,20 @@ clientShutdown st = () <$ clientStopExtensions st
  -- other shutdown stuff might be added here later
 
 clientStopExtensions :: ClientState -> IO ClientState
-clientStopExtensions =
-  traverseOf clientExtensions $ \ exts ->
-    do traverse_ deactivateExtension exts
-       return []
+clientStopExtensions st =
+  do let st1 = set clientExtensions [] st
+         aes = view clientExtensions st
+     (st2,_) <- withStableMVar st1 $ \ptr ->
+                  traverse_ (deactivateExtension ptr) aes
+     return st2
 
 -- | Start extensions after ensuring existing ones are stopped
 clientStartExtensions :: ClientState -> IO ClientState
 clientStartExtensions st =
   do let cfg = view clientConfig st
      st1 <- clientStopExtensions st
-     res <- traverse (try . activateExtension <=< resolveConfigurationPath)
+     (st2, res) <- withStableMVar st1 $ \ptr ->
+            traverse (try . activateExtension ptr <=< resolveConfigurationPath)
                      (view configExtensions cfg)
      now <- getZonedTime
      let (errors, exts) = partitionEithers res
@@ -619,4 +620,4 @@ clientStartExtensions st =
                             , _msgBody = ErrorBody (show (e :: IOError))
                             , _msgNetwork = ""
                             } ste
-     return $! foldl' addError (set clientExtensions exts st1) errors
+     return $! foldl' addError (set clientExtensions exts st2) errors

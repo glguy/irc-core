@@ -170,7 +170,8 @@ doNetworkLine networkId time line st =
              eventLoop (recordNetworkMessage msg st)
 
         Just raw ->
-          do notifyExtensions network cs raw (view clientExtensions st)
+          do (st1,_) <- withStableMVar st $ \ptr ->
+                          notifyExtensions ptr network raw (view clientExtensions st)
              let time' = computeEffectiveTime time (view msgTags raw)
 
                  (stateHook, viewHook)
@@ -181,15 +182,15 @@ doNetworkLine networkId time line st =
                           messageHooks
 
              case stateHook (cookIrcMsg raw) of
-               Nothing  -> eventLoop st -- Message ignored
+               Nothing  -> eventLoop st1 -- Message ignored
                Just irc -> do traverse_ (sendMsg cs) replies
-                              st2 <- clientResponse time' irc cs st1
-                              eventLoop st2
+                              st3 <- clientResponse time' irc cs st2
+                              eventLoop st3
                  where
                    -- state with message recorded
                    recSt = case viewHook irc of
-                             Nothing   -> st -- Message hidden
-                             Just irc' -> recordIrcMessage network target msg st
+                             Nothing   -> st1 -- Message hidden
+                             Just irc' -> recordIrcMessage network target msg st1
                                where
                                  myNick = view csNick cs
                                  target = msgTarget myNick irc
@@ -200,7 +201,7 @@ doNetworkLine networkId time line st =
                                          }
 
                    -- record messages *before* applying the changes
-                   (replies, st1) = applyMessageToClientState time irc networkId cs recSt
+                   (replies, st2) = applyMessageToClientState time irc networkId cs recSt
 
 -- | Client-level responses to specific IRC messages.
 -- This is in contrast to the connection state tracking logic in
