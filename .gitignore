@@ -19,3 +19,5 @@ cabal.sandbox.config
 .stack-work/
 stack.yaml
 codex.tags
+*.so
+*.dSYM
