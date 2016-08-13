@@ -6,29 +6,58 @@
 
 #define PROC_KEY "glirc-process-message-callback"
 
+/* Start the Lua interpreter, run glirc.lua in current directory,
+ * register the first returned result of running the file as
+ * the callback for message processing.
+ *
+ */
 static void *start(void) {
         lua_State *L = luaL_newstate();
+        if (L == NULL) return NULL;
+
         luaL_openlibs(L);
+
         int res = luaL_dofile(L, "glirc.lua");
-        if (res == LUA_OK) {
+        if (!res) {
           lua_setfield(L, LUA_REGISTRYINDEX, PROC_KEY);
         }
+
+        lua_settop(L, 0);
+
         return L;
 }
 
+/* Shutdown the Lua interpreter
+ *
+ * [-0, +0, -]
+ */
 static void stop(void * S) {
+        if (S == NULL) return;
+
         lua_State *L = S;
         lua_close(L);
 }
+
+/* Push the string contained in s on the top of the stack
+ *
+ * [-0, +1, m]
+ * */
 
 static void push_glirc_string(lua_State *L, const struct glirc_string *s) {
         lua_pushlstring(L, s->str, s->len);
 }
 
+/* Push a table onto the top of the stack containing all of the fields
+ * of the message struct
+ *
+ * [-0, +1, m]
+ * */
 static void push_glirc_message
   ( lua_State *L
   , const struct glirc_message *msg
   ) {
+        if (S == NULL) return;
+
         lua_createtable(L, 0, 4);
 
         push_glirc_string(L, &msg->network);
@@ -40,23 +69,28 @@ static void push_glirc_message
         push_glirc_string(L, &msg->command);
         lua_setfield(L,-2,"command");
 
-        lua_createtable(L, msg->params_n, 0);
-        for (size_t i = 0; i < msg->params_n; i++) {
+        const size_t nrec = 0, narr = msg->params_n;
+        lua_createtable(L, narr, nrec);
+
+        /* initialize table */
+        for (size_t i = 0; i < n; i++) {
                 push_glirc_string(L, &msg->params[i]);
                 lua_seti(L, -2, i+1);
         }
+
         lua_setfield(L,-2,"params");
 }
 
 static void process_message(void * S, const struct glirc_message *msg) {
         lua_State *L = S;
-        int ty = lua_getfield(L, LUA_REGISTRYINDEX, PROC_KEY);
+
+        (void)lua_getfield(L, LUA_REGISTRYINDEX, PROC_KEY);
         push_glirc_message(L, msg);
-        int res = lua_pcall(L, 1, 0, 0);
+        (void)lua_pcall(L, 1, 0, 0);
 }
 
 struct glirc_extension extension = {
-        .start = start,
-        .stop  = stop,
+        .start           = start,
+        .stop            = stop,
         .process_message = process_message
 };

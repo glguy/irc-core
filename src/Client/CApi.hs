@@ -15,6 +15,8 @@ module Client.CApi
 
 import           Client.CApi.Types
 import           Control.Lens
+import           Control.Monad
+import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Cont
 import           Data.Foldable
 import           Data.Text (Text)
@@ -38,39 +40,48 @@ activateExtension path =
   do dl <- dlopen path [RTLD_LAZY, RTLD_LOCAL]
      p  <- castFunPtrToPtr <$> dlsym dl "extension"
      md <- peek p
-     s  <- runStartExtension (fgnStart md)
+     let f = fgnStart md
+     s  <- if nullFunPtr == f
+             then return nullPtr
+             else runStartExtension f
      return ActiveExtension
-       { aeFgn = md
-       , aeDL  = dl
+       { aeFgn     = md
+       , aeDL      = dl
        , aeSession = s
        }
 
 deactivateExtension :: ActiveExtension -> IO ()
 deactivateExtension ae =
-  do runStopExtension (fgnStop (aeFgn ae)) (aeSession ae)
+  do let f = fgnStop (aeFgn ae)
+     unless (nullFunPtr == f) (runStopExtension f (aeSession ae))
      dlclose (aeDL ae)
 
 notifyExtensions :: Text -> RawIrcMsg -> [ActiveExtension] -> IO ()
-notifyExtensions _       _   []  = return ()
-notifyExtensions network msg aes =
-  withRawIrcMsg network msg $ \p ->
-    for_ aes $ \ae ->
-      runProcessMessage (fgnProcess (aeFgn ae)) (aeSession ae) p
+notifyExtensions network msg aes = evalContT $
+  do let getFun = fgnProcess . aeFgn
+         aes' = filter (\ae -> getFun ae /= nullFunPtr) aes
+
+     unitContT $ unless $ null aes'
+     p  <- withRawIrcMsg network msg
+     ae <- ContT $ for_ aes'
+     lift (runProcessMessage (getFun ae) (aeSession ae) p)
 
 withRawIrcMsg ::
-  Text      {- ^ network -} ->
-  RawIrcMsg {- ^ message -} ->
-  (Ptr FgnMsg -> IO a) {- ^ continuation -} ->
-  IO a
-withRawIrcMsg network msg = runContT $
-  do net     <- ContT $ withText network
-     pfx     <- ContT $ withText $ maybe Text.empty renderUserInfo $ view msgPrefix msg
-     cmd     <- ContT $ withText $ view msgCommand msg
-     prms    <- traverse (ContT . withText) (view msgParams msg)
+  Text                 {- ^ network      -} ->
+  RawIrcMsg            {- ^ message      -} ->
+  ContT a IO (Ptr FgnMsg)
+withRawIrcMsg network msg =
+  do net     <- withText network
+     pfx     <- withText $ maybe Text.empty renderUserInfo $ view msgPrefix msg
+     cmd     <- withText $ view msgCommand msg
+     prms    <- traverse withText $ view msgParams msg
      (n,prm) <- ContT $ withArrayLen prms . curry
      ContT $ with $ FgnMsg net pfx cmd prm $ fromIntegral n
 
-withText :: Text -> (FgnStringLen -> IO a) -> IO a
-withText txt k =
-  Text.withCStringLen txt $ \(ptr, len) ->
-  k (FgnStringLen ptr (fromIntegral len))
+withText :: Text -> ContT a IO FgnStringLen
+withText txt =
+  do (ptr,len) <- ContT $ Text.withCStringLen txt
+     return $ FgnStringLen ptr $ fromIntegral len
+
+unitContT :: (m a -> m a) -> ContT a m ()
+unitContT f = ContT $ \g -> f (g ())
