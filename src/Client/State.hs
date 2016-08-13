@@ -614,9 +614,9 @@ clientStartExtensions st =
                      (view configExtensions cfg)
      now <- getZonedTime
      let (errors, exts) = partitionEithers res
-         addError st1 e = recordNetworkMessage ClientMessage
+         addError ste e = recordNetworkMessage ClientMessage
                             { _msgTime = now
                             , _msgBody = ErrorBody (show (e :: IOError))
                             , _msgNetwork = ""
-                            } st1
+                            } ste
      return $! foldl' addError (set clientExtensions exts st1) errors

@@ -18,7 +18,6 @@ module Client.Commands
   , tabCompletion
   ) where
 
-import           Client.CApi
 import           Client.Commands.Interpolation
 import           Client.Configuration
 import           Client.ConnectionState
