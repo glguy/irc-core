@@ -1,10 +1,47 @@
-#include "lua.h"
-#include "lauxlib.h"
-#include "lualib.h"
+#include <string.h>
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 
 #include "glirc-api.h"
 
 #define PROC_KEY "glirc-process-message-callback"
+
+static void get_glirc_string(lua_State *L, struct glirc_string *s) {
+        s->str = lua_tolstring(L, -1, &s->len);
+        lua_settop(L, -2);
+}
+
+static int glirc_lua_send_message(lua_State *L) {
+
+        luaL_checkany(L, 1);
+
+        struct glirc_message msg = { 0 };
+
+        lua_getfield(L, -1, "command");
+        get_glirc_string(L, &msg.command);
+
+        lua_getfield(L, -1, "params");
+        lua_len(L, -1);
+        lua_Integer n = lua_tointeger(L,-1);
+        lua_settop(L, -2);
+
+        struct glirc_string params[n];
+        msg.params = params;
+        msg.params_n = n;
+
+        for (lua_Integer i = 0; i < n; i++) {
+                lua_geti(L, -1, i+1);
+                get_glirc_string(L, &params[i]);
+        }
+
+        void *glirc;
+        memcpy(&glirc, lua_getextraspace(L), sizeof(glirc));
+        if (glirc_send_message(glirc, &msg)) {
+                luaL_error(L, "failure in client");
+        }
+        return 0;
+}
 
 /* Start the Lua interpreter, run glirc.lua in current directory,
  * register the first returned result of running the file as
@@ -16,6 +53,9 @@ static void *start(void) {
         if (L == NULL) return NULL;
 
         luaL_openlibs(L);
+
+        lua_pushcfunction(L, glirc_lua_send_message);
+        lua_setglobal(L, "send_message");
 
         int res = luaL_dofile(L, "glirc.lua");
         if (!res) {
@@ -97,6 +137,7 @@ static void process_message(void *glirc, void * S, const struct glirc_message *m
         if (S == NULL) return;
 
         lua_State *L = S;
+        memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
 
         (void)lua_getfield(L, LUA_REGISTRYINDEX, PROC_KEY);
         push_glirc_message(L, msg);

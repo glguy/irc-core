@@ -3,7 +3,6 @@
 
 #include <stdlib.h>
 
-
 struct glirc_string {
         const char *str;
         size_t len;
@@ -32,6 +31,6 @@ struct glirc_extension {
         process_message_type *process_message;
 };
 
-
+int glirc_send_message(void *, const struct glirc_message *);
 
 #endif

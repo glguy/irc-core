@@ -83,8 +83,8 @@ instance Storable FgnMsg where
   sizeOf    _ = #size      struct glirc_message
   peek p      = FgnMsg
             <$> peek ((#ptr struct glirc_message, network) p)
-            <*> peek ((#ptr struct glirc_message, command) p)
             <*> peek ((#ptr struct glirc_message, prefix ) p)
+            <*> peek ((#ptr struct glirc_message, command) p)
             <*> (#peek struct glirc_message, params ) p
             <*> (#peek struct glirc_message, params_n) p
             <*> (#peek struct glirc_message, tagkeys ) p

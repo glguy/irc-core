@@ -24,6 +24,7 @@ import           Data.Foldable
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Foreign as Text
+import           Foreign.C
 import           Foreign.Marshal
 import           Foreign.Ptr
 import           Foreign.StablePtr
@@ -113,3 +114,41 @@ contT0 f = ContT $ \g -> f $ g ()
 
 contT2 :: ((a -> b -> m c) -> m c) -> ContT c m (a,b)
 contT2 f = ContT $ f . curry
+
+------------------------------------------------------------------------
+
+peekFgnMsg :: FgnMsg -> IO RawIrcMsg
+peekFgnMsg fgn =
+  do let tagN = fromIntegral (fgnTagN fgn)
+     tagKeys <- traverse peekFgnStringLen
+            =<< peekArray tagN (fgnTagKeys fgn)
+     tagVals <- traverse peekFgnStringLen
+            =<< peekArray tagN (fgnTagVals fgn)
+     prefix  <- peekFgnStringLen (fgnPrefix fgn)
+     command <- peekFgnStringLen (fgnCommand fgn)
+     params  <- traverse peekFgnStringLen
+            =<< peekArray (fromIntegral (fgnParamN fgn)) (fgnParams fgn)
+
+     return RawIrcMsg
+       { _msgTags = zipWith TagEntry tagKeys tagVals
+       , _msgPrefix = if Text.null prefix then Nothing else Just (parseUserInfo prefix)
+       , _msgCommand = command
+       , _msgParams = params
+       }
+
+peekFgnStringLen (FgnStringLen ptr len) = Text.peekCStringLen (ptr, fromIntegral len)
+
+------------------------------------------------------------------------
+
+type CApiSendMessage = Ptr () -> Ptr FgnMsg -> IO CInt
+
+foreign export ccall "glirc_send_message" capiSendMessage :: CApiSendMessage
+
+capiSendMessage :: CApiSendMessage
+capiSendMessage csPtr msgPtr =
+  do cs  <- deRefStablePtr (castPtrToStablePtr csPtr)
+     fgn <- peek msgPtr
+     msg <- peekFgnMsg fgn
+     sendMsg cs msg
+     return 0
+  `catch` \SomeException{} -> return 1
