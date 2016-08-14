@@ -162,9 +162,6 @@ withText txt =
   do (ptr,len) <- ContT $ Text.withCStringLen txt
      return $ FgnStringLen ptr $ fromIntegral len
 
-contT0 :: (m a -> m a) -> ContT a m ()
-contT0 f = ContT $ \g -> f $ g ()
-
 contT2 :: ((a -> b -> m c) -> m c) -> ContT c m (a,b)
 contT2 f = ContT $ \g -> f $ curry g
 

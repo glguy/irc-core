@@ -286,14 +286,17 @@ ircLineImage rm !rp body =
       text' defAttr ": " <|>
       separatedParams args
 
-    Authenticate{} -> string defAttr "AUTHENTICATE ***"
-
     Mode nick _chan params ->
       detail (string quietAttr "mode ") <|>
       string (view palSigil pal) sigils <|>
       coloredUserInfo pal rm myNicks nick <|>
       string defAttr " set mode: " <|>
       separatedParams params
+
+    Authenticate{} -> string defAttr "AUTHENTICATE ***"
+    BatchStart{}   -> string defAttr "BATCH +"
+    BatchEnd{}     -> string defAttr "BATCH -"
+
 
 renderCapCmd :: CapCmd -> Text
 renderCapCmd cmd =

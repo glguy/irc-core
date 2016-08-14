@@ -2,6 +2,10 @@
 
 ## 2.9
 
+* Dynamically loadable extensions
+* Implement Lua scripting extension
+* Enable support for batch messages
+
 ## 2.8
 
 * Support `vty-5.8`

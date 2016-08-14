@@ -22,7 +22,6 @@ module Client.CApi.Types
   , runProcessMessage
   ) where
 
-import Control.Applicative
 import Foreign.C
 import Foreign.Ptr
 import Foreign.Storable

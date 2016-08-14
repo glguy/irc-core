@@ -62,6 +62,8 @@ data IrcMsg
   | Ping [Text] -- ^ parameters
   | Pong [Text] -- ^ parameters
   | Error !Text -- ^ message
+  | BatchStart Text Text [Text] -- ^ reference-id type parameters
+  | BatchEnd   Text             -- ^ reference-id
   deriving Show
 
 -- | Sub-commands of the CAP command
@@ -147,6 +149,14 @@ cookIrcMsg msg =
     "ERROR" | [reason] <- view msgParams msg ->
             Error reason
 
+    "BATCH" | refid : ty : params <- view msgParams msg
+            , Just ('+',refid') <- Text.uncons refid ->
+            BatchStart refid' ty params
+
+    "BATCH" | [refid] <- view msgParams msg
+            , Just ('-',refid') <- Text.uncons refid ->
+            BatchEnd refid'
+
     _      -> UnknownMsg msg
 
 -- | Parse a CTCP encoded message:
@@ -195,6 +205,8 @@ msgTarget me msg =
     Error{}                       -> TargetNetwork
     Cap{}                         -> TargetNetwork
     Reply{}                       -> TargetNetwork
+    BatchStart{}                  -> TargetHidden
+    BatchEnd{}                    -> TargetHidden
 
 -- | 'UserInfo' of the user responsible for a message.
 msgActor :: IrcMsg -> Maybe UserInfo
@@ -218,6 +230,8 @@ msgActor msg =
     Pong{}        -> Nothing
     Error{}       -> Nothing
     Cap{}         -> Nothing
+    BatchStart{}  -> Nothing
+    BatchEnd{}    -> Nothing
 
 -- | Text representation of an IRC message to be used for matching with
 -- regular expressions.
@@ -242,6 +256,8 @@ ircMsgText msg =
     Cap _ xs       -> Text.unwords xs
     Error t        -> t
     Authenticate{} -> ""
+    BatchStart{}   -> ""
+    BatchEnd{}     -> ""
 
 -- nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
 -- letter     =  %x41-5A / %x61-7A       ; A-Z / a-z
