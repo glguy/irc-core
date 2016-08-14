@@ -82,12 +82,13 @@ servers:
     hostname:      "example.com"
     port:          7000
     connect-cmds:
-      * "JOIN #favoritechannel,#otherchannel"
-      * "PRIVMSG mybot :another command"
+      * "join #favoritechannel,#otherchannel"
+      * "msg mybot another command"
 
     -- Specify additional certificates beyond the system CAs
+    -- relative to home directory
     server-certificates:
-      * "/path/to/extra/certificate.pem"
+      * "extra/certificate.pem"
 
 macros:
   * name: "wipe"
@@ -119,6 +120,7 @@ Configuration sections:
 * `palette` - Client color overrides
 * `window-names` - text - Names of windows (typically overridden on non QWERTY layouts)
 * `nick-padding` - nonnegative integer - Nicks are padded until they have the specified length
+* `extensions` - list of text - Filenames of extension to load
 
 Settings
 --------
@@ -309,8 +311,8 @@ Configuration
 * `name` - text - name of macro
 * `commands` - list of text - commands to send after expansion
 
-Expansions
-----------
+Macro Expansions
+----------------
 
 Variable names and integer indexes can be used when defining commands.
 Variables are specified with a leading `$`. For disambiguation a variable
