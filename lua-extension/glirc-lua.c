@@ -2,48 +2,75 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <libgen.h>
 
 #include "glirc-api.h"
 
 #define CALLBACK_MODULE_KEY "glirc-callback-module"
 
-static void get_glirc_string(lua_State *L, struct glirc_string *s) {
-        s->str = lua_tolstring(L, -1, &s->len);
-        lua_settop(L, -2);
+static void get_glirc_string(lua_State *L, int i, struct glirc_string *s) {
+        s->str = lua_tolstring(L, i, &s->len);
 }
 
 static int glirc_lua_send_message(lua_State *L) {
 
-        luaL_checkany(L, 1);
+        /* This module is careful to leave strings on the stack
+         * while it is adding them to the message struct.
+         *
+         * Stack layout:
+         * 1. Message table
+         * 2. Command string
+         * 3. Network string
+         * 4. Params table
+         * 5... params strings
+         */
 
-        size_t netlen = 0;
-        const char *net = luaL_checklstring(L, 2, &netlen);
+        luaL_checkany(L, 1);
 
         struct glirc_message msg = { 0 };
 
         lua_getfield(L, 1, "command");
-        get_glirc_string(L, &msg.command);
+        get_glirc_string(L, -1, &msg.command);
+
+        lua_getfield(L, 1, "network");
+        get_glirc_string(L, -1, &msg.network);
 
         lua_getfield(L, 1, "params");
         lua_len(L, -1);
         lua_Integer n = lua_tointeger(L,-1);
         lua_settop(L, -2);
 
+        if (n > 15) luaL_error("too many command parameters");
+
         struct glirc_string params[n];
-        msg.params = params;
+        msg.params   = params;
         msg.params_n = n;
 
         for (lua_Integer i = 0; i < n; i++) {
-                lua_geti(L, 1, i+1);
-                get_glirc_string(L, &params[i]);
+                lua_geti(L, 4, i+1);
+                get_glirc_string(L, -1, &params[i]);
         }
 
         void *glirc;
         memcpy(&glirc, lua_getextraspace(L), sizeof(glirc));
-        if (glirc_send_message(glirc, net, netlen, &msg)) {
+        if (glirc_send_message(glirc, &msg)) {
                 luaL_error(L, "failure in client");
         }
+
         return 0;
+}
+
+char * compute_script_path(const char *path) {
+
+        char * path1 = strdup(path);
+        if (path1 == NULL) return NULL;
+
+        char * dir   = dirname(path1);
+        char * scriptpath = NULL;
+        asprintf(&scriptpath, "%s/glirc.lua", dir);
+        free(path1);
+
+        return scriptpath;
 }
 
 /* Start the Lua interpreter, run glirc.lua in current directory,
@@ -51,7 +78,13 @@ static int glirc_lua_send_message(lua_State *L) {
  * the callback for message processing.
  *
  */
-static void *start(void *glirc) {
+static void *start(void *glirc, const char *path) {
+
+        char * scriptpath = compute_script_path(path);
+        if (scriptpath == NULL) {
+                return NULL;
+        }
+
         lua_State *L = luaL_newstate();
         if (L == NULL) return NULL;
         memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
@@ -61,19 +94,20 @@ static void *start(void *glirc) {
         lua_pushcfunction(L, glirc_lua_send_message);
         lua_setglobal(L, "send_message");
 
-        if (luaL_dofile(L, "glirc.lua")) {
+        if (luaL_dofile(L, scriptpath)) {
                 size_t len = 0;
                 const char *msg = lua_tolstring(L, -1, &len);
                 glirc_report_error(glirc, msg, len);
 
                 lua_close(L);
-                return NULL;
+                L = NULL;
         } else {
                 lua_setfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
                 lua_settop(L, 0);
-                return L;
         }
 
+        free(scriptpath);
+        return L;
 }
 
 /* Shutdown the Lua interpreter

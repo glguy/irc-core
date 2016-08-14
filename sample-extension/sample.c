@@ -3,7 +3,7 @@
 
 #include "glirc-api.h"
 
-static void *start(void *glirc) {
+static void *start(void *glirc, const char *path ) {
         FILE *file = fopen("sample-output.txt", "w");
         return file;
 }

@@ -80,7 +80,7 @@ activateExtension stab path =
      let f = fgnStart fgn
      s  <- if nullFunPtr == f
              then return nullPtr
-             else runStartExtension f stab
+             else withCString path (runStartExtension f stab)
      return $! ActiveExtension
        { aeFgn     = fgn
        , aeDL      = dl
@@ -123,7 +123,7 @@ notifyExtensions stab network msg aes
          (f,s)  <- ContT $ for_ aes'
          lift $ runProcessMessage f stab s msgPtr
 
--- | Create a 'StablePtr' which will be valid for the remainder
+-- | Create a 'StablePtr' around a 'MVar' which will be valid for the remainder
 -- of the computation.
 withStableMVar :: a -> (Ptr () -> IO b) -> IO (a,b)
 withStableMVar x k =
@@ -199,15 +199,16 @@ peekFgnStringLen (FgnStringLen ptr len) =
 ------------------------------------------------------------------------
 
 type ApiState        = MVar ClientState
-type CApiSendMessage = Ptr () -> CString -> CSize -> Ptr FgnMsg -> IO CInt
+type CApiSendMessage = Ptr () -> Ptr FgnMsg -> IO CInt
 
 foreign export ccall "glirc_send_message" capiSendMessage :: CApiSendMessage
 
 capiSendMessage :: CApiSendMessage
-capiSendMessage stPtr networkPtr networkLen msgPtr =
+capiSendMessage stPtr msgPtr =
   do mvar    <- deRefStablePtr (castPtrToStablePtr stPtr) :: IO ApiState
-     msg     <- peekFgnMsg =<< peek msgPtr
-     network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
+     fgn     <- peek msgPtr
+     msg     <- peekFgnMsg fgn
+     network <- peekFgnStringLen (fgnNetwork fgn)
      withMVar mvar $ \st ->
        case preview (clientConnection network) st of
          Nothing -> return 1

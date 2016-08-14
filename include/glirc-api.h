@@ -19,7 +19,7 @@ struct glirc_message {
         size_t tags_n;
 };
 
-typedef void * start_type(void *glirc);
+typedef void * start_type(void *glirc, const char *path);
 typedef void stop_type(void *glirc, void *S);
 typedef void process_message_type(void *glirc, void *S, const struct glirc_message *);
 
@@ -31,7 +31,7 @@ struct glirc_extension {
         process_message_type *process_message;
 };
 
-int glirc_send_message(void *glirc, const char *net, size_t netlen, const struct glirc_message *);
+int glirc_send_message(void *glirc, const struct glirc_message *);
 int glirc_report_error(void *glirc, const char *str, size_t len);
 
 #endif

@@ -599,8 +599,7 @@ clientShutdown st = () <$ clientStopExtensions st
 
 clientStopExtensions :: ClientState -> IO ClientState
 clientStopExtensions st =
-  do let st1 = set clientExtensions [] st
-         aes = view clientExtensions st
+  do let (aes,st1) = (clientExtensions <<.~ []) st
      (st2,_) <- withStableMVar st1 $ \ptr ->
                   traverse_ (deactivateExtension ptr) aes
      return st2
@@ -609,15 +608,23 @@ clientStopExtensions st =
 clientStartExtensions :: ClientState -> IO ClientState
 clientStartExtensions st =
   do let cfg = view clientConfig st
-     st1 <- clientStopExtensions st
+     st1        <- clientStopExtensions st
      (st2, res) <- withStableMVar st1 $ \ptr ->
             traverse (try . activateExtension ptr <=< resolveConfigurationPath)
                      (view configExtensions cfg)
-     now <- getZonedTime
+
      let (errors, exts) = partitionEithers res
-         addError ste e = recordNetworkMessage ClientMessage
-                            { _msgTime = now
-                            , _msgBody = ErrorBody (show (e :: IOError))
-                            , _msgNetwork = ""
-                            } ste
-     return $! foldl' addError (set clientExtensions exts st2) errors
+     st3 <- recordErrors errors st2
+     return $! set clientExtensions exts st3
+  where
+    recordErrors [] ste = return ste
+    recordErrors es ste =
+      do now <- getZonedTime
+         return $! foldl' (recordError now) ste es
+
+    recordError now ste e =
+      recordNetworkMessage ClientMessage
+        { _msgTime    = now
+        , _msgBody    = ErrorBody (show (e :: IOError))
+        , _msgNetwork = ""
+        } ste
