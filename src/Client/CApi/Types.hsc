@@ -73,13 +73,13 @@ instance Storable FgnExtension where
             <*> (#peek struct glirc_extension, major_version  ) p
             <*> (#peek struct glirc_extension, minor_version  ) p
   poke p FgnExtension{..} =
-     do (#poke struct glirc_extension, start          ) p fgnStart
-        (#poke struct glirc_extension, stop           ) p fgnStop
-        (#poke struct glirc_extension, process_message) p fgnMessage
-        (#poke struct glirc_extension, process_command) p fgnCommand
-        (#poke struct glirc_extension, name           ) p fgnName
-        (#poke struct glirc_extension, major_version  ) p fgnMajorVersion
-        (#poke struct glirc_extension, minor_version  ) p fgnMinorVersion
+             do (#poke struct glirc_extension, start          ) p fgnStart
+                (#poke struct glirc_extension, stop           ) p fgnStop
+                (#poke struct glirc_extension, process_message) p fgnMessage
+                (#poke struct glirc_extension, process_command) p fgnCommand
+                (#poke struct glirc_extension, name           ) p fgnName
+                (#poke struct glirc_extension, major_version  ) p fgnMajorVersion
+                (#poke struct glirc_extension, minor_version  ) p fgnMinorVersion
 
 ------------------------------------------------------------------------
 
@@ -107,15 +107,15 @@ instance Storable FgnMsg where
             <*> (#peek struct glirc_message, tagvals ) p
             <*> (#peek struct glirc_message, tags_n  ) p
 
-  poke p (FgnMsg w x y z zn tk tv tn) =
-     do (#poke struct glirc_message, network ) p w
-        (#poke struct glirc_message, prefix  ) p x
-        (#poke struct glirc_message, command ) p y
-        (#poke struct glirc_message, params  ) p z
-        (#poke struct glirc_message, params_n) p zn
-        (#poke struct glirc_message, tagkeys ) p tk
-        (#poke struct glirc_message, tagvals ) p tv
-        (#poke struct glirc_message, tags_n  ) p tn
+  poke p FgnMsg{..} =
+             do (#poke struct glirc_message, network ) p fmNetwork
+                (#poke struct glirc_message, prefix  ) p fmPrefix
+                (#poke struct glirc_message, command ) p fmCommand
+                (#poke struct glirc_message, params  ) p fmParams
+                (#poke struct glirc_message, params_n) p fmParamN
+                (#poke struct glirc_message, tagkeys ) p fmTagKeys
+                (#poke struct glirc_message, tagvals ) p fmTagVals
+                (#poke struct glirc_message, tags_n  ) p fmTagN
 
 ------------------------------------------------------------------------
 
@@ -131,9 +131,9 @@ instance Storable FgnCmd where
             <$> (#peek struct glirc_command, params  ) p
             <*> (#peek struct glirc_command, params_n) p
 
-  poke p (FgnCmd x y) =
-     do (#poke struct glirc_command, params  ) p x
-        (#poke struct glirc_command, params_n) p y
+  poke p FgnCmd{..} =
+             do (#poke struct glirc_command, params  ) p fcParams
+                (#poke struct glirc_command, params_n) p fcParamN
 
 ------------------------------------------------------------------------
 

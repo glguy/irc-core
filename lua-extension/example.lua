@@ -4,7 +4,7 @@ glirc.print 'Starting example extension'
 
 extension.file = io.open('output.txt','w')
 extension.file:write('--START--', tostring(glirc.version.major), '.',
-                                  tostring(glirc.version.minor), '\n')
+                                  tostring(glirc.version.minor), '--\n')
 
 function extension:process_message(msg)
 
