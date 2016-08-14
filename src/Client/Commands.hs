@@ -18,6 +18,7 @@ module Client.Commands
   , tabCompletion
   ) where
 
+import           Client.CApi
 import           Client.Commands.Interpolation
 import           Client.Configuration
 import           Client.ConnectionState
@@ -236,6 +237,7 @@ commands = HashMap.fromList
   , (["reconnect" ], ClientCommand cmdReconnect noClientTab)
   , (["ignore"    ], ClientCommand cmdIgnore simpleClientTab)
   , (["reload"    ], ClientCommand cmdReload  tabReload)
+  , (["extension" ], ClientCommand cmdExtension simpleClientTab)
 
   , (["quote"     ], NetworkCommand cmdQuote  simpleNetworkTab)
   , (["j","join"  ], NetworkCommand cmdJoin   simpleNetworkTab)
@@ -916,3 +918,14 @@ useChanServ :: Identifier -> ConnectionState -> Bool
 useChanServ channel cs =
   channel `elem` view (csSettings . ssChanservChannels) cs &&
   not (iHaveOp channel cs)
+
+cmdExtension :: ClientCommand
+cmdExtension st rest =
+  case Text.words (Text.pack rest) of
+    name:params
+      | Just ae <- find (\ae -> aeName ae == name) (view clientExtensions st) ->
+         do (st',_) <- withStableMVar st $ \stab ->
+                         commandExtension stab params ae
+            commandSuccess st'
+    _ -> commandFailure st
+

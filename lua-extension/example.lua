@@ -1,7 +1,6 @@
 local extension = {}
 
-glirc.print 'Starting extension'
-glirc.error 'Checking error print'
+glirc.print 'Starting example extension'
 
 extension.file = io.open('output.txt','w')
 extension.file:write('--START--', tostring(glirc.version.major), '.',
@@ -18,6 +17,12 @@ function extension:process_message(msg)
 
         self.file:write(msg.prefix, ' ', msg.command, ' ', table.concat(msg.params, ' '),'\n')
         self.file:flush()
+end
+
+function extension:process_command(params)
+
+        glirc.error('Bad command: ' .. table.concat(params,' '))
+
 end
 
 function extension:stop()

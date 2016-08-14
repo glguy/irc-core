@@ -96,6 +96,11 @@ macros:
       * "clear"
       * "znc *status clearbuffer $channel"
 
+  -- Example use of macro in combination with an extension
+  * name: "extra"
+    commands:
+      * "extension Lua some-parameter $network $channel"
+
 palette:
   time:
     fg: [10,10,10] -- RGB values for color for timestamps
@@ -200,6 +205,7 @@ Client commands
 * `/reconnect` - Reconnect to the current server
 * `/reload` - Reload the previous configuration file (not retroactive!)
 * `/reload <path>` - Load a new configuration file
+* `/extension <extension name> <params>` - Send the given params to the named extension
 
 Connection commands
 

@@ -27,5 +27,6 @@ struct glirc_extension extension = {
         .minor_version   = 0,
         .start           = start,
         .stop            = stop,
-        .process_message = process_message
+        .process_message = process_message,
+        .process_command = NULL
 };

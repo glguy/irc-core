@@ -230,6 +230,20 @@ static void push_glirc_message
         }
 }
 
+static void push_glirc_command
+  ( lua_State *L
+  , const struct glirc_command *msg
+  ) {
+        const size_t nrec = 0, narr = msg->params_n;
+        lua_createtable(L, narr, nrec);
+
+        /* initialize table */
+        for (size_t i = 0; i < narr; i++) {
+                push_glirc_string(L, &msg->params[i]);
+                lua_seti(L, -2, i+1);
+        }
+}
+
 static void process_message(void *glirc, void * S, const struct glirc_message *msg) {
         if (S == NULL) return;
 
@@ -257,11 +271,39 @@ static void process_message(void *glirc, void * S, const struct glirc_message *m
         lua_settop(L, 0);
 }
 
+static void process_command(void *glirc, void * S, const struct glirc_command *msg) {
+        if (S == NULL) return;
+
+        lua_State *L = S;
+        memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
+
+        int ty;
+        ty = lua_getfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
+        if (ty != LUA_TNIL) {
+
+            ty = lua_getfield(L, -1, "process_command");
+            if (ty != LUA_TNIL) {
+                lua_rotate(L, -2, 1);
+                push_glirc_command(L, msg);
+                int res = lua_pcall(L, 2, 0, 0);
+                if (res == LUA_ERRRUN) {
+                        size_t len = 0;
+                        const char *msg = lua_tolstring(L, -1, &len);
+                        glirc_print(glirc, ERROR_MESSAGE, msg, len);
+                }
+            }
+
+        }
+
+        lua_settop(L, 0);
+}
+
 struct glirc_extension extension = {
         .name            = "Lua",
         .major_version   = MAJOR,
         .minor_version   = MINOR,
         .start           = start,
         .stop            = stop,
-        .process_message = process_message
+        .process_message = process_message,
+        .process_command = process_command
 };

@@ -24,16 +24,23 @@ struct glirc_message {
         size_t tags_n;
 };
 
-typedef void * start_type(void *glirc, const char *path);
-typedef void stop_type(void *glirc, void *S);
+struct glirc_command {
+        struct glirc_string *params;
+        size_t params_n;
+};
+
+typedef void *start_type         (void *glirc, const char *path);
+typedef void stop_type           (void *glirc, void *S);
 typedef void process_message_type(void *glirc, void *S, const struct glirc_message *);
+typedef void process_command_type(void *glirc, void *S, const struct glirc_command *);
 
 struct glirc_extension {
         char *name;
         int major_version, minor_version;
-        start_type *start;
-        stop_type  *stop;
+        start_type           *start;
+        stop_type            *stop;
         process_message_type *process_message;
+        process_command_type *process_command;
 };
 
 int glirc_send_message(void *glirc, const struct glirc_message *);
