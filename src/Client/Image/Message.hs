@@ -78,11 +78,20 @@ msgImage rm when params body = horizCat
 
 errorImage ::
   MessageRendererParams ->
-  String {- ^ error message -} ->
+  Text {- ^ error message -} ->
   Image
 errorImage params txt = horizCat
-  [ text' (view palError (rendPalette params)) "Error "
-  , string defAttr txt
+  [ text' (view palError (rendPalette params)) "error "
+  , text' defAttr txt
+  ]
+
+normalImage ::
+  MessageRendererParams ->
+  Text {- ^ message -} ->
+  Image
+normalImage params txt = horizCat
+  [ text' (view palLabel (rendPalette params)) "client "
+  , text' defAttr txt
   ]
 
 -- | Render the given time according to the current mode and palette.
@@ -108,9 +117,9 @@ bodyImage ::
   MessageBody -> Image
 bodyImage rm params body =
   case body of
-    IrcBody irc   -> ircLineImage rm params irc
-    ErrorBody txt -> errorImage params txt
-    ExitBody      -> string defAttr "Thread finished"
+    IrcBody    irc -> ircLineImage rm params irc
+    ErrorBody  txt -> errorImage params txt
+    NormalBody txt -> normalImage params txt
 
 -- | Render a 'ZonedTime' as time using quiet attributes
 --

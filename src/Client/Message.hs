@@ -22,7 +22,7 @@ module Client.Message
   , MessageBody(..)
   , _IrcBody
   , _ErrorBody
-  , _ExitBody
+  , _NormalBody
 
   -- * Client message operations
   , msgText
@@ -30,11 +30,13 @@ module Client.Message
 
 import           Control.Lens
 import           Data.Text (Text)
-import qualified Data.Text as Text
 import           Data.Time (ZonedTime)
 import           Irc.Message
 
-data MessageBody = IrcBody !IrcMsg | ErrorBody !String | ExitBody
+data MessageBody
+  = IrcBody    !IrcMsg
+  | ErrorBody  {-# UNPACK #-} !Text
+  | NormalBody {-# UNPACK #-} !Text
 
 makePrisms ''MessageBody
 
@@ -48,6 +50,6 @@ makeLenses ''ClientMessage
 
 -- | Compute a searchable text representation of the message
 msgText :: MessageBody -> Text
-msgText (IrcBody irc) = ircMsgText irc
-msgText (ErrorBody str) = Text.pack str
-msgText ExitBody = Text.empty
+msgText (IrcBody    irc) = ircMsgText irc
+msgText (ErrorBody  txt) = txt
+msgText (NormalBody txt) = txt

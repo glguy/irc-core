@@ -3,6 +3,7 @@
 
 glirc-lua.so: glirc-lua.c
 	cc -g -shared -o $@ $^ -I../include \
+	  -pedantic -Wall \
 	  -undefined dynamic_lookup \
 	  `pkg-config --cflags --libs lua-5.3`
 

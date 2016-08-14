@@ -20,11 +20,21 @@ module Client.CApi.Types
   , runStartExtension
   , runStopExtension
   , runProcessMessage
+
+  -- * report message codes
+  , normalMessageCode
+  , errorMessageCode
   ) where
 
 import Foreign.C
 import Foreign.Ptr
 import Foreign.Storable
+
+normalMessageCode :: CInt
+normalMessageCode = #const NORMAL_MESSAGE
+
+errorMessageCode :: CInt
+errorMessageCode = #const ERROR_MESSAGE
 
 type StartExtension = Ptr () -> CString -> IO (Ptr ())
 type StopExtension  = Ptr () -> Ptr () -> IO ()

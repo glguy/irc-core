@@ -7,9 +7,17 @@
 #include "glirc-api.h"
 
 #define CALLBACK_MODULE_KEY "glirc-callback-module"
+#define MAJOR 1
+#define MINOR 0
 
 static void get_glirc_string(lua_State *L, int i, struct glirc_string *s) {
         s->str = lua_tolstring(L, i, &s->len);
+}
+
+static inline void * get_glirc(lua_State *L) {
+        void * glirc;
+        memcpy(&glirc, lua_getextraspace(L), sizeof(glirc));
+        return glirc;
 }
 
 static int glirc_lua_send_message(lua_State *L) {
@@ -27,7 +35,7 @@ static int glirc_lua_send_message(lua_State *L) {
 
         luaL_checkany(L, 1);
 
-        struct glirc_message msg = { 0 };
+        struct glirc_message msg = { {0} };
 
         lua_getfield(L, 1, "command");
         get_glirc_string(L, -1, &msg.command);
@@ -40,7 +48,7 @@ static int glirc_lua_send_message(lua_State *L) {
         lua_Integer n = lua_tointeger(L,-1);
         lua_settop(L, -2);
 
-        if (n > 15) luaL_error("too many command parameters");
+        if (n > 15) luaL_error(L, "too many command parameters");
 
         struct glirc_string params[n];
         msg.params   = params;
@@ -51,9 +59,7 @@ static int glirc_lua_send_message(lua_State *L) {
                 get_glirc_string(L, -1, &params[i]);
         }
 
-        void *glirc;
-        memcpy(&glirc, lua_getextraspace(L), sizeof(glirc));
-        if (glirc_send_message(glirc, &msg)) {
+        if (glirc_send_message(get_glirc(L), &msg)) {
                 luaL_error(L, "failure in client");
         }
 
@@ -73,6 +79,44 @@ char * compute_script_path(const char *path) {
         return scriptpath;
 }
 
+static int glirc_lua_print(lua_State *L) {
+        size_t len = 0;
+        const char *str = luaL_checklstring(L, 1, &len);
+
+        glirc_print(get_glirc(L), NORMAL_MESSAGE, str, len);
+        return 0;
+}
+
+static int glirc_lua_error(lua_State *L) {
+        size_t len = 0;
+        const char *str = luaL_checklstring(L, 1, &len);
+
+        glirc_print(get_glirc(L), ERROR_MESSAGE, str, len);
+        return 0;
+}
+
+static luaL_Reg glirc_lib[] =
+  { { "send_message", glirc_lua_send_message }
+  , { "print", glirc_lua_print }
+  , { "error", glirc_lua_error }
+  , { NULL, NULL }
+  };
+
+static void glirc_install_lib(lua_State *L) {
+
+        luaL_newlib(L, glirc_lib);
+
+        /* add version table */
+        lua_createtable(L, 0, 2);
+        lua_pushinteger(L, MAJOR);
+        lua_setfield   (L, -2, "major");
+        lua_pushinteger(L, MINOR);
+        lua_setfield   (L, -2, "minor");
+        lua_setfield   (L, -2, "version");
+
+        lua_setglobal(L, "glirc");
+}
+
 /* Start the Lua interpreter, run glirc.lua in current directory,
  * register the first returned result of running the file as
  * the callback for message processing.
@@ -90,14 +134,12 @@ static void *start(void *glirc, const char *path) {
         memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
 
         luaL_openlibs(L);
-
-        lua_pushcfunction(L, glirc_lua_send_message);
-        lua_setglobal(L, "send_message");
+        glirc_install_lib(L);
 
         if (luaL_dofile(L, scriptpath)) {
                 size_t len = 0;
                 const char *msg = lua_tolstring(L, -1, &len);
-                glirc_report_error(glirc, msg, len);
+                glirc_print(glirc, ERROR_MESSAGE, msg, len);
 
                 lua_close(L);
                 L = NULL;
@@ -206,7 +248,7 @@ static void process_message(void *glirc, void * S, const struct glirc_message *m
                 if (res == LUA_ERRRUN) {
                         size_t len = 0;
                         const char *msg = lua_tolstring(L, -1, &len);
-                        glirc_report_error(glirc, msg, len);
+                        glirc_print(glirc, ERROR_MESSAGE, msg, len);
                 }
             }
 
@@ -217,8 +259,8 @@ static void process_message(void *glirc, void * S, const struct glirc_message *m
 
 struct glirc_extension extension = {
         .name            = "Lua",
-        .major_version   = 1,
-        .minor_version   = 0,
+        .major_version   = MAJOR,
+        .minor_version   = MINOR,
         .start           = start,
         .stop            = stop,
         .process_message = process_message

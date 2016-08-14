@@ -215,18 +215,21 @@ capiSendMessage stPtr msgPtr =
 
 ------------------------------------------------------------------------
 
-type CApiReportError = Ptr () -> CString -> CSize -> IO CInt
+type CApiPrint = Ptr () -> CInt -> CString -> CSize -> IO CInt
 
-foreign export ccall "glirc_report_error" capiReportError :: CApiReportError
+foreign export ccall "glirc_print" capiPrint :: CApiPrint
 
-capiReportError :: CApiReportError
-capiReportError stPtr msgPtr msgLen =
+capiPrint :: CApiPrint
+capiPrint stPtr code msgPtr msgLen =
   do mvar <- deRefStablePtr (castPtrToStablePtr stPtr) :: IO ApiState
-     txt  <- peekCStringLen (msgPtr, fromIntegral msgLen)
-     now <- getZonedTime
-     let msg = ClientMessage
-                 { _msgBody = ErrorBody txt
-                 , _msgTime = now
+     txt  <- Text.peekCStringLen (msgPtr, fromIntegral msgLen)
+     now  <- getZonedTime
+
+     let con | code == normalMessageCode = NormalBody
+             | otherwise                 = ErrorBody
+         msg = ClientMessage
+                 { _msgBody    = con txt
+                 , _msgTime    = now
                  , _msgNetwork = Text.empty
                  }
      modifyMVar_ mvar $ \st ->

@@ -271,8 +271,8 @@ msgImportance msg st =
                        _ -> WLNormal
   in
   case view msgBody msg of
-    ExitBody    -> WLImportant
-    ErrorBody _ -> WLImportant
+    NormalBody{} -> WLImportant
+    ErrorBody{}  -> WLImportant
     IrcBody irc
       | squelchIrcMsg irc -> WLBoring
       | isJust (ircIgnorable irc st) -> WLBoring
@@ -625,6 +625,6 @@ clientStartExtensions st =
     recordError now ste e =
       recordNetworkMessage ClientMessage
         { _msgTime    = now
-        , _msgBody    = ErrorBody (show (e :: IOError))
+        , _msgBody    = ErrorBody (Text.pack (show (e :: IOError)))
         , _msgNetwork = ""
         } ste

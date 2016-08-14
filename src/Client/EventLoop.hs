@@ -38,6 +38,7 @@ import qualified Data.IntMap as IntMap
 import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
+import           Data.Monoid
 import           Data.Ord
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -127,7 +128,7 @@ doNetworkClose networkId time st =
       msg = ClientMessage
               { _msgTime    = time
               , _msgNetwork = view csNetwork cs
-              , _msgBody    = ExitBody
+              , _msgBody    = NormalBody "connection closed"
               }
   in eventLoop $ recordNetworkMessage msg st'
 
@@ -143,7 +144,7 @@ doNetworkError networkId time ex st =
       msg = ClientMessage
               { _msgTime    = time
               , _msgNetwork = view csNetwork cs
-              , _msgBody    = ErrorBody (show ex)
+              , _msgBody    = ErrorBody (Text.pack (show ex))
               }
   in eventLoop $ recordNetworkMessage msg st'
 
@@ -162,10 +163,11 @@ doNetworkLine networkId time line st =
       let network = view csNetwork cs in
       case parseRawIrcMsg (asUtf8 line) of
         Nothing ->
-          do let msg = ClientMessage
-                        { _msgTime = time
+          do let txt = Text.pack ("Malformed message: " ++ show line)
+                 msg = ClientMessage
+                        { _msgTime    = time
                         , _msgNetwork = network
-                        , _msgBody = ErrorBody ("Malformed message: " ++ show line)
+                        , _msgBody    = ErrorBody txt
                         }
              eventLoop (recordNetworkMessage msg st)
 
@@ -240,7 +242,7 @@ reportConnectCmdError now cs cmdTxt =
   recordNetworkMessage ClientMessage
     { _msgTime    = now
     , _msgNetwork = view csNetwork cs
-    , _msgBody    = ErrorBody ("Bad connect-cmd: " ++ Text.unpack cmdTxt)
+    , _msgBody    = ErrorBody ("Bad connect-cmd: " <> cmdTxt)
     }
 
 -- | Find the ZNC provided server time

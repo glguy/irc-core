@@ -3,6 +3,11 @@
 
 #include <stdlib.h>
 
+enum message_code {
+        NORMAL_MESSAGE = 0,
+        ERROR_MESSAGE  = 1
+};
+
 struct glirc_string {
         const char *str;
         size_t len;
@@ -32,6 +37,6 @@ struct glirc_extension {
 };
 
 int glirc_send_message(void *glirc, const struct glirc_message *);
-int glirc_report_error(void *glirc, const char *str, size_t len);
+int glirc_print(void *glirc, enum message_code, const char *str, size_t len);
 
 #endif
