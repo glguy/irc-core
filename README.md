@@ -138,7 +138,7 @@ Settings
 * `tls-insecure` - yes/no - disable certificate validation
 * `tls-client-cert` - text - path to TLS client certificate
 * `tls-client-key` - text - path to TLS client key
-* `connect-cmds` - list of text - raw IRC commands to send upon connection
+* `connect-cmds` - list of text - client commands to send upon connection
 * `socks-host` - text - hostname of SOCKS proxy to connect through
 * `socks-port` - number - port number of SOCKS proxy to connect through
 * `server-certificates` - list of text - list of CA certificates to use when validating certificates

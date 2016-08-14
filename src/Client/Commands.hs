@@ -825,13 +825,21 @@ activeNicks ::
   ClientState ->
   [Identifier]
 activeNicks st =
-  toListOf
-    ( clientWindows    . ix focus
-    . winMessages      . folded
-    . wlBody           . _IrcBody
-    . folding msgActor . to userNick) st
-  where
-    focus = view clientFocus st
+  case view clientFocus st of
+    focus@(ChannelFocus network channel) ->
+      toListOf
+        ( clientWindows    . ix focus
+        . winMessages      . folded
+        . wlBody           . _IrcBody
+        . folding msgActor . to userNick
+        . filtered isActive) st
+      where
+        isActive n = HashMap.member n userMap
+        userMap = view ( clientConnection network
+                       . csChannels . ix channel
+                       . chanUsers) st
+
+    _ -> []
 
 -- | Use the *!*@host masks of users for channel lists when setting list modes
 --
@@ -886,7 +894,7 @@ nickTabCompletion isReversed st
   = fromMaybe st
   $ clientTextBox (wordComplete (++": ") isReversed hint completions) st
   where
-    hint = activeNicks st
+    hint        = activeNicks st
     completions = currentCompletionList st
 
 -- | Used to send commands that require ops to perform.
