@@ -286,6 +286,7 @@ static void callback(void *glirc, lua_State *L, const char *callback_name)
                 size_t len = 0;
                 const char *msg = lua_tolstring(L, -1, &len);
                 glirc_print(glirc, ERROR_MESSAGE, msg, len);
+                lua_settop(L, 0); // discard error message
         }
 }
 
