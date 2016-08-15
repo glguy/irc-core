@@ -428,17 +428,15 @@ highlightNicks palette myNicks nicks txt = horizCat (highlight1 <$> txtParts)
 
 -- | Returns image and identifier to be used when collapsing metadata
 -- messages.
-metadataImg :: Palette -> IrcMsg -> Maybe (Image, Maybe Identifier)
-metadataImg palette msg =
+metadataImg :: IrcMsg -> Maybe (Image, Identifier, Maybe Identifier)
+metadataImg msg =
   case msg of
-    Quit who _   -> Just (char (withForeColor defAttr red  ) 'x', Just (userNick who))
-    Part who _ _ -> Just (char (withForeColor defAttr red  ) '-', Just (userNick who))
-    Join who _   -> Just (char (withForeColor defAttr green) '+', Just (userNick who))
+    Quit who _   -> Just (char (withForeColor defAttr red  ) 'x', userNick who, Nothing)
+    Part who _ _ -> Just (char (withForeColor defAttr red  ) '-', userNick who, Nothing)
+    Join who _   -> Just (char (withForeColor defAttr green) '+', userNick who, Nothing)
     Ctcp who _ cmd _ | cmd /= "ACTION"  ->
-                    Just (char (withForeColor defAttr white) 'C', Just (userNick who))
-    Nick old new -> Just (quietIdentifier palette (userNick old) <|>
-                          char (withForeColor defAttr yellow) '-' <|>
-                          quietIdentifier palette new, Nothing)
+                    Just (char (withForeColor defAttr white) 'C', userNick who, Nothing)
+    Nick old new -> Just (char (withForeColor defAttr yellow) '-', userNick old, Just new)
     _            -> Nothing
 
 -- | Image used when treating ignored chat messages as metadata

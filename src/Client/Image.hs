@@ -26,7 +26,7 @@ import           Client.State
 import           Client.Window
 import           Control.Lens
 import qualified Data.Map.Strict as Map
-import           Data.Maybe (isJust)
+import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
@@ -111,35 +111,39 @@ messagePane st = (img, st')
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
 windowLinesToImages st wwls =
-  case wwls of
-    [] -> []
-    wl:wls
-      | Just (img,ident) <- metadataWindowLine st wl -> windowLinesToImagesMd st img ident wls
-      | otherwise -> view wlImage wl : windowLinesToImages st wls
+  case windowLinesToImagesMd st wwls of
+    Just (img, _, wls) -> img : windowLinesToImages st wls
+    Nothing ->
+      case wwls of
+        [] -> []
+        wl:wls -> view wlImage wl : windowLinesToImages st wls
 
-windowLinesToImagesMd :: ClientState -> Image -> Maybe Identifier -> [WindowLine] -> [Image]
-windowLinesToImagesMd st acc who wwls =
-  case wwls of
-    wl:wls
-      | Just (img,ident) <- metadataWindowLine st wl ->
-          if isJust ident && who == ident
-            then windowLinesToImagesMd st (acc <|> img) who wls
-            else windowLinesToImagesMd st (finish <|> char defAttr ' ' <|> img) ident wls
-    _ -> finish : windowLinesToImages st wwls
-  where
-    palette = view (clientConfig . configPalette) st
-    finish = acc <|> maybe emptyImage (quietIdentifier palette) who
+windowLinesToImagesMd ::
+  ClientState -> [WindowLine] -> Maybe (Image, Identifier, [WindowLine])
+windowLinesToImagesMd st wwls =
+  do w:wls                <- Just wwls
+     (img, ident, mbnext) <- metadataWindowLine st w
+     let palette = view (clientConfig . configPalette) st
 
+         (acc1, wls2) =
+           case windowLinesToImagesMd st wls of
+             Nothing -> (quietIdentifier palette ident <|> img, wls)
+             Just (acc, prevident, wls') -> (acc <|> transition <|> img, wls')
+               where
+                 transition
+                   | ident == prevident = emptyImage
+                   | otherwise          = char defAttr ' ' <|> quietIdentifier palette ident
 
-metadataWindowLine :: ClientState -> WindowLine -> Maybe (Image, Maybe Identifier)
+     let transition2 = foldMap (quietIdentifier palette) mbnext
+     Just (acc1 <|> transition2, fromMaybe ident mbnext, wls2)
+
+metadataWindowLine :: ClientState -> WindowLine -> Maybe (Image, Identifier, Maybe Identifier)
 metadataWindowLine st wl =
   case view wlBody wl of
     IrcBody irc
-      | Just who <- ircIgnorable irc st -> Just (ignoreImage, Just who)
-      | otherwise                       -> metadataImg palette irc
+      | Just who <- ircIgnorable irc st -> Just (ignoreImage, who, Nothing)
+      | otherwise                       -> metadataImg irc
     _                                   -> Nothing
-  where
-    palette = view (clientConfig . configPalette) st
 
 lineWrap :: Int -> Image -> Image
 lineWrap w img
