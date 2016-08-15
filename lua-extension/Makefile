@@ -1,11 +1,18 @@
-.PHONY: clean
+.PHONY: clean macosx linux
 
+macosx: glirc-lua.dylib
+linux:  glirc-lua.so
 
-glirc-lua.so: glirc-lua.c
-	cc -g -shared -o $@ $^ -I../include \
+glirc-lua.dylib: glirc-lua.c
+	cc -shared -o $@ $^ -I../include \
 	  -pedantic -Wall \
 	  -undefined dynamic_lookup \
 	  `pkg-config --cflags --libs lua-5.3`
 
+glirc-lua.so: glirc-lua.c
+	cc -shared -o $@ $^ -I../include \
+	  -pedantic -fpic -Wall \
+	  `pkg-config --cflags --libs lua-5.3`
+
 clean:
-	rm -rf glirc-lua.so glirc-lua.so.dSYM
+	rm -rf glirc-lua.dylib glirc-lua.so glirc-lua.dylib.dSYM

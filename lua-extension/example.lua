@@ -1,6 +1,6 @@
 local extension = {}
 
-glirc.print 'Starting example extension'
+glirc.print 'glirc.lua startup'
 
 extension.file = io.open('output.txt','w')
 extension.file:write('--START--', tostring(glirc.version.major), '.',
@@ -28,6 +28,7 @@ end
 function extension:stop()
         self.file:write('--END--')
         self.file:close()
+        glirc.print('glirc.lua shutdown')
 end
 
 return extension
