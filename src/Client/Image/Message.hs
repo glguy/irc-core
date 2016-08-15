@@ -436,7 +436,7 @@ metadataImg msg =
     Join who _   -> Just (char (withForeColor defAttr green) '+', userNick who, Nothing)
     Ctcp who _ cmd _ | cmd /= "ACTION"  ->
                     Just (char (withForeColor defAttr white) 'C', userNick who, Nothing)
-    Nick old new -> Just (char (withForeColor defAttr yellow) '-', userNick old, Just new)
+    Nick old new -> Just (char (withForeColor defAttr yellow) '>', userNick old, Just new)
     _            -> Nothing
 
 -- | Image used when treating ignored chat messages as metadata
