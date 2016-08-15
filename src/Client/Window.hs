@@ -43,7 +43,7 @@ import           Graphics.Vty.Image (Image)
 -- | A single message to be displayed in a window
 data WindowLine = WindowLine
   { _wlBody      :: !MessageBody -- ^ Original Haskell value
-  , _wlText      :: !Text        -- ^ Searchable text form
+  , _wlText      :: {-# UNPACK #-} !Text -- ^ Searchable text form
   , _wlImage     :: !Image       -- ^ Normal rendered image
   , _wlFullImage :: !Image       -- ^ Detailed rendered image
   }
@@ -77,10 +77,12 @@ emptyWindow = Window
 -- | Adds a given line to a window as the newest message. Window's
 -- unread count will be updated according to the given importance.
 addToWindow :: WindowLineImportance -> WindowLine -> Window -> Window
-addToWindow importance msg !win = Window
+addToWindow importance !msg !win = Window
     { _winMessages = msg : _winMessages win
-    , _winUnread   = _winUnread win + (if importance == WLBoring then 0 else 1)
-    , _winMention  = _winMention win || importance == WLImportant
+    , _winUnread   = _winUnread win
+                   + (if importance == WLBoring then 0 else 1)
+    , _winMention  = _winMention win
+                  || importance == WLImportant
     }
 
 -- | Update the window clearing the unread count and important flag.
