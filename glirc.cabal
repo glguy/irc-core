@@ -9,7 +9,7 @@ maintainer:          emertens@gmail.com
 copyright:           2016 Eric Mertens
 category:            Network
 build-type:          Custom
-extra-source-files:  ChangeLog.md README.md
+extra-source-files:  ChangeLog.md README.md exported_symbols.txt
 cabal-version:       >=1.23
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
@@ -99,3 +99,6 @@ executable glirc2
   includes:            include/glirc-api.h
   install-includes:    include/glirc-api.h
   default-language:    Haskell2010
+
+  if os(Linux)
+    ld-options: -Wl,--dynamic-list=exported_symbols.txt

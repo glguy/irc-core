@@ -1,0 +1,4 @@
+{
+glirc_send_message;
+glirc_print;
+};
