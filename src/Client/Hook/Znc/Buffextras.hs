@@ -57,6 +57,7 @@ prefixedParser chan = do
       , Nick pfx . mkId <$ skipToken "is now known as" <*> simpleTokenParser
       , Mode pfx chan <$ skipToken "set mode:" <*> allTokens
       , Kick pfx chan <$ skipToken "kicked" <*> parseId <* skipToken "Reason:" <*> parseReason
+      , Topic pfx chan <$ skipToken "changed the topic to:" <*> P.takeText
       ]
 
 allTokens :: Parser [Text]

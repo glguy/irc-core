@@ -177,7 +177,7 @@ ircLineImage rm !rp body =
       detail (string quietAttr "nick ") <|>
       string (view palSigil pal) sigils <|>
       coloredUserInfo pal rm myNicks old <|>
-      string defAttr " became " <|>
+      string defAttr " is now known as " <|>
       coloredIdentifier pal NormalIdentifier myNicks new
 
     Join nick _chan ->
@@ -208,8 +208,9 @@ ircLineImage rm !rp body =
       parseIrcText reason
 
     Topic src _dst txt ->
+      detail (string quietAttr "tpic ") <|>
       coloredUserInfo pal rm myNicks src <|>
-      string defAttr " changed topic to " <|>
+      string defAttr " changed the topic to: " <|>
       parseIrcText txt
 
     Notice src _dst txt ->
