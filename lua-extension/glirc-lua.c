@@ -100,10 +100,41 @@ static int glirc_lua_error(lua_State *L)
         return 0;
 }
 
+static int glirc_lua_list_networks(lua_State *L)
+{
+        char **networks = glirc_list_networks(get_glirc(L));
+
+        if (networks == NULL) {
+                luaL_error(L, "glirc_list_networks failed");
+        }
+
+        lua_newtable(L);
+        for (int i = 0; networks[i] != NULL; i++) {
+                lua_pushstring(L, networks[i]);
+                free(networks[i]);
+                lua_rawseti(L, 1, i+1);
+        }
+
+        free(networks);
+        return 1;
+}
+
+static int glirc_lua_identifier_cmp(lua_State *L)
+{
+        size_t n1 = 0, n2 = 0;
+        const char *str1 = luaL_checklstring(L, 1, &n1);
+        const char *str2 = luaL_checklstring(L, 2, &n2);
+        int res = glirc_identifier_cmp(str1, n1, str2, n2);
+        lua_pushinteger(L, res);
+        return 1;
+}
+
 static luaL_Reg glirc_lib[] =
   { { "send_message", glirc_lua_send_message }
   , { "print", glirc_lua_print }
   , { "error", glirc_lua_error }
+  , { "list_networks", glirc_lua_list_networks }
+  , { "identifier_cmp", glirc_lua_identifier_cmp }
   , { NULL, NULL }
   };
 
@@ -179,7 +210,13 @@ static void push_glirc_message(lua_State *L, const struct glirc_message *msg)
         push_glirc_string(L, &msg->network);
         lua_setfield(L,-2,"network");
 
-        push_glirc_string(L, &msg->prefix);
+        lua_createtable(L, 0, 3);
+        push_glirc_string(L, &msg->prefix_nick);
+        lua_setfield(L,-2,"nick");
+        push_glirc_string(L, &msg->prefix_user);
+        lua_setfield(L,-2,"user");
+        push_glirc_string(L, &msg->prefix_host);
+        lua_setfield(L,-2,"host");
         lua_setfield(L,-2,"prefix");
 
         push_glirc_string(L, &msg->command);
@@ -192,7 +229,7 @@ static void push_glirc_message(lua_State *L, const struct glirc_message *msg)
                 /* initialize table */
                 for (size_t i = 0; i < narr; i++) {
                         push_glirc_string(L, &msg->params[i]);
-                        lua_seti(L, -2, i+1);
+                        lua_rawseti(L, -2, i+1);
                 }
                 lua_setfield(L,-2,"params");
         }
@@ -219,7 +256,7 @@ static void push_glirc_command(lua_State *L , const struct glirc_command *msg)
         /* initialize table */
         for (size_t i = 0; i < narr; i++) {
                 push_glirc_string(L, &msg->params[i]);
-                lua_seti(L, -2, i+1);
+                lua_rawseti(L, -2, i+1);
         }
 }
 

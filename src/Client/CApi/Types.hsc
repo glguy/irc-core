@@ -85,7 +85,9 @@ instance Storable FgnExtension where
 
 data FgnMsg = FgnMsg
   { fmNetwork :: FgnStringLen
-  , fmPrefix  :: FgnStringLen
+  , fmPrefixNick :: FgnStringLen
+  , fmPrefixUser :: FgnStringLen
+  , fmPrefixHost :: FgnStringLen
   , fmCommand :: FgnStringLen
   , fmParams  :: Ptr FgnStringLen
   , fmParamN  :: CSize
@@ -99,7 +101,9 @@ instance Storable FgnMsg where
   sizeOf    _ = #size      struct glirc_message
   peek p      = FgnMsg
             <$> (#peek struct glirc_message, network ) p
-            <*> (#peek struct glirc_message, prefix  ) p
+            <*> (#peek struct glirc_message, prefix_nick) p
+            <*> (#peek struct glirc_message, prefix_user) p
+            <*> (#peek struct glirc_message, prefix_host) p
             <*> (#peek struct glirc_message, command ) p
             <*> (#peek struct glirc_message, params  ) p
             <*> (#peek struct glirc_message, params_n) p
@@ -109,7 +113,9 @@ instance Storable FgnMsg where
 
   poke p FgnMsg{..} =
              do (#poke struct glirc_message, network ) p fmNetwork
-                (#poke struct glirc_message, prefix  ) p fmPrefix
+                (#poke struct glirc_message, prefix_nick) p fmPrefixNick
+                (#poke struct glirc_message, prefix_user) p fmPrefixUser
+                (#poke struct glirc_message, prefix_host) p fmPrefixHost
                 (#poke struct glirc_message, command ) p fmCommand
                 (#poke struct glirc_message, params  ) p fmParams
                 (#poke struct glirc_message, params_n) p fmParamN
@@ -137,7 +143,7 @@ instance Storable FgnCmd where
 
 ------------------------------------------------------------------------
 
-data FgnStringLen = FgnStringLen CString CSize
+data FgnStringLen = FgnStringLen !CString !CSize
 
 instance Storable FgnStringLen where
   alignment _ = #alignment struct glirc_string

@@ -32,6 +32,7 @@ import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Cont
 import           Data.Foldable
+import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Foreign as Text
@@ -41,6 +42,7 @@ import           Foreign.Marshal
 import           Foreign.Ptr
 import           Foreign.StablePtr
 import           Foreign.Storable
+import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           System.Posix.DynamicLinker
@@ -152,7 +154,9 @@ withRawIrcMsg ::
   ContT a IO (Ptr FgnMsg)
 withRawIrcMsg network RawIrcMsg{..} =
   do net     <- withText network
-     pfx     <- withText $ maybe Text.empty renderUserInfo _msgPrefix
+     pfxN    <- withText $ maybe Text.empty (idText.userNick) _msgPrefix
+     pfxU    <- withText $ maybe Text.empty userName _msgPrefix
+     pfxH    <- withText $ maybe Text.empty userHost _msgPrefix
      cmd     <- withText _msgCommand
      prms    <- traverse withText _msgParams
      tags    <- traverse withTag  _msgTags
@@ -160,7 +164,7 @@ withRawIrcMsg network RawIrcMsg{..} =
      (tagN,keysPtr) <- contT2 $ withArrayLen keys
      valsPtr        <- ContT  $ withArray vals
      (prmN,prmPtr)  <- contT2 $ withArrayLen prms
-     ContT $ with $ FgnMsg net pfx cmd prmPtr (fromIntegral prmN)
+     ContT $ with $ FgnMsg net pfxN pfxU pfxH cmd prmPtr (fromIntegral prmN)
                                        keysPtr valsPtr (fromIntegral tagN)
 
 withCommand ::
@@ -195,15 +199,17 @@ peekFgnMsg FgnMsg{..} =
 
      tagKeys <- strArray fmTagN fmTagKeys
      tagVals <- strArray fmTagN fmTagVals
-     prefix  <- peekFgnStringLen fmPrefix
+     prefixN  <- peekFgnStringLen fmPrefixNick
+     prefixU  <- peekFgnStringLen fmPrefixUser
+     prefixH  <- peekFgnStringLen fmPrefixHost
      command <- peekFgnStringLen fmCommand
      params  <- strArray fmParamN fmParams
 
      return RawIrcMsg
        { _msgTags    = zipWith TagEntry tagKeys tagVals
-       , _msgPrefix  = if Text.null prefix
+       , _msgPrefix  = if Text.null prefixN
                          then Nothing
-                         else Just (parseUserInfo prefix)
+                         else Just (UserInfo (mkId prefixN) prefixU prefixH)
        , _msgCommand = command
        , _msgParams  = params
        }
@@ -256,3 +262,32 @@ capiPrint stPtr code msgPtr msgLen =
        do return (recordNetworkMessage msg st)
      return 0
   `catch` \SomeException{} -> return 1
+
+------------------------------------------------------------------------
+
+type CApiListNetworks = Ptr () -> IO (Ptr CString)
+
+foreign export ccall "glirc_list_networks" capiListNetworks :: CApiListNetworks
+
+capiListNetworks :: CApiListNetworks
+capiListNetworks stab =
+  do mvar <- deRefStablePtr (castPtrToStablePtr stab) :: IO ApiState
+     st   <- readMVar mvar
+     let networks = views clientNetworkMap HashMap.keys st
+     strs <- traverse (newCString . Text.unpack) networks
+     newArray0 nullPtr strs
+
+------------------------------------------------------------------------
+
+type CApiIdentifierCmp = CString -> CSize -> CString -> CSize -> IO CInt
+
+foreign export ccall "glirc_identifier_cmp" capiIdentifierCmp :: CApiIdentifierCmp
+
+capiIdentifierCmp :: CApiIdentifierCmp
+capiIdentifierCmp p1 n1 p2 n2 =
+  do txt1 <- Text.peekCStringLen (p1, fromIntegral n1)
+     txt2 <- Text.peekCStringLen (p2, fromIntegral n2)
+     return $! case compare (mkId txt1) (mkId txt2) of
+                 LT -> -1
+                 EQ ->  0
+                 GT ->  1

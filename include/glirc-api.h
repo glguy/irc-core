@@ -15,7 +15,9 @@ struct glirc_string {
 
 struct glirc_message {
         struct glirc_string network;
-        struct glirc_string prefix;
+        struct glirc_string prefix_nick;
+        struct glirc_string prefix_user;
+        struct glirc_string prefix_host;
         struct glirc_string command;
         struct glirc_string *params;
         size_t params_n;
@@ -45,5 +47,7 @@ struct glirc_extension {
 
 int glirc_send_message(void *glirc, const struct glirc_message *);
 int glirc_print(void *glirc, enum message_code, const char *str, size_t len);
+char ** glirc_list_networks(void *glirc);
+int glirc_identifier_cmp(const char *i1, size_t n1, const char *i2, size_t n2);
 
 #endif
