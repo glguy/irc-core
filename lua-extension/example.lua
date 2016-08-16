@@ -2,13 +2,6 @@ local extension = {}
 
 glirc.print 'glirc.lua startup'
 
-glirc.print ('initial networks: ' .. table.concat(glirc.list_networks(), ', '))
-
-
-extension.file = io.open('output.txt','w')
-extension.file:write('--START--', tostring(glirc.version.major), '.',
-                                  tostring(glirc.version.minor), '--\n')
-
 function extension:process_message(msg)
 
         if msg.command == '001' then
@@ -18,40 +11,43 @@ function extension:process_message(msg)
                    , params  = { '*playback' , 'play' ,'*', '0' } }
         end
 
-        self.file:write(msg.prefix.nick, ' ',
-                        msg.command, ' ',
-                        table.concat(msg.params, ' '),'\n')
-
-        self.file:flush()
 end
 
-function extension:process_command(cmd, x, y)
+local commands = {}
 
-  if cmd == 'compare' then
+function commands.compare(x,y)
     glirc.print('Comparing : ' .. tostring(glirc.identifier_cmp(x,y)))
+end
 
-  elseif cmd == 'list_networks' then
+function commands.list_networks()
     glirc.print(table.concat(glirc.list_networks(), ' '))
+end
 
-  elseif cmd == 'list_channels' then
-    glirc.print(table.concat(glirc.list_channels(x), ' '))
+function commands.list_channels(network)
+    glirc.print(table.concat(glirc.list_channels(network), ' '))
+end
 
-  elseif cmd == 'list_channel_users' then
-    glirc.print(table.concat(glirc.list_channel_users(x,y), ' '))
+function commands.list_channel_users(network, channel)
+    glirc.print(table.concat(glirc.list_channel_users(network,channel), ' '))
+end
 
-  elseif cmd == 'my_nick' then
-    glirc.print(glirc.my_nick(x))
+function commands.my_nick(network)
+    glirc.print(glirc.my_nick(network))
+end
 
-  else
-    glirc.error('Unknown command')
+function extension:process_command(cmd, ...)
 
-  end
-
+    local k = commands[cmd]
+    if k then
+        k(...)
+    else
+        local cmds = {}
+        for k,v in pairs(commands) do table.insert(cmds,k) end
+        glirc.error('Available commands: ' .. table.concat(cmds, ', '))
+    end
 end
 
 function extension:stop()
-        self.file:write('--END--')
-        self.file:close()
         glirc.print('glirc.lua shutdown')
 end
 
