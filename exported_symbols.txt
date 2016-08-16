@@ -1,4 +1,6 @@
 {
 glirc_send_message;
 glirc_print;
+glirc_list_networks;
+glirc_identifier_cmp;
 };
