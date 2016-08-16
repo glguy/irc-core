@@ -331,39 +331,26 @@ static void push_glirc_message(lua_State *L, const struct glirc_message *msg)
         }
 }
 
-static void push_glirc_command(lua_State *L , const struct glirc_command *msg)
-{
-        const size_t nrec = 0, narr = msg->params_n;
-        lua_createtable(L, narr, nrec);
-
-        /* initialize table */
-        for (size_t i = 0; i < narr; i++) {
-                push_glirc_string(L, &msg->params[i]);
-                lua_rawseti(L, -2, i+1);
-        }
-}
-
-
 static int callback_worker(lua_State *L)
-{                                                                // arg name
-        lua_getfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY); // arg name ext
-        lua_rotate(L, 1, 1);                                     // ext arg name
-        lua_gettable(L, 1);                                      // ext arg callback
-        lua_rotate(L, 1, 1);                                     // callback ext arg
-        lua_call(L, 2, 0);                                       //
+{       int n = lua_gettop(L);                                   // args... name
+        lua_getfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY); // args... name ext
+        lua_rotate(L, 1, 1);                                     // ext args... name
+        lua_gettable(L, 1);                                      // ext args... callback
+        lua_rotate(L, 1, 1);                                     // callback ext args...
+        lua_call(L, n, 0);                                       //
         return 0;
 }
 
-static void callback(void *glirc, lua_State *L, const char *callback_name)
+static void callback(void *glirc, lua_State *L, const char *callback_name, int args)
 {
         // remember glirc handle
         memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
 
-                                               // STACK: argument
-        lua_pushcfunction(L, callback_worker); // STACK: argument worker
-        lua_rotate(L, -2, 1);                  // STACK: worker argument
-        lua_pushstring(L, callback_name);      // STACK: worker argument name
-        int res = lua_pcall(L, 2, 0, 0);       // STACK:
+                                               // STACK: arguments...
+        lua_pushcfunction(L, callback_worker); // STACK: arguments... worker
+        lua_rotate(L, 1, 1);                   // STACK: worker arguments...
+        lua_pushstring(L, callback_name);      // STACK: worker arguments... name
+        int res = lua_pcall(L, 1+args, 0, 0);  // STACK:
 
         if (res != LUA_OK) {
                 size_t len = 0;
@@ -376,8 +363,7 @@ static void callback(void *glirc, lua_State *L, const char *callback_name)
 static void stop_entrypoint(void *glirc, void *L)
 {
         if (L == NULL) return;
-        lua_pushnil(L);
-        callback(glirc, L, "stop");
+        callback(glirc, L, "stop", 0);
         lua_close(L);
 }
 
@@ -385,14 +371,16 @@ static void message_entrypoint(void *glirc, void *L, const struct glirc_message 
 {
         if (L == NULL) return;
         push_glirc_message(L, msg);
-        callback(glirc, L, "process_message");
+        callback(glirc, L, "process_message", 1);
 }
 
 static void command_entrypoint(void *glirc, void *L, const struct glirc_command *cmd)
 {
         if (L == NULL) return;
-        push_glirc_command(L, cmd);
-        callback(glirc, L, "process_command");
+        for (size_t i = 0; i < cmd->params_n; i++) {
+                push_glirc_string(L, &cmd->params[i]);
+        }
+        callback(glirc, L, "process_command", cmd->params_n);
 }
 
 struct glirc_extension extension = {

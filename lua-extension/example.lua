@@ -25,21 +25,26 @@ function extension:process_message(msg)
         self.file:flush()
 end
 
-function extension:process_command(params)
+function extension:process_command(cmd, x, y)
 
-  local cmd = params[1]
   if cmd == 'compare' then
-    glirc.print('Comparing : ' .. tostring(glirc.identifier_cmp(params[2],params[3])))
+    glirc.print('Comparing : ' .. tostring(glirc.identifier_cmp(x,y)))
+
   elseif cmd == 'list_networks' then
     glirc.print(table.concat(glirc.list_networks(), ' '))
+
   elseif cmd == 'list_channels' then
-    glirc.print(table.concat(glirc.list_channels(params[2]), ' '))
+    glirc.print(table.concat(glirc.list_channels(x), ' '))
+
   elseif cmd == 'list_channel_users' then
-    glirc.print(table.concat(glirc.list_channel_users(params[2],params[3]), ' '))
+    glirc.print(table.concat(glirc.list_channel_users(x,y), ' '))
+
   elseif cmd == 'my_nick' then
-    glirc.print(glirc.my_nick(params[2]))
+    glirc.print(glirc.my_nick(x))
+
   else
     glirc.error('Unknown command')
+
   end
 
 end
