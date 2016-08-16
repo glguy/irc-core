@@ -31,7 +31,7 @@ import           Data.X509.File     (readSignedObject, readKeyFile)
 import           Network.Connection
 import           Network.Socket     (PortNumber)
 import           Network.TLS
-import           Network.TLS.Extra  (ciphersuite_all)
+import           Network.TLS.Extra  (ciphersuite_strong)
 import           System.X509        (getSystemCertificateStore)
 
 buildConnectionParams :: ServerSettings -> IO ConnectionParams
@@ -81,7 +81,7 @@ buildTlsSettings args =
        , clientUseMaxFragmentLength = Nothing
        , clientServerIdentification =
            error "buildTlsSettings: field initialized by connectTo"
-       , clientUseServerNameIndication = True
+       , clientUseServerNameIndication = False
        , clientShared = def
            { sharedCAStore = store
            , sharedValidationCache =
@@ -90,7 +90,7 @@ buildTlsSettings args =
        , clientHooks = def
            { onCertificateRequest = \_ -> loadClientCredentials args }
        , clientSupported = def
-           { supportedCiphers = ciphersuite_all }
+           { supportedCiphers = ciphersuite_strong }
        , clientDebug = def
        }
 

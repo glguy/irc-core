@@ -21,4 +21,4 @@ glirc-lua-debug.dylib: glirc-lua.c
 	  `pkg-config --cflags --libs lua-5.3`
 
 clean:
-	rm -rf glirc-lua.dylib glirc-lua.so glirc-lua.dylib.dSYM
+	rm -rf *.dylib *.so *.dSYM
