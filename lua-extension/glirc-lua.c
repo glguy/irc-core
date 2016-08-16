@@ -11,6 +11,9 @@
 #define MAJOR 1
 #define MINOR 0
 
+/* Helper
+ * Pushes a the string represented by the argument to the top of the stack
+ */
 static void get_glirc_string(lua_State *L, int i, struct glirc_string *s)
 {
         s->str = lua_tolstring(L, i, &s->len);
@@ -23,6 +26,10 @@ static inline void * get_glirc(lua_State *L)
         return glirc;
 }
 
+/* Lua Function:
+ * Arguments: Message (table with .command (string) .network (string) .params (array of string))
+ * Returns:
+ */
 static int glirc_lua_send_message(lua_State *L)
 {
         /* This module is careful to leave strings on the stack
@@ -82,6 +89,10 @@ char * compute_script_path(const char *path)
         return scriptpath;
 }
 
+/* Lua Function:
+ * Arguments: Message (string)
+ * Returns:
+ */
 static int glirc_lua_print(lua_State *L)
 {
         size_t len = 0;
@@ -91,6 +102,10 @@ static int glirc_lua_print(lua_State *L)
         return 0;
 }
 
+/* Lua Function:
+ * Arguments: Message (string)
+ * Returns:
+ */
 static int glirc_lua_error(lua_State *L)
 {
         size_t len = 0;
@@ -100,25 +115,86 @@ static int glirc_lua_error(lua_State *L)
         return 0;
 }
 
+/* Helper function
+ * Returns: Array of strings
+ * Import the given array of strings, free the strings and the list
+ */
+static void import_string_array(lua_State *L, char **list)
+{
+        lua_newtable(L);
+        for (int i = 0; list[i] != NULL; i++) {
+                lua_pushstring(L, list[i]);
+                free(list[i]);
+                lua_rawseti(L, -2, i+1);
+        }
+        free(list);
+}
+
+/* Lua Function:
+ * Arguments:
+ * Returns: Networks (array of string)
+ */
 static int glirc_lua_list_networks(lua_State *L)
 {
         char **networks = glirc_list_networks(get_glirc(L));
-
-        if (networks == NULL) {
-                luaL_error(L, "glirc_list_networks failed");
-        }
-
-        lua_newtable(L);
-        for (int i = 0; networks[i] != NULL; i++) {
-                lua_pushstring(L, networks[i]);
-                free(networks[i]);
-                lua_rawseti(L, 1, i+1);
-        }
-
-        free(networks);
+        if (networks == NULL) { luaL_error(L, "client failure"); }
+        import_string_array(L, networks);
         return 1;
 }
 
+/* Lua Function:
+ * Arguments: Network (string)
+ * Returns: Channels (array of string)
+ */
+static int glirc_lua_list_channels(lua_State *L)
+{
+        size_t networkLen = 0;
+        const char *network = luaL_checklstring(L, 1, &networkLen);
+
+        char **channels = glirc_list_channels(get_glirc(L), network, networkLen);
+        if (channels == NULL) { luaL_error(L, "no such network"); }
+        import_string_array(L, channels);
+        return 1;
+}
+
+/* Lua Function:
+ * Arguments: Network (string), Channel (string)
+ * Returns: Users (array of string)
+ */
+static int glirc_lua_list_channel_users(lua_State *L)
+{
+        size_t networkLen = 0, channelLen = 0;
+        const char *network = luaL_checklstring(L, 1, &networkLen);
+        const char *channel = luaL_checklstring(L, 2, &channelLen);
+
+        char **users = glirc_list_channel_users
+                                (get_glirc(L), network, networkLen,
+                                               channel, channelLen);
+        if (users == NULL) { luaL_error(L, "no such channel"); }
+        import_string_array(L, users);
+        return 1;
+}
+
+/* Lua Function:
+ * Arguments: Network (string)
+ * Returns: Nick (string)
+ */
+static int glirc_lua_my_nick(lua_State *L)
+{
+        size_t networkLen = 0;
+        const char *network = luaL_checklstring(L, 1, &networkLen);
+
+        char *nick = glirc_my_nick(get_glirc(L), network, networkLen);
+        if (nick == NULL) { luaL_error(L, "no such network"); }
+        lua_pushstring(L, nick);
+        free(nick);
+        return 1;
+}
+
+/* Lua Function:
+ * Arguments: Identifier (string), Identifier (string)
+ * Returns: Comparison (integer)
+ */
 static int glirc_lua_identifier_cmp(lua_State *L)
 {
         size_t n1 = 0, n2 = 0;
@@ -130,14 +206,21 @@ static int glirc_lua_identifier_cmp(lua_State *L)
 }
 
 static luaL_Reg glirc_lib[] =
-  { { "send_message", glirc_lua_send_message }
-  , { "print", glirc_lua_print }
-  , { "error", glirc_lua_error }
-  , { "list_networks", glirc_lua_list_networks }
-  , { "identifier_cmp", glirc_lua_identifier_cmp }
-  , { NULL, NULL }
+  { { "send_message"      , glirc_lua_send_message       }
+  , { "print"             , glirc_lua_print              }
+  , { "error"             , glirc_lua_error              }
+  , { "identifier_cmp"    , glirc_lua_identifier_cmp     }
+  , { "list_networks"     , glirc_lua_list_networks      }
+  , { "list_channels"     , glirc_lua_list_channels      }
+  , { "list_channel_users", glirc_lua_list_channel_users }
+  , { "my_nick"           , glirc_lua_my_nick            }
+  , { NULL                , NULL                         }
   };
 
+/* Helper function
+ * Installs the 'glirc' library into the global environment
+ * No stack effect
+ */
 static void glirc_install_lib(lua_State *L)
 {
         luaL_newlib(L, glirc_lib);

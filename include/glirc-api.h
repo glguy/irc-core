@@ -48,6 +48,10 @@ struct glirc_extension {
 int glirc_send_message(void *glirc, const struct glirc_message *);
 int glirc_print(void *glirc, enum message_code, const char *str, size_t len);
 char ** glirc_list_networks(void *glirc);
+char ** glirc_list_channels(void *glirc, const char *network, size_t networkLen);
+char ** glirc_list_channel_users(void *glirc, const char *network, size_t networkLen,
+                                      const char *channel, size_t channelLen);
+char * glirc_my_nick(void *glirc, const char *network, size_t networkLen);
 int glirc_identifier_cmp(const char *i1, size_t n1, const char *i2, size_t n2);
 
 #endif

@@ -1,6 +1,9 @@
 {
 glirc_send_message;
 glirc_print;
-glirc_list_networks;
 glirc_identifier_cmp;
+glirc_list_networks;
+glirc_list_channels;
+glirc_list_channel_users;
+glirc_my_nick;
 };

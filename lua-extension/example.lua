@@ -27,8 +27,20 @@ end
 
 function extension:process_command(params)
 
-        local x,y = params[1], params[2]
-        glirc.print('Comparing x and y: ' .. tostring(glirc.identifier_cmp(x,y)))
+  local cmd = params[1]
+  if cmd == 'compare' then
+    glirc.print('Comparing : ' .. tostring(glirc.identifier_cmp(params[2],params[3])))
+  elseif cmd == 'list_networks' then
+    glirc.print(table.concat(glirc.list_networks(), ' '))
+  elseif cmd == 'list_channels' then
+    glirc.print(table.concat(glirc.list_channels(params[2]), ' '))
+  elseif cmd == 'list_channel_users' then
+    glirc.print(table.concat(glirc.list_channel_users(params[2],params[3]), ' '))
+  elseif cmd == 'my_nick' then
+    glirc.print(glirc.my_nick(params[2]))
+  else
+    glirc.error('Unknown command')
+  end
 
 end
 

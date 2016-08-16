@@ -22,6 +22,7 @@ module Client.CApi
   ) where
 
 import           Client.CApi.Types
+import           Client.ChannelState
 import           Client.ConnectionState
 import           Client.Message
 import           Client.State
@@ -46,6 +47,13 @@ import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           System.Posix.DynamicLinker
+
+------------------------------------------------------------------------
+
+-- | Type stored in the 'StablePtr' passed through the C API
+type ApiState = MVar ClientState
+
+------------------------------------------------------------------------
 
 -- | The symbol that is loaded from an extension object.
 --
@@ -221,7 +229,6 @@ peekFgnStringLen (FgnStringLen ptr len) =
 
 ------------------------------------------------------------------------
 
-type ApiState        = MVar ClientState
 type CApiSendMessage = Ptr () -> Ptr FgnMsg -> IO CInt
 
 foreign export ccall "glirc_send_message" capiSendMessage :: CApiSendMessage
@@ -291,3 +298,62 @@ capiIdentifierCmp p1 n1 p2 n2 =
                  LT -> -1
                  EQ ->  0
                  GT ->  1
+
+------------------------------------------------------------------------
+
+type CApiListChannels = Ptr () -> CString -> CSize -> IO (Ptr CString)
+
+foreign export ccall "glirc_list_channels" capiListChannels :: CApiListChannels
+
+capiListChannels :: CApiListChannels
+capiListChannels stab networkPtr networkLen =
+  do mvar <- deRefStablePtr (castPtrToStablePtr stab) :: IO ApiState
+     st   <- readMVar mvar
+     network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
+     case preview (clientConnection network . csChannels) st of
+        Nothing -> return nullPtr
+        Just m  ->
+          do strs <- traverse (newCString . Text.unpack . idText) (HashMap.keys m)
+             newArray0 nullPtr strs
+
+------------------------------------------------------------------------
+
+type CApiListChannelUsers = Ptr () -> CString -> CSize -> CString -> CSize -> IO (Ptr CString)
+
+foreign export ccall "glirc_list_channel_users" capiListChannelUsers :: CApiListChannelUsers
+
+capiListChannelUsers :: CApiListChannelUsers
+capiListChannelUsers stab networkPtr networkLen channelPtr channelLen =
+  do mvar <- deRefStablePtr (castPtrToStablePtr stab) :: IO ApiState
+     st   <- readMVar mvar
+     network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
+     channel <- Text.peekCStringLen (channelPtr, fromIntegral channelLen)
+     let mb = preview ( clientConnection network
+                      . csChannels . ix (mkId channel)
+                      . chanUsers
+                      ) st
+     case mb of
+       Nothing -> return nullPtr
+       Just m  ->
+         do strs <- traverse (newCString . Text.unpack . idText) (HashMap.keys m)
+            newArray0 nullPtr strs
+
+------------------------------------------------------------------------
+
+type CApiMyNick =
+  Ptr () ->
+  CString {- ^ network name        -} ->
+  CSize   {- ^ network name length -} ->
+  IO CString
+
+foreign export ccall "glirc_my_nick" capiMyNick :: CApiMyNick
+
+capiMyNick :: CApiMyNick
+capiMyNick stab networkPtr networkLen =
+  do mvar <- deRefStablePtr (castPtrToStablePtr stab) :: IO ApiState
+     st   <- readMVar mvar
+     network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
+     let mb = preview (clientConnection network . csNick) st
+     case mb of
+       Nothing -> return nullPtr
+       Just me -> newCString (Text.unpack (idText me))
