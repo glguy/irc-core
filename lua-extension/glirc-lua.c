@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <string.h>
 #include <lua.h>
 #include <lauxlib.h>
@@ -64,7 +63,7 @@ static int glirc_lua_send_message(lua_State *L)
         msg.params   = params;
         msg.params_n = n;
 
-        for (lua_Integer i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++) {
                 lua_geti(L, 4, i+1);
                 get_glirc_string(L, -1, &params[i]);
         }
@@ -76,17 +75,27 @@ static int glirc_lua_send_message(lua_State *L)
         return 0;
 }
 
-char * compute_script_path(const char *path)
+/* Populate scriptpath by computing the filename glirc.lua
+ * in the same directory as the file in libpath.
+ *
+ * scriptpath must be a character array able to hold up to
+ * PATH_MAX characters.
+ */
+int compute_script_path(const char *libpath, char *scriptpath)
 {
-        char * path1 = strdup(path);
-        if (path1 == NULL) return NULL;
+        if (libpath == NULL) { return -1; }
+        if (strlen(libpath) >= PATH_MAX) { return -2; }
 
-        char * dir   = dirname(path1);
-        char * scriptpath = NULL;
-        asprintf(&scriptpath, "%s/glirc.lua", dir);
-        free(path1);
+        /* dirname is documented to be allowed to alter the input string
+         * so first it's copied into the output buffer */
+        strcpy(scriptpath, libpath);
+        char * dirpart = dirname(scriptpath);
+        if (dirpart == NULL) { return -3; }
 
-        return scriptpath;
+        int res = snprintf(scriptpath, PATH_MAX, "%s/glirc.lua", dirpart);
+        if (res < 0 || res >= PATH_MAX) { return -4; }
+
+        return 0;
 }
 
 /* Lua Function:
@@ -95,7 +104,7 @@ char * compute_script_path(const char *path)
  */
 static int glirc_lua_print(lua_State *L)
 {
-        size_t len = 0;
+        size_t len;
         const char *str = luaL_checklstring(L, 1, &len);
 
         glirc_print(get_glirc(L), NORMAL_MESSAGE, str, len);
@@ -108,7 +117,7 @@ static int glirc_lua_print(lua_State *L)
  */
 static int glirc_lua_error(lua_State *L)
 {
-        size_t len = 0;
+        size_t len;
         const char *str = luaL_checklstring(L, 1, &len);
 
         glirc_print(get_glirc(L), ERROR_MESSAGE, str, len);
@@ -148,7 +157,7 @@ static int glirc_lua_list_networks(lua_State *L)
  */
 static int glirc_lua_list_channels(lua_State *L)
 {
-        size_t networkLen = 0;
+        size_t networkLen;
         const char *network = luaL_checklstring(L, 1, &networkLen);
 
         char **channels = glirc_list_channels(get_glirc(L), network, networkLen);
@@ -163,7 +172,7 @@ static int glirc_lua_list_channels(lua_State *L)
  */
 static int glirc_lua_list_channel_users(lua_State *L)
 {
-        size_t networkLen = 0, channelLen = 0;
+        size_t networkLen, channelLen;
         const char *network = luaL_checklstring(L, 1, &networkLen);
         const char *channel = luaL_checklstring(L, 2, &channelLen);
 
@@ -181,7 +190,7 @@ static int glirc_lua_list_channel_users(lua_State *L)
  */
 static int glirc_lua_my_nick(lua_State *L)
 {
-        size_t networkLen = 0;
+        size_t networkLen;
         const char *network = luaL_checklstring(L, 1, &networkLen);
 
         char *nick = glirc_my_nick(get_glirc(L), network, networkLen);
@@ -197,7 +206,7 @@ static int glirc_lua_my_nick(lua_State *L)
  */
 static int glirc_lua_identifier_cmp(lua_State *L)
 {
-        size_t n1 = 0, n2 = 0;
+        size_t n1, n2;
         const char *str1 = luaL_checklstring(L, 1, &n1);
         const char *str2 = luaL_checklstring(L, 2, &n2);
         int res = glirc_identifier_cmp(str1, n1, str2, n2);
@@ -243,20 +252,21 @@ static void glirc_install_lib(lua_State *L)
  */
 static void *start(void *glirc, const char *path)
 {
+        char scriptpath[PATH_MAX];
+        if (compute_script_path(path, scriptpath)) {
+                return NULL;
+        }
+
         lua_State *L = luaL_newstate();
         if (L == NULL) return NULL;
         memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
 
-        char * scriptpath = compute_script_path(path);
-        if (scriptpath == NULL) {
-                return NULL;
-        }
 
         luaL_openlibs(L);
         glirc_install_lib(L);
 
         if (luaL_dofile(L, scriptpath)) {
-                size_t len = 0;
+                size_t len;
                 const char *msg = lua_tolstring(L, -1, &len);
                 glirc_print(glirc, ERROR_MESSAGE, msg, len);
 
@@ -267,7 +277,6 @@ static void *start(void *glirc, const char *path)
                 lua_settop(L, 0);
         }
 
-        free(scriptpath);
         return L;
 }
 
@@ -306,11 +315,11 @@ static void push_glirc_message(lua_State *L, const struct glirc_message *msg)
         lua_setfield(L,-2,"command");
 
         { /* populate params */
-                const size_t nrec = 0, narr = msg->params_n;
+                const int nrec = 0, narr = msg->params_n;
                 lua_createtable(L, narr, nrec);
 
                 /* initialize table */
-                for (size_t i = 0; i < narr; i++) {
+                for (int i = 0; i < narr; i++) {
                         push_glirc_string(L, &msg->params[i]);
                         lua_rawseti(L, -2, i+1);
                 }
@@ -318,11 +327,11 @@ static void push_glirc_message(lua_State *L, const struct glirc_message *msg)
         }
 
         { /* populate tags */
-                const size_t nrec = msg->tags_n, narr = 0;
+                const int nrec = msg->tags_n, narr = 0;
                 lua_createtable(L, narr, nrec);
 
                 /* initialize table */
-                for (size_t i = 0; i < nrec; i++) {
+                for (int i = 0; i < nrec; i++) {
                         push_glirc_string(L, &msg->tagkeys[i]);
                         push_glirc_string(L, &msg->tagvals[i]);
                         lua_rawset(L, -3);
@@ -353,7 +362,7 @@ static void callback(void *glirc, lua_State *L, const char *callback_name, int a
         int res = lua_pcall(L, 1+args, 0, 0);  // STACK:
 
         if (res != LUA_OK) {
-                size_t len = 0;
+                size_t len;
                 const char *msg = lua_tolstring(L, -1, &len);
                 glirc_print(glirc, ERROR_MESSAGE, msg, len);
                 lua_settop(L, 0); // discard error message
