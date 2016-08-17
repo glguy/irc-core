@@ -43,6 +43,7 @@ static int glirc_lua_send_message(lua_State *L)
          */
 
         luaL_checkany(L, 1);
+        luaL_checktype(L, 2, LUA_TNONE);
 
         struct glirc_message msg = { {0} };
 
@@ -106,6 +107,7 @@ static int glirc_lua_print(lua_State *L)
 {
         size_t len;
         const char *str = luaL_checklstring(L, 1, &len);
+        luaL_checktype(L, 2, LUA_TNONE);
 
         glirc_print(get_glirc(L), NORMAL_MESSAGE, str, len);
         return 0;
@@ -119,6 +121,7 @@ static int glirc_lua_error(lua_State *L)
 {
         size_t len;
         const char *str = luaL_checklstring(L, 1, &len);
+        luaL_checktype(L, 2, LUA_TNONE);
 
         glirc_print(get_glirc(L), ERROR_MESSAGE, str, len);
         return 0;
@@ -145,9 +148,13 @@ static void import_string_array(lua_State *L, char **list)
  */
 static int glirc_lua_list_networks(lua_State *L)
 {
+        luaL_checktype(L, 1, LUA_TNONE);
+
         char **networks = glirc_list_networks(get_glirc(L));
         if (networks == NULL) { luaL_error(L, "client failure"); }
+
         import_string_array(L, networks);
+
         return 1;
 }
 
@@ -159,10 +166,13 @@ static int glirc_lua_list_channels(lua_State *L)
 {
         size_t networkLen;
         const char *network = luaL_checklstring(L, 1, &networkLen);
+        luaL_checktype(L, 2, LUA_TNONE);
 
         char **channels = glirc_list_channels(get_glirc(L), network, networkLen);
         if (channels == NULL) { luaL_error(L, "no such network"); }
+
         import_string_array(L, channels);
+
         return 1;
 }
 
@@ -175,12 +185,15 @@ static int glirc_lua_list_channel_users(lua_State *L)
         size_t networkLen, channelLen;
         const char *network = luaL_checklstring(L, 1, &networkLen);
         const char *channel = luaL_checklstring(L, 2, &channelLen);
+        luaL_checktype(L, 3, LUA_TNONE);
 
         char **users = glirc_list_channel_users
                                 (get_glirc(L), network, networkLen,
                                                channel, channelLen);
         if (users == NULL) { luaL_error(L, "no such channel"); }
+
         import_string_array(L, users);
+
         return 1;
 }
 
@@ -192,11 +205,13 @@ static int glirc_lua_my_nick(lua_State *L)
 {
         size_t networkLen;
         const char *network = luaL_checklstring(L, 1, &networkLen);
+        luaL_checktype(L, 2, LUA_TNONE);
 
         char *nick = glirc_my_nick(get_glirc(L), network, networkLen);
         if (nick == NULL) { luaL_error(L, "no such network"); }
         lua_pushstring(L, nick);
         free(nick);
+
         return 1;
 }
 
@@ -209,8 +224,11 @@ static int glirc_lua_identifier_cmp(lua_State *L)
         size_t n1, n2;
         const char *str1 = luaL_checklstring(L, 1, &n1);
         const char *str2 = luaL_checklstring(L, 2, &n2);
+        luaL_checktype(L, 3, LUA_TNONE);
+
         int res = glirc_identifier_cmp(str1, n1, str2, n2);
         lua_pushinteger(L, res);
+
         return 1;
 }
 
