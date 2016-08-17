@@ -9,7 +9,16 @@ Maintainer  : emertens@gmail.com
 This module exports the C functions that extensions can used to query the state
 of the client.
 -}
-module Client.CApi.Exports () where
+module Client.CApi.Exports
+ ( -- * Extension API types
+   Glirc_send_message
+ , Glirc_print
+ , Glirc_list_networks
+ , Glirc_list_channels
+ , Glirc_list_channel_users
+ , Glirc_my_nick
+ , Glirc_identifier_cmp
+ ) where
 
 import           Client.CApi.Types
 import           Client.State
@@ -35,8 +44,10 @@ import           Irc.UserInfo
 
 ------------------------------------------------------------------------
 
--- | Type stored in the 'StablePtr' passed through the C API
-type ApiState = MVar ClientState
+-- | Dereference the stable pointer passed to extension callbacks
+derefToken :: Ptr () -> IO (MVar ClientState)
+derefToken = deRefStablePtr . castPtrToStablePtr
+
 
 ------------------------------------------------------------------------
 
@@ -70,13 +81,19 @@ peekFgnStringLen :: FgnStringLen -> IO Text
 peekFgnStringLen (FgnStringLen ptr len) =
   Text.peekCStringLen (ptr, fromIntegral len)
 
-type CApiSendMessage = Ptr () -> Ptr FgnMsg -> IO CInt
+------------------------------------------------------------------------
 
-foreign export ccall "glirc_send_message" capiSendMessage :: CApiSendMessage
+-- | Network, command, and parameters are used when transmitting a message.
+type Glirc_send_message =
+  Ptr ()     {- ^ api token          -} ->
+  Ptr FgnMsg {- ^ pointer to message -} ->
+  IO CInt    {- ^ 0 on success       -}
 
-capiSendMessage :: CApiSendMessage
-capiSendMessage stPtr msgPtr =
-  do mvar    <- deRefStablePtr (castPtrToStablePtr stPtr) :: IO ApiState
+foreign export ccall "glirc_send_message" capiSendMessage :: Glirc_send_message
+
+capiSendMessage :: Glirc_send_message
+capiSendMessage token msgPtr =
+  do mvar    <- derefToken token
      fgn     <- peek msgPtr
      msg     <- peekFgnMsg fgn
      network <- peekFgnStringLen (fmNetwork fgn)
@@ -89,13 +106,18 @@ capiSendMessage stPtr msgPtr =
 
 ------------------------------------------------------------------------
 
-type CApiPrint = Ptr () -> CInt -> CString -> CSize -> IO CInt
+type Glirc_print =
+  Ptr ()  {- ^ api token         -} ->
+  CInt    {- ^ enum message_code -} ->
+  CString {- ^ message           -} ->
+  CSize   {- ^ message length    -} ->
+  IO CInt {- ^ 0 on success      -}
 
-foreign export ccall "glirc_print" capiPrint :: CApiPrint
+foreign export ccall glirc_print :: Glirc_print
 
-capiPrint :: CApiPrint
-capiPrint stPtr code msgPtr msgLen =
-  do mvar <- deRefStablePtr (castPtrToStablePtr stPtr) :: IO ApiState
+glirc_print :: Glirc_print
+glirc_print stab code msgPtr msgLen =
+  do mvar <- derefToken stab
      txt  <- Text.peekCStringLen (msgPtr, fromIntegral msgLen)
      now  <- getZonedTime
 
@@ -113,13 +135,17 @@ capiPrint stPtr code msgPtr msgLen =
 
 ------------------------------------------------------------------------
 
-type CApiListNetworks = Ptr () -> IO (Ptr CString)
+-- | The resulting strings and array of strings are malloc'd and the
+-- caller must free them. NULL returned on failure.
+type Glirc_list_networks =
+  Ptr ()           {- ^ api token                                        -} ->
+  IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
-foreign export ccall "glirc_list_networks" capiListNetworks :: CApiListNetworks
+foreign export ccall glirc_list_networks :: Glirc_list_networks
 
-capiListNetworks :: CApiListNetworks
-capiListNetworks stab =
-  do mvar <- deRefStablePtr (castPtrToStablePtr stab) :: IO ApiState
+glirc_list_networks :: Glirc_list_networks
+glirc_list_networks stab =
+  do mvar <- derefToken stab
      st   <- readMVar mvar
      let networks = views clientNetworkMap HashMap.keys st
      strs <- traverse (newCString . Text.unpack) networks
@@ -127,12 +153,17 @@ capiListNetworks stab =
 
 ------------------------------------------------------------------------
 
-type CApiIdentifierCmp = CString -> CSize -> CString -> CSize -> IO CInt
+type Glirc_identifier_cmp =
+  CString {- ^ identifier 1     -} ->
+  CSize   {- ^ identifier 1 len -} ->
+  CString {- ^ identifier 2     -} ->
+  CSize   {- ^ identifier 2 len -} ->
+  IO CInt
 
-foreign export ccall "glirc_identifier_cmp" capiIdentifierCmp :: CApiIdentifierCmp
+foreign export ccall glirc_identifier_cmp :: Glirc_identifier_cmp
 
-capiIdentifierCmp :: CApiIdentifierCmp
-capiIdentifierCmp p1 n1 p2 n2 =
+glirc_identifier_cmp :: Glirc_identifier_cmp
+glirc_identifier_cmp p1 n1 p2 n2 =
   do txt1 <- Text.peekCStringLen (p1, fromIntegral n1)
      txt2 <- Text.peekCStringLen (p2, fromIntegral n2)
      return $! case compare (mkId txt1) (mkId txt2) of
@@ -142,13 +173,19 @@ capiIdentifierCmp p1 n1 p2 n2 =
 
 ------------------------------------------------------------------------
 
-type CApiListChannels = Ptr () -> CString -> CSize -> IO (Ptr CString)
+-- | The resulting strings and array of strings are malloc'd and the
+-- caller must free them. NULL returned on failure.
+type Glirc_list_channels =
+  Ptr ()  {- ^ api token   -} ->
+  CString {- ^ network     -} ->
+  CSize   {- ^ network len -} ->
+  IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
-foreign export ccall "glirc_list_channels" capiListChannels :: CApiListChannels
+foreign export ccall glirc_list_channels :: Glirc_list_channels
 
-capiListChannels :: CApiListChannels
-capiListChannels stab networkPtr networkLen =
-  do mvar <- deRefStablePtr (castPtrToStablePtr stab) :: IO ApiState
+glirc_list_channels :: Glirc_list_channels
+glirc_list_channels stab networkPtr networkLen =
+  do mvar <- derefToken stab
      st   <- readMVar mvar
      network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
      case preview (clientConnection network . csChannels) st of
@@ -159,13 +196,21 @@ capiListChannels stab networkPtr networkLen =
 
 ------------------------------------------------------------------------
 
-type CApiListChannelUsers = Ptr () -> CString -> CSize -> CString -> CSize -> IO (Ptr CString)
+-- | The resulting strings and array of strings are malloc'd and the
+-- caller must free them.  NULL returned on failure.
+type Glirc_list_channel_users =
+  Ptr ()  {- ^ api token   -} ->
+  CString {- ^ network     -} ->
+  CSize   {- ^ network len -} ->
+  CString {- ^ channel     -} ->
+  CSize   {- ^ channel len -} ->
+  IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
-foreign export ccall "glirc_list_channel_users" capiListChannelUsers :: CApiListChannelUsers
+foreign export ccall glirc_list_channel_users :: Glirc_list_channel_users
 
-capiListChannelUsers :: CApiListChannelUsers
-capiListChannelUsers stab networkPtr networkLen channelPtr channelLen =
-  do mvar <- deRefStablePtr (castPtrToStablePtr stab) :: IO ApiState
+glirc_list_channel_users :: Glirc_list_channel_users
+glirc_list_channel_users stab networkPtr networkLen channelPtr channelLen =
+  do mvar <- derefToken stab
      st   <- readMVar mvar
      network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
      channel <- Text.peekCStringLen (channelPtr, fromIntegral channelLen)
@@ -181,17 +226,19 @@ capiListChannelUsers stab networkPtr networkLen channelPtr channelLen =
 
 ------------------------------------------------------------------------
 
-type CApiMyNick =
-  Ptr () ->
+-- | The resulting string is malloc'd and the caller must free it.
+-- NULL returned on failure.
+type Glirc_my_nick =
+  Ptr ()  {- ^ api token           -} ->
   CString {- ^ network name        -} ->
   CSize   {- ^ network name length -} ->
   IO CString
 
-foreign export ccall "glirc_my_nick" capiMyNick :: CApiMyNick
+foreign export ccall glirc_my_nick :: Glirc_my_nick
 
-capiMyNick :: CApiMyNick
-capiMyNick stab networkPtr networkLen =
-  do mvar <- deRefStablePtr (castPtrToStablePtr stab) :: IO ApiState
+glirc_my_nick :: Glirc_my_nick
+glirc_my_nick stab networkPtr networkLen =
+  do mvar <- derefToken stab
      st   <- readMVar mvar
      network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
      let mb = preview (clientConnection network . csNick) st

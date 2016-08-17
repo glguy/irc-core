@@ -23,9 +23,10 @@ import           Data.Char
 import qualified Data.Text as Text
 import           Data.Text (Text)
 
+-- | Parsed chunk of an expandable command
 data ExpansionChunk
-  = LiteralChunk Text -- ^ regular text
-  | VariableChunk Text -- ^ inline variable @$x@ or @${x y}@
+  = LiteralChunk Text    -- ^ regular text
+  | VariableChunk Text   -- ^ inline variable @$x@ or @${x y}@
   | IntegerChunk Integer -- ^ inline variable @$1@ or @${1}@
   deriving Show
 

@@ -14,10 +14,24 @@ Marshaling types and functions for the C API
 #include "glirc-api.h"
 
 module Client.CApi.Types
-  ( FgnExtension(..)
+  ( -- * Extension record
+    FgnExtension(..)
+  , StartExtension
+  , StopExtension
+  , ProcessMessage
+  , ProcessCommand
+
+  -- * Strings
   , FgnStringLen(..)
+
+  -- * Messages
   , FgnMsg(..)
+
+  -- * Commands
   , FgnCmd(..)
+
+  -- * Function pointer calling
+  , Dynamic
   , runStartExtension
   , runStopExtension
   , runProcessMessage
@@ -38,11 +52,29 @@ normalMessageCode = #const NORMAL_MESSAGE
 errorMessageCode :: CInt
 errorMessageCode = #const ERROR_MESSAGE
 
-type StartExtension = Ptr () -> CString -> IO (Ptr ())
-type StopExtension  = Ptr () -> Ptr () -> IO ()
-type ProcessMessage = Ptr () -> Ptr () -> Ptr FgnMsg -> IO ()
-type ProcessCommand = Ptr () -> Ptr () -> Ptr FgnCmd -> IO ()
+type StartExtension =
+  Ptr ()      {- ^ api token                   -} ->
+  CString     {- ^ path to extension           -} ->
+  IO (Ptr ()) {- ^ initialized extension state -}
 
+type StopExtension =
+  Ptr () {- ^ api token       -} ->
+  Ptr () {- ^ extension state -} ->
+  IO ()
+
+type ProcessMessage =
+  Ptr ()     {- ^ api token       -} ->
+  Ptr ()     {- ^ extention state -} ->
+  Ptr FgnMsg {- ^ message to send -} ->
+  IO ()
+
+type ProcessCommand =
+  Ptr ()     {- ^ api token       -} ->
+  Ptr ()     {- ^ extension state -} ->
+  Ptr FgnCmd {- ^ command         -} ->
+  IO ()
+
+-- | Type of dynamic function pointer wrappers.
 type Dynamic a = FunPtr a -> a
 
 foreign import ccall "dynamic" runStartExtension :: Dynamic StartExtension
@@ -52,12 +84,13 @@ foreign import ccall "dynamic" runProcessCommand :: Dynamic ProcessCommand
 
 ------------------------------------------------------------------------
 
+-- | @struct glirc_extension@
 data FgnExtension = FgnExtension
-  { fgnStart   :: FunPtr StartExtension
-  , fgnStop    :: FunPtr StopExtension
-  , fgnMessage :: FunPtr ProcessMessage
-  , fgnCommand :: FunPtr ProcessCommand
-  , fgnName    :: CString
+  { fgnStart   :: FunPtr StartExtension -- ^ Optional callback
+  , fgnStop    :: FunPtr StopExtension  -- ^ Optional callback
+  , fgnMessage :: FunPtr ProcessMessage -- ^ Optional callback
+  , fgnCommand :: FunPtr ProcessCommand -- ^ Optional callback
+  , fgnName    :: CString               -- ^ Null-terminated name
   , fgnMajorVersion, fgnMinorVersion :: CInt
   }
 
@@ -83,17 +116,18 @@ instance Storable FgnExtension where
 
 ------------------------------------------------------------------------
 
+-- | @struct glirc_message@
 data FgnMsg = FgnMsg
-  { fmNetwork :: FgnStringLen
+  { fmNetwork    :: FgnStringLen
   , fmPrefixNick :: FgnStringLen
   , fmPrefixUser :: FgnStringLen
   , fmPrefixHost :: FgnStringLen
-  , fmCommand :: FgnStringLen
-  , fmParams  :: Ptr FgnStringLen
-  , fmParamN  :: CSize
-  , fmTagKeys :: Ptr FgnStringLen
-  , fmTagVals :: Ptr FgnStringLen
-  , fmTagN    :: CSize
+  , fmCommand    :: FgnStringLen
+  , fmParams     :: Ptr FgnStringLen -- ^ array
+  , fmParamN     :: CSize            -- ^ array length
+  , fmTagKeys    :: Ptr FgnStringLen -- ^ array
+  , fmTagVals    :: Ptr FgnStringLen -- ^ array
+  , fmTagN       :: CSize            -- ^ array length
   }
 
 instance Storable FgnMsg where
@@ -125,9 +159,10 @@ instance Storable FgnMsg where
 
 ------------------------------------------------------------------------
 
+-- | @struct glirc_command@
 data FgnCmd = FgnCmd
-  { fcParams  :: Ptr FgnStringLen
-  , fcParamN  :: CSize
+  { fcParams  :: Ptr FgnStringLen -- ^ array
+  , fcParamN  :: CSize            -- ^ array length
   }
 
 instance Storable FgnCmd where
@@ -143,6 +178,7 @@ instance Storable FgnCmd where
 
 ------------------------------------------------------------------------
 
+-- | @struct glirc_string@
 data FgnStringLen = FgnStringLen !CString !CSize
 
 instance Storable FgnStringLen where
