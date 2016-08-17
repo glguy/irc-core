@@ -36,6 +36,7 @@ executable glirc2
                        Client.ConnectionState
                        Client.EditBox
                        Client.EventLoop
+                       Client.CApi.Exports
                        Client.CApi.Types
                        Client.CApi
                        Client.Hook

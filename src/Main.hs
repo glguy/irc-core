@@ -17,12 +17,13 @@ import Control.Monad
 import Data.Default.Class
 import Data.Text (Text)
 import Graphics.Vty
-import System.IO
 import System.Exit
+import System.IO
 
-import Client.EventLoop
-import Client.Configuration
+import Client.CApi.Exports () -- foreign exports
 import Client.CommandArguments
+import Client.Configuration
+import Client.EventLoop
 import Client.State
 
 -- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'

@@ -69,7 +69,7 @@ module Client.State
 
   ) where
 
-import {-# SOURCE #-} Client.CApi
+import           Client.CApi
 import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
