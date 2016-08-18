@@ -66,13 +66,13 @@ module Client.State
 import           Client.CApi
 import           Client.ChannelState
 import           Client.Configuration
+import           Client.Configuration.ServerSettings
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
 import           Client.Focus
 import           Client.Image.Message
 import           Client.Message
 import           Client.NetworkConnection
-import           Client.ServerSettings
 import           Client.Window
 import           Control.Concurrent.STM
 import           Control.DeepSeq

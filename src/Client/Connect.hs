@@ -19,7 +19,7 @@ module Client.Connect
   ) where
 
 import           Client.Configuration
-import           Client.ServerSettings
+import           Client.Configuration.ServerSettings
 import           Control.Exception  (bracket)
 import           Control.Lens
 import           Control.Monad

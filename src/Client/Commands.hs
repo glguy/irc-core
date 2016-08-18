@@ -20,6 +20,7 @@ module Client.Commands
 
 import           Client.CApi
 import           Client.ChannelState
+import           Client.Configuration.ServerSettings
 import           Client.Commands.Interpolation
 import           Client.Commands.WordCompletion
 import           Client.Configuration
@@ -27,7 +28,6 @@ import           Client.ConnectionState
 import qualified Client.EditBox as Edit
 import           Client.Focus
 import           Client.Message
-import           Client.ServerSettings
 import           Client.State
 import           Client.Window
 import           Control.Lens

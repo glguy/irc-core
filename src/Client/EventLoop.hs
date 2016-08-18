@@ -18,6 +18,7 @@ module Client.EventLoop
 import           Client.CApi
 import           Client.Commands
 import           Client.Configuration
+import           Client.Configuration.ServerSettings
 import           Client.ConnectionState
 import qualified Client.EditBox     as Edit
 import           Client.Hook
@@ -25,7 +26,6 @@ import           Client.Hooks
 import           Client.Image
 import           Client.Message
 import           Client.NetworkConnection
-import           Client.ServerSettings
 import           Client.State
 import           Client.Window
 import           Control.Concurrent.STM

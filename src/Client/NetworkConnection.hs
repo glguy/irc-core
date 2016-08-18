@@ -44,7 +44,7 @@ import           Network.Connection
 
 import           Irc.RateLimit
 import           Client.Connect
-import           Client.ServerSettings
+import           Client.Configuration.ServerSettings
 
 -- | Identifier used to match connection events to connections.
 type NetworkId = Int

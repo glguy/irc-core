@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 {-|
-Module      : Client.ServerSettings
+Module      : Client.Configuration.ServerSettings
 Description : Settings for an individual IRC connection
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -12,7 +12,7 @@ These are static settings that are not expected change over the lifetime
 of a connection.
 -}
 
-module Client.ServerSettings
+module Client.Configuration.ServerSettings
   (
   -- * Server settings type
     ServerSettings(..)

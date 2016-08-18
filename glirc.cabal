@@ -33,6 +33,7 @@ executable glirc2
                        Client.Commands.WordCompletion
                        Client.Configuration
                        Client.Configuration.Colors
+                       Client.Configuration.ServerSettings
                        Client.Connect
                        Client.ConnectionState
                        Client.EditBox
@@ -53,7 +54,6 @@ executable glirc2
                        Client.Message
                        Client.MircFormatting
                        Client.NetworkConnection
-                       Client.ServerSettings
                        Client.State
                        Client.Window
                        Config.FromConfig

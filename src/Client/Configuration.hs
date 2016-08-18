@@ -36,8 +36,8 @@ module Client.Configuration
 
 import           Client.Image.Palette
 import           Client.Configuration.Colors
+import           Client.Configuration.ServerSettings
 import           Client.Commands.Interpolation
-import           Client.ServerSettings
 import           Control.Exception
 import           Control.Monad
 import           Config
