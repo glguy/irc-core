@@ -1,7 +1,7 @@
 {-# Language TemplateHaskell #-}
 
 {-|
-Module      : Client.MircFormatting
+Module      : Client.Image.MircFormatting
 Description : Parser for mIRC's text formatting encoding
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -10,7 +10,7 @@ Maintainer  : emertens@gmail.com
 This module parses mIRC encoded text and generates VTY images.
 
 -}
-module Client.MircFormatting
+module Client.Image.MircFormatting
   ( parseIrcText
   , parseIrcTextExplicit
   ) where

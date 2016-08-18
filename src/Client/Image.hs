@@ -19,10 +19,10 @@ import           Client.Focus
 import           Client.Image.ChannelInfo
 import           Client.Image.MaskList
 import           Client.Image.Message
+import           Client.Image.MircFormatting
 import           Client.Image.Palette
 import           Client.Image.UserList
 import           Client.Message
-import           Client.MircFormatting
 import           Client.State
 import           Client.Window
 import           Control.Lens

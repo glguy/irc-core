@@ -21,7 +21,7 @@ import           Client.Configuration
 import           Client.ConnectionState
 import           Client.Image.Palette
 import           Client.Image.Message
-import           Client.MircFormatting
+import           Client.Image.MircFormatting
 import           Client.State
 import           Control.Lens
 import           Data.Text (Text)

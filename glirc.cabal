@@ -49,10 +49,10 @@ executable glirc2
                        Client.Image.ChannelInfo
                        Client.Image.MaskList
                        Client.Image.Message
+                       Client.Image.MircFormatting
                        Client.Image.Palette
                        Client.Image.UserList
                        Client.Message
-                       Client.MircFormatting
                        Client.NetworkConnection
                        Client.State
                        Client.Window

@@ -22,25 +22,25 @@ module Client.Image.Message
   , coloredIdentifier
   ) where
 
+import           Client.Image.MircFormatting
 import           Client.Image.Palette
 import           Client.Message
-import           Client.MircFormatting
 import           Control.Lens
+import           Data.Char
+import           Data.Hashable (hash)
+import qualified Data.HashSet as HashSet
+import           Data.List
+import           Data.Maybe
+import           Data.Text (Text)
+import qualified Data.Text as Text
 import           Data.Time
+import qualified Data.Vector as Vector
 import           Graphics.Vty.Image
 import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
-import           Data.Char
-import           Data.Hashable (hash)
-import qualified Data.HashSet as HashSet
-import           Data.List
-import           Data.Maybe
-import qualified Data.Text as Text
-import           Data.Text (Text)
-import qualified Data.Vector as Vector
 
 -- | Parameters used when rendering messages
 data MessageRendererParams = MessageRendererParams
