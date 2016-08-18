@@ -1,7 +1,7 @@
 {-# Options_GHC -Wno-unused-do-bind #-}
 
 {-|
-Module      : Client.NetworkConnection
+Module      : Client.Network.Async
 Description : Event-based network IO
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -22,7 +22,7 @@ When a network connection terminates normally its final messages will be
 
 -}
 
-module Client.NetworkConnection
+module Client.Network.Async
   ( NetworkConnection
   , NetworkId
   , NetworkEvent(..)
@@ -31,20 +31,20 @@ module Client.NetworkConnection
   , send
   ) where
 
+import           Client.Configuration.ServerSettings
+import           Client.Network.Connect
 import           Control.Concurrent
-import           Control.Concurrent.STM
 import           Control.Concurrent.Async
+import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.Time
+import           Irc.RateLimit
 import           Network.Connection
 
-import           Irc.RateLimit
-import           Client.Connect
-import           Client.Configuration.ServerSettings
 
 -- | Identifier used to match connection events to connections.
 type NetworkId = Int

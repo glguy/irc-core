@@ -34,7 +34,6 @@ executable glirc2
                        Client.Configuration
                        Client.Configuration.Colors
                        Client.Configuration.ServerSettings
-                       Client.Connect
                        Client.ConnectionState
                        Client.EditBox
                        Client.EventLoop
@@ -53,7 +52,8 @@ executable glirc2
                        Client.Image.Palette
                        Client.Image.UserList
                        Client.Message
-                       Client.NetworkConnection
+                       Client.Network.Connect
+                       Client.Network.Async
                        Client.State
                        Client.Window
                        Config.FromConfig

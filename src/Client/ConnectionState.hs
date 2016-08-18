@@ -66,7 +66,7 @@ module Client.ConnectionState
 
 import           Client.ChannelState
 import           Client.Configuration.ServerSettings
-import           Client.NetworkConnection
+import           Client.Network.Async
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap

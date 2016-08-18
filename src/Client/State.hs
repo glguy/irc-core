@@ -72,7 +72,7 @@ import qualified Client.EditBox as Edit
 import           Client.Focus
 import           Client.Image.Message
 import           Client.Message
-import           Client.NetworkConnection
+import           Client.Network.Async
 import           Client.Window
 import           Control.Concurrent.STM
 import           Control.DeepSeq

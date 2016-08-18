@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 {-|
-Module      : Client.Connect
+Module      : Client.Network.Connect
 Description : Interface to the connection package
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -14,7 +14,7 @@ network settings from the client configuration into the
 network connection library.
 -}
 
-module Client.Connect
+module Client.Network.Connect
   ( withConnection
   ) where
 

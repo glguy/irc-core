@@ -25,7 +25,7 @@ import           Client.Hook
 import           Client.Hooks
 import           Client.Image
 import           Client.Message
-import           Client.NetworkConnection
+import           Client.Network.Async
 import           Client.State
 import           Client.Window
 import           Control.Concurrent.STM
