@@ -55,13 +55,7 @@ module Client.State
   , recordNetworkMessage
   , recordIrcMessage
 
-  -- * Focus information
-  , ClientFocus(..)
-  , _ChannelFocus
-  , _NetworkFocus
-  , _Unfocused
-  , ClientSubfocus(..)
-  , focusNetwork
+  -- * Focus manipulation
   , changeFocus
   , changeSubfocus
   , advanceFocus
@@ -74,6 +68,7 @@ import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
+import           Client.Focus
 import           Client.Image.Message
 import           Client.Message
 import           Client.NetworkConnection
@@ -91,11 +86,9 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import           Data.Maybe
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
@@ -110,37 +103,6 @@ import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
 import           Text.Regex.TDFA.Text () -- RegexLike Regex Text orphan
 import           Network.Connection
-
--- | Currently focused window
-data ClientFocus
- = Unfocused                      -- ^ No network
- | NetworkFocus !Text             -- ^ Network
- | ChannelFocus !Text !Identifier -- ^ Network Channel/Nick
-  deriving Eq
-
-makePrisms ''ClientFocus
-
--- | Subfocus for a channel view
-data ClientSubfocus
-  = FocusMessages    -- ^ Show chat messages
-  | FocusInfo        -- ^ Show channel metadata
-  | FocusUsers       -- ^ Show user list
-  | FocusMasks !Char -- ^ Show mask list for given mode
-  deriving Eq
-
--- | Unfocused first, followed by focuses sorted by network.
--- Within the same network the network focus comes first and
--- then the channels are ordered by channel identifier
-instance Ord ClientFocus where
-  compare Unfocused            Unfocused            = EQ
-  compare (NetworkFocus x)     (NetworkFocus y    ) = compare x y
-  compare (ChannelFocus x1 x2) (ChannelFocus y1 y2) = compare x1 y1 <> compare x2 y2
-
-  compare Unfocused _         = LT
-  compare _         Unfocused = GT
-
-  compare (NetworkFocus x  ) (ChannelFocus y _) = compare x y <> LT
-  compare (ChannelFocus x _) (NetworkFocus y  ) = compare x y <> GT
 
 -- | All state information for the IRC client
 data ClientState = ClientState
@@ -189,12 +151,6 @@ clientFirstLine = views (clientTextBox . Edit.content) Edit.firstLine
 clientLine :: ClientState -> (Int, String) {- ^ line number, line content -}
 clientLine = views (clientTextBox . Edit.line) (\(Edit.Line n t) -> (n, t))
 
--- | Return the network associated with the current focus
-focusNetwork :: ClientFocus -> Maybe Text {- ^ network -}
-focusNetwork Unfocused = Nothing
-focusNetwork (NetworkFocus network) = Just network
-focusNetwork (ChannelFocus network _) = Just network
-
 -- | Construct an initial 'ClientState' using default values.
 initialClientState :: Configuration -> Vty -> IO ClientState
 initialClientState cfg vty =
@@ -203,21 +159,21 @@ initialClientState cfg vty =
      events         <- atomically newTQueue
      return ClientState
         { _clientWindows           = _Empty # ()
+        , _clientNetworkMap        = _Empty # ()
+        , _clientIgnores           = _Empty # ()
+        , _clientConnections       = _Empty # ()
         , _clientTextBox           = Edit.empty
-        , _clientConnections       = IntMap.empty
         , _clientWidth             = width
         , _clientHeight            = height
         , _clientVty               = vty
         , _clientEvents            = events
         , _clientFocus             = Unfocused
+        , _clientSubfocus          = FocusMessages
         , _clientConnectionContext = cxt
         , _clientConfig            = cfg
         , _clientScroll            = 0
         , _clientDetailView        = False
-        , _clientSubfocus          = FocusMessages
         , _clientNextConnectionId  = 0
-        , _clientNetworkMap        = HashMap.empty
-        , _clientIgnores           = HashSet.empty
         , _clientBell              = False
         , _clientExtensions        = []
         }

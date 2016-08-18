@@ -19,23 +19,24 @@ module Client.Commands
   ) where
 
 import           Client.CApi
+import           Client.ChannelState
 import           Client.Commands.Interpolation
 import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
+import           Client.Focus
 import           Client.Message
 import           Client.ServerSettings
-import           Client.ChannelState
 import           Client.State
 import           Client.Window
 import           Client.WordCompletion
 import           Control.Lens
 import           Control.Monad
 import           Data.Char
-import           Data.List.Split
 import           Data.Foldable
-import           Data.HashSet (HashSet)
 import           Data.HashMap.Strict (HashMap)
+import           Data.HashSet (HashSet)
+import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)

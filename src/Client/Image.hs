@@ -15,6 +15,7 @@ import           Client.ChannelState
 import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
+import           Client.Focus
 import           Client.Image.ChannelInfo
 import           Client.Image.MaskList
 import           Client.Image.Message

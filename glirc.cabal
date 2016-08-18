@@ -39,6 +39,7 @@ executable glirc2
                        Client.CApi.Exports
                        Client.CApi.Types
                        Client.CApi
+                       Client.Focus
                        Client.Hook
                        Client.Hooks
                        Client.Hook.Znc.Buffextras
