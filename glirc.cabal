@@ -30,6 +30,7 @@ executable glirc2
                        Client.CommandArguments
                        Client.Commands
                        Client.Commands.Interpolation
+                       Client.Commands.WordCompletion
                        Client.Configuration
                        Client.Configuration.Colors
                        Client.Connect
@@ -55,7 +56,6 @@ executable glirc2
                        Client.ServerSettings
                        Client.State
                        Client.Window
-                       Client.WordCompletion
                        Config.FromConfig
                        LensUtils
                        StrictUnit

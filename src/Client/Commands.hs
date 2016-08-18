@@ -21,6 +21,7 @@ module Client.Commands
 import           Client.CApi
 import           Client.ChannelState
 import           Client.Commands.Interpolation
+import           Client.Commands.WordCompletion
 import           Client.Configuration
 import           Client.ConnectionState
 import qualified Client.EditBox as Edit
@@ -29,7 +30,6 @@ import           Client.Message
 import           Client.ServerSettings
 import           Client.State
 import           Client.Window
-import           Client.WordCompletion
 import           Control.Lens
 import           Control.Monad
 import           Data.Char
@@ -161,12 +161,12 @@ executeChat msg st =
       | Just !cs <- preview (clientConnection network) st ->
           do now <- getZonedTime
              let msgTxt = Text.pack $ takeWhile (/='\n') msg
-                 ircMsg = rawIrcMsg "PRIVMSG" [idText channel, msgTxt]
+                 ircMsg = ircPrivmsg channel msgTxt
                  myNick = UserInfo (view csNick cs) "" ""
                  entry = ClientMessage
-                            { _msgTime = now
+                            { _msgTime    = now
                             , _msgNetwork = network
-                            , _msgBody = IrcBody (Privmsg myNick channel msgTxt)
+                            , _msgBody    = IrcBody (Privmsg myNick channel msgTxt)
                             }
              sendMsg cs ircMsg
              commandSuccess $ recordChannelMessage network channel entry st

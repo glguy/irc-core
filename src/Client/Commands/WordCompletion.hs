@@ -1,5 +1,5 @@
 {-|
-Module      : Client.WordCompletion
+Module      : Client.Commands.WordCompletion
 Description : Tab-completion logic
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -8,7 +8,7 @@ Maintainer  : emertens@gmail.com
 This module provides the tab-completion logic used for nicknames and channels.
 
 -}
-module Client.WordCompletion
+module Client.Commands.WordCompletion
   ( wordComplete
   ) where
 
