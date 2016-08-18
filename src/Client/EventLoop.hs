@@ -27,7 +27,6 @@ import           Client.Image
 import           Client.Message
 import           Client.Network.Async
 import           Client.State
-import           Client.Window
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
@@ -36,7 +35,6 @@ import           Data.ByteString (ByteString)
 import           Data.Foldable
 import qualified Data.IntMap as IntMap
 import           Data.List
-import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Ord
@@ -357,42 +355,6 @@ doCommandResult clearOnSuccess res =
 
 executeInput :: ClientState -> IO CommandResult
 executeInput st = execute (clientFirstLine st) st
-
--- | Scroll the current buffer to show older messages
-pageUp :: ClientState -> ClientState
-pageUp st = over clientScroll (+ scrollAmount st) st
-
--- | Scroll the current buffer to show newer messages
-pageDown :: ClientState -> ClientState
-pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
-
--- | Compute the number of lines in a page at the current window size
-scrollAmount :: ClientState -> Int
-scrollAmount st = max 1 (view clientHeight st - 2)
-
--- | Jump the focus of the client to a buffer that has unread activity.
--- Some events like errors or chat messages mentioning keywords are
--- considered important and will be jumped to first.
-jumpToActivity :: ClientState -> ClientState
-jumpToActivity st =
-  case mplus highPriority lowPriority of
-    Just (focus,_) -> changeFocus focus st
-    Nothing        -> st
-  where
-    windowList = views clientWindows Map.toList st
-    highPriority = find (view winMention . snd) windowList
-    lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
-
--- | Jump the focus directly to a window based on its zero-based index.
-jumpFocus ::
-  Int {- ^ zero-based window index -} ->
-  ClientState -> ClientState
-jumpFocus i st
-  | 0 <= i, i < Map.size windows = changeFocus focus st
-  | otherwise                    = st
-  where
-    windows = view clientWindows st
-    (focus,_) = Map.elemAt i windows
 
 
 -- | Respond to a timer event.

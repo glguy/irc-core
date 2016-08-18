@@ -60,6 +60,12 @@ module Client.State
   , changeSubfocus
   , advanceFocus
   , retreatFocus
+  , jumpToActivity
+  , jumpFocus
+
+  -- * Scrolling
+  , pageUp
+  , pageDown
 
   ) where
 
@@ -99,10 +105,10 @@ import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
+import           Network.Connection (ConnectionContext, initConnectionContext)
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
 import           Text.Regex.TDFA.Text () -- RegexLike Regex Text orphan
-import           Network.Connection
 
 -- | All state information for the IRC client
 data ClientState = ClientState
@@ -215,6 +221,17 @@ recordChannelMessage network channel msg st =
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
     importance              = msgImportance msg st
 
+
+-- | Extract the status mode sigils from a message target.
+splitStatusMsgModes ::
+  [Char]               {- ^ possible modes              -} ->
+  Identifier           {- ^ target                      -} ->
+  ([Char], Identifier) {- ^ actual modes, actual target -}
+splitStatusMsgModes possible ident = (Text.unpack modes, mkId ident')
+  where
+    (modes, ident') = Text.span (`elem` possible) (idText ident)
+
+
 -- | Compute the importance of a message to be used when computing
 -- change notifications in the client.
 msgImportance :: ClientMessage -> ClientState -> WindowLineImportance
@@ -300,15 +317,6 @@ recordIrcMessage network target msg st =
                   Just m  -> [chan | (chan, cs) <- HashMap.toList m
                                    , HashMap.member user (view chanUsers cs) ]
 
--- | Extract the status mode sigils from a message target.
-splitStatusMsgModes ::
-  [Char]               {- ^ possible modes              -} ->
-  Identifier           {- ^ target                      -} ->
-  ([Char], Identifier) {- ^ actual modes, actual target -}
-splitStatusMsgModes possible ident = (Text.unpack modes, mkId ident')
-  where
-    (modes, ident') = Text.span (`elem` possible) (idText ident)
-
 -- | Compute the sigils of the user who sent a message.
 computeMsgLineSigils ::
   Text       {- ^ network -} ->
@@ -391,33 +399,6 @@ markSeen st =
 consumeInput :: ClientState -> ClientState
 consumeInput = over clientTextBox Edit.success
 
--- | Step focus to the next window when on message view. Otherwise
--- switch to message view.
-advanceFocus :: ClientState -> ClientState
-advanceFocus = stepFocus False
-
--- | Step focus to the previous window when on message view. Otherwise
--- switch to message view.
-retreatFocus :: ClientState -> ClientState
-retreatFocus = stepFocus True
-
--- | Step focus to the next window when on message view. Otherwise
--- switch to message view. Reverse the step order when argument is 'True'.
-stepFocus :: Bool {- ^ reversed -} -> ClientState -> ClientState
-stepFocus isReversed st
-  | view clientSubfocus st /= FocusMessages = changeSubfocus FocusMessages st
-
-  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey l = changeFocus k st
-  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey r = changeFocus k st
-
-  | isForward , Just ((k,_),_) <- Map.minViewWithKey r = changeFocus k st
-  | isForward , Just ((k,_),_) <- Map.minViewWithKey l = changeFocus k st
-
-  | otherwise                                          = st
-  where
-    isForward = not isReversed
-    (l,r)     = Map.split (view clientFocus st) (view clientWindows st)
-
 -- | Returns the current network's channels and current channel's users.
 currentCompletionList :: ClientState -> [Identifier]
 currentCompletionList st =
@@ -441,17 +422,6 @@ channelUserList ::
   [Identifier] {- ^ nicks   -}
 channelUserList network channel =
   views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys
-
-changeFocus :: ClientFocus -> ClientState -> ClientState
-changeFocus focus
-  = set clientScroll 0
-  . set clientFocus focus
-  . set clientSubfocus FocusMessages
-
-changeSubfocus :: ClientSubfocus -> ClientState -> ClientState
-changeSubfocus focus
-  = set clientScroll 0
-  . set clientSubfocus focus
 
 -- | Construct a text matching predicate used to filter the message window.
 clientMatcher :: ClientState -> Text -> Bool
@@ -584,3 +554,86 @@ clientStartExtensions st =
         , _msgBody    = ErrorBody (Text.pack (show (e :: IOError)))
         , _msgNetwork = ""
         } ste
+
+------------------------------------------------------------------------
+-- Scrolling
+------------------------------------------------------------------------
+
+-- | Scroll the current buffer to show older messages
+pageUp :: ClientState -> ClientState
+pageUp st = over clientScroll (+ scrollAmount st) st
+
+-- | Scroll the current buffer to show newer messages
+pageDown :: ClientState -> ClientState
+pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
+
+-- | Compute the number of lines in a page at the current window size
+scrollAmount :: ClientState -> Int
+scrollAmount st = max 1 (view clientHeight st - 2)
+
+
+------------------------------------------------------------------------
+-- Focus Management
+------------------------------------------------------------------------
+
+-- | Jump the focus of the client to a buffer that has unread activity.
+-- Some events like errors or chat messages mentioning keywords are
+-- considered important and will be jumped to first.
+jumpToActivity :: ClientState -> ClientState
+jumpToActivity st =
+  case mplus highPriority lowPriority of
+    Just (focus,_) -> changeFocus focus st
+    Nothing        -> st
+  where
+    windowList = views clientWindows Map.toList st
+    highPriority = find (view winMention . snd) windowList
+    lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
+
+-- | Jump the focus directly to a window based on its zero-based index.
+jumpFocus ::
+  Int {- ^ zero-based window index -} ->
+  ClientState -> ClientState
+jumpFocus i st
+  | 0 <= i, i < Map.size windows = changeFocus focus st
+  | otherwise                    = st
+  where
+    windows = view clientWindows st
+    (focus,_) = Map.elemAt i windows
+
+changeFocus :: ClientFocus -> ClientState -> ClientState
+changeFocus focus
+  = set clientScroll 0
+  . set clientFocus focus
+  . set clientSubfocus FocusMessages
+
+changeSubfocus :: ClientSubfocus -> ClientState -> ClientState
+changeSubfocus focus
+  = set clientScroll 0
+  . set clientSubfocus focus
+
+-- | Step focus to the next window when on message view. Otherwise
+-- switch to message view.
+advanceFocus :: ClientState -> ClientState
+advanceFocus = stepFocus False
+
+-- | Step focus to the previous window when on message view. Otherwise
+-- switch to message view.
+retreatFocus :: ClientState -> ClientState
+retreatFocus = stepFocus True
+
+-- | Step focus to the next window when on message view. Otherwise
+-- switch to message view. Reverse the step order when argument is 'True'.
+stepFocus :: Bool {- ^ reversed -} -> ClientState -> ClientState
+stepFocus isReversed st
+  | view clientSubfocus st /= FocusMessages = changeSubfocus FocusMessages st
+
+  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey l = changeFocus k st
+  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey r = changeFocus k st
+
+  | isForward , Just ((k,_),_) <- Map.minViewWithKey r = changeFocus k st
+  | isForward , Just ((k,_),_) <- Map.minViewWithKey l = changeFocus k st
+
+  | otherwise                                          = st
+  where
+    isForward = not isReversed
+    (l,r)     = Map.split (view clientFocus st) (view clientWindows st)
