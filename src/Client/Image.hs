@@ -109,33 +109,57 @@ messagePane st = (img, st')
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
 windowLinesToImages st wwls =
-  case windowLinesToImagesMd st wwls of
-    Just (img, _, wls) -> img : windowLinesToImages st wls
-    Nothing ->
-      case wwls of
-        [] -> []
-        wl:wls -> view wlImage wl : windowLinesToImages st wls
+  case gatherMetadataLines st wwls of
+    ([] , [])   -> []
+    ([] , w:ws) -> view wlImage w : windowLinesToImages st ws
+    ((img,who,mbnext):mds, wls) ->
+         startMetadata emptyImage img who mbnext mds palette
+       : windowLinesToImages st wls
+  where
+    palette = view (clientConfig . configPalette) st
 
-windowLinesToImagesMd ::
-  ClientState -> [WindowLine] -> Maybe (Image, Identifier, [WindowLine])
-windowLinesToImagesMd st wwls =
-  do w:wls                <- Just wwls
-     (img, ident, mbnext) <- metadataWindowLine st w
-     let palette = view (clientConfig . configPalette) st
+startMetadata ::
+  Image -> Image -> Identifier -> Maybe Identifier ->
+  [(Image,Identifier,Maybe Identifier)] ->
+  Palette -> Image
+startMetadata acc img who !mbnext mds palette =
+  continueMetadata startingImage who' mds palette
+  where
+    !startingImage = acc
+                 <|> quietIdentifier palette who
+                 <|> img
+                 <|> foldMap (quietIdentifier palette) mbnext
+    who' = fromMaybe who mbnext
 
-         (acc1, wls2) =
-           case windowLinesToImagesMd st wls of
-             Nothing -> (quietIdentifier palette ident <|> img, wls)
-             Just (acc, prevident, wls') -> (acc <|> transition <|> img, wls')
-               where
-                 transition
-                   | ident == prevident = emptyImage
-                   | otherwise          = char defAttr ' ' <|> quietIdentifier palette ident
+continueMetadata :: Image -> Identifier -> [(Image,Identifier,Maybe Identifier)] -> Palette -> Image
+continueMetadata acc _ [] _ = acc
+continueMetadata acc who1 ((img, who2, !mbwho3):mds) palette
+  | who1 == who2 =
+      let !who' = fromMaybe who2 mbwho3
+          !acc' = acc <|> img <|> foldMap (quietIdentifier palette) mbwho3
+      in continueMetadata acc' who' mds palette
+  | otherwise =
+      let !acc' = acc <|> char defAttr ' '
+      in startMetadata acc' img who2 mbwho3 mds palette
 
-     let transition2 = foldMap (quietIdentifier palette) mbnext
-     Just (acc1 <|> transition2, fromMaybe ident mbnext, wls2)
+gatherMetadataLines ::
+  ClientState ->
+  [WindowLine] ->
+  ( [ (Image, Identifier, Maybe Identifier) ]
+  , [ WindowLine ] )
+gatherMetadataLines st = go []
+  where
+    go acc (w:ws) | Just (img,who,mbnext) <- metadataWindowLine st w =
+      go ((img,who,mbnext) : acc) ws
+    go acc ws = (acc,ws)
 
-metadataWindowLine :: ClientState -> WindowLine -> Maybe (Image, Identifier, Maybe Identifier)
+
+-- | Classify window lines for metadata coalesence
+metadataWindowLine ::
+  ClientState ->
+  WindowLine ->
+  Maybe (Image, Identifier, Maybe Identifier)
+        {- ^ Image, incoming identifier, outgoing identifier if changed -}
 metadataWindowLine st wl =
   case view wlBody wl of
     IrcBody irc
