@@ -5,6 +5,7 @@
 * Dynamically loadable extensions
 * Implement Lua scripting extension
 * Enable support for batch messages
+* Grow metadata lines to the right
 
 ## 2.8
 
