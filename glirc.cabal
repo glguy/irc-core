@@ -50,6 +50,7 @@ executable glirc2
                        Client.Image.Message
                        Client.Image.MircFormatting
                        Client.Image.Palette
+                       Client.Image.StatusLine
                        Client.Image.UserList
                        Client.Message
                        Client.Network.Connect
