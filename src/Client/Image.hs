@@ -26,7 +26,6 @@ import           Client.Message
 import           Client.State
 import           Client.Window
 import           Control.Lens
-import           Data.Maybe
 import qualified Data.Text as Text
 import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
 import           Graphics.Vty.Image
@@ -113,34 +112,47 @@ windowLinesToImages st wwls =
     ([] , [])   -> []
     ([] , w:ws) -> view wlImage w : windowLinesToImages st ws
     ((img,who,mbnext):mds, wls) ->
-         startMetadata emptyImage img who mbnext mds palette
+         startMetadata img mbnext who mds palette emptyImage
        : windowLinesToImages st wls
   where
     palette = view (clientConfig . configPalette) st
 
-startMetadata ::
-  Image -> Image -> Identifier -> Maybe Identifier ->
+type MetadataState =
+  Identifier                            ->
   [(Image,Identifier,Maybe Identifier)] ->
-  Palette -> Image
-startMetadata acc img who !mbnext mds palette =
-  continueMetadata startingImage who' mds palette
-  where
-    !startingImage = acc
-                 <|> quietIdentifier palette who
-                 <|> img
-                 <|> foldMap (quietIdentifier palette) mbnext
-    who' = fromMaybe who mbnext
+  Palette                               ->
+  Image                                 ->
+  Image
 
-continueMetadata :: Image -> Identifier -> [(Image,Identifier,Maybe Identifier)] -> Palette -> Image
-continueMetadata acc _ [] _ = acc
-continueMetadata acc who1 ((img, who2, !mbwho3):mds) palette
+startMetadata ::
+  Image                                 ->
+  Maybe Identifier                      ->
+  MetadataState
+startMetadata img mbnext who mds palette acc =
+  transitionMetadata mbnext who mds palette
+    $!  acc
+    <|> quietIdentifier palette who
+    <|> img
+
+transitionMetadata ::
+  Maybe Identifier                        ->
+  MetadataState
+transitionMetadata mbwho who mds palette acc =
+  case mbwho of
+    Nothing   -> continueMetadata who  mds palette acc
+    Just who' -> continueMetadata who' mds palette
+              $! acc <|> quietIdentifier palette who'
+
+continueMetadata ::
+  MetadataState
+continueMetadata _ [] _ acc = acc
+continueMetadata who1 ((img, who2, mbwho3):mds) palette acc
   | who1 == who2 =
-      let !who' = fromMaybe who2 mbwho3
-          !acc' = acc <|> img <|> foldMap (quietIdentifier palette) mbwho3
-      in continueMetadata acc' who' mds palette
+      transitionMetadata mbwho3 who2 mds palette
+      $! acc <|> img
   | otherwise =
-      let !acc' = acc <|> char defAttr ' '
-      in startMetadata acc' img who2 mbwho3 mds palette
+      startMetadata img mbwho3 who2 mds palette
+      $! acc <|> char defAttr ' '
 
 gatherMetadataLines ::
   ClientState ->
