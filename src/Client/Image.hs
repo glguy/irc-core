@@ -26,8 +26,10 @@ import           Client.Message
 import           Client.State
 import           Client.Window
 import           Control.Lens
+import           Data.Char
+import           Data.List
 import qualified Data.Text as Text
-import           Graphics.Vty (Picture(..), Cursor(..), picForImage)
+import           Graphics.Vty (Background(..), Picture(..), Cursor(..))
 import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier)
 
@@ -37,12 +39,16 @@ clientPicture :: ClientState -> (Picture, ClientState)
 clientPicture st = (pic, st')
     where
       (pos, img, st') = clientImage st
-      pic0 = picForImage img
-      pic  = pic0 { picCursor = cursor }
-      cursor = Cursor (min (view clientWidth st - 1) (pos+1))
-                      (view clientHeight st - 1)
+      pic = Picture
+              { picCursor = cursor
+              , picBackground = ClearBackground
+              , picLayers     = [img]
+              }
+      cursor = Cursor pos (view clientHeight st - 1)
 
-clientImage :: ClientState -> (Int, Image, ClientState)
+clientImage ::
+  ClientState ->
+  (Int, Image, ClientState) -- ^ text box cursor position, image, updated state
 clientImage st = (pos, img, st')
   where
     (mp, st') = messagePane st
@@ -89,9 +95,9 @@ messagePane :: ClientState -> (Image, ClientState)
 messagePane st = (img, st')
   where
     images = messagePaneImages st
-    vimg = assemble emptyImage images
-    vimg1 = cropBottom h vimg
-    img   = pad 0 (h - imageHeight vimg1) 0 0 vimg1
+    vimg   = assemble emptyImage images
+    vimg1  = cropBottom h vimg
+    img    = pad 0 (h - imageHeight vimg1) 0 0 vimg1
 
     overscroll = vh - imageHeight vimg
 
@@ -102,67 +108,68 @@ messagePane st = (img, st')
     assemble acc (x:xs) = assemble (lineWrap w x <-> acc) xs
 
     scroll = view clientScroll st
-    vh = h + scroll
-    h = view clientHeight st - 2
-    w = view clientWidth st
+    vh     = h + scroll
+    h      = view clientHeight st - 2
+    w      = view clientWidth st
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
 windowLinesToImages st wwls =
   case gatherMetadataLines st wwls of
-    ([] , [])   -> []
-    ([] , w:ws) -> view wlImage w : windowLinesToImages st ws
+    ([], [])   -> []
+    ([], w:ws) -> view wlImage w : windowLinesToImages st ws
     ((img,who,mbnext):mds, wls) ->
-         startMetadata img mbnext who mds palette emptyImage
+         startMetadata img mbnext who mds palette
        : windowLinesToImages st wls
   where
     palette = view (clientConfig . configPalette) st
 
+------------------------------------------------------------------------
+
 type MetadataState =
-  Identifier                            ->
-  [(Image,Identifier,Maybe Identifier)] ->
-  Palette                               ->
-  Image                                 ->
+  Identifier                            {- ^ current nick -} ->
+  [(Image,Identifier,Maybe Identifier)] {- ^ metadata     -} ->
+  Palette                               {- ^ palette      -} ->
   Image
 
 startMetadata ::
-  Image                                 ->
-  Maybe Identifier                      ->
+  Image            {- ^ metadata image           -} ->
+  Maybe Identifier {- ^ possible nick transition -} ->
   MetadataState
-startMetadata img mbnext who mds palette acc =
-  transitionMetadata mbnext who mds palette
-    $!  acc
-    <|> quietIdentifier palette who
+startMetadata img mbnext who mds palette =
+        quietIdentifier palette who
     <|> img
+    <|> transitionMetadata mbnext who mds palette
 
 transitionMetadata ::
-  Maybe Identifier                        ->
+  Maybe Identifier {- ^ possible nick transition -} ->
   MetadataState
-transitionMetadata mbwho who mds palette acc =
+transitionMetadata mbwho who mds palette =
   case mbwho of
-    Nothing   -> continueMetadata who  mds palette acc
-    Just who' -> continueMetadata who' mds palette
-              $! acc <|> quietIdentifier palette who'
+    Nothing   -> continueMetadata who  mds palette
+    Just who' -> quietIdentifier palette who'
+             <|> continueMetadata who' mds palette
 
-continueMetadata ::
-  MetadataState
-continueMetadata _ [] _ acc = acc
-continueMetadata who1 ((img, who2, mbwho3):mds) palette acc
-  | who1 == who2 =
-      transitionMetadata mbwho3 who2 mds palette
-      $! acc <|> img
-  | otherwise =
-      startMetadata img mbwho3 who2 mds palette
-      $! acc <|> char defAttr ' '
+continueMetadata :: MetadataState
+continueMetadata _ [] _ = emptyImage
+continueMetadata who1 ((img, who2, mbwho3):mds) palette
+  | who1 == who2 = img
+               <|> transitionMetadata mbwho3 who2 mds palette
+  | otherwise    = char defAttr ' '
+               <|> startMetadata img mbwho3 who2 mds palette
+
+------------------------------------------------------------------------
 
 gatherMetadataLines ::
   ClientState ->
   [WindowLine] ->
-  ( [ (Image, Identifier, Maybe Identifier) ]
-  , [ WindowLine ] )
+  ( [(Image, Identifier, Maybe Identifier)] , [ WindowLine ] )
+  -- ^ metadata entries are reversed
 gatherMetadataLines st = go []
   where
-    go acc (w:ws) | Just (img,who,mbnext) <- metadataWindowLine st w =
-      go ((img,who,mbnext) : acc) ws
+    go acc (w:ws)
+      | Just (img,who,mbnext) <- metadataWindowLine st w =
+          go ((img,who,mbnext) : acc) ws
+
     go acc ws = (acc,ws)
 
 
@@ -187,32 +194,55 @@ lineWrap w img
                         -- where the formatting will continue past the end of chat messages
 
 
-
 textboxImage :: ClientState -> (Int, Image)
 textboxImage st
-  = (pos, applyCrop $ beginning <|> content <|> ending)
+  = (pos, croppedImage)
   where
   width = view clientWidth st
-  (pos, content) = views (clientTextBox . Edit.content) renderContent st
-  applyCrop
-    | 1+pos < width = cropRight width
-    | otherwise     = cropLeft  width . cropRight (pos+2)
+  (txt, content) =
+     views (clientTextBox . Edit.content) renderContent st
+
+  pos = computeCharWidth (width-1) txt
+
+  lineImage = beginning <|> content <|> ending
+
+  leftOfCurWidth = safeWcswidth txt
+
+  croppedImage
+    | leftOfCurWidth < width = lineImage
+    | otherwise = cropLeft width (cropRight (leftOfCurWidth+1) lineImage)
 
   attr      = view (clientConfig . configPalette . palTextBox) st
   beginning = char attr '^'
   ending    = char attr '$'
 
-renderContent :: Edit.Content -> (Int, Image)
-renderContent c = (imgPos, wholeImg)
+renderContent :: Edit.Content -> (String, Image)
+renderContent c = (txt, wholeImg)
   where
-  as = view Edit.above c
-  bs = view Edit.below c
+  as  = reverse (view Edit.above c)
+  bs  = view Edit.below c
   cur = view Edit.current c
 
-  imgPos = view Edit.pos cur + length as + sum (map length as)
+  leftCur = take (view Edit.pos cur) (view Edit.text cur)
 
   renderLine l = parseIrcTextExplicit $ Text.pack l
 
-  curImg = views Edit.text renderLine cur
-  rightImg = foldl (\i b -> i <|> renderLine ('\n':b)) curImg bs
-  wholeImg = foldl (\i a -> renderLine (a ++ "\n") <|> i) rightImg as
+  inputLines = as ++ view Edit.text cur : bs
+
+  txt = reverse ('^' : intercalate " " as ++ leftCur)
+
+  wholeImg = horizCat
+           $ intersperse (renderLine "\n")
+           $ map renderLine inputLines
+
+computeCharWidth :: Int -> String -> Int
+computeCharWidth = go 0
+  where
+    go !acc _ [] = acc
+    go acc 0 _ = acc
+    go acc w (x:xs)
+      | z > w = acc + w -- didn't fit, will be filled in
+      | otherwise = go (acc+1) (w-z) xs
+      where
+        z | isControl x = 1
+          | otherwise   = safeWcwidth x
