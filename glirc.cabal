@@ -26,24 +26,20 @@ source-repository head
 
 executable glirc2
   main-is:             Main.hs
-  other-modules:       Client.ChannelState
-                       Client.CommandArguments
+  other-modules:       Client.CommandArguments
                        Client.Commands
                        Client.Commands.Interpolation
+                       Client.CApi
+                       Client.CApi.Exports
+                       Client.CApi.Types
                        Client.Commands.WordCompletion
                        Client.Configuration
                        Client.Configuration.Colors
                        Client.Configuration.ServerSettings
-                       Client.ConnectionState
-                       Client.EditBox
                        Client.EventLoop
-                       Client.CApi.Exports
-                       Client.CApi.Types
-                       Client.CApi
-                       Client.Focus
                        Client.Hook
-                       Client.Hooks
                        Client.Hook.Znc.Buffextras
+                       Client.Hooks
                        Client.Image
                        Client.Image.ChannelInfo
                        Client.Image.MaskList
@@ -53,10 +49,14 @@ executable glirc2
                        Client.Image.StatusLine
                        Client.Image.UserList
                        Client.Message
-                       Client.Network.Connect
                        Client.Network.Async
+                       Client.Network.Connect
                        Client.State
-                       Client.Window
+                       Client.State.Channel
+                       Client.State.EditBox
+                       Client.State.Focus
+                       Client.State.Network
+                       Client.State.Window
                        Config.FromConfig
                        LensUtils
                        StrictUnit

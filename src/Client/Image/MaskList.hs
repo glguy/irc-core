@@ -13,11 +13,11 @@ module Client.Image.MaskList
   ( maskListImages
   ) where
 
-import           Client.ChannelState
 import           Client.Configuration
-import           Client.ConnectionState
 import           Client.Image.Palette
 import           Client.State
+import           Client.State.Channel
+import           Client.State.Network
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap

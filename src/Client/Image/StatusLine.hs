@@ -14,13 +14,13 @@ module Client.Image.StatusLine
   ( statusLineImage
   ) where
 
-import           Client.ChannelState
 import           Client.Configuration
-import           Client.ConnectionState
-import           Client.Focus
 import           Client.Image.Palette
 import           Client.State
-import           Client.Window
+import           Client.State.Channel
+import           Client.State.Focus
+import           Client.State.Network
+import           Client.State.Window
 import           Control.Lens
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)

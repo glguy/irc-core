@@ -1,21 +1,21 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 {-|
-Module      : Client.Focus
+Module      : Client.State.Focus
 Description : Types for representing the current window being displayed
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com
 
 The client has a primary message window whose contents are determined
-by a 'ClientFocus'. In order to provide different views of channels
-the 'ClientSubfocus' breaks down channel focus into different subviews.
+by a 'Focus'. In order to provide different views of channels
+the 'Subfocus' breaks down channel focus into different subviews.
 -}
 
-module Client.Focus
+module Client.State.Focus
   ( -- * Types
-    ClientFocus(..)
-  , ClientSubfocus(..)
+    Focus(..)
+  , Subfocus(..)
 
   -- * Focus operations
   , focusNetwork
@@ -38,28 +38,28 @@ import           Data.Text (Text)
 import           Irc.Identifier
 
 -- | Currently focused window
-data ClientFocus
+data Focus
  = Unfocused                      -- ^ No network
  | NetworkFocus !Text             -- ^ Network
  | ChannelFocus !Text !Identifier -- ^ Network Channel/Nick
   deriving (Eq,Show)
 
-makePrisms ''ClientFocus
+makePrisms ''Focus
 
 -- | Subfocus for a channel view
-data ClientSubfocus
+data Subfocus
   = FocusMessages    -- ^ Show chat messages
   | FocusInfo        -- ^ Show channel metadata
   | FocusUsers       -- ^ Show user list
   | FocusMasks !Char -- ^ Show mask list for given mode
   deriving (Eq,Show)
 
-makePrisms ''ClientSubfocus
+makePrisms ''Subfocus
 
 -- | Unfocused first, followed by focuses sorted by network.
 -- Within the same network the network focus comes first and
 -- then the channels are ordered by channel identifier
-instance Ord ClientFocus where
+instance Ord Focus where
   compare Unfocused            Unfocused            = EQ
   compare (NetworkFocus x)     (NetworkFocus y    ) = compare x y
   compare (ChannelFocus x1 x2) (ChannelFocus y1 y2) = compare x1 y1 <> compare x2 y2
@@ -71,7 +71,7 @@ instance Ord ClientFocus where
   compare (ChannelFocus x _) (NetworkFocus y  ) = compare x y <> GT
 
 -- | Return the network associated with the current focus
-focusNetwork :: ClientFocus -> Maybe Text {- ^ network -}
+focusNetwork :: Focus -> Maybe Text {- ^ network -}
 focusNetwork Unfocused = Nothing
 focusNetwork (NetworkFocus network) = Just network
 focusNetwork (ChannelFocus network _) = Just network

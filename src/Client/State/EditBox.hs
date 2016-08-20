@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 {-|
-Module      : Client.EditBox
+Module      : Client.State.EditBox
 Description : Console-mode text box
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -14,7 +14,7 @@ which are mapped to the keyboard in "Client.EventLoop".
 
 -}
 
-module Client.EditBox
+module Client.State.EditBox
   ( Line(Line)
   , endLine
   , HasLine(..)

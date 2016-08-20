@@ -19,14 +19,14 @@ import           Client.CApi
 import           Client.Commands
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
-import           Client.ConnectionState
-import qualified Client.EditBox     as Edit
 import           Client.Hook
 import           Client.Hooks
 import           Client.Image
 import           Client.Message
 import           Client.Network.Async
 import           Client.State
+import qualified Client.State.EditBox     as Edit
+import           Client.State.Network
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
@@ -205,8 +205,8 @@ doNetworkLine networkId time line st =
 
 -- | Client-level responses to specific IRC messages.
 -- This is in contrast to the connection state tracking logic in
--- "Client.ConnectionState"
-clientResponse :: ZonedTime -> IrcMsg -> ConnectionState -> ClientState -> IO ClientState
+-- "Client.NetworkState   "
+clientResponse :: ZonedTime -> IrcMsg -> NetworkState    -> ClientState -> IO ClientState
 clientResponse now irc cs st =
   case irc of
     Reply RPL_WELCOME _ ->
@@ -218,7 +218,7 @@ clientResponse now irc cs st =
 
 processConnectCmd ::
   ZonedTime       {- ^ now             -} ->
-  ConnectionState {- ^ current network -} ->
+  NetworkState    {- ^ current network -} ->
   ClientState                             ->
   Text            {- ^ command         -} ->
   IO ClientState
@@ -232,7 +232,7 @@ processConnectCmd now cs st0 cmdTxt =
 
 reportConnectCmdError ::
   ZonedTime       {- ^ now             -} ->
-  ConnectionState {- ^ current network -} ->
+  NetworkState    {- ^ current network -} ->
   Text            {- ^ bad command     -} ->
   ClientState ->
   ClientState

@@ -21,10 +21,10 @@ module Client.CApi.Exports
  ) where
 
 import           Client.CApi.Types
-import           Client.State
-import           Client.ChannelState
-import           Client.ConnectionState
 import           Client.Message
+import           Client.State
+import           Client.State.Channel
+import           Client.State.Network
 import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens

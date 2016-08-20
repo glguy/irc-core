@@ -12,16 +12,16 @@ module Client.Commands.WordCompletion
   ( wordComplete
   ) where
 
-import Irc.Identifier
-import Control.Applicative
-import Data.Text (Text)
-import qualified Data.Text as Text
+import qualified Client.State.EditBox as Edit
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad
+import           Data.Char
+import           Data.List
 import qualified Data.Set as Set
-import Data.Char
-import Data.List
-import Control.Lens
-import qualified Client.EditBox as Edit
-import Control.Monad
+import qualified Data.Text as Text
+import           Data.Text (Text)
+import           Irc.Identifier
 
 -- | Perform word completion on a text box.
 --

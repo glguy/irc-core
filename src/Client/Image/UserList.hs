@@ -10,12 +10,12 @@ This module renders the lines used in the channel user list.
 -}
 module Client.Image.UserList where
 
-import           Client.ChannelState
 import           Client.Configuration
-import           Client.ConnectionState
 import           Client.Image.Message
 import           Client.Image.Palette
 import           Client.State
+import           Client.State.Channel
+import           Client.State.Network
 import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
@@ -40,7 +40,7 @@ userListImages network channel st =
   where
     pal = view (clientConfig . configPalette) st
 
-userListImages' :: ConnectionState -> Identifier -> ClientState -> [Image]
+userListImages' :: NetworkState -> Identifier -> ClientState -> [Image]
 userListImages' cs channel st =
     [countImage, horizCat (intersperse gap (map renderUser usersList))]
   where
@@ -90,7 +90,7 @@ userInfoImages network channel st =
   where
     pal = view (clientConfig . configPalette) st
 
-userInfoImages' :: ConnectionState -> Identifier -> ClientState -> [Image]
+userInfoImages' :: NetworkState -> Identifier -> ClientState -> [Image]
 userInfoImages' cs channel st = renderEntry <$> usersList
   where
     matcher = clientMatcher st

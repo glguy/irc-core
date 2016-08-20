@@ -19,17 +19,17 @@ module Client.Commands
   ) where
 
 import           Client.CApi
-import           Client.ChannelState
-import           Client.Configuration.ServerSettings
 import           Client.Commands.Interpolation
 import           Client.Commands.WordCompletion
 import           Client.Configuration
-import           Client.ConnectionState
-import qualified Client.EditBox as Edit
-import           Client.Focus
+import           Client.Configuration.ServerSettings
 import           Client.Message
 import           Client.State
-import           Client.Window
+import           Client.State.Channel
+import qualified Client.State.EditBox as Edit
+import           Client.State.Focus
+import           Client.State.Network
+import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
 import           Data.Char
@@ -68,7 +68,7 @@ type ClientCommand =
 -- | Type of commands that require an active network to be focused
 type NetworkCommand =
   Text            {- ^ focused network          -} ->
-  ConnectionState {- ^ focused connection state -} ->
+  NetworkState    {- ^ focused connection state -} ->
   ClientState                                      ->
   String          {- ^ command arguments        -} ->
   IO CommandResult
@@ -76,7 +76,7 @@ type NetworkCommand =
 -- | Type of commands that require an active channel to be focused
 type ChannelCommand =
   Text            {- ^ focused network          -} ->
-  ConnectionState {- ^ focused connection state -} ->
+  NetworkState    {- ^ focused connection state -} ->
   Identifier      {- ^ focused channel          -} ->
   ClientState                                      ->
   String          {- ^ command arguments        -} ->
@@ -406,7 +406,7 @@ chatCommand ::
   (UserInfo -> Identifier -> IrcMsg) ->
   Text {- ^ target  -} ->
   Text {- ^ network -} ->
-  ConnectionState      ->
+  NetworkState         ->
   ClientState          ->
   IO CommandResult
 chatCommand con targetsTxt network cs st =
@@ -596,7 +596,7 @@ cmdInvite _ cs channelId st rest =
 
     _ -> commandFailure st
 
-commandSuccessUpdateCS :: ConnectionState -> ClientState -> IO CommandResult
+commandSuccessUpdateCS :: NetworkState    -> ClientState -> IO CommandResult
 commandSuccessUpdateCS cs st =
   let networkId = view csNetworkId cs in
   commandSuccess
@@ -668,7 +668,7 @@ cmdKickBan _ cs channelId st rest =
          cs' <- sendModeration channelId cmds cs
          commandSuccessUpdateCS cs' st
 
-computeBanUserInfo :: Identifier -> ConnectionState -> UserInfo
+computeBanUserInfo :: Identifier -> NetworkState    -> UserInfo
 computeBanUserInfo who cs =
   case view (csUser who) cs of
     Nothing                   -> UserInfo who        "*" "*"
@@ -767,7 +767,7 @@ tabReload _ st _ = commandFailure st
 
 modeCommand ::
   [Text] {- mode parameters -} ->
-  ConnectionState              ->
+  NetworkState                 ->
   ClientState                  ->
   IO CommandResult
 modeCommand modes cs st =
@@ -853,7 +853,7 @@ computeModeCompletion ::
   Bool {- ^ mode polarity -} ->
   Char {- ^ mode          -} ->
   Identifier {- ^ channel -} ->
-  ConnectionState ->
+  NetworkState    ->
   ClientState ->
   ([Identifier],[Identifier]) {- ^ (hint, complete) -}
 computeModeCompletion pol mode channel cs st
@@ -907,15 +907,15 @@ nickTabCompletion isReversed st
 sendModeration ::
   Identifier      {- ^ channel       -} ->
   [RawIrcMsg]     {- ^ commands      -} ->
-  ConnectionState {- ^ network state -} ->
-  IO ConnectionState
+  NetworkState    {- ^ network state -} ->
+  IO NetworkState
 sendModeration channel cmds cs
   | useChanServ channel cs =
       do sendMsg cs (ircPrivmsg (mkId "ChanServ") ("OP " <> idText channel))
          return $ csChannels . ix channel . chanQueuedModeration <>~ cmds $ cs
   | otherwise = cs <$ traverse_ (sendMsg cs) cmds
 
-useChanServ :: Identifier -> ConnectionState -> Bool
+useChanServ :: Identifier -> NetworkState    -> Bool
 useChanServ channel cs =
   channel `elem` view (csSettings . ssChanservChannels) cs &&
   not (iHaveOp channel cs)

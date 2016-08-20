@@ -70,16 +70,16 @@ module Client.State
   ) where
 
 import           Client.CApi
-import           Client.ChannelState
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
-import           Client.ConnectionState
-import qualified Client.EditBox as Edit
-import           Client.Focus
 import           Client.Image.Message
 import           Client.Message
 import           Client.Network.Async
-import           Client.Window
+import           Client.State.Channel
+import qualified Client.State.EditBox as Edit
+import           Client.State.Focus
+import           Client.State.Network
+import           Client.State.Window
 import           Control.Concurrent.STM
 import           Control.DeepSeq
 import           Control.Exception
@@ -112,11 +112,11 @@ import           Text.Regex.TDFA.Text () -- RegexLike Regex Text orphan
 
 -- | All state information for the IRC client
 data ClientState = ClientState
-  { _clientWindows           :: !(Map ClientFocus Window) -- ^ client message buffers
-  , _clientFocus             :: !ClientFocus              -- ^ currently focused buffer
-  , _clientSubfocus          :: !ClientSubfocus           -- ^ sec
+  { _clientWindows           :: !(Map Focus Window) -- ^ client message buffers
+  , _clientFocus             :: !Focus              -- ^ currently focused buffer
+  , _clientSubfocus          :: !Subfocus           -- ^ sec
 
-  , _clientConnections       :: !(IntMap ConnectionState) -- ^ state of active connections
+  , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
   , _clientNextConnectionId  :: !Int
   , _clientConnectionContext :: !ConnectionContext        -- ^ network connection context
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
@@ -138,12 +138,12 @@ data ClientState = ClientState
 
 makeLenses ''ClientState
 
--- | 'Traversal' for finding the 'ConnectionState' associated with a given network
+-- | 'Traversal' for finding the 'NetworkState' associated with a given network
 -- if that connection is currently active.
 clientConnection ::
   Applicative f =>
   Text {- ^ network -} ->
-  LensLike' f ClientState ConnectionState
+  LensLike' f ClientState NetworkState
 clientConnection network f st =
   case view (clientNetworkMap . at network) st of
     Nothing -> pure st
@@ -355,7 +355,7 @@ recordNetworkMessage msg st = recordWindowLine focus importance wl st
 
 -- | Record window line at the given focus creating the window if necessary
 recordWindowLine ::
-  ClientFocus ->
+  Focus ->
   WindowLineImportance ->
   WindowLine ->
   ClientState -> ClientState
@@ -439,7 +439,7 @@ clientMatcher st =
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the networkconnection exists and should
 -- only be applied once per connection.
-removeNetwork :: NetworkId -> ClientState -> (ConnectionState, ClientState)
+removeNetwork :: NetworkId -> ClientState -> (NetworkState, ClientState)
 removeNetwork networkId st =
   case (clientConnections . at networkId <<.~ Nothing) st of
     (Nothing, _  ) -> error "removeNetwork: network not found"
@@ -469,7 +469,7 @@ addConnection network st =
             settings
             (view clientEvents st')
 
-     let cs = newConnectionState i network settings c
+     let cs = newNetworkState i network settings c
      traverse_ (sendMsg cs) (initialMessages cs)
 
      return $ set (clientNetworkMap . at network) (Just i)
@@ -479,7 +479,7 @@ applyMessageToClientState ::
   ZonedTime                  {- ^ timestamp                -} ->
   IrcMsg                     {- ^ message recieved         -} ->
   NetworkId                  {- ^ message network          -} ->
-  ConnectionState            {- ^ network connection state -} ->
+  NetworkState               {- ^ network connection state -} ->
   ClientState                                                 ->
   ([RawIrcMsg], ClientState) {- ^ response , updated state -}
 applyMessageToClientState time irc networkId cs st =
@@ -508,7 +508,7 @@ applyWindowRenames network (Nick old new) st
 
     hasWindow who = has (clientWindows . ix (mkFocus who)) st
 
-    moveWindow :: Map ClientFocus Window -> Map ClientFocus Window
+    moveWindow :: Map Focus Window -> Map Focus Window
     moveWindow wins =
       let (win,wins') = (at (mkFocus old') <<.~ Nothing) wins
       in set (at (mkFocus new)) win wins'
@@ -600,13 +600,13 @@ jumpFocus i st
     windows = view clientWindows st
     (focus,_) = Map.elemAt i windows
 
-changeFocus :: ClientFocus -> ClientState -> ClientState
+changeFocus :: Focus -> ClientState -> ClientState
 changeFocus focus
   = set clientScroll 0
   . set clientFocus focus
   . set clientSubfocus FocusMessages
 
-changeSubfocus :: ClientSubfocus -> ClientState -> ClientState
+changeSubfocus :: Subfocus -> ClientState -> ClientState
 changeSubfocus focus
   = set clientScroll 0
   . set clientSubfocus focus

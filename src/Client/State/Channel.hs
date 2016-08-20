@@ -1,7 +1,7 @@
 {-# Language TemplateHaskell #-}
 
 {-|
-Module      : Client.ChannelState
+Module      : Client.State.Channel
 Description : IRC channel session state
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -13,7 +13,7 @@ channel a new channel session is created and when the client leaves
 a channel is it destroyed.
 -}
 
-module Client.ChannelState
+module Client.State.Channel
   (
   -- * Channel state
     ChannelState(..)

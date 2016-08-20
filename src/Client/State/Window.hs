@@ -1,7 +1,7 @@
 {-# Language BangPatterns, TemplateHaskell #-}
 
 {-|
-Module      : Client.Window
+Module      : Client.State.Window
 Description : Types and operations for managing message buffers.
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -11,7 +11,7 @@ This module defines types and operations used to store messages for display
 in the client's buffers.
 -}
 
-module Client.Window
+module Client.State.Window
   (
   -- * Windows
     Window(..)

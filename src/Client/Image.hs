@@ -12,9 +12,6 @@ This module provides the renderer for the client's UI.
 module Client.Image (clientPicture) where
 
 import           Client.Configuration
-import           Client.ConnectionState
-import qualified Client.EditBox as Edit
-import           Client.Focus
 import           Client.Image.ChannelInfo
 import           Client.Image.MaskList
 import           Client.Image.Message
@@ -24,7 +21,10 @@ import           Client.Image.StatusLine
 import           Client.Image.UserList
 import           Client.Message
 import           Client.State
-import           Client.Window
+import qualified Client.State.EditBox as Edit
+import           Client.State.Focus
+import           Client.State.Network
+import           Client.State.Window
 import           Control.Lens
 import           Data.Char
 import           Data.List
@@ -40,11 +40,10 @@ clientPicture st = (pic, st')
     where
       (pos, img, st') = clientImage st
       pic = Picture
-              { picCursor = cursor
+              { picCursor     = Cursor pos (view clientHeight st - 1)
               , picBackground = ClearBackground
               , picLayers     = [img]
               }
-      cursor = Cursor pos (view clientHeight st - 1)
 
 clientImage ::
   ClientState ->

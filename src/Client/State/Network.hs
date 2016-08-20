@@ -1,8 +1,8 @@
 {-# Language TemplateHaskell, OverloadedStrings, BangPatterns #-}
 
 {-|
-Module      : Client.ConnectionState
-Description : IRC connection session state
+Module      : Client.State.Network
+Description : IRC network session state
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com
@@ -16,11 +16,11 @@ client because it is responsible for interpreting each IRC message from
 the server and updating the connection state accordingly.
 -}
 
-module Client.ConnectionState
+module Client.State.Network
   (
   -- * Connection state
-    ConnectionState(..)
-  , newConnectionState
+    NetworkState(..)
+  , newNetworkState
 
   , csNick
   , csChannels
@@ -64,9 +64,9 @@ module Client.ConnectionState
   , applyTimedAction
   ) where
 
-import           Client.ChannelState
 import           Client.Configuration.ServerSettings
 import           Client.Network.Async
+import           Client.State.Channel
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -93,7 +93,7 @@ import           Irc.UserInfo
 import           LensUtils
 
 -- | State tracked for each IRC connection
-data ConnectionState = ConnectionState
+data NetworkState = NetworkState
   { _csNetworkId    :: !NetworkId -- ^ network connection identifier
   , _csChannels     :: !(HashMap Identifier ChannelState) -- ^ joined channels
   , _csSocket       :: !NetworkConnection -- ^ network socket
@@ -133,13 +133,13 @@ data Transaction
   | WhoTransaction [UserInfo]
   deriving Show
 
-makeLenses ''ConnectionState
+makeLenses ''NetworkState
 makePrisms ''Transaction
 
-csNick :: Lens' ConnectionState Identifier
+csNick :: Lens' NetworkState Identifier
 csNick = csUserInfo . uiNick
 
-sendMsg :: ConnectionState -> RawIrcMsg -> IO ()
+sendMsg :: NetworkState -> RawIrcMsg -> IO ()
 sendMsg cs msg =
   case (view msgCommand msg, view msgParams msg) of
     ("PRIVMSG", [tgt,txt]) -> multiline "PRIVMSG" tgt txt
@@ -181,13 +181,13 @@ utf8ChunksOf n txt
           case Text.splitAt (charIx - startChar) currentTxt of
             (a,b) -> a : search byteIx charIx b xs'
 
-newConnectionState ::
+newNetworkState ::
   NetworkId ->
   Text ->
   ServerSettings ->
   NetworkConnection ->
-  ConnectionState
-newConnectionState networkId network settings sock = ConnectionState
+  NetworkState
+newNetworkState networkId network settings sock = NetworkState
   { _csNetworkId    = networkId
   , _csUserInfo     = UserInfo (mkId (view ssNick settings)) "" ""
   , _csChannels     = HashMap.empty
@@ -208,16 +208,16 @@ newConnectionState networkId network settings sock = ConnectionState
 
 
 
-noReply :: ConnectionState -> ([RawIrcMsg], ConnectionState)
+noReply :: NetworkState -> ([RawIrcMsg], NetworkState)
 noReply x = ([], x)
 
-overChannel :: Identifier -> (ChannelState -> ChannelState) -> ConnectionState -> ConnectionState
+overChannel :: Identifier -> (ChannelState -> ChannelState) -> NetworkState -> NetworkState
 overChannel chan = overStrict (csChannels . ix chan)
 
-overChannels :: (ChannelState -> ChannelState) -> ConnectionState -> ConnectionState
+overChannels :: (ChannelState -> ChannelState) -> NetworkState -> NetworkState
 overChannels = overStrict (csChannels . traverse)
 
-applyMessage :: ZonedTime -> IrcMsg -> ConnectionState -> ([RawIrcMsg], ConnectionState)
+applyMessage :: ZonedTime -> IrcMsg -> NetworkState -> ([RawIrcMsg], NetworkState)
 applyMessage msgWhen msg cs =
   case msg of
     Ping args -> ([ircPong args], cs)
@@ -267,13 +267,13 @@ applyMessage msgWhen msg cs =
 doWelcome ::
   ZonedTime  {- ^ message received -} ->
   Identifier {- ^ my nickname      -} ->
-  ConnectionState -> ([RawIrcMsg], ConnectionState)
+  NetworkState -> ([RawIrcMsg], NetworkState)
 doWelcome msgWhen me
   = noReply
   . set csNick me
   . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
 
-doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> ConnectionState -> ConnectionState
+doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> NetworkState -> NetworkState
 doTopic when user chan topic =
   overChannel chan (setTopic topic . set chanTopicProvenance (Just $! prov))
   where
@@ -289,7 +289,7 @@ parseTimeParam txt =
       Just $! posixSecondsToUTCTime (fromInteger i)
     _ -> Nothing
 
-doRpl :: ReplyCode -> ZonedTime -> [Text] -> ConnectionState -> ConnectionState
+doRpl :: ReplyCode -> ZonedTime -> [Text] -> NetworkState -> NetworkState
 doRpl cmd msgWhen args =
   case cmd of
     RPL_UMODEIS ->
@@ -417,7 +417,7 @@ recordListEntry ::
   Text {- ^ mask -} ->
   Text {- ^ set by -} ->
   Text {- ^ set time -} ->
-  ConnectionState -> ConnectionState
+  NetworkState -> NetworkState
 recordListEntry mask who whenTxt =
   case parseTimeParam whenTxt of
     Nothing   -> id
@@ -436,7 +436,7 @@ recordListEntry mask who whenTxt =
 saveList ::
   Char {- ^ mode -} ->
   Text {- ^ channel -} ->
-  ConnectionState -> ConnectionState
+  NetworkState -> NetworkState
 saveList mode tgt cs
    = set csTransaction NoTransaction
    $ setStrict
@@ -487,7 +487,7 @@ doMode ::
   Identifier {- ^ channel        -} ->
   Text       {- ^ mode flags     -} ->
   [Text]     {- ^ mode parameters -} ->
-  ConnectionState -> ([RawIrcMsg], ConnectionState)
+  NetworkState -> ([RawIrcMsg], NetworkState)
 doMode when who target modes args cs
   | view csNick cs == target
   , Just xs <- splitModes defaultUmodeTypes modes args =
@@ -502,20 +502,20 @@ doMode when who target modes args cs
 
         in finish cs'
   where
-    popQueue :: ConnectionState -> ([RawIrcMsg], ConnectionState)
+    popQueue :: NetworkState -> ([RawIrcMsg], NetworkState)
     popQueue = csChannels . ix target . chanQueuedModeration <<.~ []
 
 doMode _ _ _ _ _ cs = noReply cs -- ignore bad mode command
 
 -- | Predicate to test if the connection has op in a given channel.
-iHaveOp :: Identifier -> ConnectionState -> Bool
+iHaveOp :: Identifier -> NetworkState -> Bool
 iHaveOp channel cs =
   elemOf (csChannels . ix channel . chanUsers . ix me . folded) '@' cs
   where
     me = view csNick cs
 
 
-doChannelModes :: ZonedTime -> UserInfo -> Identifier -> [(Bool, Char, Text)] -> ConnectionState -> ConnectionState
+doChannelModes :: ZonedTime -> UserInfo -> Identifier -> [(Bool, Char, Text)] -> NetworkState -> NetworkState
 doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
   where
     modeTypes = view csModeTypes cs
@@ -550,7 +550,7 @@ doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
         sigils' = sigil : sigils
 
 
-doMyModes :: [(Bool, Char, Text)] -> ConnectionState -> ConnectionState
+doMyModes :: [(Bool, Char, Text)] -> NetworkState -> NetworkState
 doMyModes changes = over csModes $ \modes -> sort (foldl' applyOne modes changes)
   where
     applyOne modes (True, mode, _)
@@ -558,7 +558,7 @@ doMyModes changes = over csModes $ \modes -> sort (foldl' applyOne modes changes
       | otherwise         = mode:modes
     applyOne modes (False, mode, _) = delete mode modes
 
-supportedCaps :: ConnectionState -> [Text]
+supportedCaps :: NetworkState -> [Text]
 supportedCaps cs =
   sasl ++ ["multi-prefix", "znc.in/batch", "znc.in/playback",
            "znc.in/server-time-iso", "znc.in/self-message"]
@@ -567,7 +567,7 @@ supportedCaps cs =
     sasl = ["sasl" | isJust (view ssSaslUsername ss)
                    , isJust (view ssSaslPassword ss) ]
 
-doAuthenticate :: Text -> ConnectionState -> ([RawIrcMsg], ConnectionState)
+doAuthenticate :: Text -> NetworkState -> ([RawIrcMsg], NetworkState)
 doAuthenticate "+" cs
   | Just user <- view ssSaslUsername ss
   , Just pass <- view ssSaslPassword ss
@@ -577,7 +577,7 @@ doAuthenticate "+" cs
 
 doAuthenticate _ cs = ([ircCapEnd], cs)
 
-doCap :: CapCmd -> [Text] -> ConnectionState -> ([RawIrcMsg], ConnectionState)
+doCap :: CapCmd -> [Text] -> NetworkState -> ([RawIrcMsg], NetworkState)
 doCap cmd args cs =
   case (cmd,args) of
     (CapLs,[capsTxt])
@@ -596,7 +596,7 @@ doCap cmd args cs =
     _ -> ([ircCapEnd], cs)
 
 
-initialMessages :: ConnectionState -> [RawIrcMsg]
+initialMessages :: NetworkState -> [RawIrcMsg]
 initialMessages cs
    = [ ircCapLs ]
   ++ [ ircPass pass | Just pass <- [view ssPassword ss]]
@@ -606,7 +606,7 @@ initialMessages cs
   where
     ss = view csSettings cs
 
-loadNamesList :: Identifier -> ConnectionState -> ConnectionState
+loadNamesList :: Identifier -> NetworkState -> NetworkState
 loadNamesList chan cs
   = set csTransaction NoTransaction
   $ setStrict (csChannels . ix chan . chanUsers) newChanUsers
@@ -625,14 +625,14 @@ loadNamesList chan cs
       concatMap Text.words (view (csTransaction . _NamesTransaction) cs)
 
 
-createOnJoin :: UserInfo -> Identifier -> ConnectionState -> ConnectionState
+createOnJoin :: UserInfo -> Identifier -> NetworkState -> NetworkState
 createOnJoin who chan cs
   | userNick who == view csNick cs =
         set csUserInfo who -- great time to learn our userinfo
       $ set (csChannels . at chan) (Just newChannel) cs
   | otherwise = cs
 
-updateMyNick :: Identifier -> Identifier -> ConnectionState -> ConnectionState
+updateMyNick :: Identifier -> Identifier -> NetworkState -> NetworkState
 updateMyNick oldNick newNick cs
   | oldNick == view csNick cs = set csNick newNick cs
   | otherwise = cs
@@ -641,8 +641,8 @@ updateMyNick oldNick newNick cs
 -- https://tools.ietf.org/html/draft-brocklesby-irc-isupport-03#section-3.14
 isupport ::
   [Text] {- ^ ["key=value"] -} ->
-  ConnectionState ->
-  ConnectionState
+  NetworkState ->
+  NetworkState
 isupport []     conn = conn
 isupport params conn = foldl' (flip isupport1) conn
                      $ map parseISupport
@@ -663,8 +663,8 @@ parseISupport str =
 
 updateChanModes ::
   Text {- lists,always,set,never -} ->
-  ConnectionState ->
-  ConnectionState
+  NetworkState ->
+  NetworkState
 updateChanModes modes
   = over csModeTypes
   $ set modesLists listModes
@@ -681,8 +681,8 @@ updateChanModes modes
 
 updateChanPrefix ::
   Text {- e.g. "(ov)@+" -} ->
-  ConnectionState ->
-  ConnectionState
+  NetworkState ->
+  NetworkState
 updateChanPrefix txt =
   case parsePrefixes txt of
     Just prefixes -> set (csModeTypes . modesPrefixModes) prefixes
@@ -694,7 +694,7 @@ parsePrefixes txt =
     ('(',')'):rest -> Just rest
     _              -> Nothing
 
-isChannelIdentifier :: ConnectionState -> Identifier -> Bool
+isChannelIdentifier :: NetworkState -> Identifier -> Bool
 isChannelIdentifier cs ident =
   case Text.uncons (idText ident) of
     Just (p, _) -> p `elem` view csChannelTypes cs
@@ -704,24 +704,24 @@ isChannelIdentifier cs ident =
 -- Helpers for managing the user list
 ------------------------------------------------------------------------
 
-csUser :: Functor f => Identifier -> LensLike' f ConnectionState (Maybe UserAndHost)
+csUser :: Functor f => Identifier -> LensLike' f NetworkState (Maybe UserAndHost)
 csUser i = csUsers . at i
 
-recordUser :: UserInfo -> ConnectionState -> ConnectionState
+recordUser :: UserInfo -> NetworkState -> NetworkState
 recordUser (UserInfo nick user host)
   | Text.null user || Text.null host = id
   | otherwise = set (csUsers . at nick)
                     (Just (UserAndHost user host))
 
-forgetUser :: Identifier -> ConnectionState -> ConnectionState
+forgetUser :: Identifier -> NetworkState -> NetworkState
 forgetUser nick = set (csUsers . at nick) Nothing
 
-renameUser :: Identifier -> Identifier -> ConnectionState -> ConnectionState
+renameUser :: Identifier -> Identifier -> NetworkState -> NetworkState
 renameUser old new cs = set (csUsers . at new) entry cs'
   where
     (entry,cs') = cs & csUsers . at old <<.~ Nothing
 
-forgetUser' :: Identifier -> ConnectionState -> ConnectionState
+forgetUser' :: Identifier -> NetworkState -> NetworkState
 forgetUser' nick cs
   | keep      = cs
   | otherwise = forgetUser nick cs
@@ -729,7 +729,7 @@ forgetUser' nick cs
     keep = has (csChannels . folded . chanUsers . ix nick) cs
 
 -- | Process a list of WHO replies
-massRegistration :: ConnectionState -> ConnectionState
+massRegistration :: NetworkState -> NetworkState
 massRegistration cs
   = set csTransaction NoTransaction
   $ over csUsers updateUsers cs
@@ -755,7 +755,7 @@ data TimedAction
   deriving (Eq, Ord, Show)
 
 -- | Compute the earliest timed action for a connection, if any
-nextTimedAction :: ConnectionState -> Maybe (UTCTime, TimedAction)
+nextTimedAction :: NetworkState -> Maybe (UTCTime, TimedAction)
 nextTimedAction cs =
   do runAt <- view csNextPingTime cs
      return (runAt, action)
@@ -766,7 +766,7 @@ nextTimedAction cs =
         PingLatency{} -> TimedSendPing
         PingNever     -> TimedSendPing
 
-doPong :: ZonedTime -> ConnectionState -> ConnectionState
+doPong :: ZonedTime -> NetworkState -> NetworkState
 doPong when cs = set csPingStatus (PingLatency delta) cs
   where
     delta =
@@ -775,7 +775,7 @@ doPong when cs = set csPingStatus (PingLatency delta) cs
         _             -> 0
 
 -- | Apply the given 'TimedAction' to a connection state.
-applyTimedAction :: TimedAction -> ConnectionState -> IO ConnectionState
+applyTimedAction :: TimedAction -> NetworkState -> IO NetworkState
 applyTimedAction action cs =
   case action of
     TimedDisconnect ->

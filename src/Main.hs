@@ -24,8 +24,8 @@ import Client.CApi.Exports () -- foreign exports
 import Client.CommandArguments
 import Client.Configuration
 import Client.EventLoop
-import Client.Focus
 import Client.State
+import Client.State.Focus
 
 -- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
 -- once the continuation finishes.
