@@ -228,7 +228,8 @@ renderContent c = (txt, wholeImg)
 
   inputLines = as ++ view Edit.text cur : bs
 
-  txt = reverse ('^' : intercalate " " as ++ leftCur)
+  -- ["one","two"] "three" --> "^two one three"
+  txt = '^' : foldl (\acc x -> x++' ':acc) leftCur as
 
   wholeImg = horizCat
            $ intersperse (renderLine "\n")
