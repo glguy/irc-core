@@ -23,22 +23,25 @@ makeClassy ''Line
 emptyLine :: Line
 emptyLine = Line 0 ""
 
+beginLine :: String -> Line
+beginLine = Line 0
+
 endLine :: String -> Line
 endLine s = Line (length s) s
 
 -- | Zipper-ish view of the multi-line content of an 'EditBox'.
--- Lines 'above' the 'current' are stored in reverse order.
+-- Lines '_above' the '_currentLine' are stored in reverse order.
 data Content = Content
-  { _above   :: ![String]
-  , _current :: !Line
-  , _below   :: ![String]
+  { _above       :: ![String]
+  , _currentLine :: !Line
+  , _below       :: ![String]
   }
   deriving (Read, Show)
 
 makeLenses ''Content
 
 instance HasLine Content where
-  line = current
+  line = currentLine
 
 -- | Default 'Content' value
 noContent :: Content
@@ -53,13 +56,13 @@ singleLine l = Content [] l []
 shift :: Content -> (String, Content)
 shift (Content [] l []) = (view text l, noContent)
 shift (Content a@(_:_) l b) = (last a, Content (init a) l b)
-shift (Content [] l (b:bs)) = (view text l, Content [] (Line 0 b) bs)
+shift (Content [] l (b:bs)) = (view text l, Content [] (beginLine b) bs)
 
 jumpLeft :: Content -> Content
 jumpLeft c
   | view pos c == 0
   , a:as <- view above c
-  = over below (cons $ view text c)
+  = over below (view text c :)
   . set text a
   . set above as
   $ c
@@ -78,35 +81,28 @@ jumpRight c
 
 -- Move the cursor left, across lines if necessary.
 left :: Content -> Content
-left c
-  | n > 0
-  = over (current.pos) (subtract 1) c
-
-  | n == 0
-  , a:as <- view above c
-  = over below (cons s)
-  . set above as
-  . set current (endLine a)
-  $ c
-
-  | otherwise = c
- where Line n s = view current c
+left c =
+  let Line n s = view line c in
+  case compare n 0 of
+    GT                        -> (pos -~ 1) c
+    EQ | a:as <- view above c -> over below (cons s)
+                               . set above as
+                               . set line (endLine a)
+                               $ c
+    _                         -> c
 
 -- Move the cursor right, across lines if necessary.
 right :: Content -> Content
-right c
-  | n < length s
-  = over (current.pos) (+1) c
+right c =
+  let Line n s = view line c in
+  case compare n (length s) of
+    LT                        -> (pos +~ 1) c
+    EQ | b:bs <- view below c -> over above (cons s)
+                               . set below bs
+                               . set line (beginLine b)
+                               $ c
 
-  | n == length s
-  , b:bs <- view below c
-  = over above (cons s)
-  . set below bs
-  . set current (Line 0 b)
-  $ c
-
-  | otherwise = c
- where Line n s = view current c
+    _                         -> c
 
 -- | Move the cursor left to the previous word boundary.
 leftWord :: Content -> Content
@@ -115,16 +111,16 @@ leftWord c
   = case view above c of
       []     -> c
       (a:as) -> leftWord
-              . set  current (endLine a)
+              . set  line  (endLine a)
               . over below (cons txt)
               . set  above as
               $ c
   | otherwise
   = case search of
-      []      -> set (current.pos) 0     c
-      (i,_):_ -> set (current.pos) (i+1) c
+      []      -> set pos 0     c
+      (i,_):_ -> set pos (i+1) c
   where
-  Line n txt = view current c
+  Line n txt = view line c
   search = dropWhile (isAlphaNum . snd)
          $ dropWhile (not . isAlphaNum . snd)
          $ reverse
@@ -139,21 +135,20 @@ rightWord c
   = case view below c of
       [] -> c
       (b:bs) -> rightWord
-              . set  current (Line 0 b)
+              . set  line  (beginLine b)
               . over above (cons txt)
               . set  below bs
               $ c
   | otherwise
   = case search of
-      [] -> set (current.pos) (length txt) c
-      (i,_):_ -> set (current.pos) i c
+      []      -> set pos (length txt) c
+      (i,_):_ -> set pos i c
   where
-  Line n txt = view current c
+  Line n txt = view line c
   search = dropWhile (isAlphaNum . snd)
          $ dropWhile (not . isAlphaNum . snd)
          $ drop n
-         $ zip [0..]
-         $ txt
+         $ zip [0..] txt
 
 -- | Delete the character before the cursor.
 backspace :: Content -> Content
@@ -162,36 +157,35 @@ backspace c
   = case view above c of
       []   -> c
       a:as -> set above as
-            . set current (Line (length a) (a ++ s))
+            . set line (Line (length a) (a ++ s))
             $ c
 
   | (preS, postS) <- splitAt (n-1) s
-  = set current (Line (n-1) (preS ++ drop 1 postS)) c
- where
- Line n s = view current c
+  = set line (Line (n-1) (preS ++ drop 1 postS)) c
+  where
+    Line n s = view line c
 
 -- | Delete the character after/under the cursor.
 delete :: Content -> Content
-delete c
-  | n == length s
-  = case view below c of
-      []   -> c
-      b:bs -> set below bs
-            . set current (Line n (s ++ b))
-            $ c
-
-  | (preS, postS) <- splitAt n s
-  = set current (Line n (preS ++ drop 1 postS)) c
- where
- Line n s = view current c
+delete c =
+  let Line n s = view line c in
+  case splitAt n s of
+    (preS, _:postS) -> set text (preS ++ postS) c
+    _               -> case view below c of
+                         []   -> c
+                         b:bs -> set below bs
+                               . set text (s ++ b)
+                               $ c
 
 insertString :: String -> Content -> Content
-insertString ins c = case push (view above c) (preS ++ l) ls of
-  (newAbove, newCurrent) -> set above newAbove . set current newCurrent $ c
- where
- l:ls = lines (ins ++ "\n")
- Line n txt = view current c
- (preS, postS) = splitAt n txt
+insertString ins c =
+  case push (view above c) (preS ++ l) ls of
+    (newAbove, newLine) -> set above newAbove
+                         $ set line newLine c
+  where
+    l:ls          = lines (ins ++ "\n")
+    Line n txt    = view line c
+    (preS, postS) = splitAt n txt
 
- push stk x []     = (stk, Line (length x) (x ++ postS))
- push stk x (y:ys) = push (x:stk) y ys
+    push stk x []     = (stk, Line (length x) (x ++ postS))
+    push stk x (y:ys) = push (x:stk) y ys

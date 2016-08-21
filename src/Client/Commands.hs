@@ -621,8 +621,7 @@ tabTopic _ _ cs channelId st rest
 
   | all isSpace rest
   , Just topic <- preview (csChannels . ix channelId . chanTopic) cs =
-     do let textBox = Edit.end
-                    . set Edit.line (Edit.endLine $ "/topic " ++ Text.unpack topic)
+     do let textBox = set Edit.line (Edit.endLine $ "/topic " ++ Text.unpack topic)
         commandSuccess (over clientTextBox textBox st)
 
   | otherwise = commandFailure st
