@@ -20,7 +20,6 @@ module Client.State.EditBox
   , HasLine(..)
   , Content
   , above
-  , current
   , below
   , singleLine
   , firstLine
@@ -140,10 +139,10 @@ killEnd e
       b:bs -> set (content.below) bs
             $ updateYankBuffer b e
   | otherwise
-  = set (content.current) (endLine keep)
+  = set line (endLine keep)
   $ updateYankBuffer kill e
   where
-  Line n txt = view (content.current) e
+  Line n txt = view line e
   (keep,kill) = splitAt n txt
 
 -- | Delete all text from the cursor to the beginning and store it in
@@ -158,11 +157,11 @@ killHome e
             $ updateYankBuffer a e
 
   | otherwise
-  = set (content.current) (Line 0 keep)
+  = set line (Line 0 keep)
   $ set tabSeed Nothing
   $ updateYankBuffer kill e
   where
-  Line n txt = view (content.current) e
+  Line n txt = view line e
   (kill,keep) = splitAt n txt
 
 -- | Insert the yank buffer at the cursor.
@@ -174,10 +173,10 @@ paste e = over content (insertString (view yankBuffer e)) e
 killWordBackward :: Bool {- ^ yank -} -> EditBox -> EditBox
 killWordBackward yank e
   = sometimesUpdateYank
-  $ set (content.current) (Line (length l') (l'++r))
+  $ set line (Line (length l') (l'++r))
   $ e
   where
-  Line n txt = view (content.current) e
+  Line n txt = view line e
   (l,r) = splitAt n txt
   (sp,l1) = span  isSpace (reverse l)
   (wd,l2) = break isSpace l1
@@ -193,10 +192,10 @@ killWordBackward yank e
 killWordForward :: Bool {- ^ yank -} -> EditBox -> EditBox
 killWordForward yank e
   = sometimesUpdateYank
-  $ set (content.current) (Line (length l) (l++r2))
+  $ set line (Line (length l) (l++r2))
   $ e
   where
-  Line n txt = view (content.current) e
+  Line n txt = view line e
   (l,r) = splitAt n txt
   (sp,r1) = span  isSpace r
   (wd,r2) = break isSpace r1

@@ -75,7 +75,7 @@ currentWord box
   $ dropWhile (\x -> x==' ' || x==':')
   $ reverse
   $ take n txt
- where Edit.Line n txt = view (Edit.content . Edit.current) box
+ where Edit.Line n txt = view Edit.line box
 
 class            Prefix a          where isPrefix :: a -> a -> Bool
 instance         Prefix Identifier where isPrefix = idPrefix

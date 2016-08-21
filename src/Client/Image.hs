@@ -220,7 +220,7 @@ renderContent c = (txt, wholeImg)
   where
   as  = reverse (view Edit.above c)
   bs  = view Edit.below c
-  cur = view Edit.current c
+  cur = view Edit.line c
 
   leftCur = take (view Edit.pos cur) (view Edit.text cur)
 
