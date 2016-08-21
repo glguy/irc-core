@@ -143,7 +143,7 @@ rightWord c
   = case view below c of
       [] -> c
       (b:bs) -> rightWord
-              . set  current (endLine b)
+              . set  current (Line 0 b)
               . over above (cons txt)
               . set  below bs
               $ c
