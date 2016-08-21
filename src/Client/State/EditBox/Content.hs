@@ -55,9 +55,6 @@ shift (Content [] l []) = (view text l, noContent)
 shift (Content a@(_:_) l b) = (last a, Content (init a) l b)
 shift (Content [] l (b:bs)) = (view text l, Content [] (Line 0 b) bs)
 
-firstLine :: Content -> String
-firstLine (Content a c _) = head (reverse a ++ [_text c])
-
 jumpLeft :: Content -> Content
 jumpLeft c
   | view pos c == 0

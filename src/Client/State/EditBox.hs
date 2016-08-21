@@ -19,10 +19,10 @@ module Client.State.EditBox
   , endLine
   , HasLine(..)
   , Content
+  , shift
   , above
   , below
   , singleLine
-  , firstLine
   , EditBox
   , content
   , tabSeed
@@ -100,7 +100,7 @@ earlier :: EditBox -> Maybe EditBox
 earlier e =
   do let i = view historyPos e + 1
      x <- preview (history . ix i) e
-     return $ set content (singleLine . endLine $ x)
+     return $ set content (singleLine (endLine x))
             $ set historyPos i e
 
 -- | Update the editbox to reflect the later element in the history.
@@ -112,7 +112,7 @@ later e
            $ set historyPos (-1) e
   | otherwise =
       do x <- preview (history . ix (i-1)) e
-         return $ set content (singleLine . endLine $ x)
+         return $ set content (singleLine (endLine x))
                 $ set historyPos (i-1) e
   where
   i = view historyPos e

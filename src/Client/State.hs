@@ -149,9 +149,9 @@ clientConnection network f st =
     Nothing -> pure st
     Just i  -> clientConnections (ix i f) st
 
--- | Full content of the edit box
+-- | The full top-most line that would be executed
 clientFirstLine :: ClientState -> String
-clientFirstLine = views (clientTextBox . Edit.content) Edit.firstLine
+clientFirstLine = fst . Edit.shift . view (clientTextBox . Edit.content)
 
 -- | The line under the cursor in the edit box.
 clientLine :: ClientState -> (Int, String) {- ^ line number, line content -}
