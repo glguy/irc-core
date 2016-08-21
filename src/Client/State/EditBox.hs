@@ -15,17 +15,25 @@ which are mapped to the keyboard in "Client.EventLoop".
 -}
 
 module Client.State.EditBox
-  ( Line(Line)
+  ( -- * Edit box type
+    EditBox
+  , defaultEditBox
+  , content
+  , lastOperation
+
+    -- * Line type
+  , Line(Line)
+  , singleLine
   , endLine
   , HasLine(..)
+
+  -- * Content type
   , Content
   , shift
   , above
   , below
-  , singleLine
-  , EditBox
-  , content
-  , tabSeed
+
+  -- * Operations
   , delete
   , backspace
   , home
@@ -41,10 +49,13 @@ module Client.State.EditBox
   , rightWord
   , insert
   , insertString
-  , empty
   , earlier
   , later
   , success
+
+  -- * Last operation
+  , LastOperation(..)
+
   ) where
 
 import           Client.State.EditBox.Content
@@ -53,34 +64,48 @@ import           Data.Char
 
 
 data EditBox = EditBox
-  { _content :: !Content
-  , _history :: ![String]
-  , _historyPos :: !Int
-  , _yankBuffer :: !(String)
-  , _tabSeed :: !(Maybe String)
+  { _content       :: !Content
+  , _history       :: ![String]
+  , _historyPos    :: !Int
+  , _yankBuffer    :: String
+  , _lastOperation :: !LastOperation
   }
+  deriving (Read, Show)
+
+data LastOperation
+  = TabOperation String
+  | KillOperation
+  | OtherOperation
   deriving (Read, Show)
 
 makeLenses ''EditBox
 
 -- | Default 'EditBox' value
-empty :: EditBox
-empty = EditBox
-  { _content = noContent
-  , _history = []
-  , _historyPos = -1
-  , _yankBuffer = ""
-  , _tabSeed = Nothing
+defaultEditBox :: EditBox
+defaultEditBox = EditBox
+  { _content       = noContent
+  , _history       = []
+  , _historyPos    = -1
+  , _yankBuffer    = ""
+  , _lastOperation = OtherOperation
   }
 
 instance HasLine EditBox where
   line = content . line
 
+data KillDirection = KillForward | KillBackward
+
 -- | Sets the given string to the yank buffer unless the string is empty.
-updateYankBuffer :: String -> EditBox -> EditBox
-updateYankBuffer str
-  | null str  = id
-  | otherwise = set yankBuffer str
+updateYankBuffer :: KillDirection -> String -> EditBox -> EditBox
+updateYankBuffer dir str e =
+  case view lastOperation e of
+    _ | null str  -> set lastOperation OtherOperation e -- failed kill interrupts kill sequence
+    KillOperation ->
+      case dir of
+        KillForward  -> over yankBuffer (++ str) e
+        KillBackward -> over yankBuffer (str ++) e
+    _ -> set yankBuffer str
+       $ set lastOperation KillOperation e
 
 -- | Indicate that the contents of the text box were successfully used
 -- by the program. This clears the first line of the contents and updates
@@ -89,7 +114,7 @@ success :: EditBox -> EditBox
 success e
   = over history (cons sent)
   $ set  content c
-  $ set  tabSeed Nothing
+  $ set  lastOperation OtherOperation
   $ set  historyPos (-1)
   $ e
  where
@@ -101,6 +126,7 @@ earlier e =
   do let i = view historyPos e + 1
      x <- preview (history . ix i) e
      return $ set content (singleLine (endLine x))
+            $ set lastOperation OtherOperation
             $ set historyPos i e
 
 -- | Update the editbox to reflect the later element in the history.
@@ -109,10 +135,12 @@ later e
   | i <  0 = Nothing
   | i == 0 = Just
            $ set content noContent
+           $ set lastOperation OtherOperation
            $ set historyPos (-1) e
   | otherwise =
       do x <- preview (history . ix (i-1)) e
          return $ set content (singleLine (endLine x))
+                $ set lastOperation OtherOperation
                 $ set historyPos (i-1) e
   where
   i = view historyPos e
@@ -120,13 +148,13 @@ later e
 -- | Jump the cursor to the beginning of the input.
 home :: EditBox -> EditBox
 home
-  = set tabSeed Nothing
+  = set lastOperation OtherOperation
   . over content jumpLeft
 
 -- | Jump the cursor to the end of the input.
 end :: EditBox -> EditBox
 end
-  = set tabSeed Nothing
+  = set lastOperation OtherOperation
   . over content jumpRight
 
 -- | Delete all text from the cursor to the end and store it in
@@ -134,13 +162,13 @@ end
 killEnd :: EditBox -> EditBox
 killEnd e
   | null kill
-  = case view (content.below) e of
+  = case view (content . below) e of
       []   -> e
-      b:bs -> set (content.below) bs
-            $ updateYankBuffer b e
+      b:bs -> set (content . below) bs
+            $ updateYankBuffer KillForward b e -- add newline?
   | otherwise
   = set line (endLine keep)
-  $ updateYankBuffer kill e
+  $ updateYankBuffer KillForward kill e
   where
   Line n txt = view line e
   (keep,kill) = splitAt n txt
@@ -153,20 +181,20 @@ killHome e
   = case view (content.above) e of
       []   -> e
       a:as -> set (content.above) as
-            . set tabSeed Nothing
-            $ updateYankBuffer a e
+            $ updateYankBuffer KillBackward a e
 
   | otherwise
   = set line (Line 0 keep)
-  $ set tabSeed Nothing
-  $ updateYankBuffer kill e
+  $ updateYankBuffer KillBackward kill e
   where
   Line n txt = view line e
   (kill,keep) = splitAt n txt
 
 -- | Insert the yank buffer at the cursor.
 paste :: EditBox -> EditBox
-paste e = over content (insertString (view yankBuffer e)) e
+paste e
+  = over content (insertString (view yankBuffer e))
+  $ set lastOperation OtherOperation e
 
 -- | Kill the content from the cursor back to the previous word boundary.
 -- When @yank@ is set the yank buffer will be updated.
@@ -184,8 +212,8 @@ killWordBackward yank e
   yanked = reverse (sp++wd)
 
   sometimesUpdateYank
-    | yank = updateYankBuffer yanked
-    | otherwise = id
+    | yank      = updateYankBuffer KillBackward yanked
+    | otherwise = id -- don't update operation
 
 -- | Kill the content from the curser forward to the next word boundary.
 -- When @yank@ is set the yank buffer will be updated
@@ -202,11 +230,11 @@ killWordForward yank e
   yanked = sp++wd
 
   sometimesUpdateYank
-    | yank = updateYankBuffer yanked
-    | otherwise = id
+    | yank      = updateYankBuffer KillForward yanked
+    | otherwise = id -- don't update operation
 
 -- | Insert a character at the cursor and advance the cursor.
 insert :: Char -> EditBox -> EditBox
 insert c
-  = set tabSeed Nothing
+  = set lastOperation OtherOperation
   . over content (insertString [c])

@@ -43,8 +43,8 @@ wordComplete leadingCase isReversed hint vals box =
   do let current = currentWord box
      guard (not (null current))
      let cur = mkId (Text.pack current)
-     case view Edit.tabSeed box of
-       Just patternStr
+     case view Edit.lastOperation box of
+       Edit.TabOperation patternStr
          | idPrefix pat cur ->
 
          do next <- tabSearch isReversed pat cur vals
@@ -55,7 +55,7 @@ wordComplete leadingCase isReversed hint vals box =
        _ ->
          do next <- find (idPrefix cur) hint <|>
                     tabSearch isReversed cur cur vals
-            Just $ set Edit.tabSeed (Just current)
+            Just $ set Edit.lastOperation (Edit.TabOperation current)
                  $ replaceWith leadingCase (idString next) box
 
 replaceWith :: (String -> String) -> String -> Edit.EditBox -> Edit.EditBox

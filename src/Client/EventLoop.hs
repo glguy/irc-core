@@ -285,8 +285,11 @@ doVtyEvent vtyEvent st =
 -- | Map keyboard inputs to actions in the client
 doKey :: Key -> [Modifier] -> ClientState -> IO ()
 doKey key modifier st =
-  let changeEditor f = eventLoop (over clientTextBox f st)
-      changeContent f = eventLoop (over (clientTextBox . Edit.content) f st) in
+  let changeEditor  f = eventLoop (over clientTextBox f st)
+      changeContent f = changeEditor
+                      $ over Edit.content f
+                      . set  Edit.lastOperation Edit.OtherOperation
+  in
   case modifier of
     [MCtrl] ->
       case key of
