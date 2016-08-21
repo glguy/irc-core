@@ -69,9 +69,8 @@ jumpRight :: Content -> Content
 jumpRight c
   | view pos c == len
   , b:bs <- view below c
-  = over above (cons $ view text c)
-  . set text b
-  . set pos len
+  = over above (view text c :)
+  . set line (endLine b)
   . set below bs
   $ c
   | otherwise = set pos len c
