@@ -54,6 +54,7 @@ executable glirc2
                        Client.State
                        Client.State.Channel
                        Client.State.EditBox
+                       Client.State.EditBox.Content
                        Client.State.Focus
                        Client.State.Network
                        Client.State.Window
