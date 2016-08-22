@@ -60,61 +60,43 @@ shift (Content [] l (b:bs)) = (view text l, Content [] (beginLine b) bs)
 
 jumpLeft :: Content -> Content
 jumpLeft c
-  | view pos c == 0
-  , a:as <- view above c
-  = over below (view text c :)
-  . set text a
-  . set above as
-  $ c
-  | otherwise = set pos 0 c
+  | view pos c == 0 = maybe c begin1 (backwardLine c)
+  | otherwise       = begin1 c
+  where
+    begin1 = set pos 0
 
 jumpRight :: Content -> Content
 jumpRight c
-  | view pos c == len
-  , b:bs <- view below c
-  = over above (view text c :)
-  . set line (endLine b)
-  . set below bs
-  $ c
-  | otherwise = set pos len c
- where len = views text length c
+  | view pos c == len = maybe c end1 (forwardLine c)
+  | otherwise         = set pos len c
+
+  where
+    len    = views text length c
+    end1 l = set pos (views text length l) l
+
 
 -- Move the cursor left, across lines if necessary.
 left :: Content -> Content
 left c =
-  let Line n s = view line c in
-  case compare n 0 of
-    GT                        -> (pos -~ 1) c
-    EQ | a:as <- view above c -> over below (cons s)
-                               . set above as
-                               . set line (endLine a)
-                               $ c
-    _                         -> c
+  case compare (view pos c) 0 of
+    GT                             -> (pos -~ 1) c
+    EQ | Just c' <- backwardLine c -> c'
+    _                              -> c
 
 -- Move the cursor right, across lines if necessary.
 right :: Content -> Content
 right c =
   let Line n s = view line c in
   case compare n (length s) of
-    LT                        -> (pos +~ 1) c
-    EQ | b:bs <- view below c -> over above (cons s)
-                               . set below bs
-                               . set line (beginLine b)
-                               $ c
-
-    _                         -> c
+    LT                            -> (pos +~ 1) c
+    EQ | Just c' <- forwardLine c -> c'
+    _                             -> c
 
 -- | Move the cursor left to the previous word boundary.
 leftWord :: Content -> Content
 leftWord c
   | n == 0
-  = case view above c of
-      []     -> c
-      (a:as) -> leftWord
-              . set  line  (endLine a)
-              . over below (cons txt)
-              . set  above as
-              $ c
+  = maybe c leftWord (backwardLine c)
   | otherwise
   = case search of
       []      -> set pos 0     c
@@ -132,13 +114,9 @@ leftWord c
 rightWord :: Content -> Content
 rightWord c
   | n == length txt
-  = case view below c of
-      [] -> c
-      (b:bs) -> rightWord
-              . set  line  (beginLine b)
-              . over above (cons txt)
-              . set  below bs
-              $ c
+  = case forwardLine c of
+      Nothing -> c
+      Just c' -> rightWord c'
   | otherwise
   = case search of
       []      -> set pos (length txt) c
@@ -189,3 +167,21 @@ insertString ins c =
 
     push stk x []     = (stk, Line (length x) (x ++ postS))
     push stk x (y:ys) = push (x:stk) y ys
+
+forwardLine :: Content -> Maybe Content
+forwardLine c =
+  case view below c of
+    []   -> Nothing
+    b:bs -> Just
+         $! over above (view text c :)
+          $ set below bs
+          $ set line (beginLine b) c
+
+backwardLine :: Content -> Maybe Content
+backwardLine c =
+  case view above c of
+    []   -> Nothing
+    a:as -> Just
+         $! over below (view text c :)
+          $ set above as
+          $ set line (endLine a) c
