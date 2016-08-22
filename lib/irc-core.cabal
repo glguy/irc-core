@@ -3,7 +3,7 @@ version:             2.1.0.0
 synopsis:            IRC core library for glirc
 description:         IRC core library for glirc
                      .
-                     The glirc client has been split off into https://hackage.haskell.org/package/glirc
+                     The glirc client has been split off into <https://hackage.haskell.org/package/glirc>
 homepage:            https://github.com/glguy/irc-core
 license:             ISC
 license-file:        LICENSE
