@@ -6,11 +6,45 @@ Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com
 
+This module manages simple text navigation and manipulation,
+but leaves more complicated operations like yank/kill and
+history management to "Client.State.EditBox"
+
 -}
-module Client.State.EditBox.Content where
+module Client.State.EditBox.Content
+  (
+  -- * Multiple lines
+    Content
+  , above
+  , below
+  , singleLine
+  , noContent
+  , shift
+
+  -- * Focused line
+  , Line(..)
+  , HasLine(..)
+  , endLine
+
+  -- * Movements
+  , left
+  , right
+
+  , leftWord
+  , rightWord
+
+  , jumpLeft
+  , jumpRight
+
+  -- * Edits
+  , delete
+  , backspace
+  , insertString
+  ) where
 
 import           Control.Lens hiding (below)
-import           Data.Char
+import           Data.Char (isAlphaNum)
+import           Data.List (find)
 
 data Line = Line
   { _pos  :: !Int
@@ -58,6 +92,8 @@ shift (Content [] l []) = (view text l, noContent)
 shift (Content a@(_:_) l b) = (last a, Content (init a) l b)
 shift (Content [] l (b:bs)) = (view text l, Content [] (beginLine b) bs)
 
+-- | When at beginning of line, jump to beginning of previous line.
+-- Otherwise jump to beginning of current line.
 jumpLeft :: Content -> Content
 jumpLeft c
   | view pos c == 0 = maybe c begin1 (backwardLine c)
@@ -65,17 +101,18 @@ jumpLeft c
   where
     begin1 = set pos 0
 
+-- | When at end of line, jump to end of next line.
+-- Otherwise jump to end of current line.
 jumpRight :: Content -> Content
 jumpRight c
   | view pos c == len = maybe c end1 (forwardLine c)
   | otherwise         = set pos len c
-
   where
     len    = views text length c
     end1 l = set pos (views text length l) l
 
 
--- Move the cursor left, across lines if necessary.
+-- | Move the cursor left, across lines if necessary.
 left :: Content -> Content
 left c =
   case compare (view pos c) 0 of
@@ -83,7 +120,7 @@ left c =
     EQ | Just c' <- backwardLine c -> c'
     _                              -> c
 
--- Move the cursor right, across lines if necessary.
+-- | Move the cursor right, across lines if necessary.
 right :: Content -> Content
 right c =
   let Line n s = view line c in
@@ -95,38 +132,30 @@ right c =
 -- | Move the cursor left to the previous word boundary.
 leftWord :: Content -> Content
 leftWord c
-  | n == 0
-  = maybe c leftWord (backwardLine c)
-  | otherwise
-  = case search of
-      []      -> set pos 0     c
-      (i,_):_ -> set pos (i+1) c
+  | n == 0    = maybe c leftWord (backwardLine c)
+  | otherwise = set pos search c
   where
-  Line n txt = view line c
-  search = dropWhile (isAlphaNum . snd)
-         $ dropWhile (not . isAlphaNum . snd)
-         $ reverse
-         $ take n
-         $ zip [0..]
-         $ txt
+    Line n txt = view line c
+    search = maybe 0 fst
+           $ find      (not . isAlphaNum . snd)
+           $ dropWhile (not . isAlphaNum . snd)
+           $ reverse
+           $ take n
+           $ zip [1..] txt
 
 -- | Move the cursor right to the next word boundary.
 rightWord :: Content -> Content
 rightWord c
-  | n == length txt
-  = case forwardLine c of
-      Nothing -> c
-      Just c' -> rightWord c'
-  | otherwise
-  = case search of
-      []      -> set pos (length txt) c
-      (i,_):_ -> set pos i c
+  | n == txtLen = maybe c rightWord (forwardLine c)
+  | otherwise   = set pos search c
   where
-  Line n txt = view line c
-  search = dropWhile (isAlphaNum . snd)
-         $ dropWhile (not . isAlphaNum . snd)
-         $ drop n
-         $ zip [0..] txt
+    Line n txt = view line c
+    txtLen = length txt
+    search = maybe txtLen fst
+           $ find      (not . isAlphaNum . snd)
+           $ dropWhile (not . isAlphaNum . snd)
+           $ drop n
+           $ zip [0..] txt
 
 -- | Delete the character before the cursor.
 backspace :: Content -> Content
@@ -155,6 +184,8 @@ delete c =
                                . set text (s ++ b)
                                $ c
 
+-- | Insert string at cursor, cursor is advanced to the
+-- end of the inserted string.
 insertString :: String -> Content -> Content
 insertString ins c =
   case push (view above c) (preS ++ l) ls of
@@ -168,6 +199,7 @@ insertString ins c =
     push stk x []     = (stk, Line (length x) (x ++ postS))
     push stk x (y:ys) = push (x:stk) y ys
 
+-- | Advance to the beginning of the next line
 forwardLine :: Content -> Maybe Content
 forwardLine c =
   case view below c of
@@ -177,6 +209,7 @@ forwardLine c =
           $ set below bs
           $ set line (beginLine b) c
 
+-- | Retreat to the end of the previous line
 backwardLine :: Content -> Maybe Content
 backwardLine c =
   case view above c of
