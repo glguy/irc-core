@@ -58,6 +58,7 @@ module Client.State
   -- * Focus manipulation
   , changeFocus
   , changeSubfocus
+  , returnFocus
   , advanceFocus
   , retreatFocus
   , jumpToActivity
@@ -113,6 +114,7 @@ import           Text.Regex.TDFA.Text () -- RegexLike Regex Text orphan
 -- | All state information for the IRC client
 data ClientState = ClientState
   { _clientWindows           :: !(Map Focus Window) -- ^ client message buffers
+  , _clientPrevFocus         :: !Focus              -- ^ previously focused buffer
   , _clientFocus             :: !Focus              -- ^ currently focused buffer
   , _clientSubfocus          :: !Subfocus           -- ^ sec
 
@@ -173,6 +175,7 @@ initialClientState cfg vty =
         , _clientHeight            = height
         , _clientVty               = vty
         , _clientEvents            = events
+        , _clientPrevFocus         = Unfocused
         , _clientFocus             = Unfocused
         , _clientSubfocus          = FocusMessages
         , _clientConnectionContext = cxt
@@ -392,7 +395,8 @@ clientTick = set clientBell False . markSeen
 markSeen :: ClientState -> ClientState
 markSeen st =
   case view clientSubfocus st of
-    FocusMessages -> overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
+    FocusMessages ->
+       overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
     _             -> st
 
 -- | Add the textbox input to the edit history and clear the textbox.
@@ -601,15 +605,26 @@ jumpFocus i st
     (focus,_) = Map.elemAt i windows
 
 changeFocus :: Focus -> ClientState -> ClientState
-changeFocus focus
+changeFocus focus st
   = set clientScroll 0
+  . updatePrevious
   . set clientFocus focus
   . set clientSubfocus FocusMessages
+  $ st
+  where
+    oldFocus = view clientFocus st
+    updatePrevious
+      | focus == oldFocus = id
+      | otherwise         = set clientPrevFocus oldFocus
 
 changeSubfocus :: Subfocus -> ClientState -> ClientState
 changeSubfocus focus
   = set clientScroll 0
   . set clientSubfocus focus
+
+-- | Return to previously focused window.
+returnFocus :: ClientState -> ClientState
+returnFocus st = changeFocus (view clientPrevFocus st) st
 
 -- | Step focus to the next window when on message view. Otherwise
 -- switch to message view.

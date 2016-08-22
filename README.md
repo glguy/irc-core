@@ -282,6 +282,7 @@ Keyboard Shortcuts
 * `^P` previous channel
 * `M-#` jump to window - `1234567890qwertyuiop!@#$%^&*()QWERTYUIOP`
 * `M-A` jump to activity
+* `M-S` jump to previous window
 * `^A` beginning of line
 * `^E` end of line
 * `^K` delete to end

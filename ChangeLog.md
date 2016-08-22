@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.11
+
+* Add `M-S` to jump to previously focused window
+
 ## 2.10
 
 * Fixes for multiline editing

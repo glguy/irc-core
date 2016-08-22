@@ -319,6 +319,7 @@ doKey key modifier st =
         KChar 'b' -> changeContent Edit.leftWord
         KChar 'f' -> changeContent Edit.rightWord
         KChar 'a' -> eventLoop (jumpToActivity st)
+        KChar 's' -> eventLoop (returnFocus st)
         KChar c   | let names = view (clientConfig . configWindowNames) st
                   , Just i <- Text.findIndex (==c) names ->
                             eventLoop (jumpFocus i st)
