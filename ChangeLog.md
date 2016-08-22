@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.10
+
+* Fixes for multiline editing
+* Multiple, sequential kills all fill the same yank buffer
+
 ## 2.9
 
 * Dynamically loadable extensions
