@@ -200,23 +200,22 @@ insertChar ins c = over line aux c
 
 -- | Smarter version of 'insertString' that removes spurious newlines.
 insertPastedString :: String -> Content -> Content
-insertPastedString paste c = insertString (scrub paste) c
+insertPastedString paste c = insertString (foldr scrub "" paste) c
   where
     cursorAtEnd = null (view below c)
                && length (view text c) == view pos c
 
-    -- ignore formfeeds (happens before duplicate newline detection!)
-    scrub ('\r':xs) = scrub xs
+    -- ignore formfeeds
+    scrub '\r' xs = xs
 
     -- avoid adding empty lines
-    scrub ('\n':'\n':xs) = scrub ('\n':xs)
+    scrub '\n' xs@('\n':_) = xs
 
     -- avoid adding trailing newline at end of textbox
-    scrub "\n" | cursorAtEnd = ""
+    scrub '\n' "" | cursorAtEnd = ""
 
     -- pass-through everything else
-    scrub (x:xs) = x : scrub xs
-    scrub "" = ""
+    scrub x xs = x : xs
 
 -- | Insert string at cursor, cursor is advanced to the
 -- end of the inserted string.
