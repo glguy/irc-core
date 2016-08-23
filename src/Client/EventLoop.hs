@@ -277,7 +277,7 @@ doVtyEvent vtyEvent st =
                    $ set clientHeight h st
     EvPaste utf8 ->
        let str = Text.unpack (Text.decodeUtf8With Text.lenientDecode utf8)
-           st' = over (clientTextBox . Edit.content) (Edit.insertString str) st
+           st' = over clientTextBox (Edit.insertPaste str) st
        in eventLoop st'
     _ -> eventLoop st
 
@@ -298,7 +298,7 @@ doKey key modifier st =
         KChar 'e' -> changeEditor Edit.end
         KChar 'u' -> changeEditor Edit.killHome
         KChar 'k' -> changeEditor Edit.killEnd
-        KChar 'y' -> changeEditor Edit.paste
+        KChar 'y' -> changeEditor Edit.yank
         KChar 'w' -> changeEditor (Edit.killWordBackward True)
         KChar 'b' -> changeEditor (Edit.insert '\^B')
         KChar 'c' -> changeEditor (Edit.insert '\^C')

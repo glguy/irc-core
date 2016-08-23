@@ -42,12 +42,13 @@ module Client.State.EditBox
   , killEnd
   , killWordBackward
   , killWordForward
-  , paste
+  , yank
   , left
   , right
   , leftWord
   , rightWord
   , insert
+  , insertPaste
   , insertString
   , earlier
   , later
@@ -165,7 +166,7 @@ killEnd e
   = case view (content . below) e of
       []   -> e
       b:bs -> set (content . below) bs
-            $ updateYankBuffer KillForward b e -- add newline?
+            $ updateYankBuffer KillForward ('\n':b) e
   | otherwise
   = set line (endLine keep)
   $ updateYankBuffer KillForward kill e
@@ -178,10 +179,10 @@ killEnd e
 killHome :: EditBox -> EditBox
 killHome e
   | null kill
-  = case view (content.above) e of
+  = case view (content . above) e of
       []   -> e
-      a:as -> set (content.above) as
-            $ updateYankBuffer KillBackward a e
+      a:as -> set (content . above) as
+            $ updateYankBuffer KillBackward (a++"\n") e
 
   | otherwise
   = set line (Line 0 keep)
@@ -191,15 +192,15 @@ killHome e
   (kill,keep) = splitAt n txt
 
 -- | Insert the yank buffer at the cursor.
-paste :: EditBox -> EditBox
-paste e
+yank :: EditBox -> EditBox
+yank e
   = over content (insertString (view yankBuffer e))
   $ set lastOperation OtherOperation e
 
 -- | Kill the content from the cursor back to the previous word boundary.
 -- When @yank@ is set the yank buffer will be updated.
 killWordBackward :: Bool {- ^ yank -} -> EditBox -> EditBox
-killWordBackward yank e
+killWordBackward saveKill e
   = sometimesUpdateYank
   $ set line (Line (length l') (l'++r))
   $ e
@@ -212,13 +213,13 @@ killWordBackward yank e
   yanked = reverse (sp++wd)
 
   sometimesUpdateYank
-    | yank      = updateYankBuffer KillBackward yanked
+    | saveKill  = updateYankBuffer KillBackward yanked
     | otherwise = id -- don't update operation
 
 -- | Kill the content from the curser forward to the next word boundary.
 -- When @yank@ is set the yank buffer will be updated
 killWordForward :: Bool {- ^ yank -} -> EditBox -> EditBox
-killWordForward yank e
+killWordForward saveKill e
   = sometimesUpdateYank
   $ set line (Line (length l) (l++r2))
   $ e
@@ -230,11 +231,16 @@ killWordForward yank e
   yanked = sp++wd
 
   sometimesUpdateYank
-    | yank      = updateYankBuffer KillForward yanked
+    | saveKill  = updateYankBuffer KillForward yanked
     | otherwise = id -- don't update operation
 
 -- | Insert a character at the cursor and advance the cursor.
 insert :: Char -> EditBox -> EditBox
 insert c
   = set lastOperation OtherOperation
-  . over content (insertString [c])
+  . over content (insertChar c)
+
+insertPaste :: String -> EditBox -> EditBox
+insertPaste paste
+  = over content (insertPastedString paste)
+  . set lastOperation OtherOperation

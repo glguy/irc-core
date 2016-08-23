@@ -39,7 +39,9 @@ module Client.State.EditBox.Content
   -- * Edits
   , delete
   , backspace
+  , insertPastedString
   , insertString
+  , insertChar
   ) where
 
 import           Control.Lens hiding (below)
@@ -183,6 +185,38 @@ delete c =
                          b:bs -> set below bs
                                . set text (s ++ b)
                                $ c
+
+-- | Insert character at cursor, cursor is advanced.
+insertChar :: Char -> Content -> Content
+insertChar '\n' c
+  = over above (view text c :)
+  $ set line emptyLine c
+
+insertChar ins c = over line aux c
+  where
+    aux (Line n txt) =
+      case splitAt n txt of
+        (preS, postS) -> Line (n+1) (preS ++ ins : postS)
+
+-- | Smarter version of 'insertString' that removes spurious newlines.
+insertPastedString :: String -> Content -> Content
+insertPastedString paste c = insertString (scrub paste) c
+  where
+    cursorAtEnd = null (view below c)
+               && length (view text c) == view pos c
+
+    -- avoid adding empty lines
+    scrub ('\n':'\n':xs) = scrub ('\n':xs)
+
+    -- ignore formfeeds
+    scrub ('\r':xs) = scrub xs
+
+    -- avoid adding trailing newline at end of textbox
+    scrub "\n" | cursorAtEnd = ""
+
+    -- pass-through everything else
+    scrub (x:xs) = x : scrub xs
+    scrub "" = ""
 
 -- | Insert string at cursor, cursor is advanced to the
 -- end of the inserted string.
