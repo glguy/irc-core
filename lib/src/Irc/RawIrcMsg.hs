@@ -72,13 +72,13 @@ data RawIrcMsg = RawIrcMsg
   , _msgCommand    :: !Text -- ^ command
   , _msgParams     :: [Text] -- ^ command parameters
   }
-  deriving (Read, Show)
+  deriving (Eq, Read, Show)
 
 -- | Key value pair representing an IRCv3.2 message tag.
 -- The value in this pair has had the message tag unescape
 -- algorithm applied.
 data TagEntry = TagEntry {-# UNPACK #-} !Text {-# UNPACK #-} !Text
-  deriving (Read, Show)
+  deriving (Eq, Read, Show)
 
 makeLenses ''RawIrcMsg
 

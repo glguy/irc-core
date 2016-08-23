@@ -32,7 +32,7 @@ data UserInfo = UserInfo
   , userName :: {-# UNPACK #-} !Text -- ^ username, empty when missing
   , userHost :: {-# UNPACK #-} !Text -- ^ hostname, empty when missing
   }
-  deriving (Read, Show)
+  deriving (Eq, Read, Show)
 
 -- | 'Lens' into 'userNick' field.
 uiNick :: Lens' UserInfo Identifier
