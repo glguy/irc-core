@@ -18,7 +18,9 @@ glirc-lua-debug.dylib: glirc-lua.c
 	cc -shared -o $@ $^ -I../include \
 	  -pedantic -Wall \
 	  -undefined dynamic_lookup \
-	  `pkg-config --cflags --libs lua-5.3`
+	  -L/Users/emertens/Source/galua/galua-c/inplace/lib \
+	  -I/Users/emertens/Source/galua/galua-c/inplace/include/galua \
+	  -lgalua-dbg -liconv -lz
 
 clean:
 	rm -rf *.dylib *.so *.dSYM

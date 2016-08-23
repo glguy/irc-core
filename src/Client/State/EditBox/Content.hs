@@ -205,11 +205,11 @@ insertPastedString paste c = insertString (scrub paste) c
     cursorAtEnd = null (view below c)
                && length (view text c) == view pos c
 
+    -- ignore formfeeds (happens before duplicate newline detection!)
+    scrub ('\r':xs) = scrub xs
+
     -- avoid adding empty lines
     scrub ('\n':'\n':xs) = scrub ('\n':xs)
-
-    -- ignore formfeeds
-    scrub ('\r':xs) = scrub xs
 
     -- avoid adding trailing newline at end of textbox
     scrub "\n" | cursorAtEnd = ""
