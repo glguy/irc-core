@@ -34,11 +34,16 @@ import           Data.Word
 -- | Identifier representing channels and nicknames
 data Identifier = Identifier {-# UNPACK #-} !Text
                              {-# UNPACK #-} !(PV.Vector Word8)
-  deriving (Read, Show)
 
 -- | Equality on normalized identifier
 instance Eq Identifier where
   (==) = (==) `on` idDenote
+
+instance Show Identifier where
+  show = show . idText
+
+instance Read Identifier where
+  readsPrec p x = [ (mkId t, rest) | (t,rest) <- readsPrec p x]
 
 -- | Comparison on normalized identifier
 instance Ord Identifier where

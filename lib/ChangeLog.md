@@ -5,6 +5,7 @@
 * Add `Eq` instances to `UserInfo` and `RawIrcMsg`
 * Add `IsString` instance to `Identifier`
 * Remove `lens` dependency (functionality preserved)
+* Show and Read instances for `Identifier` render the text version as a string literal
 
 ## 2.1.0.0  -- 2016-08-13
 
