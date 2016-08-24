@@ -37,11 +37,11 @@ remap ::
   Bool {- ^ enable debugging -} ->
   IrcMsg -> MessageResult
 remap debug (Privmsg user chan msg)
-  | userNick user == mkId "*buffextras"
+  | userNick user == "*buffextras"
   , Right newMsg <- parseOnly (prefixedParser chan) msg
   = RemapMessage newMsg
 
-  | userNick user == mkId "*buffextras"
+  | userNick user == "*buffextras"
   , not debug
   = OmitMessage
 

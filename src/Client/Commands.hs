@@ -608,7 +608,7 @@ cmdTopic _ cs channelId st rest =
            case dropWhile isSpace rest of
              ""    -> ircTopic channelId ""
              topic | useChanServ channelId cs ->
-                        ircPrivmsg (mkId "ChanServ")
+                        ircPrivmsg "ChanServ"
                           ("TOPIC " <> idText channelId <> Text.pack (' ' : topic))
                    | otherwise -> ircTopic channelId (Text.pack topic)
      sendMsg cs cmd
@@ -670,8 +670,8 @@ cmdKickBan _ cs channelId st rest =
 computeBanUserInfo :: Identifier -> NetworkState    -> UserInfo
 computeBanUserInfo who cs =
   case view (csUser who) cs of
-    Nothing                   -> UserInfo who        "*" "*"
-    Just (UserAndHost _ host) -> UserInfo (mkId "*") "*" host
+    Nothing                   -> UserInfo who "*" "*"
+    Just (UserAndHost _ host) -> UserInfo "*" "*" host
 
 cmdRemove :: ChannelCommand
 cmdRemove _ cs channelId st rest =
@@ -910,7 +910,7 @@ sendModeration ::
   IO NetworkState
 sendModeration channel cmds cs
   | useChanServ channel cs =
-      do sendMsg cs (ircPrivmsg (mkId "ChanServ") ("OP " <> idText channel))
+      do sendMsg cs (ircPrivmsg "ChanServ" ("OP " <> idText channel))
          return $ csChannels . ix channel . chanQueuedModeration <>~ cmds $ cs
   | otherwise = cs <$ traverse_ (sendMsg cs) cmds
 

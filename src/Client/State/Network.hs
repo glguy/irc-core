@@ -407,7 +407,7 @@ doRpl cmd msgWhen args =
             . doMode msgWhen who chanId modes params
             . set (csChannels . ix chanId . chanModes) Map.empty
             where chanId = mkId chan
-                  !who = UserInfo (mkId "*") "" ""
+                  !who = UserInfo "*" "" ""
         _ -> id
     _ -> id
 
