@@ -1,4 +1,3 @@
-{-# Language TemplateHaskell #-}
 {-# Language BangPatterns #-}
 
 {-|
@@ -29,9 +28,9 @@ module Irc.Modes
   , unsplitModes
   ) where
 
-import           Control.Lens
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           View
 
 -- | Settings that describe how to interpret channel modes
 data ModeTypes = ModeTypes
@@ -43,7 +42,26 @@ data ModeTypes = ModeTypes
   }
   deriving Show
 
-makeLenses ''ModeTypes
+-- | Lens for '_modesList'
+modesLists :: Functor f => ([Char] -> f [Char]) -> ModeTypes -> f ModeTypes
+modesLists f m = (\x -> m { _modesLists = x }) <$> f (_modesLists m)
+
+-- | Lens for '_modesAlwaysArg'
+modesAlwaysArg :: Functor f => ([Char] -> f [Char]) -> ModeTypes -> f ModeTypes
+modesAlwaysArg f m = (\x -> m { _modesAlwaysArg = x }) <$> f (_modesAlwaysArg m)
+
+-- | Lens for '_modesSetArg'
+modesSetArg :: Functor f => ([Char] -> f [Char]) -> ModeTypes -> f ModeTypes
+modesSetArg f m = (\x -> m { _modesSetArg = x }) <$> f (_modesSetArg m)
+
+-- | Lens for '_modesNeverArg'
+modesNeverArg :: Functor f => ([Char] -> f [Char]) -> ModeTypes -> f ModeTypes
+modesNeverArg f m = (\x -> m { _modesNeverArg = x }) <$> f (_modesNeverArg m)
+
+
+-- | Lens for '_modesPrefixModes'
+modesPrefixModes :: Functor f => ([(Char,Char)] -> f [(Char,Char)]) -> ModeTypes -> f ModeTypes
+modesPrefixModes f m = (\x -> m { _modesPrefixModes = x }) <$> f (_modesPrefixModes m)
 
 -- | The channel modes used by Freenode
 defaultModeTypes :: ModeTypes
@@ -97,7 +115,7 @@ splitModes !icm = computeMode True . Text.unpack
                     case args of
                       []   -> (Text.empty,[])
                       x:xs -> (x,xs)
-           in cons (polarity,m,arg) <$> computeMode polarity ms args'
+           in ((polarity,m,arg):) <$> computeMode polarity ms args'
 
         | not polarity && m `elem` view modesSetArg icm
        ||                 m `elem` view modesNeverArg icm ->

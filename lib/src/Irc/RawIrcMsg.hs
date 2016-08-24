@@ -1,6 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# Language TemplateHaskell #-}
 
 {-|
 Module      : Irc.RawIrcMsg
@@ -36,7 +35,6 @@ module Irc.RawIrcMsg
   ) where
 
 import           Control.Applicative
-import           Control.Lens
 import           Data.Attoparsec.Text as P
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
@@ -53,6 +51,7 @@ import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 
 import           Irc.UserInfo
+import           View
 
 -- | 'RawIrcMsg' breaks down the IRC protocol into its most basic parts.
 -- The "trailing" parameter indicated in the IRC protocol with a leading
@@ -80,7 +79,21 @@ data RawIrcMsg = RawIrcMsg
 data TagEntry = TagEntry {-# UNPACK #-} !Text {-# UNPACK #-} !Text
   deriving (Eq, Read, Show)
 
-makeLenses ''RawIrcMsg
+-- | Lens for '_msgTags'
+msgTags :: Functor f => ([TagEntry] -> f [TagEntry]) -> RawIrcMsg -> f RawIrcMsg
+msgTags f m = (\x -> m { _msgTags = x }) <$> f (_msgTags m)
+
+-- | Lens for '_msgPrefix'
+msgPrefix :: Functor f => (Maybe UserInfo -> f (Maybe UserInfo)) -> RawIrcMsg -> f RawIrcMsg
+msgPrefix f m = (\x -> m { _msgPrefix = x }) <$> f (_msgPrefix m)
+
+-- | Lens for '_msgCommand'
+msgCommand :: Functor f => (Text -> f Text) -> RawIrcMsg -> f RawIrcMsg
+msgCommand f m = (\x -> m { _msgCommand = x }) <$> f (_msgCommand m)
+
+-- | Lens for '_msgParams'
+msgParams :: Functor f => ([Text] -> f [Text]) -> RawIrcMsg -> f RawIrcMsg
+msgParams f m = (\x -> m { _msgParams = x }) <$> f (_msgParams m)
 
 -- | Attempt to split an IRC protocol message without its trailing newline
 -- information into a structured message.

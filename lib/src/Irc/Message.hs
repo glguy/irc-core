@@ -30,7 +30,6 @@ module Irc.Message
   , computeMaxMessageLength
   ) where
 
-import           Control.Lens
 import           Control.Monad
 import           Data.Function
 import           Data.Maybe
@@ -41,6 +40,7 @@ import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           Irc.Codes
+import           View
 
 -- | High-level IRC message representation
 data IrcMsg

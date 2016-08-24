@@ -23,7 +23,6 @@ import           Data.Text      (Text)
 import qualified Data.Text      as Text
 import           Irc.Identifier
 import           Data.Monoid ((<>))
-import           Control.Lens
 
 -- | 'UserInfo' packages a nickname along with the username and hsotname
 -- if they are known in the current context.
@@ -35,7 +34,7 @@ data UserInfo = UserInfo
   deriving (Eq, Read, Show)
 
 -- | 'Lens' into 'userNick' field.
-uiNick :: Lens' UserInfo Identifier
+uiNick :: Functor f => (Identifier -> f Identifier) -> UserInfo -> f UserInfo
 uiNick f ui@UserInfo{userNick = n} = (\n' -> ui{userNick = n'}) <$> f n
 
 -- | Render 'UserInfo' as @nick!username\@hostname@

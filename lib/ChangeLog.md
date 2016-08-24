@@ -4,6 +4,7 @@
 
 * Add `Eq` instances to `UserInfo` and `RawIrcMsg`
 * Add `IsString` instance to `Identifier`
+* Remove `lens` dependency (functionality preserved)
 
 ## 2.1.0.0  -- 2016-08-13
 
