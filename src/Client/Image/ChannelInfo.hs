@@ -24,6 +24,7 @@ import           Client.State
 import           Client.State.Channel
 import           Client.State.Network
 import           Control.Lens
+import           Data.HashSet (HashSet)
 import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Image
@@ -38,14 +39,14 @@ channelInfoImages network channelId st
 
   | Just cs      <- preview (clientConnection network) st
   , Just channel <- preview (csChannels . ix channelId) cs
-  = channelInfoImages' pal channel cs
+  = channelInfoImages' pal (clientHighlights cs st) channel
 
   | otherwise = [text' (view palError pal) "No channel information"]
   where
     pal = view (clientConfig . configPalette) st
 
-channelInfoImages' :: Palette -> ChannelState -> NetworkState -> [Image]
-channelInfoImages' pal !channel !cs
+channelInfoImages' :: Palette -> HashSet Identifier -> ChannelState -> [Image]
+channelInfoImages' pal myNicks !channel
     = topicLine
     : provenanceLines
    ++ creationLines
@@ -56,7 +57,6 @@ channelInfoImages' pal !channel !cs
 
     topicLine = label "Topic: " <|> parseIrcText (view chanTopic channel)
 
-    myNick = view csNick cs
 
     utcTimeImage = string defAttr . formatTime defaultTimeLocale "%F %T"
 
@@ -65,7 +65,7 @@ channelInfoImages' pal !channel !cs
           Nothing -> []
           Just !prov ->
             [ label "Topic set by: " <|>
-                coloredUserInfo pal DetailedRender [myNick] (view topicAuthor prov)
+                coloredUserInfo pal DetailedRender myNicks (view topicAuthor prov)
             , label "Topic set on: " <|> utcTimeImage (view topicTime prov)
             ]
 

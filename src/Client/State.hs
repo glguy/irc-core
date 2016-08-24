@@ -49,6 +49,7 @@ module Client.State
   , removeNetwork
   , clientTick
   , applyMessageToClientState
+  , clientHighlights
 
   -- * Add messages to buffers
   , recordChannelMessage
@@ -213,8 +214,8 @@ recordChannelMessage network channel msg st =
     rendParams = MessageRendererParams
       { rendStatusMsg   = statusModes
       , rendUserSigils  = computeMsgLineSigils network channel' msg st
-      , rendNicks       = channelUserList network channel' st
-      , rendMyNicks     = toListOf (clientConnection network . csNick) st
+      , rendNicks       = HashSet.fromList (channelUserList network channel' st)
+      , rendMyNicks     = highlights
       , rendPalette     = view (clientConfig . configPalette) st
       , rendNickPadding = view (clientConfig . configNickPadding) st
       }
@@ -223,6 +224,7 @@ recordChannelMessage network channel msg st =
     possibleStatusModes     = view (clientConnection network . csStatusMsg) st
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
     importance              = msgImportance msg st
+    highlights              = clientHighlightsNetwork network st
 
 
 -- | Extract the status mode sigils from a message target.
@@ -241,10 +243,12 @@ msgImportance :: ClientMessage -> ClientState -> WindowLineImportance
 msgImportance msg st =
   let network = view msgNetwork msg
       me      = preview (clientConnection network . csNick) st
+      highlights = clientHighlightsNetwork network st
       isMe x  = Just x == me
-      checkTxt txt = case me of
-                       Just me' | me' `elem` (mkId <$> nickSplit txt) -> WLImportant
-                       _ -> WLNormal
+      checkTxt txt
+        | any (\x -> HashSet.member (mkId x) highlights)
+              (nickSplit txt) = WLImportant
+        | otherwise           = WLNormal
   in
   case view msgBody msg of
     NormalBody{} -> WLImportant
@@ -383,6 +387,7 @@ toWindowLine' config =
   toWindowLine defaultRenderParams
     { rendPalette     = view configPalette     config
     , rendNickPadding = view configNickPadding config
+    , rendMyNicks     = view configExtraHighlights config
     }
 
 
@@ -652,3 +657,15 @@ stepFocus isReversed st
   where
     isForward = not isReversed
     (l,r)     = Map.split (view clientFocus st) (view clientWindows st)
+
+clientHighlights :: NetworkState -> ClientState -> HashSet Identifier
+clientHighlights cs st =
+  HashSet.insert
+    (view csNick cs)
+    (view (clientConfig . configExtraHighlights) st)
+
+clientHighlightsNetwork :: Text -> ClientState -> HashSet Identifier
+clientHighlightsNetwork network st =
+  case preview (clientConnection network) st of
+    Just cs -> clientHighlights cs st
+    Nothing -> view (clientConfig . configExtraHighlights) st

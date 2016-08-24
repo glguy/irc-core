@@ -3,6 +3,7 @@
 ## 2.11
 
 * Add `M-S` to jump to previously focused window
+* Add `extra-highlights` section
 
 ## 2.10
 

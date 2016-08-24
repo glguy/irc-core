@@ -26,6 +26,7 @@ module Client.Configuration
   , configConfigPath
   , configMacros
   , configExtensions
+  , configExtraHighlights
 
   -- * Loading configuration
   , loadConfiguration
@@ -46,6 +47,8 @@ import           Control.Lens hiding (List)
 import           Data.Foldable (for_)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import           Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -60,15 +63,16 @@ import           System.IO.Error
 -- server configuration from '_configServers' is used where possible,
 -- otherwise '_configDefaults' is used.
 data Configuration = Configuration
-  { _configDefaults :: ServerSettings -- ^ Default connection settings
-  , _configServers  :: (HashMap Text ServerSettings) -- ^ Host-specific settings
-  , _configPalette  :: Palette
-  , _configWindowNames :: Text -- ^ Names of windows, used when alt-jumping)
-  , _configNickPadding :: Maybe Integer -- ^ Padding of nicks
-  , _configConfigPath :: Maybe FilePath
+  { _configDefaults         :: ServerSettings -- ^ Default connection settings
+  , _configServers          :: (HashMap Text ServerSettings) -- ^ Host-specific settings
+  , _configPalette          :: Palette
+  , _configWindowNames      :: Text -- ^ Names of windows, used when alt-jumping)
+  , _configExtraHighlights  :: HashSet Identifier -- ^ Extra highlight nicks/terms
+  , _configNickPadding      :: Maybe Integer -- ^ Padding of nicks
+  , _configConfigPath       :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
-  , _configMacros :: HashMap Text [[ExpansionChunk]] -- ^ command macros
-  , _configExtensions :: [FilePath] -- ^ paths to shared library
+  , _configMacros           :: HashMap Text [[ExpansionChunk]] -- ^ command macros
+  , _configExtensions       :: [FilePath] -- ^ paths to shared library
   }
   deriving Show
 
@@ -180,6 +184,9 @@ parseConfiguration _configConfigPath def = parseSections $
 
      _configExtensions <- fromMaybe []
                     <$> sectionOptWith (parseList parseString) "extensions"
+
+     _configExtraHighlights <- maybe HashSet.empty HashSet.fromList
+                    <$> sectionOptWith (parseList parseIdentifier) "extra-highlights"
 
      _configNickPadding <- sectionOpt "nick-padding"
      for_ _configNickPadding (\padding ->

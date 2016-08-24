@@ -49,7 +49,7 @@ userListImages' cs channel st =
 
     matcher = clientMatcher st
 
-    myNicks = toListOf csNick cs
+    myNicks = clientHighlights cs st
 
     renderUser (ident, sigils) =
       string (view palSigil pal) sigils <|>
@@ -95,7 +95,7 @@ userInfoImages' cs channel st = renderEntry <$> usersList
   where
     matcher = clientMatcher st
 
-    myNicks = toListOf csNick cs
+    myNicks = clientHighlights cs st
 
     pal = view (clientConfig . configPalette) st
 

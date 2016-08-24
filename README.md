@@ -101,6 +101,8 @@ macros:
     commands:
       * "extension Lua some-parameter $network $channel"
 
+extra-highlights: ["glirc", "lens"]
+
 palette:
   time:
     fg: [10,10,10] -- RGB values for color for timestamps
@@ -125,6 +127,7 @@ Configuration sections:
 * `palette` - Client color overrides
 * `window-names` - text - Names of windows (typically overridden on non QWERTY layouts)
 * `nick-padding` - nonnegative integer - Nicks are padded until they have the specified length
+* `extra-highlights` - list of text - Extra words/nicks to highlight
 * `extensions` - list of text - Filenames of extension to load
 
 Settings

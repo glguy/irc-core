@@ -28,6 +28,7 @@ import           Client.Message
 import           Control.Lens
 import           Data.Char
 import           Data.Hashable (hash)
+import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.List
 import           Data.Maybe
@@ -46,8 +47,8 @@ import           Irc.UserInfo
 data MessageRendererParams = MessageRendererParams
   { rendStatusMsg  :: [Char] -- ^ restricted message sigils
   , rendUserSigils :: [Char] -- ^ sender sigils
-  , rendNicks      :: [Identifier] -- ^ nicknames to highlight
-  , rendMyNicks    :: [Identifier] -- ^ nicknames to highlight in red
+  , rendNicks      :: HashSet Identifier -- ^ nicknames to highlight
+  , rendMyNicks    :: HashSet Identifier -- ^ nicknames to highlight in red
   , rendPalette    :: Palette -- ^ nick color palette
   , rendNickPadding :: Maybe Integer -- ^ nick padding
   }
@@ -55,11 +56,11 @@ data MessageRendererParams = MessageRendererParams
 -- | Default 'MessageRenderParams' with no sigils or nicknames specified
 defaultRenderParams :: MessageRendererParams
 defaultRenderParams = MessageRendererParams
-  { rendStatusMsg = ""
-  , rendUserSigils = ""
-  , rendNicks = []
-  , rendMyNicks = []
-  , rendPalette = defaultPalette
+  { rendStatusMsg   = ""
+  , rendUserSigils  = ""
+  , rendNicks       = HashSet.empty
+  , rendMyNicks     = HashSet.empty
+  , rendPalette     = defaultPalette
   , rendNickPadding = Nothing
   }
 
@@ -349,16 +350,16 @@ data IdentifierColorMode
 
 -- | Render a nickname in its hash-based color.
 coloredIdentifier ::
-  Palette ->
-  IdentifierColorMode ->
-  [Identifier] {- ^ my nicknames -} ->
-  Identifier ->
+  Palette             {- ^ color palette      -} ->
+  IdentifierColorMode {- ^ draw mode          -} ->
+  HashSet Identifier  {- ^ my nicknames       -} ->
+  Identifier          {- ^ identifier to draw -} ->
   Image
 coloredIdentifier palette icm myNicks ident =
   text' color (idText ident)
   where
     color
-      | ident `elem` myNicks =
+      | ident `HashSet.member` myNicks =
           case icm of
             PrivmsgIdentifier -> fromMaybe
                                    (view palSelf palette)
@@ -374,10 +375,11 @@ coloredIdentifier palette icm myNicks ident =
 -- If detailed mode the full user info including the username and hostname parts
 -- will be rendered. The nickname will be colored.
 coloredUserInfo ::
-  Palette ->
-  RenderMode ->
-  [Identifier] {- ^ my nicks -} ->
-  UserInfo -> Image
+  Palette            {- ^ color palette   -} ->
+  RenderMode         {- ^ mode            -} ->
+  HashSet Identifier {- ^ my nicks        -} ->
+  UserInfo           {- ^ userinfo to draw-} ->
+  Image
 coloredUserInfo palette NormalRender myNicks ui =
   coloredIdentifier palette NormalIdentifier myNicks (userNick ui)
 coloredUserInfo palette DetailedRender myNicks !ui =
@@ -403,8 +405,8 @@ quietIdentifier palette ident =
 -- highlighted.
 parseIrcTextWithNicks ::
   Palette ->
-  [Identifier] {- ^ my nicks -} ->
-  [Identifier] {- ^ other nicks -} ->
+  HashSet Identifier {- ^ my nicks    -} ->
+  HashSet Identifier {- ^ other nicks -} ->
   Text -> Image
 parseIrcTextWithNicks palette myNicks nicks txt
   | Text.any isControl txt = parseIrcText txt
@@ -414,16 +416,16 @@ parseIrcTextWithNicks palette myNicks nicks txt
 -- an image where all of the occurrences of those nicknames are colored.
 highlightNicks ::
   Palette ->
-  [Identifier] {- ^ my nicks -} ->
-  [Identifier] {- ^ other nicks -} ->
+  HashSet Identifier {- ^ my nicks    -} ->
+  HashSet Identifier {- ^ other nicks -} ->
   Text -> Image
 highlightNicks palette myNicks nicks txt = horizCat (highlight1 <$> txtParts)
   where
-    nickSet = HashSet.fromList nicks
     txtParts = nickSplit txt
+    allNicks = HashSet.union myNicks nicks
     highlight1 part
-      | HashSet.member partId nickSet = coloredIdentifier palette PrivmsgIdentifier myNicks partId
-      | otherwise                     = text' defAttr part
+      | HashSet.member partId allNicks = coloredIdentifier palette PrivmsgIdentifier myNicks partId
+      | otherwise                      = text' defAttr part
       where
         partId = mkId part
 
