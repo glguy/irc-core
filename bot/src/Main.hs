@@ -12,40 +12,39 @@ module Main (main) where
 
 import           Control.Exception
 import qualified Data.ByteString as B
-import           Data.Foldable
-import           Data.Text (Text)
+import           Data.Foldable (for_)
 import qualified Data.Text as Text
-import           Irc.Commands
-import           Irc.Identifier
-import           Irc.Message
-import           Irc.RawIrcMsg
-import           Irc.UserInfo
+import           Irc.Codes
+import           Irc.Commands   (ircUser, ircNick, ircPong, ircNotice, ircQuit)
+import           Irc.Identifier (mkId)
+import           Irc.Message    (IrcMsg(Ping, Privmsg, Reply), cookIrcMsg)
+import           Irc.RateLimit  (RateLimit, newRateLimit, tickRateLimit)
+import           Irc.RawIrcMsg  (RawIrcMsg, parseRawIrcMsg, renderRawIrcMsg, asUtf8)
+import           Irc.UserInfo   (userNick)
 import           Network.Connection
 import           System.Environment
-
-botNick, botUser, botReal :: Text
-botNick = "irc-core-bot"
-botUser = "irc-core-bot"
-botReal = "irc-core-bot"
+import           System.Random
 
 data Config = Config
   { configNick :: String
   , configHost :: String
+  , configRate :: RateLimit
   }
 
 main :: IO ()
 main =
   do config <- getConfig
      withConnection config $ \h ->
-        do sendHello h config
-           eventLoop h
+        do sendHello config h
+           eventLoop config h
 
 -- | Get the hostname from the command-line arguments
 getConfig :: IO Config
 getConfig =
   do args <- getArgs
+     rate <- newRateLimit 2 8 -- safe defaults
      case args of
-       [n,h] -> return (Config n h)
+       [n,h] -> return (Config n h rate)
        _   -> fail "Usage: ./bot NICK HOSTNAME"
 
 -- | Construct the connection parameters needed for the connection package
@@ -94,34 +93,41 @@ readIrcLine h =
               Nothing  -> fail "Server sent invalid message!"
 
 -- | Write an encoded IRC message to the connection
-sendMsg :: Connection -> RawIrcMsg -> IO ()
-sendMsg h msg = connectionPut h (renderRawIrcMsg msg)
+sendMsg :: Config -> Connection -> RawIrcMsg -> IO ()
+sendMsg c h msg =
+  do tickRateLimit (configRate c)
+     connectionPut h (renderRawIrcMsg msg)
 
 -- | Send initial @USER@ and @NICK@ messages
-sendHello :: Connection -> Config -> IO ()
-sendHello h config =
+sendHello :: Config -> Connection -> IO ()
+sendHello config h =
   do let botNick = Text.pack (configNick config)
          botUser = botNick
          botReal = botNick
          mode_w  = False
          mode_i  = True
-     sendMsg h (ircUser botUser mode_w mode_i botReal)
-     sendMsg h (ircNick (mkId botNick))
+     sendMsg config h (ircUser botUser mode_w mode_i botReal)
+     sendMsg config h (ircNick (mkId botNick))
 
-eventLoop :: Connection -> IO ()
-eventLoop h =
+eventLoop :: Config -> Connection -> IO ()
+eventLoop config h =
   do mb <- readIrcLine h
      for_ mb $ \msg ->
        do print msg
           case msg of
             -- respond to pings
-            Ping xs -> sendMsg h (ircPong xs)
+            Ping xs -> sendMsg config h (ircPong xs)
 
             -- quit on request or echo message back as notices
-            Privmsg who _me msg
-              | msg == "!quit" -> sendMsg h (ircQuit "Quit requested")
-              | otherwise      -> sendMsg h (ircNotice (userNick who) msg)
+            Privmsg who _me txt
+              | txt == "!quit" -> sendMsg config h (ircQuit "Quit requested")
+              | otherwise      -> sendMsg config h (ircNotice (userNick who) txt)
+
+            Reply ERR_NICKNAMEINUSE _ ->
+              do n <- randomRIO (1,1000::Int)
+                 let newNick = mkId (Text.pack (configNick config ++ show n))
+                 sendMsg config h (ircNick newNick)
 
             _ -> return ()
 
-          eventLoop h
+          eventLoop config h
