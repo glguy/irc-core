@@ -97,6 +97,16 @@ ircWithTags = test
             { _msgTags = [TagEntry "this\\s" "value"] })
       (parseRawIrcMsg "@this\\s=value CMD")
 
+  , assertEqual "optional key"
+      (Just (rawIrcMsg "CMD" [])
+            { _msgTags = [TagEntry "this" ""] })
+      (parseRawIrcMsg "@this CMD")
+
+  , assertEqual "optional keys"
+      (Just (rawIrcMsg "CMD" [])
+            { _msgTags = [TagEntry "this" "", TagEntry "that" ""] })
+      (parseRawIrcMsg "@this;that CMD")
+
   ]
 
 userInfos :: Test
@@ -155,6 +165,13 @@ renderIrc = test
   , assertEqual "two tags"
       "@time=value;this=\\n\\rand\\\\\\s\\:that CMD\r\n"
       (renderRawIrcMsg (rawIrcMsg "CMD" [])
-            { _msgTags = [TagEntry "time" "value", TagEntry "this" "\n\rand\\ ;that"] })
+            { _msgTags = [TagEntry "time" "value",
+                          TagEntry "this" "\n\rand\\ ;that"] })
+
+  , assertEqual "empty tags"
+      "@time;magic CMD\r\n"
+      (renderRawIrcMsg (rawIrcMsg "CMD" [])
+            { _msgTags = [TagEntry "time" "",
+                          TagEntry "magic" ""] })
 
   ]

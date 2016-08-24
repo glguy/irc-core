@@ -66,10 +66,10 @@ import           View
 --
 -- @:prefix COMMAND param0 param1 param2 .. paramN@
 data RawIrcMsg = RawIrcMsg
-  { _msgTags       :: [TagEntry] -- ^ IRCv3.2 message tags
+  { _msgTags       :: [TagEntry]     -- ^ IRCv3.2 message tags
   , _msgPrefix     :: Maybe UserInfo -- ^ Optional sender of message
-  , _msgCommand    :: !Text -- ^ command
-  , _msgParams     :: [Text] -- ^ command parameters
+  , _msgCommand    :: !Text          -- ^ command
+  , _msgParams     :: [Text]         -- ^ command parameters
   }
   deriving (Eq, Read, Show)
 
@@ -169,16 +169,14 @@ paramsParser !n =
        return (x:xs)
 
 tagsParser :: Parser [TagEntry]
-tagsParser = tagParser `sepBy1` char ';' <* char ' '
+tagsParser = tagParser `sepBy1` char ';' <* spaces
 
 tagParser :: Parser TagEntry
 tagParser =
-  do key <- P.takeWhile (notInClass " =;")
-     hasValue <- optionalChar '='
-     val <- if hasValue
-              then unescapeTagVal <$> P.takeWhile (notInClass " ;")
-              else return ""
-     return $! TagEntry key val
+  do key <- P.takeWhile (notInClass "=; ")
+     optional (char '=')
+     val <- P.takeWhile (notInClass "; ")
+     return $! TagEntry key (unescapeTagVal val)
 
 
 unescapeTagVal :: Text -> Text
@@ -212,9 +210,11 @@ prefixParser =
 simpleTokenParser :: Parser Text
 simpleTokenParser =
   do xs <- P.takeWhile1 (/= ' ')
-     P.skipWhile (== ' ')
+     spaces
      return $! Text.copy xs
 
+spaces :: Parser ()
+spaces = P.skipWhile (== ' ')
 
 -- | Serialize a structured IRC protocol message back into its wire
 -- format. This command adds the required trailing newline.
@@ -244,9 +244,10 @@ renderTags xs
 
 renderTag :: TagEntry -> Builder
 renderTag (TagEntry key val)
-   = Text.encodeUtf8Builder key
-  <> Builder.char8 '='
-  <> Text.encodeUtf8Builder (escapeTagVal val)
+  | Text.null val = Text.encodeUtf8Builder key
+  | otherwise     = Text.encodeUtf8Builder key
+                 <> Builder.char8 '='
+                 <> Text.encodeUtf8Builder (escapeTagVal val)
 
 renderPrefix :: UserInfo -> Builder
 renderPrefix u
@@ -278,9 +279,9 @@ optionalChar :: Char -> Parser Bool
 optionalChar c = True <$ char c <|> pure False
 
 
--- | Try to decode a message as UTF-8. If that fails interpret it as Windows CP1252
--- This helps deal with clients like XChat that get clever and otherwise misconfigured
--- clients.
+-- | Try to decode a message as UTF-8. If that fails interpret it as Windows
+-- CP1252 This helps deal with clients like XChat that get clever and otherwise
+-- misconfigured clients.
 asUtf8 :: ByteString -> Text
 asUtf8 x = case Text.decodeUtf8' x of
              Right txt -> txt
@@ -290,7 +291,7 @@ asUtf8 x = case Text.decodeUtf8' x of
 decodeCP1252 :: ByteString -> Text
 decodeCP1252 bs = Text.pack [ cp1252 Vector.! fromIntegral x | x <- B.unpack bs ]
 
--- This character encoding is a superset of ISO 8859-1 in terms of printable
+-- | This character encoding is a superset of ISO 8859-1 in terms of printable
 -- characters, but differs from the IANA's ISO-8859-1 by using displayable
 -- characters rather than control characters in the 80 to 9F (hex) range.
 cp1252 :: Vector Char
