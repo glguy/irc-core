@@ -25,6 +25,7 @@ import           Data.Char
 import           Data.Function
 import           Data.Hashable
 import           Data.Primitive.ByteArray
+import           Data.String
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Vector.Primitive as PV
@@ -46,6 +47,9 @@ instance Ord Identifier where
 -- | Hash on normalized identifier
 instance Hashable Identifier where
   hashWithSalt s = hashPV8WithSalt s . idDenote
+
+instance IsString Identifier where
+  fromString = mkId . fromString
 
 hashPV8WithSalt :: Int -> PV.Vector Word8 -> Int
 hashPV8WithSalt salt (PV.Vector off len (ByteArray arr)) =
