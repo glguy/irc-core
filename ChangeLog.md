@@ -4,6 +4,7 @@
 
 * Add `M-S` to jump to previously focused window
 * Add `extra-highlights` section
+* Tab complete servernames in `/connect`
 
 ## 2.10
 

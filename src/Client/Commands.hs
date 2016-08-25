@@ -231,7 +231,7 @@ expandAliases xs = [ (a,b) | (as,b) <- xs, a <- as ]
 commands :: HashMap Text Command
 commands = HashMap.fromList
          $ expandAliases
-  [ (["connect"   ], ClientCommand cmdConnect noClientTab)
+  [ (["connect"   ], ClientCommand cmdConnect tabConnect)
   , (["exit"      ], ClientCommand cmdExit    noClientTab)
   , (["focus"     ], ClientCommand cmdFocus   tabFocus)
   , (["clear"     ], ClientCommand cmdClear   noClientTab)
@@ -454,6 +454,16 @@ cmdFocus st rest =
         $ changeFocus focus st
 
     _ -> commandFailure st
+
+-- | @/connect@ tab completes known server names
+tabConnect :: Bool -> ClientCommand
+tabConnect isReversed st _
+  = commandSuccess
+  $ fromMaybe st
+  $ clientTextBox (wordComplete id isReversed [] networks) st
+  where
+    networks = map mkId $ HashMap.keys $ view clientNetworkMap st
+
 
 -- | When tab completing the first parameter of the focus command
 -- the current networks are used.
