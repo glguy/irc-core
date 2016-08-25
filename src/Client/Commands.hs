@@ -933,9 +933,10 @@ cmdExtension :: ClientCommand
 cmdExtension st rest =
   case Text.words (Text.pack rest) of
     name:params
-      | Just ae <- find (\ae -> aeName ae == name) (view clientExtensions st) ->
-         do (st',_) <- withStableMVar st $ \stab ->
-                         commandExtension stab params ae
+      | Just ae <- find (\ae -> aeName ae == name)
+                        (view (clientExtensions . esActive) st) ->
+         do (st',_) <- clientPark st $ \ptr ->
+                         commandExtension ptr params ae
             commandSuccess st'
     _ -> commandFailure st
 

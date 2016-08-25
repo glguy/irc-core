@@ -33,9 +33,10 @@ module Client.State
   , clientConnection
   , clientBell
   , clientExtensions
-  , initialClientState
+  , withClientState
   , clientShutdown
   , clientStartExtensions
+  , clientPark
 
   -- * Client operations
   , clientMatcher
@@ -69,6 +70,10 @@ module Client.State
   , pageUp
   , pageDown
 
+  -- * Extensions
+  , ExtensionState
+  , esActive
+
   ) where
 
 import           Client.CApi
@@ -82,11 +87,13 @@ import qualified Client.State.EditBox as Edit
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
+import           Data.Default.Class
 import           Data.Foldable
 import           Data.Either
 import           Data.HashMap.Strict (HashMap)
@@ -100,6 +107,8 @@ import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
+import           Foreign.Ptr
+import           Foreign.StablePtr
 import           Graphics.Vty
 import           Irc.Codes
 import           Irc.Identifier
@@ -136,10 +145,26 @@ data ClientState = ClientState
 
   , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored nicknames
 
-  , _clientExtensions        :: [ActiveExtension]       -- ^ Active extensions
+  , _clientExtensions        :: !ExtensionState
+  }
+
+data ExtensionState = ExtensionState
+  { _esActive    :: [ActiveExtension]
+  , _esMVar      :: MVar ClientState
+  , _esStablePtr :: StablePtr (MVar ClientState)
   }
 
 makeLenses ''ClientState
+makeLenses ''ExtensionState
+
+clientPark :: ClientState -> (Ptr () -> IO a) -> IO (ClientState, a)
+clientPark st k =
+  do let mvar = view (clientExtensions . esMVar) st
+     putMVar mvar st
+     let token = views (clientExtensions . esStablePtr) castStablePtrToPtr st
+     res <- k token
+     st' <- takeMVar mvar
+     return (st', res)
 
 -- | 'Traversal' for finding the 'NetworkState' associated with a given network
 -- if that connection is currently active.
@@ -161,12 +186,16 @@ clientLine :: ClientState -> (Int, String) {- ^ line number, line content -}
 clientLine = views (clientTextBox . Edit.line) (\(Edit.Line n t) -> (n, t))
 
 -- | Construct an initial 'ClientState' using default values.
-initialClientState :: Configuration -> Vty -> IO ClientState
-initialClientState cfg vty =
+withClientState :: Configuration -> (ClientState -> IO a) -> IO a
+withClientState cfg k =
+
+  withVty            $ \vty ->
+  withExtensionState $ \exts ->
+
   do (width,height) <- displayBounds (outputIface vty)
      cxt            <- initConnectionContext
      events         <- atomically newTQueue
-     return ClientState
+     k ClientState
         { _clientWindows           = _Empty # ()
         , _clientNetworkMap        = _Empty # ()
         , _clientIgnores           = _Empty # ()
@@ -185,8 +214,23 @@ initialClientState cfg vty =
         , _clientDetailView        = False
         , _clientNextConnectionId  = 0
         , _clientBell              = False
-        , _clientExtensions        = []
+        , _clientExtensions        = exts
         }
+
+-- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
+-- once the continuation finishes.
+withVty :: (Vty -> IO a) -> IO a
+withVty = bracket (mkVty def{bracketedPasteMode = Just True}) shutdown
+
+withExtensionState :: (ExtensionState -> IO a) -> IO a
+withExtensionState k =
+  do mvar <- newEmptyMVar
+     bracket (newStablePtr mvar) freeStablePtr $ \stab ->
+       k ExtensionState
+         { _esActive    = []
+         , _esMVar      = mvar
+         , _esStablePtr = stab
+         }
 
 -- | Forcefully terminate the connection currently associated
 -- with a given network name.
@@ -534,8 +578,8 @@ clientShutdown st = () <$ clientStopExtensions st
 
 clientStopExtensions :: ClientState -> IO ClientState
 clientStopExtensions st =
-  do let (aes,st1) = (clientExtensions <<.~ []) st
-     (st2,_) <- withStableMVar st1 $ \ptr ->
+  do let (aes,st1) = (clientExtensions . esActive <<.~ []) st
+     (st2,_) <- clientPark st1 $ \ptr ->
                   traverse_ (deactivateExtension ptr) aes
      return st2
 
@@ -544,13 +588,13 @@ clientStartExtensions :: ClientState -> IO ClientState
 clientStartExtensions st =
   do let cfg = view clientConfig st
      st1        <- clientStopExtensions st
-     (st2, res) <- withStableMVar st1 $ \ptr ->
+     (st2, res) <- clientPark st1 $ \ptr ->
             traverse (try . activateExtension ptr <=< resolveConfigurationPath)
                      (view configExtensions cfg)
 
      let (errors, exts) = partitionEithers res
      st3 <- recordErrors errors st2
-     return $! set clientExtensions exts st3
+     return $! set (clientExtensions . esActive) exts st3
   where
     recordErrors [] ste = return ste
     recordErrors es ste =

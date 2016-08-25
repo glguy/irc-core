@@ -14,7 +14,6 @@ import Control.Concurrent
 import Control.Exception
 import Control.Lens
 import Control.Monad
-import Data.Default.Class
 import Data.Text (Text)
 import Graphics.Vty
 import System.Exit
@@ -27,22 +26,16 @@ import Client.EventLoop
 import Client.State
 import Client.State.Focus
 
--- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
--- once the continuation finishes.
-withVty :: (Vty -> IO a) -> IO a
-withVty = bracket (mkVty def{bracketedPasteMode = Just True}) shutdown
-
 -- | Main action for IRC client
 main :: IO ()
 main =
   do args <- getCommandArguments
      cfg  <- loadConfiguration' (view cmdArgConfigFile args)
-     withVty $ \vty ->
-       runInUnboundThread $
-         initialClientState cfg vty >>=
-         clientStartExtensions      >>=
-         addInitialNetworks (view cmdArgInitialNetworks args) >>=
-         eventLoop
+     runInUnboundThread $
+       withClientState cfg $
+       clientStartExtensions >=>
+       addInitialNetworks (view cmdArgInitialNetworks args) >=>
+       eventLoop
 
 -- | Load configuration and handle errors along the way.
 loadConfiguration' :: Maybe FilePath -> IO Configuration

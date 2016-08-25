@@ -18,7 +18,6 @@ module Client.CApi
   , deactivateExtension
   , notifyExtensions
   , commandExtension
-  , withStableMVar
   ) where
 
 import           Client.CApi.Types
@@ -132,15 +131,6 @@ commandExtension stab params ae = evalContT $
      let f = fgnCommand (aeFgn ae)
      lift $ unless (f == nullFunPtr)
           $ runProcessCommand f stab (aeSession ae) cmd
-
--- | Create a 'StablePtr' around a 'MVar' which will be valid for the remainder
--- of the computation.
-withStableMVar :: a -> (Ptr () -> IO b) -> IO (a,b)
-withStableMVar x k =
-  do mvar <- newMVar x
-     res <- bracket (newStablePtr mvar) freeStablePtr (k . castStablePtrToPtr)
-     x' <- takeMVar mvar
-     return (x', res)
 
 -- | Marshal a 'RawIrcMsg' into a 'FgnMsg' which will be valid for
 -- the remainder of the computation.
