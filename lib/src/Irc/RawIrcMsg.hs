@@ -174,7 +174,7 @@ tagsParser = tagParser `sepBy1` char ';' <* spaces
 tagParser :: Parser TagEntry
 tagParser =
   do key <- P.takeWhile (notInClass "=; ")
-     optional (char '=')
+     _   <- optional (char '=')
      val <- P.takeWhile (notInClass "; ")
      return $! TagEntry key (unescapeTagVal val)
 

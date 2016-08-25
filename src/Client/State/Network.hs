@@ -600,8 +600,8 @@ initialMessages :: NetworkState -> [RawIrcMsg]
 initialMessages cs
    = [ ircCapLs ]
   ++ [ ircPass pass | Just pass <- [view ssPassword ss]]
-  ++ [ ircUser (view ssUser ss) False True (view ssReal ss)
-     , ircNick (view csNick cs)
+  ++ [ ircNick (view csNick cs)
+     , ircUser (view ssUser ss) False True (view ssReal ss)
      ]
   where
     ss = view csSettings cs
