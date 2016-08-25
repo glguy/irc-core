@@ -5,6 +5,7 @@
 * Add `M-S` to jump to previously focused window
 * Add `extra-highlights` section
 * Tab complete servernames in `/connect`
+* Add `/windows` command for listing active windows
 
 ## 2.10
 

@@ -48,6 +48,7 @@ executable glirc2
                        Client.Image.Palette
                        Client.Image.StatusLine
                        Client.Image.UserList
+                       Client.Image.Windows
                        Client.Message
                        Client.Network.Async
                        Client.Network.Connect

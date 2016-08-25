@@ -19,6 +19,7 @@ import           Client.Image.MircFormatting
 import           Client.Image.Palette
 import           Client.Image.StatusLine
 import           Client.Image.UserList
+import           Client.Image.Windows
 import           Client.Message
 import           Client.State
 import qualified Client.State.EditBox as Edit
@@ -68,8 +69,8 @@ messagePaneImages !st =
       | otherwise                -> userListImages network channel st
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel st
+    (_, FocusWindows) -> windowsImages st
 
-    -- subfocuses only make sense for channels
     _ -> chatMessageImages st
 
 chatMessageImages :: ClientState -> [Image]

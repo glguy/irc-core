@@ -17,6 +17,7 @@ module Client.State.Window
     Window(..)
   , winMessages
   , winUnread
+  , winTotal
   , winMention
 
   -- * Window lines
@@ -53,6 +54,7 @@ data WindowLine = WindowLine
 data Window = Window
   { _winMessages :: ![WindowLine] -- ^ Messages to display, newest first
   , _winUnread   :: !Int          -- ^ Messages added since buffer was visible
+  , _winTotal    :: !Int          -- ^ Messages in buffer
   , _winMention  :: !Bool         -- ^ Indicates an important event is unread
   }
 
@@ -71,6 +73,7 @@ emptyWindow :: Window
 emptyWindow = Window
   { _winMessages = []
   , _winUnread   = 0
+  , _winTotal    = 0
   , _winMention  = False
   }
 
@@ -79,6 +82,7 @@ emptyWindow = Window
 addToWindow :: WindowLineImportance -> WindowLine -> Window -> Window
 addToWindow importance !msg !win = Window
     { _winMessages = msg : _winMessages win
+    , _winTotal    = _winTotal win + 1
     , _winUnread   = _winUnread win
                    + (if importance == WLBoring then 0 else 1)
     , _winMention  = _winMention win

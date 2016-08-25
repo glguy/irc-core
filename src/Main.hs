@@ -11,11 +11,9 @@ Entry point into glirc2. This module sets up VTY and launches the client.
 module Main where
 
 import Control.Concurrent
-import Control.Exception
 import Control.Lens
 import Control.Monad
 import Data.Text (Text)
-import Graphics.Vty
 import System.Exit
 import System.IO
 

@@ -30,6 +30,7 @@ module Client.State.Focus
   , _FocusInfo
   , _FocusUsers
   , _FocusMasks
+  , _FocusWindows
   ) where
 
 import           Control.Lens
@@ -46,12 +47,13 @@ data Focus
 
 makePrisms ''Focus
 
--- | Subfocus for a channel view
+-- | Subfocus view
 data Subfocus
-  = FocusMessages    -- ^ Show chat messages
+  = FocusMessages    -- ^ Show messages
   | FocusInfo        -- ^ Show channel metadata
-  | FocusUsers       -- ^ Show user list
-  | FocusMasks !Char -- ^ Show mask list for given mode
+  | FocusUsers       -- ^ Show channel user list
+  | FocusMasks !Char -- ^ Show channel mask list for given mode
+  | FocusWindows     -- ^ Show client windows
   deriving (Eq,Show)
 
 makePrisms ''Subfocus

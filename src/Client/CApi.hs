@@ -21,8 +21,6 @@ module Client.CApi
   ) where
 
 import           Client.CApi.Types
-import           Control.Concurrent.MVar
-import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Cont
@@ -33,7 +31,6 @@ import qualified Data.Text.Foreign as Text
 import           Foreign.C
 import           Foreign.Marshal
 import           Foreign.Ptr
-import           Foreign.StablePtr
 import           Foreign.Storable
 import           Irc.Identifier
 import           Irc.RawIrcMsg

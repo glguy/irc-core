@@ -147,6 +147,7 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
     subfocusName =
       case view clientSubfocus st of
         FocusMessages -> Nothing
+        FocusWindows  -> Just $ string (view palLabel pal) "windows"
         FocusInfo     -> Just $ string (view palLabel pal) "info"
         FocusUsers    -> Just $ string (view palLabel pal) "users"
         FocusMasks m  -> Just $ horizCat

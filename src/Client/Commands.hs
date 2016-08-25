@@ -239,6 +239,7 @@ commands = HashMap.fromList
   , (["ignore"    ], ClientCommand cmdIgnore simpleClientTab)
   , (["reload"    ], ClientCommand cmdReload  tabReload)
   , (["extension" ], ClientCommand cmdExtension simpleClientTab)
+  , (["windows"   ], ClientCommand cmdWindows noClientTab)
 
   , (["quote"     ], NetworkCommand cmdQuote  simpleNetworkTab)
   , (["j","join"  ], NetworkCommand cmdJoin   simpleNetworkTab)
@@ -454,6 +455,11 @@ cmdFocus st rest =
         $ changeFocus focus st
 
     _ -> commandFailure st
+
+-- | Implementation of @/windows@ command. Set subfocus to Windows.
+cmdWindows :: ClientCommand
+cmdWindows st _rest = commandSuccess (changeSubfocus FocusWindows st)
+
 
 -- | @/connect@ tab completes known server names
 tabConnect :: Bool -> ClientCommand

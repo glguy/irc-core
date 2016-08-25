@@ -208,6 +208,7 @@ Client commands
 * `/reconnect` - Reconnect to the current server
 * `/reload` - Reload the previous configuration file (not retroactive!)
 * `/reload <path>` - Load a new configuration file
+* `/windows` - List all open windows
 * `/extension <extension name> <params>` - Send the given params to the named extension
 
 Connection commands
