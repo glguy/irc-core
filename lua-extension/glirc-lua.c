@@ -215,6 +215,17 @@ static int glirc_lua_my_nick(lua_State *L)
         return 1;
 }
 
+static int glirc_lua_mark_seen(lua_State *L)
+{
+        size_t networkLen, channelLen;
+        const char *network = luaL_optlstring(L, 1, NULL, &networkLen);
+        const char *channel = luaL_optlstring(L, 2, NULL, &channelLen);
+        luaL_checktype(L, 3, LUA_TNONE);
+
+        glirc_mark_seen(get_glirc(L), network, networkLen, channel, channelLen);
+        return 0;
+}
+
 /* Lua Function:
  * Arguments: Identifier (string), Identifier (string)
  * Returns: Comparison (integer)
@@ -241,6 +252,7 @@ static luaL_Reg glirc_lib[] =
   , { "list_channels"     , glirc_lua_list_channels      }
   , { "list_channel_users", glirc_lua_list_channel_users }
   , { "my_nick"           , glirc_lua_my_nick            }
+  , { "mark_seen"         , glirc_lua_mark_seen          }
   , { NULL                , NULL                         }
   };
 

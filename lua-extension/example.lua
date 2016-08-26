@@ -1,17 +1,61 @@
 local extension = {}
 
-glirc.print 'glirc.lua startup'
+------------------------------------------------------------------------
+-- Message handlers
+------------------------------------------------------------------------
 
-function extension:process_message(msg)
+local batches = {}
 
-        if msg.command == '001' then
-                glirc.send_message
-                   { network = msg.network
-                   , command = "ZNC"
-                   , params  = { '*playback' , 'play' ,'*', '0' } }
-        end
-
+-- The script can be reloaded at runtime with networks already connected
+for _,network in ipairs(glirc.list_networks()) do
+        batches[network] = {}
 end
+
+------------------------------------------------------------------------
+-- Message handlers
+------------------------------------------------------------------------
+
+local messages = {}
+
+-- When joining the network, request full playback
+messages['001'] = function(network)
+                batches[network] = {}
+                glirc.send_message
+                   { network = network
+                   , command = "ZNC"
+                   , params  = { '*playback' , 'play' ,'*', '0' }
+                   }
+end
+
+-- Detect ZNC's playback module BATCH and mark channels as seen afterward
+function messages.BATCH(network, _, reftag, ...)
+
+        local isStart = '+' == reftag:sub(1,1)
+        reftag = reftag:sub(2)
+
+        if isStart then
+                batches[network][reftag] = {...}
+        else
+                local batch = batches[network][reftag]
+                batches[network][reftag] = nil
+
+                if batch and batch[1] == 'znc.in/playback' then
+                        glirc.mark_seen(network, batch[2])
+                end
+        end
+end
+
+-- Dispatch message to the appropriate handlers
+function extension:process_message(msg)
+        local k = messages[msg.command]
+        if k then
+                k(msg.network, msg.prefix, table.unpack(msg.params))
+        end
+end
+
+------------------------------------------------------------------------
+-- Command handlers
+------------------------------------------------------------------------
 
 local commands = {}
 
@@ -48,7 +92,7 @@ function extension:process_command(cmd, ...)
 end
 
 function extension:stop()
-        glirc.print('glirc.lua shutdown')
 end
 
+-- return the extension module to the client
 return extension

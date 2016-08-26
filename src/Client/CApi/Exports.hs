@@ -24,7 +24,9 @@ import           Client.CApi.Types
 import           Client.Message
 import           Client.State
 import           Client.State.Channel
+import           Client.State.Focus
 import           Client.State.Network
+import           Client.State.Window
 import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens
@@ -41,6 +43,7 @@ import           Foreign.Storable
 import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
+import           LensUtils
 
 ------------------------------------------------------------------------
 
@@ -118,7 +121,7 @@ foreign export ccall glirc_print :: Glirc_print
 glirc_print :: Glirc_print
 glirc_print stab code msgPtr msgLen =
   do mvar <- derefToken stab
-     txt  <- Text.peekCStringLen (msgPtr, fromIntegral msgLen)
+     txt  <- peekFgnStringLen (FgnStringLen msgPtr msgLen)
      now  <- getZonedTime
 
      let con | code == normalMessageCode = NormalBody
@@ -164,8 +167,8 @@ foreign export ccall glirc_identifier_cmp :: Glirc_identifier_cmp
 
 glirc_identifier_cmp :: Glirc_identifier_cmp
 glirc_identifier_cmp p1 n1 p2 n2 =
-  do txt1 <- Text.peekCStringLen (p1, fromIntegral n1)
-     txt2 <- Text.peekCStringLen (p2, fromIntegral n2)
+  do txt1 <- peekFgnStringLen (FgnStringLen p1 n1)
+     txt2 <- peekFgnStringLen (FgnStringLen p2 n2)
      return $! case compare (mkId txt1) (mkId txt2) of
                  LT -> -1
                  EQ ->  0
@@ -187,7 +190,7 @@ glirc_list_channels :: Glirc_list_channels
 glirc_list_channels stab networkPtr networkLen =
   do mvar <- derefToken stab
      st   <- readMVar mvar
-     network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
+     network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
      case preview (clientConnection network . csChannels) st of
         Nothing -> return nullPtr
         Just m  ->
@@ -212,8 +215,8 @@ glirc_list_channel_users :: Glirc_list_channel_users
 glirc_list_channel_users stab networkPtr networkLen channelPtr channelLen =
   do mvar <- derefToken stab
      st   <- readMVar mvar
-     network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
-     channel <- Text.peekCStringLen (channelPtr, fromIntegral channelLen)
+     network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
+     channel <- peekFgnStringLen (FgnStringLen channelPtr channelLen)
      let mb = preview ( clientConnection network
                       . csChannels . ix (mkId channel)
                       . chanUsers
@@ -240,8 +243,37 @@ glirc_my_nick :: Glirc_my_nick
 glirc_my_nick stab networkPtr networkLen =
   do mvar <- derefToken stab
      st   <- readMVar mvar
-     network <- Text.peekCStringLen (networkPtr, fromIntegral networkLen)
+     network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
      let mb = preview (clientConnection network . csNick) st
      case mb of
        Nothing -> return nullPtr
        Just me -> newCString (Text.unpack (idText me))
+
+------------------------------------------------------------------------
+
+-- | Mark a window as being seen clearing the new message counter.
+-- To clear the client window send an empty network name.
+-- To clear a network window send an empty channel name.
+type Glirc_mark_seen =
+  Ptr ()  {- ^ api token           -} ->
+  CString {- ^ network name        -} ->
+  CSize   {- ^ network name length -} ->
+  CString {- ^ channel name        -} ->
+  CSize   {- ^ channel name length -} ->
+  IO ()
+
+foreign export ccall glirc_mark_seen :: Glirc_mark_seen
+
+glirc_mark_seen :: Glirc_mark_seen
+glirc_mark_seen stab networkPtr networkLen channelPtr channelLen =
+  do network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
+     channel <- peekFgnStringLen (FgnStringLen channelPtr channelLen)
+
+     let focus
+           | Text.null network = Unfocused
+           | Text.null channel = NetworkFocus network
+           | otherwise         = ChannelFocus network (mkId channel)
+
+     mvar <- derefToken stab
+     modifyMVar_ mvar $ \st ->
+       return $! overStrict (clientWindows . ix focus) windowSeen st
