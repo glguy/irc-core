@@ -105,11 +105,11 @@ int compute_script_path(const char *libpath, char *scriptpath)
  */
 static int glirc_lua_print(lua_State *L)
 {
-        size_t len;
-        const char *str = luaL_checklstring(L, 1, &len);
+        struct glirc_string message;
+        message.str = luaL_checklstring(L, 1, &message.len);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        glirc_print(get_glirc(L), NORMAL_MESSAGE, str, len);
+        glirc_print(get_glirc(L), NORMAL_MESSAGE, message);
         return 0;
 }
 
@@ -119,11 +119,11 @@ static int glirc_lua_print(lua_State *L)
  */
 static int glirc_lua_error(lua_State *L)
 {
-        size_t len;
-        const char *str = luaL_checklstring(L, 1, &len);
+        struct glirc_string message;
+        message.str = luaL_checklstring(L, 1, &message.len);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        glirc_print(get_glirc(L), ERROR_MESSAGE, str, len);
+        glirc_print(get_glirc(L), ERROR_MESSAGE, message);
         return 0;
 }
 
@@ -164,11 +164,11 @@ static int glirc_lua_list_networks(lua_State *L)
  */
 static int glirc_lua_list_channels(lua_State *L)
 {
-        size_t networkLen;
-        const char *network = luaL_checklstring(L, 1, &networkLen);
+        struct glirc_string network;
+        network.str = luaL_checklstring(L, 1, &network.len);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        char **channels = glirc_list_channels(get_glirc(L), network, networkLen);
+        char **channels = glirc_list_channels(get_glirc(L), network);
         if (channels == NULL) { luaL_error(L, "no such network"); }
 
         import_string_array(L, channels);
@@ -182,14 +182,12 @@ static int glirc_lua_list_channels(lua_State *L)
  */
 static int glirc_lua_list_channel_users(lua_State *L)
 {
-        size_t networkLen, channelLen;
-        const char *network = luaL_checklstring(L, 1, &networkLen);
-        const char *channel = luaL_checklstring(L, 2, &channelLen);
+        struct glirc_string network, channel;
+        network.str = luaL_checklstring(L, 1, &network.len);
+        channel.str = luaL_checklstring(L, 2, &channel.len);
         luaL_checktype(L, 3, LUA_TNONE);
 
-        char **users = glirc_list_channel_users
-                                (get_glirc(L), network, networkLen,
-                                               channel, channelLen);
+        char **users = glirc_list_channel_users (get_glirc(L), network, channel);
         if (users == NULL) { luaL_error(L, "no such channel"); }
 
         import_string_array(L, users);
@@ -203,11 +201,11 @@ static int glirc_lua_list_channel_users(lua_State *L)
  */
 static int glirc_lua_my_nick(lua_State *L)
 {
-        size_t networkLen;
-        const char *network = luaL_checklstring(L, 1, &networkLen);
+        struct glirc_string network;
+        network.str = luaL_checklstring(L, 1, &network.len);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        char *nick = glirc_my_nick(get_glirc(L), network, networkLen);
+        char *nick = glirc_my_nick(get_glirc(L), network);
         if (nick == NULL) { luaL_error(L, "no such network"); }
         lua_pushstring(L, nick);
         free(nick);
@@ -217,12 +215,12 @@ static int glirc_lua_my_nick(lua_State *L)
 
 static int glirc_lua_mark_seen(lua_State *L)
 {
-        size_t networkLen, channelLen;
-        const char *network = luaL_optlstring(L, 1, NULL, &networkLen);
-        const char *channel = luaL_optlstring(L, 2, NULL, &channelLen);
+        struct glirc_string network, channel;
+        network.str = luaL_optlstring(L, 1, NULL, &network.len);
+        channel.str = luaL_optlstring(L, 2, NULL, &channel.len);
         luaL_checktype(L, 3, LUA_TNONE);
 
-        glirc_mark_seen(get_glirc(L), network, networkLen, channel, channelLen);
+        glirc_mark_seen(get_glirc(L), network, channel);
         return 0;
 }
 
@@ -232,12 +230,12 @@ static int glirc_lua_mark_seen(lua_State *L)
  */
 static int glirc_lua_identifier_cmp(lua_State *L)
 {
-        size_t n1, n2;
-        const char *str1 = luaL_checklstring(L, 1, &n1);
-        const char *str2 = luaL_checklstring(L, 2, &n2);
+        struct glirc_string str1, str2;
+        str1.str = luaL_checklstring(L, 1, &str1.len);
+        str2.str = luaL_checklstring(L, 2, &str2.len);
         luaL_checktype(L, 3, LUA_TNONE);
 
-        int res = glirc_identifier_cmp(str1, n1, str2, n2);
+        int res = glirc_identifier_cmp(str1, str2);
         lua_pushinteger(L, res);
 
         return 1;
@@ -296,9 +294,9 @@ static void *start(void *glirc, const char *path)
         glirc_install_lib(L);
 
         if (luaL_dofile(L, scriptpath)) {
-                size_t len;
-                const char *msg = lua_tolstring(L, -1, &len);
-                glirc_print(glirc, ERROR_MESSAGE, msg, len);
+                struct glirc_string message;
+                message.str = lua_tolstring(L, -1, &message.len);
+                glirc_print(glirc, ERROR_MESSAGE, message);
 
                 lua_close(L);
                 L = NULL;
@@ -392,9 +390,9 @@ static void callback(void *glirc, lua_State *L, const char *callback_name, int a
         int res = lua_pcall(L, 1+args, 0, 0);  // STACK:
 
         if (res != LUA_OK) {
-                size_t len;
-                const char *msg = lua_tolstring(L, -1, &len);
-                glirc_print(glirc, ERROR_MESSAGE, msg, len);
+                struct glirc_string message;
+                message.str = lua_tolstring(L, -1, &message.len);
+                glirc_print(glirc, ERROR_MESSAGE, message);
                 lua_settop(L, 0); // discard error message
         }
 }

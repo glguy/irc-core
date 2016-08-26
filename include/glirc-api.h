@@ -46,14 +46,12 @@ struct glirc_extension {
 };
 
 int glirc_send_message(void *glirc, const struct glirc_message *);
-int glirc_print(void *glirc, enum message_code, const char *str, size_t len);
+int glirc_print(void *glirc, enum message_code, struct glirc_string msg);
 char ** glirc_list_networks(void *glirc);
-char ** glirc_list_channels(void *glirc, const char *network, size_t networkLen);
-char ** glirc_list_channel_users(void *glirc, const char *network, size_t networkLen,
-                                      const char *channel, size_t channelLen);
-char * glirc_my_nick(void *glirc, const char *network, size_t networkLen);
-void glirc_mark_seen(void *glirc, const char *network, size_t networkLen,
-                                  const char *channel, size_t channelLen);
-int glirc_identifier_cmp(const char *i1, size_t n1, const char *i2, size_t n2);
+char ** glirc_list_channels(void *glirc, struct glirc_string network);
+char ** glirc_list_channel_users(void *glirc, struct glirc_string network, struct glirc_string channel);
+char * glirc_my_nick(void *glirc, struct glirc_string network);
+void glirc_mark_seen(void *glirc, struct glirc_string network, struct glirc_string channel);
+int glirc_identifier_cmp(struct glirc_string s, struct glirc_string t);
 
 #endif
