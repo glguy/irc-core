@@ -207,7 +207,7 @@ doNetworkLine networkId time line st =
 -- | Client-level responses to specific IRC messages.
 -- This is in contrast to the connection state tracking logic in
 -- "Client.NetworkState   "
-clientResponse :: ZonedTime -> IrcMsg -> NetworkState    -> ClientState -> IO ClientState
+clientResponse :: ZonedTime -> IrcMsg -> NetworkState -> ClientState -> IO ClientState
 clientResponse now irc cs st =
   case irc of
     Reply RPL_WELCOME _ ->

@@ -1006,7 +1006,7 @@ cmdExec st rest =
            chatCommand'
               (\src tgt -> Privmsg src tgt msg)
               channel
-              cs st1) st msgs
+              cs st1) st (filter (not . Text.null) msgs)
 
     currentNetworkState =
       do network <- views clientFocus focusNetwork st
