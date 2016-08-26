@@ -19,6 +19,7 @@ module Client.Commands
   ) where
 
 import           Client.CApi
+import           Client.Commands.Exec
 import           Client.Commands.Interpolation
 import           Client.Commands.WordCompletion
 import           Client.Configuration
@@ -240,6 +241,7 @@ commands = HashMap.fromList
   , (["reload"    ], ClientCommand cmdReload  tabReload)
   , (["extension" ], ClientCommand cmdExtension simpleClientTab)
   , (["windows"   ], ClientCommand cmdWindows noClientTab)
+  , (["exec"      ], ClientCommand cmdExec simpleClientTab)
 
   , (["quote"     ], NetworkCommand cmdQuote  simpleNetworkTab)
   , (["j","join"  ], NetworkCommand cmdJoin   simpleNetworkTab)
@@ -353,7 +355,7 @@ cmdMe network cs channelId st rest =
 
 -- | Implementation of @/ctcp@
 cmdCtcp :: NetworkCommand
-cmdCtcp network cs st rest =
+cmdCtcp _ cs st rest =
   case parse of
     Nothing -> commandFailure st
     Just (target, cmd, args) ->
@@ -364,8 +366,7 @@ cmdCtcp network cs st rest =
          sendMsg cs (ircPrivmsg (mkId tgtTxt) ("\^A" <> cmdTxt <> " " <> argTxt <> "\^A"))
          chatCommand
             (\src tgt -> Ctcp src tgt cmdTxt argTxt)
-            tgtTxt
-            network cs st
+            tgtTxt cs st
   where
     parse =
       do (target, rest1) <- nextWord rest
@@ -374,7 +375,7 @@ cmdCtcp network cs st rest =
 
 -- | Implementation of @/notice@
 cmdNotice :: NetworkCommand
-cmdNotice network cs st rest =
+cmdNotice _ cs st rest =
   case nextWord rest of
     Nothing -> commandFailure st
     Just (target, rest1) ->
@@ -384,12 +385,11 @@ cmdNotice network cs st rest =
          sendMsg cs (ircNotice (mkId tgtTxt) restTxt)
          chatCommand
             (\src tgt -> Notice src tgt restTxt)
-            tgtTxt
-            network cs st
+            tgtTxt cs st
 
 -- | Implementation of @/msg@
 cmdMsg :: NetworkCommand
-cmdMsg network cs st rest =
+cmdMsg _ cs st rest =
   case nextWord rest of
     Nothing -> commandFailure st
     Just (target, rest1) ->
@@ -399,22 +399,31 @@ cmdMsg network cs st rest =
          sendMsg cs (ircPrivmsg (mkId tgtTxt) restTxt)
          chatCommand
             (\src tgt -> Privmsg src tgt restTxt)
-            tgtTxt
-            network cs st
+            tgtTxt cs st
 
 -- | Common logic for @/msg@ and @/notice@
 chatCommand ::
   (UserInfo -> Identifier -> IrcMsg) ->
   Text {- ^ target  -} ->
-  Text {- ^ network -} ->
   NetworkState         ->
   ClientState          ->
   IO CommandResult
-chatCommand con targetsTxt network cs st =
+chatCommand mkmsg target cs st =
+  commandSuccess =<< chatCommand' mkmsg target cs st
+
+-- | Common logic for @/msg@ and @/notice@ returning the client state
+chatCommand' ::
+  (UserInfo -> Identifier -> IrcMsg) ->
+  Text {- ^ target  -} ->
+  NetworkState         ->
+  ClientState          ->
+  IO ClientState
+chatCommand' con targetsTxt cs st =
   do now <- getZonedTime
      let targetTxts = Text.split (==',') targetsTxt
          targetIds  = mkId <$> targetTxts
          !myNick = UserInfo (view csNick cs) "" ""
+         network = view csNetwork cs
          entries = [ (targetId,
                           ClientMessage
                           { _msgTime = now
@@ -423,12 +432,11 @@ chatCommand con targetsTxt network cs st =
                           })
                        | targetId <- targetIds ]
 
-         st' = foldl' (\acc (targetId, entry) ->
-                             recordChannelMessage network targetId entry acc)
-                          st
-                          entries
+     return $! foldl' (\acc (targetId, entry) ->
+                         recordChannelMessage network targetId entry acc)
+                      st
+                      entries
 
-     commandSuccess st'
 
 cmdConnect :: ClientCommand
 cmdConnect st rest =
@@ -946,3 +954,77 @@ cmdExtension st rest =
             commandSuccess st'
     _ -> commandFailure st
 
+-- | Implementation of @/exec@ command.
+cmdExec :: ClientCommand
+cmdExec st rest =
+  do now <- getZonedTime
+     case parseExecCmd rest of
+       Left es -> failure now es
+       Right ec ->
+         case buildTransmitter now ec of
+           Left es -> failure now es
+           Right tx ->
+             do res <- runExecCmd ec
+                case res of
+                  Left es -> failure now es
+                  Right msgs -> tx (map Text.pack msgs)
+
+  where
+    buildTransmitter now ec =
+      case (Text.pack <$> view execOutputNetwork ec,
+            Text.pack <$> view execOutputChannel ec) of
+        (Nothing, Nothing) -> Right (sendToClient now)
+        (Just network, Nothing) ->
+          case preview (clientConnection network) st of
+            Nothing -> Left ["Unknown network"]
+            Just cs -> Right (sendToNetwork now cs)
+        (Nothing , Just channel) ->
+          case currentNetworkState of
+            Nothing -> Left ["No current network"]
+            Just cs -> Right (sendToChannel cs channel)
+        (Just network, Just channel) ->
+          case preview (clientConnection network) st of
+            Nothing -> Left ["Unknown network"]
+            Just cs -> Right (sendToChannel cs channel)
+
+    sendToClient now msgs = commandSuccess $! foldl' (recordSuccess now) st msgs
+
+    sendToNetwork now cs msgs =
+      commandSuccess =<<
+      foldM (\st1 msg ->
+           case parseRawIrcMsg msg of
+             Nothing ->
+               return $! recordError now st1 ("Bad raw message: " <> msg)
+             Just raw ->
+               do sendMsg cs raw
+                  return st1) st msgs
+
+    sendToChannel cs channel msgs =
+      commandSuccess =<<
+      foldM (\st1 msg ->
+        do sendMsg cs (ircPrivmsg (mkId channel) msg)
+           chatCommand'
+              (\src tgt -> Privmsg src tgt msg)
+              channel
+              cs st1) st msgs
+
+    currentNetworkState =
+      do network <- views clientFocus focusNetwork st
+         preview (clientConnection network) st
+
+    failure now es =
+      commandFailure $! foldl' (recordError now) st (map Text.pack es)
+
+    recordError now ste e =
+      recordNetworkMessage ClientMessage
+             { _msgTime    = now
+             , _msgBody    = ErrorBody e
+             , _msgNetwork = ""
+             } ste
+
+    recordSuccess now ste m =
+      recordNetworkMessage ClientMessage
+             { _msgTime    = now
+             , _msgBody    = NormalBody m
+             , _msgNetwork = ""
+             } ste
