@@ -7,4 +7,5 @@ glirc_list_channels;
 glirc_list_channel_users;
 glirc_my_nick;
 glirc_mark_seen;
+glirc_clear_window;
 };

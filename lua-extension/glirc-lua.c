@@ -213,6 +213,10 @@ static int glirc_lua_my_nick(lua_State *L)
         return 1;
 }
 
+/* Lua Function:
+ * Arguments: Network (string), Channel (string)
+ * Returns:
+ */
 static int glirc_lua_mark_seen(lua_State *L)
 {
         struct glirc_string network, channel;
@@ -221,6 +225,21 @@ static int glirc_lua_mark_seen(lua_State *L)
         luaL_checktype(L, 3, LUA_TNONE);
 
         glirc_mark_seen(get_glirc(L), network, channel);
+        return 0;
+}
+
+/* Lua Function:
+ * Arguments: Network (string), Channel (string)
+ * Returns:
+ */
+static int glirc_lua_clear_window(lua_State *L)
+{
+        struct glirc_string network, channel;
+        network.str = luaL_optlstring(L, 1, NULL, &network.len);
+        channel.str = luaL_optlstring(L, 2, NULL, &channel.len);
+        luaL_checktype(L, 3, LUA_TNONE);
+
+        glirc_clear_window(get_glirc(L), network, channel);
         return 0;
 }
 
@@ -251,6 +270,7 @@ static luaL_Reg glirc_lib[] =
   , { "list_channel_users", glirc_lua_list_channel_users }
   , { "my_nick"           , glirc_lua_my_nick            }
   , { "mark_seen"         , glirc_lua_mark_seen          }
+  , { "clear_window"      , glirc_lua_clear_window       }
   , { NULL                , NULL                         }
   };
 

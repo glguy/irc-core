@@ -4,11 +4,11 @@ local extension = {}
 -- Message handlers
 ------------------------------------------------------------------------
 
-local batches = {}
+local playbacks = {}
 
 -- The script can be reloaded at runtime with networks already connected
 for _,network in ipairs(glirc.list_networks()) do
-        batches[network] = {}
+        playbacks[network] = {}
 end
 
 ------------------------------------------------------------------------
@@ -19,7 +19,7 @@ local messages = {}
 
 -- When joining the network, request full playback
 messages['001'] = function(network)
-                batches[network] = {}
+                playbacks[network] = {}
                 glirc.send_message
                    { network = network
                    , command = "ZNC"
@@ -28,19 +28,21 @@ messages['001'] = function(network)
 end
 
 -- Detect ZNC's playback module BATCH and mark channels as seen afterward
-function messages.BATCH(network, _, reftag, ...)
+function messages.BATCH(network, _, reftag, batchtype, channel)
 
         local isStart = '+' == reftag:sub(1,1)
         reftag = reftag:sub(2)
 
         if isStart then
-                batches[network][reftag] = {...}
+                if batchtype == 'znc.in/playback' then
+                        playbacks[network][reftag] = channel
+                        glirc.clear_window(network, channel)
+                end
         else
-                local batch = batches[network][reftag]
-                batches[network][reftag] = nil
-
-                if batch and batch[1] == 'znc.in/playback' then
-                        glirc.mark_seen(network, batch[2])
+                local channel = playbacks[network][reftag]
+                if channel then
+                        playbacks[network][reftag] = nil
+                        glirc.mark_seen(network, channel)
                 end
         end
 end

@@ -52,6 +52,7 @@ char ** glirc_list_channels(void *glirc, struct glirc_string network);
 char ** glirc_list_channel_users(void *glirc, struct glirc_string network, struct glirc_string channel);
 char * glirc_my_nick(void *glirc, struct glirc_string network);
 void glirc_mark_seen(void *glirc, struct glirc_string network, struct glirc_string channel);
+void glirc_clear_window(void *glirc, struct glirc_string network, struct glirc_string channel);
 int glirc_identifier_cmp(struct glirc_string s, struct glirc_string t);
 
 #endif

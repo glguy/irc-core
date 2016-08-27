@@ -277,3 +277,32 @@ glirc_mark_seen stab networkPtr networkLen channelPtr channelLen =
      mvar <- derefToken stab
      modifyMVar_ mvar $ \st ->
        return $! overStrict (clientWindows . ix focus) windowSeen st
+
+------------------------------------------------------------------------
+
+-- | Mark a window as being seen clearing the new message counter.
+-- To clear the client window send an empty network name.
+-- To clear a network window send an empty channel name.
+type Glirc_clear_window =
+  Ptr ()  {- ^ api token           -} ->
+  CString {- ^ network name        -} ->
+  CSize   {- ^ network name length -} ->
+  CString {- ^ channel name        -} ->
+  CSize   {- ^ channel name length -} ->
+  IO ()
+
+foreign export ccall glirc_clear_window :: Glirc_clear_window
+
+glirc_clear_window :: Glirc_clear_window
+glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
+  do network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
+     channel <- peekFgnStringLen (FgnStringLen channelPtr channelLen)
+
+     let focus
+           | Text.null network = Unfocused
+           | Text.null channel = NetworkFocus network
+           | otherwise         = ChannelFocus network (mkId channel)
+
+     mvar <- derefToken stab
+     modifyMVar_ mvar $ \st ->
+       return $! set (clientWindows . ix focus) emptyWindow st
