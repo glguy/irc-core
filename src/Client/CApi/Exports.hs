@@ -18,6 +18,8 @@ module Client.CApi.Exports
  , Glirc_list_channel_users
  , Glirc_my_nick
  , Glirc_identifier_cmp
+ , Glirc_mark_seen
+ , Glirc_clear_window
  ) where
 
 import           Client.CApi.Types
@@ -92,10 +94,10 @@ type Glirc_send_message =
   Ptr FgnMsg {- ^ pointer to message -} ->
   IO CInt    {- ^ 0 on success       -}
 
-foreign export ccall "glirc_send_message" capiSendMessage :: Glirc_send_message
+foreign export ccall "glirc_send_message" glirc_send_message :: Glirc_send_message
 
-capiSendMessage :: Glirc_send_message
-capiSendMessage token msgPtr =
+glirc_send_message :: Glirc_send_message
+glirc_send_message token msgPtr =
   do mvar    <- derefToken token
      fgn     <- peek msgPtr
      msg     <- peekFgnMsg fgn
