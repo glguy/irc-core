@@ -317,25 +317,31 @@ cmdExit st _ = return (CommandQuit st)
 -- preserve the window. When used on a window that the
 -- user is not joined to this command will delete the window.
 cmdClear :: ClientCommand
-cmdClear st _ = commandSuccess (windowEffect st)
+cmdClear st rest =
+  case Text.pack <$> words rest of
+    []                -> clearFocus (view clientFocus st)
+    ["*"]             -> clearFocus Unfocused
+    [network]         -> clearFocus (NetworkFocus network)
+    [network,channel] -> clearFocus (ChannelFocus network (mkId channel))
+    _                 -> commandFailureMsg "Usage: /clear [network] [channel]" st
   where
-    windowEffect
-      | isActive  = clearWindow
-      | otherwise = deleteWindow
+    clearFocus focus = commandSuccess (windowEffect st)
+      where
+        windowEffect
+          | isActive  = clearWindow
+          | otherwise = deleteWindow
 
-    deleteWindow = advanceFocus . setWindow Nothing
-    clearWindow  =                setWindow (Just emptyWindow)
+        deleteWindow = advanceFocus . setWindow Nothing
+        clearWindow  =                setWindow (Just emptyWindow)
 
-    setWindow = set (clientWindows . at (view clientFocus st))
+        setWindow = set (clientWindows . at (view clientFocus st))
 
-    isActive =
-      case view clientFocus st of
-        Unfocused -> False
-        NetworkFocus network ->
-            has (clientConnection network) st
-        ChannelFocus network channel ->
-            has ( clientConnection network
-                . csChannels . ix channel) st
+        isActive =
+          case focus of
+            Unfocused                    -> False
+            NetworkFocus network         -> has (clientConnection network) st
+            ChannelFocus network channel -> has (clientConnection network
+                                                .csChannels . ix channel) st
 
 
 cmdQuote :: NetworkCommand
@@ -463,6 +469,9 @@ cmdConnect st rest =
 cmdFocus :: ClientCommand
 cmdFocus st rest =
   case words rest of
+    ["*"] ->
+      commandSuccess (changeFocus Unfocused st)
+
     [network] ->
       let focus = NetworkFocus (Text.pack network) in
       commandSuccess (changeFocus focus st)

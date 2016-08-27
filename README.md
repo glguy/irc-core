@@ -221,7 +221,7 @@ Window management
 
 * `/focus <server>` - Change focus to server window
 * `/focus <server> <channel>` - Change focus to channel window
-* `/clear` - Clear contents of current window
+* `/clear [network] [channel]` - Clear contents of current or specified window
 * `/ignore <nick>` - Toggle ignore of a user
 * `/channel <channel>` - Change focus to channel on current network (alias: `/c`)
 
