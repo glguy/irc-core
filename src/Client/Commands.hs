@@ -100,6 +100,12 @@ commandSuccess = return . CommandSuccess
 commandFailure :: Monad m => ClientState -> m CommandResult
 commandFailure = return . CommandFailure
 
+-- | Command failure with an error message printed to client window
+commandFailureMsg :: Text -> ClientState -> IO CommandResult
+commandFailureMsg e st =
+  do now <- getZonedTime
+     return $! CommandFailure $! recordError now st e
+
 -- | Interpret the given chat message or command. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message
 -- will be sent.
@@ -121,7 +127,7 @@ executeUserCommand command st =
     Nothing -> executeCommand Nothing command st
     Just cmdExs ->
       case traverse (resolveExpansions expandVar expandInt) cmdExs of
-        Nothing   -> commandFailure st
+        Nothing   -> commandFailureMsg "Macro expansions failed" st
         Just cmds -> process cmds st
   where
     args = Text.words (Text.pack command)
@@ -172,7 +178,7 @@ executeChat msg st =
              sendMsg cs ircMsg
              commandSuccess $ recordChannelMessage network channel entry st
 
-    _ -> commandFailure st
+    _ -> commandFailureMsg "This command requires an active channel" st
 
 splitWord :: String -> (String, String)
 splitWord str = (w, drop 1 rest)
@@ -333,7 +339,7 @@ cmdClear st _ = commandSuccess (windowEffect st)
 cmdQuote :: NetworkCommand
 cmdQuote _ cs st rest =
   case parseRawIrcMsg (Text.pack rest) of
-    Nothing  -> commandFailure st
+    Nothing  -> commandFailureMsg "Failed to parse IRC command" st
     Just raw ->
       do sendMsg cs raw
          commandSuccess st
@@ -357,7 +363,7 @@ cmdMe network cs channelId st rest =
 cmdCtcp :: NetworkCommand
 cmdCtcp _ cs st rest =
   case parse of
-    Nothing -> commandFailure st
+    Nothing -> commandFailureMsg "Usage: /ctcp TARGET COMMAND ARGS" st
     Just (target, cmd, args) ->
       do let cmdTxt = Text.toUpper (Text.pack cmd)
              argTxt = Text.pack args
@@ -377,8 +383,7 @@ cmdCtcp _ cs st rest =
 cmdNotice :: NetworkCommand
 cmdNotice _ cs st rest =
   case nextWord rest of
-    Nothing -> commandFailure st
-    Just (target, rest1) ->
+    Just (target, rest1) | not (null rest1) ->
       do let restTxt = Text.pack rest1
              tgtTxt = Text.pack target
 
@@ -387,12 +392,13 @@ cmdNotice _ cs st rest =
             (\src tgt -> Notice src tgt restTxt)
             tgtTxt cs st
 
+    _ -> commandFailureMsg "Usage: /notice TARGET MESSAGE" st
+
 -- | Implementation of @/msg@
 cmdMsg :: NetworkCommand
 cmdMsg _ cs st rest =
   case nextWord rest of
-    Nothing -> commandFailure st
-    Just (target, rest1) ->
+    Just (target, rest1) | not (null rest1) ->
       do let restTxt = Text.pack rest1
              tgtTxt = Text.pack target
 
@@ -400,6 +406,7 @@ cmdMsg _ cs st rest =
          chatCommand
             (\src tgt -> Privmsg src tgt restTxt)
             tgtTxt cs st
+    _ -> commandFailureMsg "Usage: /msg TARGET MESSAGE" st
 
 -- | Common logic for @/msg@ and @/notice@
 chatCommand ::
@@ -448,7 +455,7 @@ cmdConnect st rest =
          commandSuccess
            $ changeFocus (NetworkFocus network) st'
 
-    _ -> commandFailure st
+    _ -> commandFailureMsg "Usage: /connect NETWORK" st
 
 cmdFocus :: ClientCommand
 cmdFocus st rest =
@@ -462,7 +469,7 @@ cmdFocus st rest =
       commandSuccess
         $ changeFocus focus st
 
-    _ -> commandFailure st
+    _ -> commandFailureMsg "Focus requires a network and an optional channel" st
 
 -- | Implementation of @/windows@ command. Set subfocus to Windows.
 cmdWindows :: ClientCommand
@@ -570,7 +577,7 @@ cmdZncPlayback _ cs st rest =
                    { localTimeOfDay = tod
                    , localDay       = day } }
 
-    _ -> commandFailure st
+    _ -> commandFailureMsg "Unable to parse date/time arguments" st
 
   where
     -- %k doesn't require a leading 0 for times before 10AM
@@ -594,7 +601,7 @@ cmdNick _ cs st rest =
     [nick] ->
       do sendMsg cs (ircNick (mkId (Text.pack nick)))
          commandSuccess st
-    _ -> commandFailure st
+    _ -> commandFailureMsg "Usage: /nick NICK" st
 
 cmdPart :: ChannelCommand
 cmdPart _ cs channelId st rest =
@@ -618,7 +625,7 @@ cmdInvite _ cs channelId st rest =
                   else sendModeration channelId [cmd] cs
          commandSuccessUpdateCS cs' st
 
-    _ -> commandFailure st
+    _ -> commandFailureMsg "Usage: /invite NICK" st
 
 commandSuccessUpdateCS :: NetworkState    -> ClientState -> IO CommandResult
 commandSuccessUpdateCS cs st =
@@ -662,12 +669,12 @@ cmdMasks _ cs _ st rest =
   case words rest of
     [[mode]] | mode `elem` view (csModeTypes . modesLists) cs ->
         commandSuccess (changeSubfocus (FocusMasks mode) st)
-    _ -> commandFailure st
+    _ -> commandFailureMsg "Unknown mask mode" st
 
 cmdKick :: ChannelCommand
 cmdKick _ cs channelId st rest =
   case nextWord rest of
-    Nothing -> commandFailure st
+    Nothing -> commandFailureMsg "Usage: /kick NICK [MESSAGE]" st
     Just (who,reason) ->
       do let msg = Text.pack (dropWhile isSpace reason)
              cmd = ircKick channelId (Text.pack who) msg
@@ -678,7 +685,7 @@ cmdKick _ cs channelId st rest =
 cmdKickBan :: ChannelCommand
 cmdKickBan _ cs channelId st rest =
   case nextWord rest of
-    Nothing -> commandFailure st
+    Nothing -> commandFailureMsg "Usage: /kickban NICK [MESSAGE]" st
     Just (whoStr,reason) ->
       do let msg = Text.pack (dropWhile isSpace reason)
 
@@ -700,7 +707,7 @@ computeBanUserInfo who cs =
 cmdRemove :: ChannelCommand
 cmdRemove _ cs channelId st rest =
   case nextWord rest of
-    Nothing -> commandFailure st
+    Nothing -> commandFailureMsg "Usage: /remove NICK [MESSAGE]" st
     Just (who,reason) ->
       do let msg = Text.pack (dropWhile isSpace reason)
              cmd = ircRemove channelId (Text.pack who) msg
@@ -718,7 +725,7 @@ cmdJoin network cs st rest =
   in case ws of
        [channel]     -> doJoin channel Nothing
        [channel,key] -> doJoin channel (Just key)
-       _             -> commandFailure st
+       _             -> commandFailureMsg "Usage: /join CHANNELS [KEYS]" st
 
 
 -- | @/channel@ command. Takes the name of a channel and switches
@@ -729,7 +736,7 @@ cmdChannel network _ st rest =
     [ channelId ] ->
        commandSuccess
          $ changeFocus (ChannelFocus network channelId) st
-    _ -> commandFailure st
+    _ -> commandFailureMsg "Usage: /channel CHANNEL" st
 
 
 cmdQuit :: NetworkCommand
@@ -754,7 +761,7 @@ cmdReconnect st _
          commandSuccess
            $ changeFocus (NetworkFocus network) st'
 
-  | otherwise = commandFailure st
+  | otherwise = commandFailureMsg "/reconnect requires focused network" st
 
 cmdIgnore :: ClientCommand
 cmdIgnore st rest =
@@ -776,8 +783,7 @@ cmdReload st rest =
               | otherwise = Just rest
      res <- loadConfiguration path
      case res of
-       Left e -> do now <- getZonedTime
-                    commandFailure $! recordError now st (describeProblem e)
+       Left e    -> commandFailureMsg (describeProblem e) st
        Right cfg ->
          do st1 <- clientStartExtensions (set clientConfig cfg st)
             commandSuccess st1
@@ -814,7 +820,7 @@ modeCommand modes cs st =
         [] -> success False [[]]
         flags:params ->
           case splitModes (view csModeTypes cs) flags params of
-            Nothing -> commandFailure st
+            Nothing -> commandFailureMsg "Failed to parse modes" st
             Just parsedModes ->
               success needOp (unsplitModes <$> chunksOf (view csModeCount cs) parsedModes')
               where
@@ -955,13 +961,15 @@ useChanServ channel cs =
 cmdExtension :: ClientCommand
 cmdExtension st rest =
   case Text.words (Text.pack rest) of
-    name:params
-      | Just ae <- find (\ae -> aeName ae == name)
-                        (view (clientExtensions . esActive) st) ->
-         do (st',_) <- clientPark st $ \ptr ->
-                         commandExtension ptr params ae
-            commandSuccess st'
-    _ -> commandFailure st
+    name:params ->
+      case find (\ae -> aeName ae == name)
+                (view (clientExtensions . esActive) st) of
+        Nothing -> commandFailureMsg "Unknown extension" st
+        Just ae ->
+          do (st',_) <- clientPark st $ \ptr ->
+                          commandExtension ptr params ae
+             commandSuccess st'
+    _ -> commandFailureMsg "Usage: /extension EXTENSION ARGUMENTS" st
 
 -- | Implementation of @/exec@ command.
 cmdExec :: ClientCommand
