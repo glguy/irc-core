@@ -776,10 +776,19 @@ cmdReload st rest =
               | otherwise = Just rest
      res <- loadConfiguration path
      case res of
-       Left{} -> commandFailure st
+       Left e -> do now <- getZonedTime
+                    commandFailure $! recordError now st (describeProblem e)
        Right cfg ->
          do st1 <- clientStartExtensions (set clientConfig cfg st)
             commandSuccess st1
+
+  where
+    describeProblem err =
+      Text.pack $
+      case err of
+       ConfigurationReadFailed e  -> "Failed to open configuration:" ++ e
+       ConfigurationParseFailed e -> "Failed to parse configuration:" ++ e
+       ConfigurationMalformed e   -> "Configuration malformed: " ++ e
 
 -- | Support file name tab completion when providing an alternative
 -- configuration file.
@@ -1015,16 +1024,18 @@ cmdExec st rest =
     failure now es =
       commandFailure $! foldl' (recordError now) st (map Text.pack es)
 
-    recordError now ste e =
-      recordNetworkMessage ClientMessage
-             { _msgTime    = now
-             , _msgBody    = ErrorBody e
-             , _msgNetwork = ""
-             } ste
+recordError :: ZonedTime -> ClientState -> Text -> ClientState
+recordError now ste e =
+  recordNetworkMessage ClientMessage
+    { _msgTime    = now
+    , _msgBody    = ErrorBody e
+    , _msgNetwork = ""
+    } ste
 
-    recordSuccess now ste m =
-      recordNetworkMessage ClientMessage
-             { _msgTime    = now
-             , _msgBody    = NormalBody m
-             , _msgNetwork = ""
-             } ste
+recordSuccess :: ZonedTime -> ClientState -> Text -> ClientState
+recordSuccess now ste m =
+  recordNetworkMessage ClientMessage
+    { _msgTime    = now
+    , _msgBody    = NormalBody m
+    , _msgNetwork = ""
+    } ste
