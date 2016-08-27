@@ -38,19 +38,21 @@ module Client.CApi.Types
   , runProcessCommand
 
   -- * report message codes
-  , normalMessageCode
-  , errorMessageCode
+  , MessageCode(..), normalMessage, errorMessage
+
+  -- * process message results
+  , MessageResult(..), passMessage, dropMessage
   ) where
 
 import Foreign.C
 import Foreign.Ptr
 import Foreign.Storable
 
-normalMessageCode :: CInt
-normalMessageCode = #const NORMAL_MESSAGE
+newtype MessageCode = MessageCode CInt deriving Eq
+#enum MessageCode, MessageCode, NORMAL_MESSAGE, ERROR_MESSAGE
 
-errorMessageCode :: CInt
-errorMessageCode = #const ERROR_MESSAGE
+newtype MessageResult = MessageResult CInt deriving Eq
+#enum MessageResult, MessageResult, PASS_MESSAGE, DROP_MESSAGE
 
 type StartExtension =
   Ptr ()      {- ^ api token                   -} ->
@@ -66,7 +68,7 @@ type ProcessMessage =
   Ptr ()     {- ^ api token       -} ->
   Ptr ()     {- ^ extention state -} ->
   Ptr FgnMsg {- ^ message to send -} ->
-  IO ()
+  IO MessageResult
 
 type ProcessCommand =
   Ptr ()     {- ^ api token       -} ->

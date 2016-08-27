@@ -113,7 +113,7 @@ glirc_send_message token msgPtr =
 
 type Glirc_print =
   Ptr ()  {- ^ api token         -} ->
-  CInt    {- ^ enum message_code -} ->
+  MessageCode {- ^ enum message_code -} ->
   CString {- ^ message           -} ->
   CSize   {- ^ message length    -} ->
   IO CInt {- ^ 0 on success      -}
@@ -126,8 +126,8 @@ glirc_print stab code msgPtr msgLen =
      txt  <- peekFgnStringLen (FgnStringLen msgPtr msgLen)
      now  <- getZonedTime
 
-     let con | code == normalMessageCode = NormalBody
-             | otherwise                 = ErrorBody
+     let con | code == normalMessage = NormalBody
+             | otherwise             = ErrorBody
          msg = ClientMessage
                  { _msgBody    = con txt
                  , _msgTime    = now

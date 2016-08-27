@@ -8,6 +8,11 @@ enum message_code {
         ERROR_MESSAGE  = 1
 };
 
+enum process_result {
+        PASS_MESSAGE = 0,
+        DROP_MESSAGE = 1
+};
+
 struct glirc_string {
         const char *str;
         size_t len;
@@ -33,7 +38,7 @@ struct glirc_command {
 
 typedef void *start_type         (void *glirc, const char *path);
 typedef void stop_type           (void *glirc, void *S);
-typedef void process_message_type(void *glirc, void *S, const struct glirc_message *);
+typedef enum process_result process_message_type(void *glirc, void *S, const struct glirc_message *);
 typedef void process_command_type(void *glirc, void *S, const struct glirc_command *);
 
 struct glirc_extension {

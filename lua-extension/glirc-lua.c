@@ -394,11 +394,11 @@ static int callback_worker(lua_State *L)
         lua_rotate(L, 1, 1);                                     // ext args... name
         lua_gettable(L, 1);                                      // ext args... callback
         lua_rotate(L, 1, 1);                                     // callback ext args...
-        lua_call(L, n, 0);                                       //
-        return 0;
+        lua_call(L, n, 1);                                       //
+        return 1;
 }
 
-static void callback(void *glirc, lua_State *L, const char *callback_name, int args)
+static int callback(void *glirc, lua_State *L, const char *callback_name, int args)
 {
         // remember glirc handle
         memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
@@ -407,7 +407,7 @@ static void callback(void *glirc, lua_State *L, const char *callback_name, int a
         lua_pushcfunction(L, callback_worker); // STACK: arguments... worker
         lua_rotate(L, 1, 1);                   // STACK: worker arguments...
         lua_pushstring(L, callback_name);      // STACK: worker arguments... name
-        int res = lua_pcall(L, 1+args, 0, 0);  // STACK:
+        int res = lua_pcall(L, 1+args, 1, 0);  // STACK:
 
         if (res != LUA_OK) {
                 struct glirc_string message;
@@ -415,6 +415,10 @@ static void callback(void *glirc, lua_State *L, const char *callback_name, int a
                 glirc_print(glirc, ERROR_MESSAGE, message);
                 lua_settop(L, 0); // discard error message
         }
+
+        res = lua_toboolean(L, 1);
+        lua_settop(L, 0);
+        return res;
 }
 
 static void stop_entrypoint(void *glirc, void *L)
@@ -424,11 +428,12 @@ static void stop_entrypoint(void *glirc, void *L)
         lua_close(L);
 }
 
-static void message_entrypoint(void *glirc, void *L, const struct glirc_message *msg)
+static enum process_result message_entrypoint(void *glirc, void *L, const struct glirc_message *msg)
 {
-        if (L == NULL) return;
+        if (L == NULL) return PASS_MESSAGE;
         push_glirc_message(L, msg);
-        callback(glirc, L, "process_message", 1);
+        int res = callback(glirc, L, "process_message", 1);
+        return res ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
 static void command_entrypoint(void *glirc, void *L, const struct glirc_command *cmd)

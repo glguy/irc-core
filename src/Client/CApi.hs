@@ -24,7 +24,6 @@ import           Client.CApi.Types
 import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Cont
-import           Data.Foldable
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Foreign as Text
@@ -91,32 +90,37 @@ deactivateExtension :: Ptr () -> ActiveExtension -> IO ()
 deactivateExtension stab ae =
   do let f = fgnStop (aeFgn ae)
      unless (nullFunPtr == f) $
-       (runStopExtension f stab (aeSession ae))
+       runStopExtension f stab (aeSession ae)
      dlclose (aeDL ae)
 
 -- | Call all of the process message callbacks in the list of extensions.
 -- This operation marshals the IRC message once and shares that across
 -- all of the callbacks.
 notifyExtensions ::
-  Ptr () {- ^ clientstate stable pointer -} ->
+  Ptr ()            {- ^ clientstate stable pointer -} ->
   Text              {- ^ network              -} ->
   RawIrcMsg         {- ^ current message      -} ->
   [ActiveExtension] ->
-  IO ()
+  IO Bool {- ^ Return 'True' to pass message -}
 notifyExtensions stab network msg aes
-  | null aes' = return ()
-  | otherwise = evalContT doNotifications
+  | null aes' = return True
+  | otherwise = doNotifications
   where
     aes' = [ (f,s) | ae <- aes
                   , let f = fgnMessage (aeFgn ae)
                         s = aeSession ae
                   , f /= nullFunPtr ]
 
-    doNotifications :: ContT () IO ()
     doNotifications =
-      do msgPtr <- withRawIrcMsg network msg
-         (f,s)  <- ContT $ for_ aes'
-         lift $ runProcessMessage f stab s msgPtr
+      runContT (withRawIrcMsg network msg) (go aes')
+
+    -- run handlers until one of them drops the message
+    go [] _ = return True
+    go ((f,s):rest) msgPtr =
+       do res <- runProcessMessage f stab s msgPtr
+          if res == passMessage
+            then go rest msgPtr
+            else return False
 
 commandExtension ::
   Ptr ()          {- ^ client state stableptr -} ->

@@ -47,11 +47,15 @@ function messages.BATCH(network, _, reftag, batchtype, channel)
         end
 end
 
+messages['422'] = function ()
+        return true -- ignore nomotd message
+end
+
 -- Dispatch message to the appropriate handlers
 function extension:process_message(msg)
         local k = messages[msg.command]
         if k then
-                k(msg.network, msg.prefix, table.unpack(msg.params))
+                return k(msg.network, msg.prefix, table.unpack(msg.params))
         end
 end
 

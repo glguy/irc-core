@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, NondecreasingIndentation #-}
 
 {-|
 Module      : Client.EventLoop
@@ -170,9 +170,13 @@ doNetworkLine networkId time line st =
              eventLoop (recordNetworkMessage msg st)
 
         Just raw ->
-          do (st1,_) <- clientPark st $ \ptr ->
-                          notifyExtensions ptr network raw
-                            (view (clientExtensions . esActive) st)
+          do (st1,passed) <- clientPark st $ \ptr ->
+                               notifyExtensions ptr network raw
+                                 (view (clientExtensions . esActive) st)
+
+
+             if not passed then eventLoop st1 else do
+
              let time' = computeEffectiveTime time (view msgTags raw)
 
                  (stateHook, viewHook)

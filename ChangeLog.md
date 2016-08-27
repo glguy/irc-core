@@ -6,6 +6,8 @@
 * Add `extra-highlights` section
 * Tab complete servernames in `/connect`
 * Add `/windows` command for listing active windows
+* Add `glirc_clear_window` C API procedure
+* Allow `process_message` callback to drop messages
 
 ## 2.10
 
