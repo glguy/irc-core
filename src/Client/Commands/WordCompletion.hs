@@ -19,6 +19,7 @@ import           Control.Monad
 import           Data.Char
 import           Data.List
 import qualified Data.Set as Set
+import           Data.String (IsString(..))
 import qualified Data.Text as Text
 import           Data.Text (Text)
 import           Irc.Identifier
@@ -34,29 +35,30 @@ import           Irc.Identifier
 -- will be considered in order before resorting to the set of possible
 -- completions.
 wordComplete ::
+  Prefix a =>
   (String -> String) {- ^ leading update operation -} ->
   Bool               {- ^ reversed -} ->
-  [Identifier]       {- ^ priority completions -} ->
-  [Identifier]       {- ^ possible completions -} ->
+  [a]       {- ^ priority completions -} ->
+  [a]       {- ^ possible completions -} ->
   Edit.EditBox -> Maybe Edit.EditBox
 wordComplete leadingCase isReversed hint vals box =
   do let current = currentWord box
      guard (not (null current))
-     let cur = mkId (Text.pack current)
+     let cur = fromString current
      case view Edit.lastOperation box of
        Edit.TabOperation patternStr
-         | idPrefix pat cur ->
+         | isPrefix pat cur ->
 
          do next <- tabSearch isReversed pat cur vals
-            Just $ replaceWith leadingCase (idString next) box
+            Just $ replaceWith leadingCase (toString next) box
          where
-           pat = mkId (Text.pack patternStr)
+           pat = fromString patternStr
 
        _ ->
-         do next <- find (idPrefix cur) hint <|>
+         do next <- find (isPrefix cur) hint <|>
                     tabSearch isReversed cur cur vals
             Just $ set Edit.lastOperation (Edit.TabOperation current)
-                 $ replaceWith leadingCase (idString next) box
+                 $ replaceWith leadingCase (toString next) box
 
 replaceWith :: (String -> String) -> String -> Edit.EditBox -> Edit.EditBox
 replaceWith leadingCase str box =
@@ -64,9 +66,6 @@ replaceWith leadingCase str box =
         str1 | view Edit.pos box1 == 0 = leadingCase str
              | otherwise               = str
     in over Edit.content (Edit.insertString str1) box1
-
-idString :: Identifier -> String
-idString = Text.unpack . idText
 
 currentWord :: Edit.EditBox -> String
 currentWord box
@@ -77,12 +76,19 @@ currentWord box
   $ take n txt
  where Edit.Line n txt = view Edit.line box
 
-class            Prefix a          where isPrefix :: a -> a -> Bool
-instance         Prefix Identifier where isPrefix = idPrefix
-instance         Prefix Text       where isPrefix = Text.isPrefixOf
-instance Eq a => Prefix [a]        where isPrefix = isPrefixOf
+class (IsString a, Ord a) => Prefix a where
+  isPrefix :: a -> a -> Bool
+  toString :: a -> String
 
-tabSearch :: (Ord a, Prefix a) => Bool -> a -> a -> [a] -> Maybe a
+instance Prefix Identifier where
+  isPrefix = idPrefix
+  toString = Text.unpack . idText
+
+instance Prefix Text where
+  isPrefix = Text.isPrefixOf
+  toString = Text.unpack
+
+tabSearch :: Prefix a => Bool -> a -> a -> [a] -> Maybe a
 tabSearch isReversed pat cur vals
   | Just next <- advanceFun cur valSet
   , isPrefix pat next

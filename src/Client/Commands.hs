@@ -476,7 +476,7 @@ tabConnect isReversed st _
   $ fromMaybe st
   $ clientTextBox (wordComplete id isReversed [] networks) st
   where
-    networks = map mkId $ HashMap.keys $ view clientNetworkMap st
+    networks = HashMap.keys $ view clientNetworkMap st
 
 
 -- | When tab completing the first parameter of the focus command
@@ -909,7 +909,7 @@ commandNameCompletion isReversed st =
     n = length leadingPart
     (cursorPos, line) = clientLine st
     leadingPart = takeWhile (not . isSpace) line
-    possibilities = mkId . Text.cons '/' <$> commandNames
+    possibilities = Text.cons '/' <$> commandNames
     commandNames = HashMap.keys commands
                 ++ HashMap.keys (view (clientConfig . configMacros) st)
 
