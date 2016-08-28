@@ -115,7 +115,7 @@ eventLoop st0 =
 -- | Sound the terminal bell assuming that the @BEL@ control code
 -- is supported.
 beep :: Vty -> IO ()
-beep vty = outputByteBuffer (outputIface vty) "\BEL"
+beep = ringTerminalBell . outputIface
 
 -- | Respond to a network connection closing normally.
 doNetworkClose ::
