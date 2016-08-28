@@ -240,7 +240,7 @@ abortNetwork ::
 abortNetwork network st =
   case preview (clientConnection network) st of
     Nothing -> return st
-    Just cs -> do abortConnection (view csSocket cs)
+    Just cs -> do abortConnection ForcedDisconnect (view csSocket cs)
                   return $ set (clientNetworkMap . at network) Nothing st
 
 -- | Add a message to the window associated with a given channel
@@ -497,13 +497,13 @@ removeNetwork networkId st =
   case (clientConnections . at networkId <<.~ Nothing) st of
     (Nothing, _  ) -> error "removeNetwork: network not found"
     (Just cs, st1) ->
-      -- Only remove the network mapping if it hasn't already been replace
+      -- Only remove the network mapping if it hasn't already been replaced
       -- with a new one. This can happen during reconnect in particular.
       let network = view csNetwork cs in
-      case view (clientNetworkMap . at network) st of
-        Just i | i == networkId ->
-          (cs, set (clientNetworkMap . at network) Nothing st1)
-        _ -> (cs,st1)
+      forOf (clientNetworkMap . at network) st1 $ \mb ->
+        case mb of
+          Just i | i == networkId -> (cs,Nothing)
+          _                       -> (cs,mb)
 
 addConnection :: Text -> ClientState -> IO ClientState
 addConnection network st =

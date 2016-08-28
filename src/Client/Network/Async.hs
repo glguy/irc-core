@@ -27,8 +27,11 @@ module Client.Network.Async
   , NetworkId
   , NetworkEvent(..)
   , createConnection
-  , abortConnection
   , send
+
+  -- * Abort connections
+  , abortConnection
+  , TerminationReason(..)
   ) where
 
 import           Client.Configuration.ServerSettings
@@ -70,6 +73,16 @@ instance Show NetworkConnection where
   showsPrec p _ = showParen (p > 10)
                 $ showString "NetworkConnection _"
 
+-- | Exceptions used to kill connections manually.
+data TerminationReason
+  = PingTimeout      -- ^ sent when ping timer expires
+  | ForcedDisconnect -- ^ sent when client commands force disconnect
+  deriving Show
+
+instance Exception TerminationReason where
+  displayException PingTimeout      = "connection killed due to ping timeout"
+  displayException ForcedDisconnect = "connection killed by client command"
+
 -- | Schedule a message to be transmitted on the network connection.
 -- These messages are sent unmodified. The message should contain a
 -- newline terminator.
@@ -77,8 +90,8 @@ send :: NetworkConnection -> ByteString -> IO ()
 send c msg = atomically (writeTQueue (connOutQueue c) msg)
 
 -- | Force the given connection to terminate.
-abortConnection :: NetworkConnection -> IO ()
-abortConnection = cancel . connAsync
+abortConnection :: TerminationReason -> NetworkConnection -> IO ()
+abortConnection reason c = cancelWith (connAsync c) reason
 
 -- | Initiate a new network connection according to the given 'ServerSettings'.
 -- All events on this connection will be added to the given queue. The resulting

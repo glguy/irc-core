@@ -545,7 +545,7 @@ cmdStats cs st rest =
 
 cmdAway :: NetworkCommand
 cmdAway cs st rest =
-  do sendMsg cs (ircAway (Text.pack (dropWhile (==' ') rest)))
+  do sendMsg cs (ircAway (Text.pack rest))
      commandSuccess st
 
 cmdLinks :: NetworkCommand
@@ -617,7 +617,7 @@ cmdNick cs st rest =
 
 cmdPart :: ChannelCommand
 cmdPart cs channelId st rest =
-  do let msg = dropWhile isSpace rest
+  do let msg = rest
      sendMsg cs (ircPart channelId (Text.pack msg))
      commandSuccess st
 
@@ -648,7 +648,7 @@ commandSuccessUpdateCS cs st =
 cmdTopic :: ChannelCommand
 cmdTopic cs channelId st rest =
   do let cmd =
-           case dropWhile isSpace rest of
+           case rest of
              ""    -> ircTopic channelId ""
              topic | useChanServ channelId cs ->
                         ircPrivmsg "ChanServ"
@@ -688,7 +688,7 @@ cmdKick cs channelId st rest =
   case nextWord rest of
     Nothing -> commandFailureMsg "Usage: /kick NICK [MESSAGE]" st
     Just (who,reason) ->
-      do let msg = Text.pack (dropWhile isSpace reason)
+      do let msg = Text.pack reason
              cmd = ircKick channelId (Text.pack who) msg
          cs' <- sendModeration channelId [cmd] cs
          commandSuccessUpdateCS cs' st
@@ -699,7 +699,7 @@ cmdKickBan cs channelId st rest =
   case nextWord rest of
     Nothing -> commandFailureMsg "Usage: /kickban NICK [MESSAGE]" st
     Just (whoStr,reason) ->
-      do let msg = Text.pack (dropWhile isSpace reason)
+      do let msg = Text.pack reason
 
              whoTxt     = Text.pack whoStr
 
@@ -721,7 +721,7 @@ cmdRemove cs channelId st rest =
   case nextWord rest of
     Nothing -> commandFailureMsg "Usage: /remove NICK [MESSAGE]" st
     Just (who,reason) ->
-      do let msg = Text.pack (dropWhile isSpace reason)
+      do let msg = Text.pack reason
              cmd = ircRemove channelId (Text.pack who) msg
          cs' <- sendModeration channelId [cmd] cs
          commandSuccessUpdateCS cs' st
@@ -754,7 +754,7 @@ cmdChannel cs st rest =
 
 cmdQuit :: NetworkCommand
 cmdQuit cs st rest =
-  do let msg = Text.pack (dropWhile isSpace rest)
+  do let msg = Text.pack rest
      sendMsg cs (ircQuit msg)
      commandSuccess st
 

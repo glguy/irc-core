@@ -779,7 +779,7 @@ applyTimedAction :: TimedAction -> NetworkState -> IO NetworkState
 applyTimedAction action cs =
   case action of
     TimedDisconnect ->
-      do abortConnection (view csSocket cs)
+      do abortConnection PingTimeout (view csSocket cs)
          return $! set csNextPingTime Nothing cs
 
     TimedSendPing ->

@@ -142,7 +142,7 @@ doNetworkError networkId time ex st =
       msg = ClientMessage
               { _msgTime    = time
               , _msgNetwork = view csNetwork cs
-              , _msgBody    = ErrorBody (Text.pack (show ex))
+              , _msgBody    = ErrorBody (Text.pack (displayException ex))
               }
   in eventLoop $ recordNetworkMessage msg st'
 
