@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.12
+
+* Remove `tls-insecure` configuration option in favor of `tls: yes-insecure`
+
 ## 2.11
 
 * Add `M-S` to jump to previously focused window

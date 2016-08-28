@@ -36,9 +36,9 @@ import           System.X509        (getSystemCertificateStore)
 
 buildConnectionParams :: ServerSettings -> IO ConnectionParams
 buildConnectionParams args =
-  do useSecure <- if view ssTls args
-                     then fmap Just (buildTlsSettings args)
-                     else return Nothing
+  do useSecure <- case view ssTls args of
+                    UseInsecure -> return Nothing
+                    _           -> Just <$> buildTlsSettings args
 
      let proxySettings = view ssSocksHost args <&> \host ->
                            SockSettingsSimple
@@ -56,8 +56,10 @@ ircPort :: ServerSettings -> PortNumber
 ircPort args =
   case view ssPort args of
     Just p -> fromIntegral p
-    Nothing | view ssTls args -> 6697
-            | otherwise       -> 6667
+    Nothing ->
+      case view ssTls args of
+        UseInsecure -> 6667
+        _           -> 6697
 
 buildCertificateStore :: ServerSettings -> IO CertificateStore
 buildCertificateStore args =
@@ -85,7 +87,9 @@ buildTlsSettings args =
        , clientShared = def
            { sharedCAStore = store
            , sharedValidationCache =
-               if view ssTlsInsecure args then noValidation else def
+               case view ssTls args of
+                 UseInsecureTls -> noValidation
+                 _              -> def
            }
        , clientHooks = def
            { onCertificateRequest = \_ -> loadClientCredentials args }

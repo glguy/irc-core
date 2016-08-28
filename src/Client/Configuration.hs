@@ -252,8 +252,7 @@ parseServerSetting ss k v =
     "sasl-password"       -> setFieldMb     ssSaslPassword
     "hostname"            -> setFieldWith   ssHostName      parseString
     "port"                -> setFieldWithMb ssPort          parseNum
-    "tls"                 -> setFieldWith   ssTls           parseBoolean
-    "tls-insecure"        -> setFieldWith   ssTlsInsecure   parseBoolean
+    "tls"                 -> setFieldWith   ssTls           parseUseTls
     "tls-client-cert"     -> setFieldWithMb ssTlsClientCert parseString
     "tls-client-key"      -> setFieldWithMb ssTlsClientKey  parseString
     "server-certificates" -> setFieldWith   ssServerCerts   (parseList parseString)
@@ -278,10 +277,11 @@ parseServerSetting ss k v =
       do x <- p v
          return $! set l (Just x) ss
 
-parseBoolean :: Value -> ConfigParser Bool
-parseBoolean (Atom "yes") = return True
-parseBoolean (Atom "no")  = return False
-parseBoolean _            = failure "expected yes or no"
+parseUseTls :: Value -> ConfigParser UseTls
+parseUseTls (Atom "yes")          = return UseTls
+parseUseTls (Atom "yes-insecure") = return UseInsecure
+parseUseTls (Atom "no")           = return UseInsecure
+parseUseTls _                     = failure "expected yes, yes-insecure, or no"
 
 parseNum :: Num a => Value -> ConfigParser a
 parseNum v = fromInteger <$> parseConfig v

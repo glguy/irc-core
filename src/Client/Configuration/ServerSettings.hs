@@ -26,7 +26,6 @@ module Client.Configuration.ServerSettings
   , ssHostName
   , ssPort
   , ssTls
-  , ssTlsInsecure
   , ssTlsClientCert
   , ssTlsClientKey
   , ssConnectCmds
@@ -42,16 +41,18 @@ module Client.Configuration.ServerSettings
   -- * Load function
   , loadDefaultServerSettings
 
+  -- * TLS settings
+  , UseTls(..)
+
   ) where
 
 import           Control.Lens
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
-import           Irc.Identifier (Identifier)
-import           System.Environment
 import qualified Data.Text as Text
-
-import Network.Socket (HostName, PortNumber)
+import           Irc.Identifier (Identifier)
+import           Network.Socket (HostName, PortNumber)
+import           System.Environment
 
 -- | Static server-level settings
 data ServerSettings = ServerSettings
@@ -64,8 +65,7 @@ data ServerSettings = ServerSettings
   , _ssSaslPassword     :: !(Maybe Text) -- ^ SASL password
   , _ssHostName         :: !HostName -- ^ server hostname
   , _ssPort             :: !(Maybe PortNumber) -- ^ server port
-  , _ssTls              :: !Bool -- ^ use TLS to connect
-  , _ssTlsInsecure      :: !Bool -- ^ disable certificate checking
+  , _ssTls              :: !UseTls -- ^ use TLS to connect
   , _ssTlsClientCert    :: !(Maybe FilePath) -- ^ path to client TLS certificate
   , _ssTlsClientKey     :: !(Maybe FilePath) -- ^ path to client TLS key
   , _ssConnectCmds      :: ![Text] -- ^ raw IRC messages to transmit upon successful connection
@@ -78,6 +78,12 @@ data ServerSettings = ServerSettings
   , _ssMessageHooks     :: ![Text] -- ^ Initial message hooks
   , _ssName             :: !(Maybe Text) -- ^ The name referencing the server in commands
   }
+  deriving Show
+
+data UseTls
+  = UseTls         -- ^ TLS connection
+  | UseInsecureTls -- ^ TLS connection without certificate checking
+  | UseInsecure    -- ^ Plain connection
   deriving Show
 
 makeLenses ''ServerSettings
@@ -100,8 +106,7 @@ loadDefaultServerSettings =
        , _ssSaslPassword  = Text.pack <$> lookup "SASLPASSWORD" env
        , _ssHostName      = ""
        , _ssPort          = Nothing
-       , _ssTls           = False
-       , _ssTlsInsecure   = False
+       , _ssTls           = UseInsecure
        , _ssTlsClientCert = Nothing
        , _ssTlsClientKey  = Nothing
        , _ssConnectCmds   = []
