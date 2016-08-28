@@ -43,6 +43,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import           Data.Time
+import           GHC.IO.Exception (IOErrorType(ResourceVanished), ioe_type)
 import           Graphics.Vty
 import           Irc.Codes
 import           Irc.Message
@@ -145,10 +146,14 @@ doNetworkError networkId time ex st =
                  , _msgBody    = ErrorBody (Text.pack (displayException ex))
                  }
 
-         nextAction =
-           case fromException ex of
-             Just PingTimeout -> addConnection (view csNetwork cs)
-             _                -> return
+         shouldReconnect
+           | Just PingTimeout      <-              fromException ex = True
+           | Just ResourceVanished <- ioe_type <$> fromException ex = True
+           | otherwise                                              = False
+
+         nextAction
+           | shouldReconnect = addConnection (view csNetwork cs)
+           | otherwise       = return
 
      eventLoop =<< nextAction (recordNetworkMessage msg st1)
 
