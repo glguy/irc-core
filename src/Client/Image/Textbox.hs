@@ -83,14 +83,14 @@ computeCharWidth = go 0
       where
         z = myWcwidth x
 
--- | Version of 'safeWcwidth' that accounts for how control characters are
+-- | Version of 'wcwidth' that accounts for how control characters are
 -- rendered
 myWcwidth :: Char -> Int
 myWcwidth x
   | isControl x = 1
-  | otherwise   = safeWcwidth x
+  | otherwise   = wcwidth x
 
--- | Version of 'safeWcswidth' that accounts for how control characters are
+-- | Version of 'wcswidth' that accounts for how control characters are
 -- rendered
 myWcswidth :: String -> Int
 myWcswidth = sum . map myWcwidth
