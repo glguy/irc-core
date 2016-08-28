@@ -206,7 +206,7 @@ textboxImage st
 
   lineImage = beginning <|> content <|> ending
 
-  leftOfCurWidth = safeWcswidth txt
+  leftOfCurWidth = myWcswidth txt
 
   croppedImage
     | leftOfCurWidth < width = lineImage
@@ -245,5 +245,16 @@ computeCharWidth = go 0
       | z > w = acc + w -- didn't fit, will be filled in
       | otherwise = go (acc+1) (w-z) xs
       where
-        z | isControl x = 1
-          | otherwise   = safeWcwidth x
+        z = myWcwidth x
+
+-- | Version of 'safeWcwidth' that accounts for how control characters are
+-- rendered
+myWcwidth :: Char -> Int
+myWcwidth x
+  | isControl x = 1
+  | otherwise   = safeWcwidth x
+
+-- | Version of 'safeWcswidth' that accounts for how control characters are
+-- rendered
+myWcswidth :: String -> Int
+myWcswidth = sum . map myWcwidth
