@@ -1,5 +1,10 @@
 # Revision history for irc-core
 
+## 2.1.1.1  -- 2016-08-28
+
+* Added parsing tests
+* Slightly more tolerant of whitespace
+
 ## 2.1.1.0  -- 2016-08-13
 
 * Add `Eq` instances to `UserInfo` and `RawIrcMsg`
