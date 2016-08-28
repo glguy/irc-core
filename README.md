@@ -66,7 +66,7 @@ defaults:
   username:        "yourusername"
   realname:        "Your real name"
   password:        "IRC server password"
-  tls:             yes -- or: no
+  tls:             yes -- or: yes-insecure or no
   tls-client-cert: "/path/to/cert.pem"
   tls-client-key:  "/path/to/cert.key"
 
@@ -142,8 +142,7 @@ Settings
 * `password` - text - server password
 * `sasl-username` - text - SASL username
 * `sasl-password` - text - SASL password
-* `tls` - yes/no - use TLS to connect
-* `tls-insecure` - yes/no - disable certificate validation
+* `tls` - yes/yes-insecure/no - use TLS to connect (insecure mode disables certificate checks)
 * `tls-client-cert` - text - path to TLS client certificate
 * `tls-client-key` - text - path to TLS client key
 * `connect-cmds` - list of text - client commands to send upon connection
