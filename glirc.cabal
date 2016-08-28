@@ -48,6 +48,7 @@ executable glirc2
                        Client.Image.MircFormatting
                        Client.Image.Palette
                        Client.Image.StatusLine
+                       Client.Image.Textbox
                        Client.Image.UserList
                        Client.Image.Windows
                        Client.Message
