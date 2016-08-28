@@ -138,13 +138,19 @@ doNetworkError ::
   SomeException {- ^ termination reason -} ->
   ClientState -> IO ()
 doNetworkError networkId time ex st =
-  let (cs,st') = removeNetwork networkId st
-      msg = ClientMessage
-              { _msgTime    = time
-              , _msgNetwork = view csNetwork cs
-              , _msgBody    = ErrorBody (Text.pack (displayException ex))
-              }
-  in eventLoop $ recordNetworkMessage msg st'
+  do let (cs,st1) = removeNetwork networkId st
+         msg = ClientMessage
+                 { _msgTime    = time
+                 , _msgNetwork = view csNetwork cs
+                 , _msgBody    = ErrorBody (Text.pack (displayException ex))
+                 }
+
+         nextAction =
+           case fromException ex of
+             Just PingTimeout -> addConnection (view csNetwork cs)
+             _                -> return
+
+     eventLoop =<< nextAction (recordNetworkMessage msg st1)
 
 
 -- | Respond to an IRC protocol line. This will parse the message, updated the

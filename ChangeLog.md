@@ -9,6 +9,8 @@
 * Add `glirc_clear_window` C API procedure
 * Allow `process_message` callback to drop messages
 * Add optional network and channel arguments to `/clear` (intended to assist macros)
+* Automatically reconnect on ping timeout
+* Many commands will report message to client window on error
 
 ## 2.10
 
