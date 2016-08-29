@@ -19,6 +19,7 @@ module Client.Image.MircFormatting
 import           Control.Applicative ((<|>))
 import           Control.Lens
 import           Data.Attoparsec.Text as Parse
+import           Data.Bits
 import           Data.Char
 import           Data.Maybe
 import           Data.Text (Text)
@@ -153,4 +154,6 @@ controlImage :: Char -> Image
 controlImage = Vty.char attr . controlName
   where
     attr          = withStyle defAttr reverseVideo
-    controlName c = chr (ord '@' + ord c)
+    controlName c
+      | c < '\128' = chr (0x40 `xor` ord c)
+      | otherwise  = '!'
