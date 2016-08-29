@@ -188,9 +188,11 @@ delete c =
 
 -- | Insert character at cursor, cursor is advanced.
 insertChar :: Char -> Content -> Content
-insertChar '\n' c
-  = over above (view text c :)
-  $ set line emptyLine c
+insertChar '\n' c =
+  let Line n txt = view line c in
+  case splitAt n txt of
+    (preS, postS) -> over above (preS :)
+                   $ set line (beginLine postS) c
 
 insertChar ins c = over line aux c
   where

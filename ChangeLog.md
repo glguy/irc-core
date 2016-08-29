@@ -3,6 +3,7 @@
 ## 2.12
 
 * Remove `tls-insecure` configuration option in favor of `tls: yes-insecure`
+* Implement fancy command placeholder rendering and argument parsing
 
 ## 2.11
 
