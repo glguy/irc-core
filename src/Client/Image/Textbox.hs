@@ -108,12 +108,8 @@ renderLine pal ('/':xs)
           case parseArguments spec rest of
             Nothing -> view palCommand      pal
             Just{}  -> view palCommandReady pal
-        leader
-          | null rest = emptyImage
-          | otherwise = char defAttr ' '
   = char defAttr '/' <|>
     string attr cmd <|>
-    leader <|>
-    argumentsImage pal spec (drop 1 rest)
+    argumentsImage pal spec rest
 
 renderLine _ xs = parseIrcTextExplicit (Text.pack xs)

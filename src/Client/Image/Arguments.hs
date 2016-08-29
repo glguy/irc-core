@@ -34,17 +34,14 @@ plainText xs =
                           plainText rest
 
 argumentsImage :: Palette -> Arguments a -> String -> Image
-argumentsImage = argumentsImage' True
-
-argumentsImage' :: Bool -> Palette -> Arguments a -> String -> Image
-argumentsImage' isFirst pal arg xs
+argumentsImage pal arg xs
   | all (==' ') xs =
       placeholder <|> string defAttr (drop (imageWidth placeholder) xs)
   | otherwise =
      case arg of
        NoArg           -> plainText xs
-       ReqTokenArg _ a -> plainText token <|> argumentsImage' False pal a xs'
-       OptTokenArg _ a -> plainText token <|> argumentsImage' False pal a xs'
+       ReqTokenArg _ a -> plainText token <|> argumentsImage pal a xs'
+       OptTokenArg _ a -> plainText token <|> argumentsImage pal a xs'
        RemainingArg _  -> parseIrcTextExplicit (Text.pack xs)
 
   where
@@ -52,21 +49,19 @@ argumentsImage' isFirst pal arg xs
     (token1,(token2,xs')) =
          break (==' ') <$> span (==' ') xs
 
-    placeholder = mkPlaceholder isFirst pal arg
+    placeholder = mkPlaceholder pal arg
 
-mkPlaceholder :: Bool -> Palette -> Arguments a -> Image
-mkPlaceholder isFirst pal arg =
+mkPlaceholder :: Palette -> Arguments a -> Image
+mkPlaceholder pal arg =
   case arg of
     NoArg           -> emptyImage
     ReqTokenArg n a -> leader
                    <|> string (view palCommandRequired pal) n
-                   <|> mkPlaceholder False pal a
+                   <|> mkPlaceholder pal a
     OptTokenArg n a -> leader
                    <|> string (view palCommandOptional pal) n
-                   <|> mkPlaceholder False pal a
+                   <|> mkPlaceholder pal a
     RemainingArg n  -> leader
                    <|> string (view palCommandRemaining pal) n
   where
-    leader
-      | isFirst   = emptyImage
-      | otherwise = char defAttr ' '
+    leader = char defAttr ' '
