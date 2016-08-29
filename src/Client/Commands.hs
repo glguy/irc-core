@@ -65,26 +65,16 @@ data CommandResult
     -- ^ Continue running the client, report an error
   | CommandQuit ClientState -- ^ Client should close
 
+
 -- | Type of commands that always work
-type ClientCommand a =
-  ClientState                                      ->
-  a               {- ^ command arguments        -} ->
-  IO CommandResult
+type ClientCommand a = ClientState -> a {- ^ arguments -} -> IO CommandResult
 
 -- | Type of commands that require an active network to be focused
-type NetworkCommand a =
-  NetworkState    {- ^ focused connection state -} ->
-  ClientState                                      ->
-  a               {- ^ command arguments        -} ->
-  IO CommandResult
+type NetworkCommand a = NetworkState {- ^ current network -} -> ClientCommand a
 
 -- | Type of commands that require an active channel to be focused
-type ChannelCommand a =
-  NetworkState    {- ^ focused connection state -} ->
-  Identifier      {- ^ focused channel          -} ->
-  ClientState                                      ->
-  a               {- ^ command arguments        -} ->
-  IO CommandResult
+type ChannelCommand a = Identifier {- ^ focused channel -} -> NetworkCommand a
+
 
 -- | Pair of implementations for executing a command and tab completing one.
 -- The tab-completion logic is extended with a bool
@@ -233,13 +223,13 @@ executeCommand tabCompleteReversed str st =
           | ChannelFocus network channelId <- view clientFocus st
           , Just cs <- preview (clientConnection network) st
           , isChannelIdentifier cs channelId ->
-              finish argSpec (exec cs channelId) (\x -> tab x cs channelId)
+              finish argSpec (exec channelId cs) (\x -> tab x channelId cs)
           | otherwise -> commandFailureMsg "This command requires an active channel" st
 
         ChatCommand exec tab
           | ChannelFocus network channelId <- view clientFocus st
           , Just cs <- preview (clientConnection network) st ->
-              finish argSpec (exec cs channelId) (\x -> tab x cs channelId)
+              finish argSpec (exec channelId cs) (\x -> tab x channelId cs)
           | otherwise -> commandFailureMsg "This command requires an active chat window" st
 
 -- Expands each alias to have its own copy of the command callbacks
@@ -496,7 +486,7 @@ cmdQuote cs st rest =
 
 -- | Implementation of @/me@
 cmdMe :: ChannelCommand String
-cmdMe cs channelId st rest =
+cmdMe channelId cs st rest =
   do now <- getZonedTime
      let actionTxt = Text.pack ("\^AACTION " ++ rest ++ "\^A")
          !myNick = UserInfo (view csNick cs) "" ""
@@ -736,7 +726,7 @@ cmdNick cs st (nick,_) =
      commandSuccess st
 
 cmdPart :: ChannelCommand String
-cmdPart cs channelId st rest =
+cmdPart channelId cs st rest =
   do let msg = rest
      sendMsg cs (ircPart channelId (Text.pack msg))
      commandSuccess st
@@ -744,10 +734,10 @@ cmdPart cs channelId st rest =
 -- | This command is equivalent to chatting without a command. The primary use
 -- at the moment is to be able to send a leading @/@ to chat easily.
 cmdSay :: ChannelCommand String
-cmdSay _cs _channelId st rest = executeChat rest st
+cmdSay _ _ st rest = executeChat rest st
 
 cmdInvite :: ChannelCommand (String, ())
-cmdInvite cs channelId st (nick,_) =
+cmdInvite channelId cs st (nick,_) =
   do let freeTarget = has (csChannels . ix channelId . chanModes . ix 'g') cs
          cmd = ircInvite (Text.pack nick) channelId
      cs' <- if freeTarget
@@ -762,7 +752,7 @@ commandSuccessUpdateCS cs st =
     $ setStrict (clientConnections . ix networkId) cs st
 
 cmdTopic :: ChannelCommand String
-cmdTopic cs channelId st rest =
+cmdTopic channelId cs st rest =
   do let cmd =
            case rest of
              ""    -> ircTopic channelId ""
@@ -776,7 +766,7 @@ cmdTopic cs channelId st rest =
 tabTopic ::
   Bool {- ^ reversed -} ->
   ChannelCommand String
-tabTopic _ cs channelId st rest
+tabTopic _ channelId cs st rest
 
   | all isSpace rest
   , Just topic <- preview (csChannels . ix channelId . chanTopic) cs =
@@ -793,14 +783,14 @@ cmdChannelInfo :: ChannelCommand ()
 cmdChannelInfo _ _ st _ = commandSuccess (changeSubfocus FocusInfo st)
 
 cmdMasks :: ChannelCommand (String,())
-cmdMasks cs _ st (rest,_) =
+cmdMasks _ cs st (rest,_) =
   case rest of
     [mode] | mode `elem` view (csModeTypes . modesLists) cs ->
         commandSuccess (changeSubfocus (FocusMasks mode) st)
     _ -> commandFailureMsg "Unknown mask mode" st
 
 cmdKick :: ChannelCommand (String, String)
-cmdKick cs channelId st (who,reason) =
+cmdKick channelId cs st (who,reason) =
   do let msg = Text.pack reason
          cmd = ircKick channelId (Text.pack who) msg
      cs' <- sendModeration channelId [cmd] cs
@@ -808,7 +798,7 @@ cmdKick cs channelId st (who,reason) =
 
 
 cmdKickBan :: ChannelCommand (String, String)
-cmdKickBan cs channelId st (who,reason) =
+cmdKickBan channelId cs st (who,reason) =
   do let msg = Text.pack reason
 
          whoTxt     = Text.pack who
@@ -827,7 +817,7 @@ computeBanUserInfo who cs =
     Just (UserAndHost _ host) -> UserInfo "*" "*" host
 
 cmdRemove :: ChannelCommand (String, String)
-cmdRemove cs channelId st (who,reason) =
+cmdRemove channelId cs st (who,reason) =
   do let msg = Text.pack reason
          cmd = ircRemove channelId (Text.pack who) msg
      cs' <- sendModeration channelId [cmd] cs

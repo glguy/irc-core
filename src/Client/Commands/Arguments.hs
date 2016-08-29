@@ -45,17 +45,17 @@ parseArguments arg xs =
   case arg of
     NoArg          -> guard (all (==' ') xs)
     RemainingArg _ -> Just xs
-    OptTokenArg _ rest
-      | all (==' ') xs -> Just Nothing
-      | otherwise ->
-          do let (tok, xs') = nextToken xs
-             rest' <- parseArguments rest xs'
-             return (Just (tok, rest'))
+    OptTokenArg _ rest ->
+      do let (tok, xs') = nextToken xs
+         if null tok
+           then Just Nothing
+           else do rest' <- parseArguments rest xs'
+                   return (Just (tok, rest'))
     ReqTokenArg _ rest ->
-          do let (tok, xs') = nextToken xs
-             guard (not (null tok))
-             rest' <- parseArguments rest xs'
-             return (tok, rest')
+      do let (tok, xs') = nextToken xs
+         guard (not (null tok))
+         rest' <- parseArguments rest xs'
+         return (tok, rest')
 
 -- | Return the next space delimited token. Leading space is dropped.
 nextToken :: String -> (String, String)
