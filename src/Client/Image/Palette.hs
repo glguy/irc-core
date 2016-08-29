@@ -25,6 +25,7 @@ module Client.Image.Palette
   , palTextBox
   , palActivity
   , palMention
+  , palCommand
 
   -- * Defaults
   , defaultPalette
@@ -49,6 +50,7 @@ data Palette = Palette
   , _palTextBox       :: Attr -- ^ color of textbox markers
   , _palActivity      :: Attr -- ^ color of window name with activity
   , _palMention       :: Attr -- ^ color of window name with mention
+  , _palCommand       :: Attr -- ^ color of confirmed command
   }
   deriving Show
 
@@ -70,6 +72,7 @@ defaultPalette = Palette
   , _palTextBox       = withForeColor defAttr brightBlack
   , _palActivity      = withForeColor defAttr green
   , _palMention       = withForeColor defAttr red
+  , _palCommand       = withForeColor defAttr yellow
   }
 
 -- | Default nick highlighting colors that look nice in my dark solarized

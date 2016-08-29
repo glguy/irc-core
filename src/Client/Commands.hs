@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, ExistentialQuantification #-}
 
 {-|
 Module      : Client.Commands
@@ -16,9 +16,13 @@ module Client.Commands
   , execute
   , executeUserCommand
   , tabCompletion
+  -- * Commands
+  , Command(..)
+  , commands
   ) where
 
 import           Client.CApi
+import           Client.Commands.Arguments
 import           Client.Commands.Exec
 import           Client.Commands.Interpolation
 import           Client.Commands.WordCompletion
@@ -31,6 +35,7 @@ import qualified Client.State.EditBox as Edit
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
 import           Data.Char
@@ -61,34 +66,36 @@ data CommandResult
   | CommandQuit ClientState -- ^ Client should close
 
 -- | Type of commands that always work
-type ClientCommand =
+type ClientCommand a =
   ClientState                                      ->
-  String          {- ^ command arguments        -} ->
+  a               {- ^ command arguments        -} ->
   IO CommandResult
 
 -- | Type of commands that require an active network to be focused
-type NetworkCommand =
+type NetworkCommand a =
   NetworkState    {- ^ focused connection state -} ->
   ClientState                                      ->
-  String          {- ^ command arguments        -} ->
+  a               {- ^ command arguments        -} ->
   IO CommandResult
 
 -- | Type of commands that require an active channel to be focused
-type ChannelCommand =
+type ChannelCommand a =
   NetworkState    {- ^ focused connection state -} ->
   Identifier      {- ^ focused channel          -} ->
   ClientState                                      ->
-  String          {- ^ command arguments        -} ->
+  a               {- ^ command arguments        -} ->
   IO CommandResult
 
 -- | Pair of implementations for executing a command and tab completing one.
 -- The tab-completion logic is extended with a bool
 -- indicating that tab completion should be reversed
-data Command
-  = ClientCommand  ClientCommand  (Bool -> ClientCommand) -- ^ no requirements
-  | NetworkCommand NetworkCommand (Bool -> NetworkCommand) -- ^ requires an active network
-  | ChatCommand    ChannelCommand (Bool -> ChannelCommand) -- ^ requires an active chat window
-  | ChannelCommand ChannelCommand (Bool -> ChannelCommand) -- ^ requires an active channel window
+data CommandImpl a
+  = ClientCommand  (ClientCommand  a) (Bool -> ClientCommand  String) -- ^ no requirements
+  | NetworkCommand (NetworkCommand a) (Bool -> NetworkCommand String) -- ^ requires an active network
+  | ChatCommand    (ChannelCommand a) (Bool -> ChannelCommand String) -- ^ requires an active chat window
+  | ChannelCommand (ChannelCommand a) (Bool -> ChannelCommand String) -- ^ requires an active channel window
+
+data Command = forall a.  Command (Arguments a) (CommandImpl a)
 
 -- | Consider the text entry successful and resume the client
 commandSuccess :: Monad m => ClientState -> m CommandResult
@@ -183,11 +190,6 @@ splitWord str = (w, drop 1 rest)
   where
     (w, rest) = break isSpace str
 
-nextWord :: String -> Maybe (String, String)
-nextWord str =
-  case splitWord (dropWhile isSpace str) of
-    (a,b) | null a    -> Nothing
-          | otherwise -> Just (a,b)
 
 -- | Parse and execute the given command. When the first argument is Nothing
 -- the command is executed, otherwise the first argument is the cursor
@@ -199,7 +201,16 @@ executeCommand (Just isReversed) _ st
 
 executeCommand tabCompleteReversed str st =
   let (cmd, rest) = splitWord str
-      cmdTxt      = Text.toLower (Text.pack cmd) in
+      cmdTxt      = Text.toLower (Text.pack cmd)
+
+      finish spec exec tab =
+        case tabCompleteReversed of
+          Just isReversed -> tab isReversed st rest
+          Nothing ->
+            case parseArguments spec rest of
+              Nothing -> commandFailure st
+              Just arg -> exec st arg
+  in
   case HashMap.lookup cmdTxt commands of
 
     Nothing ->
@@ -207,31 +218,29 @@ executeCommand tabCompleteReversed str st =
         Nothing         -> commandFailureMsg "Unknown command" st
         Just isReversed -> commandSuccess (nickTabCompletion isReversed st)
 
-    Just (ClientCommand exec tab) ->
-          maybe exec tab tabCompleteReversed
-            st rest
+    Just (Command argSpec impl) ->
+      case impl of
+        ClientCommand exec tab ->
+          finish argSpec exec tab
 
-    Just (NetworkCommand exec tab)
-      | Just network <- views clientFocus focusNetwork st
-      , Just cs      <- preview (clientConnection network) st ->
-          maybe exec tab tabCompleteReversed
-            cs st rest
-      | otherwise -> commandFailureMsg "This command requires an active network" st
+        NetworkCommand exec tab
+          | Just network <- views clientFocus focusNetwork st
+          , Just cs      <- preview (clientConnection network) st ->
+              finish argSpec (exec cs) (\x -> tab x cs)
+          | otherwise -> commandFailureMsg "This command requires an active network" st
 
-    Just (ChannelCommand exec tab)
-      | ChannelFocus network channelId <- view clientFocus st
-      , Just cs <- preview (clientConnection network) st
-      , isChannelIdentifier cs channelId ->
-          maybe exec tab tabCompleteReversed
-            cs channelId st rest
-      | otherwise -> commandFailureMsg "This command requires an active channel" st
+        ChannelCommand exec tab
+          | ChannelFocus network channelId <- view clientFocus st
+          , Just cs <- preview (clientConnection network) st
+          , isChannelIdentifier cs channelId ->
+              finish argSpec (exec cs channelId) (\x -> tab x cs channelId)
+          | otherwise -> commandFailureMsg "This command requires an active channel" st
 
-    Just (ChatCommand exec tab)
-      | ChannelFocus network channelId <- view clientFocus st
-      , Just cs <- preview (clientConnection network) st ->
-          maybe exec tab tabCompleteReversed
-            cs channelId st rest
-      | otherwise -> commandFailureMsg "This command requires an active chat window" st
+        ChatCommand exec tab
+          | ChannelFocus network channelId <- view clientFocus st
+          , Just cs <- preview (clientConnection network) st ->
+              finish argSpec (exec cs channelId) (\x -> tab x cs channelId)
+          | otherwise -> commandFailureMsg "This command requires an active chat window" st
 
 -- Expands each alias to have its own copy of the command callbacks
 expandAliases :: [([a],b)] -> [(a,b)]
@@ -240,90 +249,223 @@ expandAliases xs = [ (a,b) | (as,b) <- xs, a <- as ]
 commands :: HashMap Text Command
 commands = HashMap.fromList
          $ expandAliases
-  [ (["connect"   ], ClientCommand cmdConnect tabConnect)
-  , (["exit"      ], ClientCommand cmdExit    noClientTab)
-  , (["focus"     ], ClientCommand cmdFocus   tabFocus)
-  , (["clear"     ], ClientCommand cmdClear   noClientTab)
-  , (["reconnect" ], ClientCommand cmdReconnect noClientTab)
-  , (["ignore"    ], ClientCommand cmdIgnore simpleClientTab)
-  , (["reload"    ], ClientCommand cmdReload  tabReload)
-  , (["extension" ], ClientCommand cmdExtension simpleClientTab)
-  , (["windows"   ], ClientCommand cmdWindows noClientTab)
-  , (["exec"      ], ClientCommand cmdExec simpleClientTab)
 
-  , (["quote"     ], NetworkCommand cmdQuote  simpleNetworkTab)
-  , (["j","join"  ], NetworkCommand cmdJoin   simpleNetworkTab)
-  , (["c","channel"], NetworkCommand cmdChannel simpleNetworkTab)
-  , (["mode"      ], NetworkCommand cmdMode   tabMode)
-  , (["msg"       ], NetworkCommand cmdMsg    simpleNetworkTab)
-  , (["notice"    ], NetworkCommand cmdNotice simpleNetworkTab)
-  , (["ctcp"      ], NetworkCommand cmdCtcp   simpleNetworkTab)
-  , (["nick"      ], NetworkCommand cmdNick   simpleNetworkTab)
-  , (["quit"      ], NetworkCommand cmdQuit   simpleNetworkTab)
-  , (["disconnect"], NetworkCommand cmdDisconnect noNetworkTab)
-  , (["who"       ], NetworkCommand cmdWho    simpleNetworkTab)
-  , (["whois"     ], NetworkCommand cmdWhois  simpleNetworkTab)
-  , (["whowas"    ], NetworkCommand cmdWhowas simpleNetworkTab)
-  , (["ison"      ], NetworkCommand cmdIson   simpleNetworkTab)
-  , (["userhost"  ], NetworkCommand cmdUserhost simpleNetworkTab)
-  , (["away"      ], NetworkCommand cmdAway   simpleNetworkTab)
-  , (["links"     ], NetworkCommand cmdLinks  simpleNetworkTab)
-  , (["time"      ], NetworkCommand cmdTime   simpleNetworkTab)
-  , (["stats"     ], NetworkCommand cmdStats  simpleNetworkTab)
-  , (["znc"       ], NetworkCommand cmdZnc    simpleNetworkTab)
-  , (["znc-playback"], NetworkCommand cmdZncPlayback noNetworkTab)
+  --
+  -- Client commands
+  --
+  [ ( ["connect"]
+    , Command (ReqTokenArg "network" NoArg)
+    $ ClientCommand cmdConnect tabConnect
+    )
+  , ( ["exit"]
+    , Command NoArg
+    $ ClientCommand cmdExit noClientTab
+    )
+  , ( ["focus"]
+    , Command (ReqTokenArg "network" (OptTokenArg "channel" NoArg))
+    $ ClientCommand cmdFocus tabFocus
+    )
+  , ( ["clear"]
+    , Command (OptTokenArg "network" (OptTokenArg "channel" NoArg))
+    $ ClientCommand cmdClear noClientTab
+    )
+  , ( ["reconnect"]
+    , Command NoArg
+    $ ClientCommand cmdReconnect noClientTab
+    )
+  , ( ["ignore"]
+    , Command (RemainingArg "nicks")
+    $ ClientCommand cmdIgnore simpleClientTab
+    )
+  , ( ["reload"]
+    , Command (OptTokenArg "filename" NoArg)
+    $ ClientCommand cmdReload tabReload
+    )
+  , ( ["extension"]
+    , Command (ReqTokenArg "extension" (RemainingArg "arguments"))
+    $ ClientCommand cmdExtension simpleClientTab
+    )
+  , ( ["windows"]
+    , Command NoArg
+    $ ClientCommand cmdWindows noClientTab
+    )
+  , ( ["exec"]
+    , Command (RemainingArg "arguments")
+    $ ClientCommand cmdExec simpleClientTab
+    )
 
-  , (["invite"    ], ChannelCommand cmdInvite simpleChannelTab)
-  , (["topic"     ], ChannelCommand cmdTopic  tabTopic    )
-  , (["kick"      ], ChannelCommand cmdKick   simpleChannelTab)
-  , (["kickban"   ], ChannelCommand cmdKickBan simpleChannelTab)
-  , (["remove"    ], ChannelCommand cmdRemove simpleChannelTab)
-  , (["part"      ], ChannelCommand cmdPart   simpleChannelTab)
+  --
+  -- Network commands
+  --
+  , ( ["quote"]
+    , Command (RemainingArg "raw IRC command")
+    $ NetworkCommand cmdQuote  simpleNetworkTab
+    )
+  , ( ["j","join"]
+    , Command (ReqTokenArg "channels" (OptTokenArg "keys" NoArg))
+    $ NetworkCommand cmdJoin   simpleNetworkTab
+    )
+  , ( ["c","channel"]
+    , Command (ReqTokenArg "channel" NoArg)
+    $ NetworkCommand cmdChannel simpleNetworkTab
+    )
+  , ( ["mode"]
+    , Command (RemainingArg "modes and parameters")
+    $ NetworkCommand cmdMode   tabMode
+    )
+  , ( ["msg"]
+    , Command (ReqTokenArg "target" (RemainingArg "message"))
+    $ NetworkCommand cmdMsg    simpleNetworkTab
+    )
+  , ( ["notice"]
+    , Command (ReqTokenArg "target" (RemainingArg "message"))
+    $ NetworkCommand cmdNotice simpleNetworkTab
+    )
+  , ( ["ctcp"]
+    , Command (ReqTokenArg "target" (ReqTokenArg "command" (RemainingArg "arguments")))
+    $ NetworkCommand cmdCtcp simpleNetworkTab
+    )
+  , ( ["nick"]
+    , Command (ReqTokenArg "nick" NoArg)
+    $ NetworkCommand cmdNick   simpleNetworkTab
+    )
+  , ( ["quit"]
+    , Command (RemainingArg "quit message")
+    $ NetworkCommand cmdQuit   simpleNetworkTab
+    )
+  , ( ["disconnect"]
+    , Command NoArg
+    $ NetworkCommand cmdDisconnect noNetworkTab
+    )
+  , ( ["who"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdWho simpleNetworkTab
+    )
+  , ( ["whois"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdWhois simpleNetworkTab
+    )
+  , ( ["whowas"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdWhowas simpleNetworkTab
+    )
+  , ( ["ison"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdIson   simpleNetworkTab
+    )
+  , ( ["userhost"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdUserhost simpleNetworkTab
+    )
+  , ( ["away"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdAway   simpleNetworkTab
+    )
+  , ( ["links"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdLinks  simpleNetworkTab
+    )
+  , ( ["time"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdTime   simpleNetworkTab
+    )
+  , ( ["stats"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdStats  simpleNetworkTab
+    )
+  , ( ["znc"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdZnc    simpleNetworkTab
+    )
+  , ( ["znc-playback"]
+    , Command (RemainingArg "arguments")
+    $ NetworkCommand cmdZncPlayback noNetworkTab
+    )
 
-  , (["users"     ], ChannelCommand cmdUsers  noChannelTab)
-  , (["channelinfo"], ChannelCommand cmdChannelInfo noChannelTab)
-  , (["masks"     ], ChannelCommand cmdMasks  noChannelTab)
+  , ( ["invite"]
+    , Command (ReqTokenArg "nick" NoArg)
+    $ ChannelCommand cmdInvite simpleChannelTab
+    )
+  , ( ["topic"]
+    , Command (RemainingArg "message")
+    $ ChannelCommand cmdTopic tabTopic
+    )
+  , ( ["kick"]
+    , Command (ReqTokenArg "nick" (RemainingArg "reason"))
+    $ ChannelCommand cmdKick   simpleChannelTab
+    )
+  , ( ["kickban"]
+    , Command (ReqTokenArg "nick" (RemainingArg "reason"))
+    $ ChannelCommand cmdKickBan simpleChannelTab
+    )
+  , ( ["remove"]
+    , Command (ReqTokenArg "nick" (RemainingArg "reason"))
+    $ ChannelCommand cmdRemove simpleChannelTab
+    )
+  , ( ["part"]
+    , Command (RemainingArg "reason")
+    $ ChannelCommand cmdPart simpleChannelTab
+    )
 
-  , (["me"        ], ChatCommand cmdMe     simpleChannelTab)
-  , (["say"       ], ChatCommand cmdSay    simpleChannelTab)
+  , ( ["users"]
+    , Command NoArg
+    $ ChannelCommand cmdUsers  noChannelTab
+    )
+  , ( ["channelinfo"]
+    , Command NoArg
+    $ ChannelCommand cmdChannelInfo noChannelTab
+    )
+  , ( ["masks"]
+    , Command (ReqTokenArg "mode" NoArg)
+    $ ChannelCommand cmdMasks noChannelTab
+    )
+
+  , ( ["me"]
+    , Command (RemainingArg "message")
+    $ ChatCommand cmdMe simpleChannelTab
+    )
+  , ( ["say"]
+    , Command (RemainingArg "message")
+    $ ChatCommand cmdSay simpleChannelTab
+    )
   ]
 
-noClientTab :: Bool -> ClientCommand
+noClientTab :: Bool -> ClientCommand String
 noClientTab _ st _ = commandFailure st
 
-noNetworkTab :: Bool -> NetworkCommand
+noNetworkTab :: Bool -> NetworkCommand String
 noNetworkTab _ _ st _ = commandFailure st
 
-noChannelTab :: Bool -> ChannelCommand
+noChannelTab :: Bool -> ChannelCommand String
 noChannelTab _ _ _ st _ = commandFailure st
 
-simpleClientTab :: Bool -> ClientCommand
+simpleClientTab :: Bool -> ClientCommand String
 simpleClientTab isReversed st _ =
   commandSuccess (nickTabCompletion isReversed st)
 
-simpleNetworkTab :: Bool -> NetworkCommand
+simpleNetworkTab :: Bool -> NetworkCommand String
 simpleNetworkTab isReversed _ st _ =
   commandSuccess (nickTabCompletion isReversed st)
 
-simpleChannelTab :: Bool -> ChannelCommand
+simpleChannelTab :: Bool -> ChannelCommand String
 simpleChannelTab isReversed _ _ st _ =
   commandSuccess (nickTabCompletion isReversed st)
 
-cmdExit :: ClientCommand
+cmdExit :: ClientCommand ()
 cmdExit st _ = return (CommandQuit st)
 
 -- | When used on a channel that the user is currently
 -- joined to this command will clear the messages but
 -- preserve the window. When used on a window that the
 -- user is not joined to this command will delete the window.
-cmdClear :: ClientCommand
-cmdClear st rest =
-  case Text.pack <$> words rest of
-    []                -> clearFocus (view clientFocus st)
-    ["*"]             -> clearFocus Unfocused
-    [network]         -> clearFocus (NetworkFocus network)
-    [network,channel] -> clearFocus (ChannelFocus network (mkId channel))
-    _                 -> commandFailureMsg "Usage: /clear [network] [channel]" st
+cmdClear :: ClientCommand (Maybe (String, Maybe (String, ())))
+cmdClear st args =
+  case args of
+    Nothing                 -> clearFocus (view clientFocus st)
+    Just ("*", Nothing)     -> clearFocus Unfocused
+    Just (network, Nothing) -> clearFocus (NetworkFocus (Text.pack network))
+    Just (network, Just (channel, _)) ->
+        clearFocus (ChannelFocus (Text.pack network) (mkId (Text.pack channel)))
   where
     clearFocus focus = commandSuccess (windowEffect st)
       where
@@ -344,7 +486,7 @@ cmdClear st rest =
                                                 .csChannels . ix channel) st
 
 
-cmdQuote :: NetworkCommand
+cmdQuote :: NetworkCommand String
 cmdQuote cs st rest =
   case parseRawIrcMsg (Text.pack rest) of
     Nothing  -> commandFailureMsg "Failed to parse IRC command" st
@@ -353,7 +495,7 @@ cmdQuote cs st rest =
          commandSuccess st
 
 -- | Implementation of @/me@
-cmdMe :: ChannelCommand
+cmdMe :: ChannelCommand String
 cmdMe cs channelId st rest =
   do now <- getZonedTime
      let actionTxt = Text.pack ("\^AACTION " ++ rest ++ "\^A")
@@ -369,31 +511,23 @@ cmdMe cs channelId st rest =
        $ recordChannelMessage network channelId entry st
 
 -- | Implementation of @/ctcp@
-cmdCtcp :: NetworkCommand
-cmdCtcp cs st rest =
-  case parse of
-    Nothing -> commandFailureMsg "Usage: /ctcp TARGET COMMAND ARGS" st
-    Just (target, cmd, args) ->
-      do let cmdTxt = Text.toUpper (Text.pack cmd)
-             argTxt = Text.pack args
-             tgtTxt = Text.pack target
+cmdCtcp :: NetworkCommand (String, (String, String))
+cmdCtcp cs st (target, (cmd, args)) =
+  do let cmdTxt = Text.toUpper (Text.pack cmd)
+         argTxt = Text.pack args
+         tgtTxt = Text.pack target
 
-         sendMsg cs (ircPrivmsg (mkId tgtTxt) ("\^A" <> cmdTxt <> " " <> argTxt <> "\^A"))
-         chatCommand
-            (\src tgt -> Ctcp src tgt cmdTxt argTxt)
-            tgtTxt cs st
-  where
-    parse =
-      do (target, rest1) <- nextWord rest
-         (cmd   , args ) <- nextWord rest1
-         return (target, cmd, args)
+     sendMsg cs (ircPrivmsg (mkId tgtTxt) ("\^A" <> cmdTxt <> " " <> argTxt <> "\^A"))
+     chatCommand
+        (\src tgt -> Ctcp src tgt cmdTxt argTxt)
+        tgtTxt cs st
 
 -- | Implementation of @/notice@
-cmdNotice :: NetworkCommand
-cmdNotice cs st rest =
-  case nextWord rest of
-    Just (target, rest1) | not (null rest1) ->
-      do let restTxt = Text.pack rest1
+cmdNotice :: NetworkCommand (String, String)
+cmdNotice cs st (target, rest)
+  | null rest = commandFailure st
+  | otherwise =
+      do let restTxt = Text.pack rest
              tgtTxt = Text.pack target
 
          sendMsg cs (ircNotice (mkId tgtTxt) restTxt)
@@ -401,21 +535,18 @@ cmdNotice cs st rest =
             (\src tgt -> Notice src tgt restTxt)
             tgtTxt cs st
 
-    _ -> commandFailureMsg "Usage: /notice TARGET MESSAGE" st
-
 -- | Implementation of @/msg@
-cmdMsg :: NetworkCommand
-cmdMsg cs st rest =
-  case nextWord rest of
-    Just (target, rest1) | not (null rest1) ->
-      do let restTxt = Text.pack rest1
+cmdMsg :: NetworkCommand (String, String)
+cmdMsg cs st (target, rest)
+  | null rest = commandFailure st
+  | otherwise =
+      do let restTxt = Text.pack rest
              tgtTxt = Text.pack target
 
          sendMsg cs (ircPrivmsg (mkId tgtTxt) restTxt)
          chatCommand
             (\src tgt -> Privmsg src tgt restTxt)
             tgtTxt cs st
-    _ -> commandFailureMsg "Usage: /msg TARGET MESSAGE" st
 
 -- | Common logic for @/msg@ and @/notice@
 chatCommand ::
@@ -454,42 +585,34 @@ chatCommand' con targetsTxt cs st =
                       entries
 
 
-cmdConnect :: ClientCommand
-cmdConnect st rest =
-  case words rest of
-    [networkStr] ->
-      do -- abort any existing connection before connecting
-         let network = Text.pack networkStr
-         st' <- addConnection network =<< abortNetwork network st
+cmdConnect :: ClientCommand (String, ())
+cmdConnect st (networkStr, _) =
+  do -- abort any existing connection before connecting
+     let network = Text.pack networkStr
+     st' <- addConnection network =<< abortNetwork network st
+     commandSuccess
+       $ changeFocus (NetworkFocus network) st'
+
+cmdFocus :: ClientCommand (String, Maybe (String, ()))
+cmdFocus st (network, mbChannel)
+  | network == "*" = commandSuccess (changeFocus Unfocused st)
+  | otherwise =
+     case mbChannel of
+       Nothing ->
+         let focus = NetworkFocus (Text.pack network) in
+         commandSuccess (changeFocus focus st)
+       Just (channel,_) ->
+         let focus = ChannelFocus (Text.pack network) (mkId (Text.pack channel)) in
          commandSuccess
-           $ changeFocus (NetworkFocus network) st'
-
-    _ -> commandFailureMsg "Usage: /connect NETWORK" st
-
-cmdFocus :: ClientCommand
-cmdFocus st rest =
-  case words rest of
-    ["*"] ->
-      commandSuccess (changeFocus Unfocused st)
-
-    [network] ->
-      let focus = NetworkFocus (Text.pack network) in
-      commandSuccess (changeFocus focus st)
-
-    [network,channel] ->
-      let focus = ChannelFocus (Text.pack network) (mkId (Text.pack channel)) in
-      commandSuccess
-        $ changeFocus focus st
-
-    _ -> commandFailureMsg "Focus requires a network and an optional channel" st
+           $ changeFocus focus st
 
 -- | Implementation of @/windows@ command. Set subfocus to Windows.
-cmdWindows :: ClientCommand
-cmdWindows st _rest = commandSuccess (changeSubfocus FocusWindows st)
+cmdWindows :: ClientCommand ()
+cmdWindows st _ = commandSuccess (changeSubfocus FocusWindows st)
 
 
 -- | @/connect@ tab completes known server names
-tabConnect :: Bool -> ClientCommand
+tabConnect :: Bool -> ClientCommand String
 tabConnect isReversed st _
   = commandSuccess
   $ fromMaybe st
@@ -500,7 +623,7 @@ tabConnect isReversed st _
 
 -- | When tab completing the first parameter of the focus command
 -- the current networks are used.
-tabFocus :: Bool -> ClientCommand
+tabFocus :: Bool -> ClientCommand String
 tabFocus isReversed st _
   = commandSuccess
   $ fromMaybe st
@@ -513,58 +636,58 @@ tabFocus isReversed st _
       | length params == 2 = networks
       | otherwise          = currentCompletionList st
 
-cmdWhois :: NetworkCommand
+cmdWhois :: NetworkCommand String
 cmdWhois cs st rest =
   do sendMsg cs (ircWhois (Text.pack <$> words rest))
      commandSuccess st
 
-cmdWho :: NetworkCommand
+cmdWho :: NetworkCommand String
 cmdWho cs st rest =
   do sendMsg cs (ircWho (Text.pack <$> words rest))
      commandSuccess st
 
-cmdWhowas :: NetworkCommand
+cmdWhowas :: NetworkCommand String
 cmdWhowas cs st rest =
   do sendMsg cs (ircWhowas (Text.pack <$> words rest))
      commandSuccess st
 
-cmdIson :: NetworkCommand
+cmdIson :: NetworkCommand String
 cmdIson cs st rest =
   do sendMsg cs (ircIson (Text.pack <$> words rest))
      commandSuccess st
 
-cmdUserhost :: NetworkCommand
+cmdUserhost :: NetworkCommand String
 cmdUserhost cs st rest =
   do sendMsg cs (ircUserhost (Text.pack <$> words rest))
      commandSuccess st
 
-cmdStats :: NetworkCommand
+cmdStats :: NetworkCommand String
 cmdStats cs st rest =
   do sendMsg cs (ircStats (Text.pack <$> words rest))
      commandSuccess st
 
-cmdAway :: NetworkCommand
+cmdAway :: NetworkCommand String
 cmdAway cs st rest =
   do sendMsg cs (ircAway (Text.pack rest))
      commandSuccess st
 
-cmdLinks :: NetworkCommand
+cmdLinks :: NetworkCommand String
 cmdLinks cs st rest =
   do sendMsg cs (ircLinks (Text.pack <$> words rest))
      commandSuccess st
 
-cmdTime :: NetworkCommand
+cmdTime :: NetworkCommand String
 cmdTime cs st rest =
   do sendMsg cs (ircTime (Text.pack <$> words rest))
      commandSuccess st
 
-cmdZnc :: NetworkCommand
+cmdZnc :: NetworkCommand String
 cmdZnc cs st rest =
   do sendMsg cs (ircZnc (Text.words (Text.pack rest)))
      commandSuccess st
 
 -- TODO: support time ranges
-cmdZncPlayback :: NetworkCommand
+cmdZncPlayback :: NetworkCommand String
 cmdZncPlayback cs st rest =
   case words rest of
 
@@ -604,18 +727,15 @@ cmdZncPlayback cs st rest =
       do sendMsg cs (ircZnc ["*playback", "play", "*", Text.pack start])
          commandSuccess st
 
-cmdMode :: NetworkCommand
+cmdMode :: NetworkCommand String
 cmdMode cs st rest = modeCommand (Text.pack <$> words rest) cs st
 
-cmdNick :: NetworkCommand
-cmdNick cs st rest =
-  case words rest of
-    [nick] ->
-      do sendMsg cs (ircNick (mkId (Text.pack nick)))
-         commandSuccess st
-    _ -> commandFailureMsg "Usage: /nick NICK" st
+cmdNick :: NetworkCommand (String, ())
+cmdNick cs st (nick,_) =
+  do sendMsg cs (ircNick (mkId (Text.pack nick)))
+     commandSuccess st
 
-cmdPart :: ChannelCommand
+cmdPart :: ChannelCommand String
 cmdPart cs channelId st rest =
   do let msg = rest
      sendMsg cs (ircPart channelId (Text.pack msg))
@@ -623,29 +743,25 @@ cmdPart cs channelId st rest =
 
 -- | This command is equivalent to chatting without a command. The primary use
 -- at the moment is to be able to send a leading @/@ to chat easily.
-cmdSay :: ChannelCommand
+cmdSay :: ChannelCommand String
 cmdSay _cs _channelId st rest = executeChat rest st
 
-cmdInvite :: ChannelCommand
-cmdInvite cs channelId st rest =
-  case words rest of
-    [nick] ->
-      do let freeTarget = has (csChannels . ix channelId . chanModes . ix 'g') cs
-             cmd = ircInvite (Text.pack nick) channelId
-         cs' <- if freeTarget
-                  then cs <$ sendMsg cs cmd
-                  else sendModeration channelId [cmd] cs
-         commandSuccessUpdateCS cs' st
+cmdInvite :: ChannelCommand (String, ())
+cmdInvite cs channelId st (nick,_) =
+  do let freeTarget = has (csChannels . ix channelId . chanModes . ix 'g') cs
+         cmd = ircInvite (Text.pack nick) channelId
+     cs' <- if freeTarget
+              then cs <$ sendMsg cs cmd
+              else sendModeration channelId [cmd] cs
+     commandSuccessUpdateCS cs' st
 
-    _ -> commandFailureMsg "Usage: /invite NICK" st
-
-commandSuccessUpdateCS :: NetworkState    -> ClientState -> IO CommandResult
+commandSuccessUpdateCS :: NetworkState -> ClientState -> IO CommandResult
 commandSuccessUpdateCS cs st =
   let networkId = view csNetworkId cs in
   commandSuccess
     $ setStrict (clientConnections . ix networkId) cs st
 
-cmdTopic :: ChannelCommand
+cmdTopic :: ChannelCommand String
 cmdTopic cs channelId st rest =
   do let cmd =
            case rest of
@@ -659,7 +775,7 @@ cmdTopic cs channelId st rest =
 
 tabTopic ::
   Bool {- ^ reversed -} ->
-  ChannelCommand
+  ChannelCommand String
 tabTopic _ cs channelId st rest
 
   | all isSpace rest
@@ -670,45 +786,39 @@ tabTopic _ cs channelId st rest
   | otherwise = commandFailure st
 
 
-cmdUsers :: ChannelCommand
+cmdUsers :: ChannelCommand ()
 cmdUsers _ _ st _ = commandSuccess (changeSubfocus FocusUsers st)
 
-cmdChannelInfo :: ChannelCommand
+cmdChannelInfo :: ChannelCommand ()
 cmdChannelInfo _ _ st _ = commandSuccess (changeSubfocus FocusInfo st)
 
-cmdMasks :: ChannelCommand
-cmdMasks cs _ st rest =
-  case words rest of
-    [[mode]] | mode `elem` view (csModeTypes . modesLists) cs ->
+cmdMasks :: ChannelCommand (String,())
+cmdMasks cs _ st (rest,_) =
+  case rest of
+    [mode] | mode `elem` view (csModeTypes . modesLists) cs ->
         commandSuccess (changeSubfocus (FocusMasks mode) st)
     _ -> commandFailureMsg "Unknown mask mode" st
 
-cmdKick :: ChannelCommand
-cmdKick cs channelId st rest =
-  case nextWord rest of
-    Nothing -> commandFailureMsg "Usage: /kick NICK [MESSAGE]" st
-    Just (who,reason) ->
-      do let msg = Text.pack reason
-             cmd = ircKick channelId (Text.pack who) msg
-         cs' <- sendModeration channelId [cmd] cs
-         commandSuccessUpdateCS cs' st
+cmdKick :: ChannelCommand (String, String)
+cmdKick cs channelId st (who,reason) =
+  do let msg = Text.pack reason
+         cmd = ircKick channelId (Text.pack who) msg
+     cs' <- sendModeration channelId [cmd] cs
+     commandSuccessUpdateCS cs' st
 
 
-cmdKickBan :: ChannelCommand
-cmdKickBan cs channelId st rest =
-  case nextWord rest of
-    Nothing -> commandFailureMsg "Usage: /kickban NICK [MESSAGE]" st
-    Just (whoStr,reason) ->
-      do let msg = Text.pack reason
+cmdKickBan :: ChannelCommand (String, String)
+cmdKickBan cs channelId st (who,reason) =
+  do let msg = Text.pack reason
 
-             whoTxt     = Text.pack whoStr
+         whoTxt     = Text.pack who
 
-             mask = renderUserInfo (computeBanUserInfo (mkId whoTxt) cs)
-             cmds = [ ircMode channelId ["b", mask]
-                    , ircKick channelId whoTxt msg
-                    ]
-         cs' <- sendModeration channelId cmds cs
-         commandSuccessUpdateCS cs' st
+         mask = renderUserInfo (computeBanUserInfo (mkId whoTxt) cs)
+         cmds = [ ircMode channelId ["b", mask]
+                , ircKick channelId whoTxt msg
+                ]
+     cs' <- sendModeration channelId cmds cs
+     commandSuccessUpdateCS cs' st
 
 computeBanUserInfo :: Identifier -> NetworkState    -> UserInfo
 computeBanUserInfo who cs =
@@ -716,49 +826,37 @@ computeBanUserInfo who cs =
     Nothing                   -> UserInfo who "*" "*"
     Just (UserAndHost _ host) -> UserInfo "*" "*" host
 
-cmdRemove :: ChannelCommand
-cmdRemove cs channelId st rest =
-  case nextWord rest of
-    Nothing -> commandFailureMsg "Usage: /remove NICK [MESSAGE]" st
-    Just (who,reason) ->
-      do let msg = Text.pack reason
-             cmd = ircRemove channelId (Text.pack who) msg
-         cs' <- sendModeration channelId [cmd] cs
-         commandSuccessUpdateCS cs' st
+cmdRemove :: ChannelCommand (String, String)
+cmdRemove cs channelId st (who,reason) =
+  do let msg = Text.pack reason
+         cmd = ircRemove channelId (Text.pack who) msg
+     cs' <- sendModeration channelId [cmd] cs
+     commandSuccessUpdateCS cs' st
 
-cmdJoin :: NetworkCommand
-cmdJoin cs st rest =
-  let ws = words rest
-      network = view csNetwork cs
-      doJoin channelStr keyStr =
-        do let channelId = mkId (Text.pack (takeWhile (/=',') channelStr))
-           sendMsg cs (ircJoin (Text.pack channelStr) (Text.pack <$> keyStr))
-           commandSuccess
-               $ changeFocus (ChannelFocus network channelId) st
-  in case ws of
-       [channel]     -> doJoin channel Nothing
-       [channel,key] -> doJoin channel (Just key)
-       _             -> commandFailureMsg "Usage: /join CHANNELS [KEYS]" st
+cmdJoin :: NetworkCommand (String, Maybe (String, ()))
+cmdJoin cs st (channels, mbKeys) =
+  do let network = view csNetwork cs
+     let channelId = mkId (Text.pack (takeWhile (/=',') channels))
+     sendMsg cs (ircJoin (Text.pack channels) (Text.pack . fst <$> mbKeys))
+     commandSuccess
+        $ changeFocus (ChannelFocus network channelId) st
 
 
 -- | @/channel@ command. Takes the name of a channel and switches
 -- focus to that channel on the current network.
-cmdChannel :: NetworkCommand
-cmdChannel cs st rest =
-  case mkId . Text.pack <$> words rest of
-    [ channelId ] ->
-       commandSuccess
-         $ changeFocus (ChannelFocus (view csNetwork cs) channelId) st
-    _ -> commandFailureMsg "Usage: /channel CHANNEL" st
+cmdChannel :: NetworkCommand (String, ())
+cmdChannel cs st (channel, _) =
+  commandSuccess
+    $ changeFocus (ChannelFocus (view csNetwork cs) (mkId (Text.pack channel))) st
 
 
-cmdQuit :: NetworkCommand
+cmdQuit :: NetworkCommand String
 cmdQuit cs st rest =
   do let msg = Text.pack rest
      sendMsg cs (ircQuit msg)
      commandSuccess st
 
-cmdDisconnect :: NetworkCommand
+cmdDisconnect :: NetworkCommand ()
 cmdDisconnect cs st _ =
   do st' <- abortNetwork (view csNetwork cs) st
      commandSuccess st'
@@ -766,7 +864,7 @@ cmdDisconnect cs st _ =
 -- | Reconnect to the currently focused network. It's possible
 -- that we're not currently connected to a network, so
 -- this is implemented as a client command.
-cmdReconnect :: ClientCommand
+cmdReconnect :: ClientCommand ()
 cmdReconnect st _
   | Just network <- views clientFocus focusNetwork st =
 
@@ -776,7 +874,7 @@ cmdReconnect st _
 
   | otherwise = commandFailureMsg "/reconnect requires focused network" st
 
-cmdIgnore :: ClientCommand
+cmdIgnore :: ClientCommand String
 cmdIgnore st rest =
   case mkId . Text.pack <$> words rest of
     [] -> commandFailure st
@@ -790,10 +888,10 @@ cmdIgnore st rest =
 -- | Implementation of @/reload@
 --
 -- Attempt to reload the configuration file
-cmdReload :: ClientCommand
-cmdReload st rest =
-  do let path | null rest = view (clientConfig . configConfigPath) st
-              | otherwise = Just rest
+cmdReload :: ClientCommand (Maybe (String, ()))
+cmdReload st mbPath =
+  do let path = fst <$> mbPath
+            <|> view (clientConfig . configConfigPath) st
      res <- loadConfiguration path
      case res of
        Left e    -> commandFailureMsg (describeProblem e) st
@@ -813,7 +911,7 @@ cmdReload st rest =
 -- configuration file.
 --
 -- /NOT IMPLEMENTED/
-tabReload :: Bool {- ^ reversed -} -> ClientCommand
+tabReload :: Bool {- ^ reversed -} -> ClientCommand String
 tabReload _ st _ = commandFailure st
 
 modeCommand ::
@@ -855,7 +953,7 @@ modeCommand modes cs st =
 
     _ -> commandFailure st
 
-tabMode :: Bool -> NetworkCommand
+tabMode :: Bool -> NetworkCommand String
 tabMode isReversed cs st rest =
   case view clientFocus st of
 
@@ -971,21 +1069,18 @@ useChanServ channel cs =
   channel `elem` view (csSettings . ssChanservChannels) cs &&
   not (iHaveOp channel cs)
 
-cmdExtension :: ClientCommand
-cmdExtension st rest =
-  case Text.words (Text.pack rest) of
-    name:params ->
-      case find (\ae -> aeName ae == name)
-                (view (clientExtensions . esActive) st) of
+cmdExtension :: ClientCommand (String, String)
+cmdExtension st (name,params) =
+  case find (\ae -> aeName ae == Text.pack name)
+            (view (clientExtensions . esActive) st) of
         Nothing -> commandFailureMsg "Unknown extension" st
         Just ae ->
           do (st',_) <- clientPark st $ \ptr ->
-                          commandExtension ptr params ae
+                          commandExtension ptr (Text.pack <$> words params) ae
              commandSuccess st'
-    _ -> commandFailureMsg "Usage: /extension EXTENSION ARGUMENTS" st
 
 -- | Implementation of @/exec@ command.
-cmdExec :: ClientCommand
+cmdExec :: ClientCommand String
 cmdExec st rest =
   do now <- getZonedTime
      case parseExecCmd rest of

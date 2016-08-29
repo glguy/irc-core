@@ -13,6 +13,7 @@ This module parses mIRC encoded text and generates VTY images.
 module Client.Image.MircFormatting
   ( parseIrcText
   , parseIrcTextExplicit
+  , controlImage
   ) where
 
 import           Control.Applicative ((<|>))
@@ -91,7 +92,7 @@ pIrcLine explicit fmt =
           -- always render control codes that we don't understand
           | isNothing mbFmt' || explicit ->
                 do rest <- next
-                   return (Vty.char controlAttr (controlName c) Vty.<|> rest)
+                   return (controlImage c Vty.<|> rest)
           | otherwise -> next
           where
             mbFmt' = applyControlEffect c fmt
@@ -146,6 +147,9 @@ applyControlEffect '\^V' = Just . over fmtReverse not
 applyControlEffect '\^]' = Just . over fmtItalic not
 applyControlEffect '\^_' = Just . over fmtUnderline not
 applyControlEffect _     = const Nothing
+
+controlImage :: Char -> Image
+controlImage = Vty.char controlAttr . controlName
 
 controlAttr :: Attr
 controlAttr = defAttr `withStyle` reverseVideo

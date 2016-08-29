@@ -14,6 +14,8 @@ This module provides the renderer for the client's text box input.
 module Client.Image.Textbox where
 
 import           Client.Configuration
+import           Client.Commands
+import           Client.Commands.Arguments
 import           Client.Image.MircFormatting
 import           Client.Image.Palette
 import           Client.State
@@ -30,9 +32,11 @@ textboxImage st
   where
   width = view clientWidth st
   (txt, content) =
-     views (clientTextBox . Edit.content) renderContent st
+     views (clientTextBox . Edit.content) (renderContent pal) st
 
   pos = computeCharWidth (width-1) txt
+
+  pal = view (clientConfig . configPalette) st
 
   lineImage = beginning <|> content <|> ending
 
@@ -46,8 +50,8 @@ textboxImage st
   beginning = char attr '^'
   ending    = char attr '$'
 
-renderContent :: Edit.Content -> (String, Image)
-renderContent c = (txt, wholeImg)
+renderContent :: Palette -> Edit.Content -> (String, Image)
+renderContent pal c = (txt, wholeImg)
   where
   as  = reverse (view Edit.above c)
   bs  = view Edit.below c
@@ -55,16 +59,14 @@ renderContent c = (txt, wholeImg)
 
   leftCur = take (view Edit.pos cur) (view Edit.text cur)
 
-  renderLine l = parseIrcTextExplicit $ Text.pack l
-
   inputLines = as ++ view Edit.text cur : bs
 
   -- ["one","two"] "three" --> "^two one three"
   txt = '^' : foldl (\acc x -> x++' ':acc) leftCur as
 
   wholeImg = horizCat
-           $ intersperse (renderLine "\n")
-           $ map renderLine inputLines
+           $ intersperse (plainText "\n")
+           $ map (renderLine pal) inputLines
 
 -- | Compute the number of code-points that will be visible
 -- when the given string is truncated to fit in the given
@@ -94,3 +96,14 @@ myWcwidth x
 -- rendered
 myWcswidth :: String -> Int
 myWcswidth = sum . map myWcwidth
+
+
+renderLine :: Palette -> String -> Image
+renderLine pal ('/':xs)
+  | (cmd,rest) <- drop 1 <$> break isSpace xs
+  , Just (Command spec _) <- view (at (Text.pack cmd)) commands
+  = char defAttr '/' <|>
+    string (view palCommand pal) cmd <|>
+    char defAttr ' ' <|>
+    argumentsImage spec rest
+renderLine _ xs = parseIrcTextExplicit (Text.pack xs)

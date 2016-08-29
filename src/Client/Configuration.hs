@@ -218,6 +218,7 @@ paletteHelper p k v =
     "window-name"    -> setAttr palWindowName
     "activity"       -> setAttr palActivity
     "mention"        -> setAttr palMention
+    "command"        -> setAttr palCommand
     _                -> failure "Unknown palette entry"
   where
     setAttr l =

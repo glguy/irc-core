@@ -31,6 +31,7 @@ executable glirc2
                        Client.CApi.Exports
                        Client.CApi.Types
                        Client.Commands
+                       Client.Commands.Arguments
                        Client.Commands.Exec
                        Client.Commands.Interpolation
                        Client.Commands.WordCompletion
