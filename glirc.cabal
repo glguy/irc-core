@@ -43,6 +43,7 @@ executable glirc2
                        Client.Hook.Znc.Buffextras
                        Client.Hooks
                        Client.Image
+                       Client.Image.Arguments
                        Client.Image.ChannelInfo
                        Client.Image.MaskList
                        Client.Image.Message

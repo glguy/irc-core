@@ -206,20 +206,24 @@ paletteHelper p k v =
                         when (null xs) (failure "Empty palette")
                         return $! set palNicks xs p
 
-    "self"           -> setAttr palSelf
-    "self-highlight" -> setAttrMb palSelfHighlight
-    "time"           -> setAttr palTime
-    "meta"           -> setAttr palMeta
-    "sigil"          -> setAttr palSigil
-    "label"          -> setAttr palLabel
-    "latency"        -> setAttr palLatency
-    "error"          -> setAttr palError
-    "textbox"        -> setAttr palTextBox
-    "window-name"    -> setAttr palWindowName
-    "activity"       -> setAttr palActivity
-    "mention"        -> setAttr palMention
-    "command"        -> setAttr palCommand
-    _                -> failure "Unknown palette entry"
+    "self"              -> setAttr palSelf
+    "self-highlight"    -> setAttrMb palSelfHighlight
+    "time"              -> setAttr palTime
+    "meta"              -> setAttr palMeta
+    "sigil"             -> setAttr palSigil
+    "label"             -> setAttr palLabel
+    "latency"           -> setAttr palLatency
+    "error"             -> setAttr palError
+    "textbox"           -> setAttr palTextBox
+    "window-name"       -> setAttr palWindowName
+    "activity"          -> setAttr palActivity
+    "mention"           -> setAttr palMention
+    "command"           -> setAttr palCommand
+    "command-ready"     -> setAttr palCommandReady
+    "command-required"  -> setAttr palCommandRequired
+    "command-optional"  -> setAttr palCommandOptional
+    "command-remaining" -> setAttr palCommandRemaining
+    _                   -> failure "Unknown palette entry"
   where
     setAttr l =
       do !attr <- parseAttr v

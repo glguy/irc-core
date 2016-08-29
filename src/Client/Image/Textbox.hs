@@ -16,6 +16,7 @@ module Client.Image.Textbox where
 import           Client.Configuration
 import           Client.Commands
 import           Client.Commands.Arguments
+import           Client.Image.Arguments
 import           Client.Image.MircFormatting
 import           Client.Image.Palette
 import           Client.State
@@ -99,11 +100,20 @@ myWcswidth = sum . map myWcwidth
 
 
 renderLine :: Palette -> String -> Image
+
 renderLine pal ('/':xs)
-  | (cmd,rest) <- drop 1 <$> break isSpace xs
+  | (cmd,rest)            <- break isSpace xs
   , Just (Command spec _) <- view (at (Text.pack cmd)) commands
+  , let attr =
+          case parseArguments spec rest of
+            Nothing -> view palCommand      pal
+            Just{}  -> view palCommandReady pal
+        leader
+          | null rest = emptyImage
+          | otherwise = char defAttr ' '
   = char defAttr '/' <|>
-    string (view palCommand pal) cmd <|>
-    char defAttr ' ' <|>
-    argumentsImage spec rest
+    string attr cmd <|>
+    leader <|>
+    argumentsImage pal spec (drop 1 rest)
+
 renderLine _ xs = parseIrcTextExplicit (Text.pack xs)
