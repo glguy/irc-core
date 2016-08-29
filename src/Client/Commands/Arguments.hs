@@ -1,13 +1,14 @@
 {-# Language GADTs, KindSignatures #-}
 
 {-|
-Module      : Client.Configuration
-Description : Client configuration format and operations
+Module      : Client.Commands.Arguments
+Description : Command argument description and parsing
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com
 
-This module defines the top-level configuration information for the client.
+This module provides a description for the arguments expected
+by command commands as well as a way to parse those arguments.
 -}
 
 module Client.Commands.Arguments
@@ -16,29 +17,36 @@ module Client.Commands.Arguments
   ) where
 
 import           Control.Monad
-import           Data.Char
 
+-- | Description of a command's arguments indexed by the result of parsing
+-- those arguments. Arguments are annotated with a 'String' describing the
+-- argument.
 data Arguments :: * -> * where
+
+  -- | A required space-delimited token
   ReqTokenArg  :: String -> Arguments rest -> Arguments (String, rest)
+
+  -- | An optional space-delimited token
   OptTokenArg  :: String -> Arguments rest -> Arguments (Maybe (String, rest))
+
+  -- | Take all the remaining text in free-form
   RemainingArg :: String -> Arguments String
+
+  -- | No arguments
   NoArg        :: Arguments ()
 
--- generateHelp :: Arguments a -> String
--- generateHelp NoArg = ""
--- generateHelp (OptTokenArg name rest) = " [" ++ name ++ generateHelp rest ++ "]"
--- generateHelp (ReqTokenArg name rest) = " " ++ name ++ generateHelp rest
--- generateHelp (RemainingArg name    ) = " " ++ name ++ "..."
 
-
-
-parseArguments :: Arguments a -> String -> Maybe a
+-- | Parse the given input string using an argument specification.
+parseArguments ::
+  Arguments a {- ^ specification -} ->
+  String      {- ^ input string  -} ->
+  Maybe a     {- ^ parse results -}
 parseArguments arg xs =
   case arg of
-    NoArg          -> guard (all isSpace xs)
+    NoArg          -> guard (all (==' ') xs)
     RemainingArg _ -> Just xs
     OptTokenArg _ rest
-      | all isSpace xs -> Just Nothing
+      | all (==' ') xs -> Just Nothing
       | otherwise ->
           do let (tok, xs') = nextToken xs
              rest' <- parseArguments rest xs'
@@ -49,5 +57,6 @@ parseArguments arg xs =
              rest' <- parseArguments rest xs'
              return (tok, rest')
 
+-- | Return the next space delimited token. Leading space is dropped.
 nextToken :: String -> (String, String)
-nextToken = break isSpace . dropWhile isSpace
+nextToken = break (==' ') . dropWhile (==' ')

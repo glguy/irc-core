@@ -84,7 +84,7 @@ pIrcLine explicit fmt =
            do (numberText, colorNumbers) <- match pColorNumbers
               rest <- pIrcLine explicit (applyColors colorNumbers fmt)
               return $ if explicit
-                         then Vty.char controlAttr 'C'
+                         then controlImage '\^C'
                               Vty.<|> text' defAttr numberText
                               Vty.<|> rest
                           else rest
@@ -148,11 +148,9 @@ applyControlEffect '\^]' = Just . over fmtItalic not
 applyControlEffect '\^_' = Just . over fmtUnderline not
 applyControlEffect _     = const Nothing
 
+-- | Safely render a control character.
 controlImage :: Char -> Image
-controlImage = Vty.char controlAttr . controlName
-
-controlAttr :: Attr
-controlAttr = defAttr `withStyle` reverseVideo
-
-controlName :: Char -> Char
-controlName c = chr (ord '@' + ord c)
+controlImage = Vty.char attr . controlName
+  where
+    attr          = withStyle defAttr reverseVideo
+    controlName c = chr (ord '@' + ord c)
