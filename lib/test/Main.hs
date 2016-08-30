@@ -12,21 +12,26 @@ This module test IRC message parsing.
 module Main (main) where
 
 import qualified Data.Text as Text
+import           Data.Hashable
 import           Data.Semigroup
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
+import           Irc.Identifier
 import           System.Exit
 import           Test.HUnit
+import           Text.Read
 
 main :: IO a
 main =
-  do counts <- runTestTT tests
-     if errors counts == 0 && failures counts == 0
+  do outcome <- runTestTT tests
+     if errors outcome == 0 && failures outcome == 0
        then exitSuccess
        else exitFailure
 
 tests :: Test
-tests = test [ irc0, irc2, irc15, ircWithPrefix, ircWithTags, userInfos, renderIrc ]
+tests = test [ irc0, irc2, irc15, ircWithPrefix, ircWithTags,
+               parseUserInfos, renderUserInfos, renderIrc,
+               badRawMsgs, userInfoFields, identifierInstances ]
 
 -- | Check that we can handle commands without parameters
 irc0 :: Test
@@ -109,8 +114,43 @@ ircWithTags = test
 
   ]
 
-userInfos :: Test
-userInfos = test
+renderUserInfos :: Test
+renderUserInfos = test
+
+  [ assertEqual "missing user and hostname"
+      "glguy"
+      (renderUserInfo (UserInfo "glguy" "" ""))
+
+  , assertEqual "freenode cloak"
+      "glguy!~glguy@haskell/developer/glguy"
+      (renderUserInfo (UserInfo "glguy" "~glguy" "haskell/developer/glguy"))
+
+  , assertEqual "missing user"
+      "glguy@haskell/developer/glguy"
+      (renderUserInfo (UserInfo "glguy" "" "haskell/developer/glguy"))
+
+  , assertEqual "missing host"
+      "glguy!~glguy"
+      (renderUserInfo (UserInfo "glguy" "~glguy" ""))
+
+  , assertEqual "extra @ goes into host"
+      "nick!user@server@name"
+      (renderUserInfo (UserInfo "nick" "user" "server@name"))
+
+  , assertEqual "servername in nick"
+      "morgan.freenode.net"
+      (renderUserInfo (UserInfo "morgan.freenode.net" "" ""))
+  ]
+
+userInfoFields :: Test
+userInfoFields = test
+  [ assertEqual "nickfield" "nick" (userNick (UserInfo "nick" "user" "host"))
+  , assertEqual "userfield" "user" (userName (UserInfo "nick" "user" "host"))
+  , assertEqual "hostfield" "host" (userHost (UserInfo "nick" "user" "host"))
+  ]
+
+parseUserInfos :: Test
+parseUserInfos = test
 
   [ assertEqual "missing user and hostname"
       (UserInfo "glguy" "" "")
@@ -174,4 +214,39 @@ renderIrc = test
             { _msgTags = [TagEntry "time" "",
                           TagEntry "magic" ""] })
 
+  ]
+
+badRawMsgs :: Test
+badRawMsgs = test
+  [ assertEqual "bad prefix"
+      Nothing
+      (parseRawIrcMsg ": CMD")
+  , assertEqual "empty string"
+      Nothing
+      (parseRawIrcMsg "")
+  , assertEqual "whitespace"
+      Nothing
+      (parseRawIrcMsg "   ")
+  , assertEqual "only prefix"
+      Nothing
+      (parseRawIrcMsg ":glguy!glguy@glguy")
+  , assertEqual "only tags"
+      Nothing
+      (parseRawIrcMsg "@glguy=tester")
+  ]
+
+identifierInstances :: Test
+identifierInstances = test
+  [ assertEqual "read" (Just ("GLGUY"::Identifier)) (readMaybe "\"glguy\"")
+  , assertEqual "read2" (Just ("Glguy"::Identifier)) (readMaybe "\"glguy\"")
+  , assertEqual "show1" "\"GLguy\"" (show ("GLguy"::Identifier))
+  , assertEqual "show2" "\"glguy\"" (show ("glguy"::Identifier))
+  , assertBool "hash"  $ hash ("glguy"::Identifier) ==
+                         hash ("GLGUY"::Identifier)
+  , assertBool "lt1"   $ "glguy"  < ("tester" :: Identifier)
+  , assertBool "gt1"   $ "tester" > ("glguy" :: Identifier)
+  , assertBool "lt2"   $ "GLGUY"  < ("tester" :: Identifier)
+  , assertBool "gt2"   $ "TESTER" > ("glguy" :: Identifier)
+  , assertBool "pre"   $ idPrefix "gl" "GLGUY"
+  , assertBool "pre"   $ not $ idPrefix "glguy" "gl"
   ]
