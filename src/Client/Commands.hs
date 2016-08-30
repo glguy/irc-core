@@ -44,7 +44,6 @@ import           Data.HashMap.Strict (HashMap)
 import           Data.HashSet (HashSet)
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
-import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Monoid ((<>))
@@ -159,7 +158,7 @@ tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO CommandResult
 tabCompletion isReversed st =
   case snd $ clientLine st of
     '/':command -> executeCommand (Just isReversed) command st
-    _           -> commandSuccess (nickTabCompletion isReversed st)
+    _           -> nickTabCompletion isReversed st
 
 -- | Treat the current text input as a chat message and send it.
 executeChat :: String -> ClientState -> IO CommandResult
@@ -212,7 +211,7 @@ executeCommand tabCompleteReversed str st =
     Nothing ->
       case tabCompleteReversed of
         Nothing         -> commandFailureMsg "Unknown command" st
-        Just isReversed -> commandSuccess (nickTabCompletion isReversed st)
+        Just isReversed -> nickTabCompletion isReversed st
 
     Just (Command argSpec impl) ->
       case impl of
@@ -437,15 +436,15 @@ noChannelTab _ _ _ st _ = commandFailure st
 
 simpleClientTab :: Bool -> ClientCommand String
 simpleClientTab isReversed st _ =
-  commandSuccess (nickTabCompletion isReversed st)
+  nickTabCompletion isReversed st
 
 simpleNetworkTab :: Bool -> NetworkCommand String
 simpleNetworkTab isReversed _ st _ =
-  commandSuccess (nickTabCompletion isReversed st)
+  nickTabCompletion isReversed st
 
 simpleChannelTab :: Bool -> ChannelCommand String
 simpleChannelTab isReversed _ _ st _ =
-  commandSuccess (nickTabCompletion isReversed st)
+  nickTabCompletion isReversed st
 
 cmdExit :: ClientCommand ()
 cmdExit st _ = return (CommandQuit st)
@@ -606,13 +605,24 @@ cmdFocus st (network, mbChannel)
 cmdWindows :: ClientCommand ()
 cmdWindows st _ = commandSuccess (changeSubfocus FocusWindows st)
 
+simpleTabCompletion ::
+  Prefix a =>
+  (String -> String) {- ^ leading transform -} ->
+  [a] {- ^ hints           -} ->
+  [a] {- ^ all completions -} ->
+  Bool {- ^ reversed order -} ->
+  ClientState -> IO CommandResult
+simpleTabCompletion lead hints completions isReversed st =
+  case traverseOf clientTextBox tryCompletion st of
+    Nothing  -> commandFailure st
+    Just st' -> commandSuccess st'
+  where
+    tryCompletion = wordComplete lead isReversed hints completions
 
 -- | @/connect@ tab completes known server names
 tabConnect :: Bool -> ClientCommand String
-tabConnect isReversed st _
-  = commandSuccess
-  $ fromMaybe st
-  $ clientTextBox (wordComplete id isReversed [] networks) st
+tabConnect isReversed st _ =
+  simpleTabCompletion id [] networks isReversed st
   where
     networks = HashMap.keys $ view clientNetworkMap st
 
@@ -620,10 +630,8 @@ tabConnect isReversed st _
 -- | When tab completing the first parameter of the focus command
 -- the current networks are used.
 tabFocus :: Bool -> ClientCommand String
-tabFocus isReversed st _
-  = commandSuccess
-  $ fromMaybe st
-  $ clientTextBox (wordComplete id isReversed [] completions) st
+tabFocus isReversed st _ =
+  simpleTabCompletion id [] completions isReversed st
   where
     networks   = map mkId $ HashMap.keys $ view clientNetworkMap st
     params     = words $ uncurry take $ clientLine st
@@ -960,11 +968,9 @@ tabMode isReversed cs st rest =
               [ (pol,mode) | (pol,mode,arg) <- parsedModes, not (Text.null arg) ]
       , (pol,mode):_      <- drop (paramIndex-3) parsedModesWithParams
       , let (hint, completions) = computeModeCompletion pol mode channel cs st
-      -> commandSuccess
-       $ fromMaybe st
-       $ clientTextBox (wordComplete id isReversed hint completions) st
+      -> simpleTabCompletion id hint completions isReversed st
 
-    _ -> commandSuccess st
+    _ -> commandFailure st
 
   where
     paramIndex = length $ words $ uncurry take $ clientLine st
@@ -1037,13 +1043,12 @@ commandNameCompletion isReversed st =
 
 -- | Complete the nickname at the current cursor position using the
 -- userlist for the currently focused channel (if any)
-nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> ClientState
-nickTabCompletion isReversed st
-  = fromMaybe st
-  $ clientTextBox (wordComplete (++": ") isReversed hint completions) st
+nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO CommandResult
+nickTabCompletion isReversed st =
+  simpleTabCompletion (++": ") hint completions isReversed st
   where
-    hint        = activeNicks st
-    completions = currentCompletionList st
+    hint          = activeNicks st
+    completions   = currentCompletionList st
 
 -- | Used to send commands that require ops to perform.
 -- If this channel is one that the user has chanserv access and ops are needed

@@ -9,7 +9,8 @@ This module provides the tab-completion logic used for nicknames and channels.
 
 -}
 module Client.Commands.WordCompletion
-  ( wordComplete
+  ( Prefix
+  , wordComplete
   ) where
 
 import qualified Client.State.EditBox as Edit
