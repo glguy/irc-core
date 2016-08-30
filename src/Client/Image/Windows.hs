@@ -29,7 +29,7 @@ windowsImages st
   $ zipWith (renderWindowColumns pal) names windows
   where
     cfg     = view clientConfig st
-    windows = views clientWindows Map.toList st
+    windows = views clientWindows Map.toAscList st
 
     pal     = view configPalette cfg
     names   = views configWindowNames Text.unpack cfg ++ repeat '?'

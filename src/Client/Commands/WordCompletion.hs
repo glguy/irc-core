@@ -95,7 +95,7 @@ tabSearch isReversed pat cur vals
   , isPrefix pat next
   = Just next
 
-  | isReversed = find (isPrefix pat) (reverse (Set.toList valSet))
+  | isReversed = find (isPrefix pat) (reverse (Set.toAscList valSet))
 
   | otherwise  = do x <- Set.lookupGE pat valSet
                     guard (isPrefix pat x)
