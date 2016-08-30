@@ -986,9 +986,14 @@ activeNicks st =
         . winMessages      . folded
         . wlBody           . _IrcBody
         . folding msgActor . to userNick
-        . filtered isActive) st
+        . filtered isActive
+        . filtered isNotSelf ) st
       where
         isActive n = HashMap.member n userMap
+        self = preview ( clientConnection network . csNick ) st
+        isNotSelf n = case self of
+                        Nothing -> True
+                        Just s -> n /= s
         userMap = view ( clientConnection network
                        . csChannels . ix channel
                        . chanUsers) st
