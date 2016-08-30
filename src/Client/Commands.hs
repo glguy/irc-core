@@ -180,11 +180,6 @@ executeChat msg st =
 
     _ -> commandFailureMsg "This command requires an active channel" st
 
-splitWord :: String -> (String, String)
-splitWord str = (w, drop 1 rest)
-  where
-    (w, rest) = break isSpace str
-
 
 -- | Parse and execute the given command. When the first argument is Nothing
 -- the command is executed, otherwise the first argument is the cursor
@@ -195,7 +190,7 @@ executeCommand (Just isReversed) _ st
   | Just st' <- commandNameCompletion isReversed st = commandSuccess st'
 
 executeCommand tabCompleteReversed str st =
-  let (cmd, rest) = splitWord str
+  let (cmd, rest) = break (==' ') str
       cmdTxt      = Text.toLower (Text.pack cmd)
 
       finish spec exec tab =

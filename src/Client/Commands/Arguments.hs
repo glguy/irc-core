@@ -37,6 +37,7 @@ data ArgumentSpec :: * -> * where
 
 
 -- | Parse the given input string using an argument specification.
+-- The arguments should start with a space but might have more.
 parseArguments ::
   ArgumentSpec a {- ^ specification -} ->
   String         {- ^ input string  -} ->
@@ -44,7 +45,7 @@ parseArguments ::
 parseArguments arg xs =
   case arg of
     NoArg          -> guard (all (==' ') xs)
-    RemainingArg _ -> Just xs
+    RemainingArg _ -> Just (drop 1 xs) -- drop the leading space
     OptTokenArg _ rest ->
       do let (tok, xs') = nextToken xs
          if null tok
