@@ -60,14 +60,14 @@ renderContent pal c = (txt, wholeImg)
 
   leftCur = take (view Edit.pos cur) (view Edit.text cur)
 
-  inputLines = as ++ view Edit.text cur : bs
-
   -- ["one","two"] "three" --> "^two one three"
-  txt = '^' : foldl (\acc x -> x++' ':acc) leftCur as
+  txt = '^' : foldl (\acc x -> x ++ ' ' : acc) leftCur as
 
   wholeImg = horizCat
            $ intersperse (plainText "\n")
-           $ map (renderLine pal) inputLines
+           $ map (parseIrcTextExplicit . Text.pack) as
+          ++ renderLine pal (view Edit.text cur)
+           : map (parseIrcTextExplicit . Text.pack) bs
 
 -- | Compute the number of code-points that will be visible
 -- when the given string is truncated to fit in the given

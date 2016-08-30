@@ -12,7 +12,7 @@ by command commands as well as a way to parse those arguments.
 -}
 
 module Client.Commands.Arguments
-  ( Arguments(..)
+  ( ArgumentSpec(..)
   , parseArguments
   ) where
 
@@ -21,26 +21,26 @@ import           Control.Monad
 -- | Description of a command's arguments indexed by the result of parsing
 -- those arguments. Arguments are annotated with a 'String' describing the
 -- argument.
-data Arguments :: * -> * where
+data ArgumentSpec :: * -> * where
 
   -- | A required space-delimited token
-  ReqTokenArg  :: String -> Arguments rest -> Arguments (String, rest)
+  ReqTokenArg  :: String -> ArgumentSpec rest -> ArgumentSpec (String, rest)
 
   -- | An optional space-delimited token
-  OptTokenArg  :: String -> Arguments rest -> Arguments (Maybe (String, rest))
+  OptTokenArg  :: String -> ArgumentSpec rest -> ArgumentSpec (Maybe (String, rest))
 
   -- | Take all the remaining text in free-form
-  RemainingArg :: String -> Arguments String
+  RemainingArg :: String -> ArgumentSpec String
 
   -- | No arguments
-  NoArg        :: Arguments ()
+  NoArg        :: ArgumentSpec ()
 
 
 -- | Parse the given input string using an argument specification.
 parseArguments ::
-  Arguments a {- ^ specification -} ->
-  String      {- ^ input string  -} ->
-  Maybe a     {- ^ parse results -}
+  ArgumentSpec a {- ^ specification -} ->
+  String         {- ^ input string  -} ->
+  Maybe a        {- ^ parse results -}
 parseArguments arg xs =
   case arg of
     NoArg          -> guard (all (==' ') xs)

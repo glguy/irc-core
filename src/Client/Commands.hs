@@ -59,11 +59,12 @@ import           LensUtils
 
 -- | Possible results of running a command
 data CommandResult
+  -- | Continue running the client, consume input if command was from input
   = CommandSuccess ClientState
-    -- ^ Continue running the client, consume input if command was from input
+  -- | Continue running the client, report an error
   | CommandFailure ClientState
-    -- ^ Continue running the client, report an error
-  | CommandQuit ClientState -- ^ Client should close
+  -- | Client should close
+  | CommandQuit ClientState
 
 
 -- | Type of commands that always work
@@ -80,12 +81,17 @@ type ChannelCommand a = Identifier {- ^ focused channel -} -> NetworkCommand a
 -- The tab-completion logic is extended with a bool
 -- indicating that tab completion should be reversed
 data CommandImpl a
-  = ClientCommand  (ClientCommand  a) (Bool -> ClientCommand  String) -- ^ no requirements
-  | NetworkCommand (NetworkCommand a) (Bool -> NetworkCommand String) -- ^ requires an active network
-  | ChatCommand    (ChannelCommand a) (Bool -> ChannelCommand String) -- ^ requires an active chat window
-  | ChannelCommand (ChannelCommand a) (Bool -> ChannelCommand String) -- ^ requires an active channel window
+  -- | no requirements
+  = ClientCommand  (ClientCommand  a) (Bool -> ClientCommand  String)
+  -- | requires an active network
+  | NetworkCommand (NetworkCommand a) (Bool -> NetworkCommand String)
+  -- | requires an active chat window
+  | ChatCommand    (ChannelCommand a) (Bool -> ChannelCommand String)
+  -- | requires an active channel window
+  | ChannelCommand (ChannelCommand a) (Bool -> ChannelCommand String)
 
-data Command = forall a.  Command (Arguments a) (CommandImpl a)
+-- | Pair of a command and it's argument specification
+data Command = forall a.  Command (ArgumentSpec a) (CommandImpl a)
 
 -- | Consider the text entry successful and resume the client
 commandSuccess :: Monad m => ClientState -> m CommandResult

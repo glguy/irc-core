@@ -33,12 +33,12 @@ plainText xs =
                           controlImage cntl <|>
                           plainText rest
 
-argumentsImage :: Palette -> Arguments a -> String -> Image
-argumentsImage pal arg xs
-  | all (==' ') xs =
-      placeholder <|> string defAttr (drop (imageWidth placeholder) xs)
+argumentsImage :: Palette -> ArgumentSpec a -> String -> Image
+argumentsImage pal spec xs
+  | all (==' ') xs = placeholders
+                 <|> string defAttr (drop (imageWidth placeholders) xs)
   | otherwise =
-     case arg of
+     case spec of
        NoArg           -> plainText xs
        ReqTokenArg _ a -> plainText token <|> argumentsImage pal a xs'
        OptTokenArg _ a -> plainText token <|> argumentsImage pal a xs'
@@ -49,18 +49,20 @@ argumentsImage pal arg xs
     (token1,(token2,xs')) =
          break (==' ') <$> span (==' ') xs
 
-    placeholder = mkPlaceholder pal arg
+    placeholders = mkPlaceholders pal spec
 
-mkPlaceholder :: Palette -> Arguments a -> Image
-mkPlaceholder pal arg =
+-- | Construct an 'Image' containing placeholders for each
+-- of the remaining arguments.
+mkPlaceholders :: Palette -> ArgumentSpec a -> Image
+mkPlaceholders pal arg =
   case arg of
     NoArg           -> emptyImage
     ReqTokenArg n a -> leader
                    <|> string (view palCommandRequired pal) n
-                   <|> mkPlaceholder pal a
+                   <|> mkPlaceholders pal a
     OptTokenArg n a -> leader
                    <|> string (view palCommandOptional pal) n
-                   <|> mkPlaceholder pal a
+                   <|> mkPlaceholders pal a
     RemainingArg n  -> leader
                    <|> string (view palCommandRemaining pal) n
   where
