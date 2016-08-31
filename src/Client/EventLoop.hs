@@ -147,13 +147,26 @@ doNetworkError networkId time ex st =
                  }
 
          shouldReconnect
+           | PingConnecting n _ <- view csPingStatus cs
+           , n > 6                                                  = False
            | Just PingTimeout      <-              fromException ex = True
            | Just ResourceVanished <- ioe_type <$> fromException ex = True
            | otherwise                                              = False
 
+         reconnect st2 = do
+           conInfo <- case view csPingStatus cs of
+                        PingSent tm -> pure (1, Just $ addUTCTime (-60) tm)
+                        PingConnecting n tm -> pure $ (n+1, tm)
+                        _ | Just tm <- view csNextPingTime cs ->
+                              pure (1, Just $ addUTCTime (-60) tm)
+                          | otherwise ->
+                              (,) 1 . Just <$> getCurrentTime
+           addConnection conInfo (view csNetwork cs) st2
+
          nextAction
-           | shouldReconnect = addConnection (view csNetwork cs)
+           | shouldReconnect = reconnect
            | otherwise       = return
+
 
      eventLoop =<< nextAction (recordNetworkMessage msg st1)
 
