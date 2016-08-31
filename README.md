@@ -5,6 +5,39 @@ My IRC client
 
 ![](https://raw.githubusercontent.com/wiki/glguy/irc-core/images/screenshot.png)
 
+Building
+========
+
+Note that glirc currently requires GHC 8.0.1
+
+glirc uses recent versions of packages, make sure you package databases are
+up-to-date:
+
+```
+$ cabal update # if you're using cabal
+$ stack update # if you're using stack
+```
+
+To install the latest version from Hackage using cabal-install:
+
+```
+$ cabal install glirc
+```
+
+Building with cabal-install from source checkout
+
+```
+$ cabal install --dep
+$ cabal build
+```
+
+Building with stack using ghc-8 resolver (nightly resolvers can work using --solver)
+
+```
+$ stack init --resolver=ghc-8
+$ stack build
+```
+
 Client Features
 ===============
 
