@@ -43,12 +43,15 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import           Data.Time
-import           GHC.IO.Exception (IOErrorType(ResourceVanished), ioe_type)
+import           GHC.IO.Exception (IOErrorType(..), ioe_type)
 import           Graphics.Vty
 import           Irc.Codes
 import           Irc.Message
 import           Irc.RawIrcMsg
+import           Network.Connection
 
+reconnectAttempts :: Int
+reconnectAttempts = 6
 
 -- | Sum of the three possible event types the event loop handles
 data ClientEvent
@@ -146,12 +149,19 @@ doNetworkError networkId time ex st =
                  , _msgBody    = ErrorBody (Text.pack (displayException ex))
                  }
 
-         shouldReconnect
-           | PingConnecting n _ <- view csPingStatus cs
-           , n > 6                                                  = False
-           | Just PingTimeout      <-              fromException ex = True
-           | Just ResourceVanished <- ioe_type <$> fromException ex = True
-           | otherwise                                              = False
+         shouldReconnect =
+           case view csPingStatus cs of
+             PingConnecting n _
+               | n == 0 || n > reconnectAttempts -> False
+
+             _ | Just HostNotResolved{}   <-              fromException ex -> True
+               | Just HostCannotConnect{} <-              fromException ex -> True
+               | Just PingTimeout         <-              fromException ex -> True
+               | Just ResourceVanished    <- ioe_type <$> fromException ex -> True
+               | Just NoSuchThing         <- ioe_type <$> fromException ex -> True
+
+               | otherwise -> False
+
 
          reconnect st2 = do
            conInfo <- case view csPingStatus cs of
