@@ -94,12 +94,12 @@ Learn more about this file format at [config-value](http://hackage.haskell.org/p
 ```
 -- Defaults used when not specified on command line
 defaults:
-  port:            6667
   nick:            "yournick"
   username:        "yourusername"
   realname:        "Your real name"
   password:        "IRC server password"
   tls:             yes -- or: yes-insecure or no
+                       -- enabling tls automatically uses port 6697
   tls-client-cert: "/path/to/cert.pem"
   tls-client-key:  "/path/to/cert.key"
 
@@ -113,7 +113,7 @@ servers:
 
   * name: "example"
     hostname:      "example.com"
-    port:          7000
+    port:          7000 -- override the default port
     connect-cmds:
       * "join #favoritechannel,#otherchannel"
       * "msg mybot another command"
