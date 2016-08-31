@@ -619,7 +619,8 @@ tabConnect :: Bool -> ClientCommand String
 tabConnect isReversed st _ =
   simpleTabCompletion id [] networks isReversed st
   where
-    networks = HashMap.keys $ view clientNetworkMap st
+    networks = views clientNetworkMap               HashMap.keys st
+            ++ views (clientConfig . configServers) HashMap.keys st
 
 
 -- | When tab completing the first parameter of the focus command

@@ -1,4 +1,7 @@
-.PHONY: clean macosx linux
+.PHONY: help clean macosx linux
+
+help:
+	@echo 'Please use "make macosx" or "make linux"'
 
 macosx: glirc-lua.dylib
 linux:  glirc-lua.so
