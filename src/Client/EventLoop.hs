@@ -19,6 +19,7 @@ import           Client.CApi
 import           Client.Commands
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
+import           Client.EventLoop.Errors (exceptionToLines)
 import           Client.Hook
 import           Client.Hooks
 import           Client.Image
@@ -143,11 +144,14 @@ doNetworkError ::
   ClientState -> IO ()
 doNetworkError networkId time ex st =
   do let (cs,st1) = removeNetwork networkId st
-         msg = ClientMessage
+         st2 = foldl' (flip recordNetworkMessage) st1 msgs
+
+         msgs = [ ClientMessage
                  { _msgTime    = time
                  , _msgNetwork = view csNetwork cs
-                 , _msgBody    = ErrorBody (Text.pack (displayException ex))
+                 , _msgBody    = ErrorBody (Text.pack e)
                  }
+                | e <- exceptionToLines ex ]
 
          shouldReconnect =
            case view csPingStatus cs of
@@ -163,7 +167,7 @@ doNetworkError networkId time ex st =
                | otherwise -> False
 
 
-         reconnect st2 = do
+         reconnect = do
            (delaySecs, mbDisconnectTime)
               <- case view csPingStatus cs of
                    PingSent tm -> pure (1, Just (addUTCTime (-60) tm))
@@ -177,10 +181,9 @@ doNetworkError networkId time ex st =
 
          nextAction
            | shouldReconnect = reconnect
-           | otherwise       = return
+           | otherwise       = return st2
 
-
-     eventLoop =<< nextAction (recordNetworkMessage msg st1)
+     eventLoop =<< nextAction
 
 
 -- | Respond to an IRC protocol line. This will parse the message, updated the

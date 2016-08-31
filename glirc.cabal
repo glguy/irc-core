@@ -62,6 +62,7 @@ library
                        Client.Configuration.Colors
                        Client.Configuration.ServerSettings
                        Client.EventLoop
+                       Client.EventLoop.Errors
                        Client.Hook
                        Client.Hook.Znc.Buffextras
                        Client.Hooks
