@@ -124,3 +124,11 @@ library
                        x509                 >=1.6.3  && <1.7,
                        x509-store           >=1.6.1  && <1.7,
                        x509-system          >=1.6.3  && <1.7
+
+test-suite test
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  hs-source-dirs:      test
+  build-depends:       base, glirc,
+                       HUnit                >=1.3 && <1.4
+  default-language:    Haskell2010
