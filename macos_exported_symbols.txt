@@ -1,0 +1,9 @@
+_glirc_send_message
+_glirc_print
+_glirc_identifier_cmp
+_glirc_list_networks
+_glirc_list_channels
+_glirc_list_channel_users
+_glirc_my_nick
+_glirc_mark_seen
+_glirc_clear_window

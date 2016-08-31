@@ -17,7 +17,6 @@ import Data.Text (Text)
 import System.Exit
 import System.IO
 
-import Client.CApi.Exports () -- foreign exports
 import Client.CommandArguments
 import Client.Configuration
 import Client.EventLoop
