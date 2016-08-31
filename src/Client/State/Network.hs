@@ -124,9 +124,7 @@ data PingStatus
   = PingSent    !UTCTime -- ^ ping sent waiting for pong
   | PingLatency !Double -- ^ latency in seconds for last ping
   | PingNever -- ^ no ping sent
-  | PingConnecting
-      !Int -- ^ number of attempts
-      !(Maybe UTCTime) -- ^ last known connection time
+  | PingConnecting !Int !(Maybe UTCTime) -- ^ number of attempts, last known connection time
   deriving Show
 
 data Transaction
