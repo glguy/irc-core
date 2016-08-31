@@ -31,9 +31,6 @@ executable glirc2
   ghc-options:         -threaded -rtsopts
 
   hs-source-dirs:      .
-  include-dirs:        include
-  includes:            include/glirc-api.h
-  install-includes:    include/glirc-api.h
   default-language:    Haskell2010
 
   if os(Linux)
