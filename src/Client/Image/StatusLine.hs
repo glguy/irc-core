@@ -70,7 +70,7 @@ latencyImage st
     PingConnecting n _ -> horizCat . fmap (string defAttr) $
       [ "─(Connecting" ] ++
       (if n > 0
-          then [": ", show n, "retr", if n == 1 then "y" else "ies"]
+          then [": ", show n, " retr", if n == 1 then "y" else "ies"]
           else []) ++
       [ ")" ]
   | otherwise = emptyImage
