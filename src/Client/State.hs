@@ -505,8 +505,14 @@ removeNetwork networkId st =
           Just i | i == networkId -> (cs,Nothing)
           _                       -> (cs,mb)
 
-addConnection :: (Int, Maybe UTCTime) -> Text -> ClientState -> IO ClientState
-addConnection (attempts, lastTime) network st =
+-- | Start a new connection. The delay is used for reconnections.
+addConnection ::
+  Int           {- ^ delay in seconds         -} ->
+  Maybe UTCTime {- ^ optional disconnect time -} ->
+  Text          {- ^ network name             -} ->
+  ClientState ->
+  IO ClientState
+addConnection attempts lastTime network st =
   do let defSettings = (view (clientConfig . configDefaults) st)
                      { _ssName = Just network
                      , _ssHostName = Text.unpack network

@@ -61,29 +61,27 @@ latencyImage st
   , Just cs      <- preview (clientConnection network) st =
   case view csPingStatus cs of
     PingNever -> emptyImage
-    PingSent {} -> emptyImage
-    PingLatency delta -> horizCat
-      [ string defAttr "─("
-      , string (view palLatency pal) (showFFloat (Just 2) delta "s")
-      , string defAttr ")"
-      ]
-    PingConnecting n _ -> horizCat . fmap (string defAttr) $
-      [ "─(Connecting" ] ++
-      (if n > 0
-          then [": ", show n, " retr", if n == 1 then "y" else "ies"]
-          else []) ++
-      [ ")" ]
+    PingSent {} -> infoBubble (string (view palLatency pal) "sent")
+    PingLatency delta ->
+      infoBubble (string (view palLatency pal) (showFFloat (Just 2) delta "s"))
+    PingConnecting n _ ->
+      infoBubble (string (view palLabel pal) "connecting" <|> retryImage)
+      where
+        retryImage
+          | n > 0 = string defAttr ": " <|>
+                    string (view palLabel pal)
+                       (shows n (if n == 1 then "retry" else "retries"))
+          | otherwise = emptyImage
   | otherwise = emptyImage
   where
     pal = view (clientConfig . configPalette) st
 
+infoBubble :: Image -> Image
+infoBubble img = string defAttr "─(" <|> img <|> string defAttr ")"
+
 detailImage :: ClientState -> Image
 detailImage st
-  | view clientDetailView st = horizCat
-      [ string defAttr "─("
-      , string attr "detail"
-      , string defAttr ")"
-      ]
+  | view clientDetailView st = infoBubble (string attr "detail")
   | otherwise = emptyImage
   where
     attr = view (clientConfig . configPalette . palLabel) st
