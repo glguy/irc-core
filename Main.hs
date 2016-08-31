@@ -62,5 +62,5 @@ addInitialNetworks networks st =
   case networks of
     []        -> return st
     network:_ ->
-      do st' <- foldM (flip addConnection) st networks
+      do st' <- foldM (flip $ addConnection (0,Nothing)) st networks
          return (set clientFocus (NetworkFocus network) st')

@@ -98,15 +98,18 @@ abortConnection reason c = cancelWith (connAsync c) reason
 -- 'NetworkConnection' value can be used for sending outgoing messages and for
 -- early termination of the connection.
 createConnection ::
+  Int {- ^ delay in seconds -} ->
   NetworkId {- ^ Identifier to be used on incoming events -} ->
   ConnectionContext ->
   ServerSettings ->
   TQueue NetworkEvent {- Queue for incoming events -} ->
   IO NetworkConnection
-createConnection network cxt settings inQueue =
+createConnection delay network cxt settings inQueue =
    do outQueue <- atomically newTQueue
 
-      supervisor <- async (startConnection network cxt settings inQueue outQueue)
+      supervisor <- async $
+                      threadDelay (delay * 1000000) >>
+                      startConnection network cxt settings inQueue outQueue
 
       -- Having this reporting thread separate from the supervisor ensures
       -- that canceling the supervisor with abortConnection doesn't interfere

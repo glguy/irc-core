@@ -124,6 +124,9 @@ data PingStatus
   = PingSent    !UTCTime -- ^ ping sent waiting for pong
   | PingLatency !Double -- ^ latency in seconds for last ping
   | PingNever -- ^ no ping sent
+  | PingConnecting
+      !Int -- ^ number of attempts
+      !(Maybe UTCTime) -- ^ last known connection time
   deriving Show
 
 data Transaction
@@ -186,8 +189,9 @@ newNetworkState ::
   Text ->
   ServerSettings ->
   NetworkConnection ->
+  PingStatus ->
   NetworkState
-newNetworkState networkId network settings sock = NetworkState
+newNetworkState networkId network settings sock ping = NetworkState
   { _csNetworkId    = networkId
   , _csUserInfo     = UserInfo (mkId (view ssNick settings)) "" ""
   , _csChannels     = HashMap.empty
@@ -201,7 +205,7 @@ newNetworkState networkId network settings sock = NetworkState
   , _csModeCount    = 3
   , _csUsers        = HashMap.empty
   , _csNetwork      = network
-  , _csPingStatus   = PingNever
+  , _csPingStatus   = ping
   , _csNextPingTime = Nothing
   , _csMessageHooks = view ssMessageHooks settings
   }
@@ -272,6 +276,7 @@ doWelcome msgWhen me
   = noReply
   . set csNick me
   . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
+  . set csPingStatus PingNever
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> NetworkState -> NetworkState
 doTopic when user chan topic =
@@ -765,6 +770,7 @@ nextTimedAction cs =
         PingSent{}    -> TimedDisconnect
         PingLatency{} -> TimedSendPing
         PingNever     -> TimedSendPing
+        PingConnecting{} -> TimedSendPing
 
 doPong :: ZonedTime -> NetworkState -> NetworkState
 doPong when cs = set csPingStatus (PingLatency delta) cs

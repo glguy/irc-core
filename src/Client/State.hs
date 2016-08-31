@@ -505,8 +505,8 @@ removeNetwork networkId st =
           Just i | i == networkId -> (cs,Nothing)
           _                       -> (cs,mb)
 
-addConnection :: Text -> ClientState -> IO ClientState
-addConnection network st =
+addConnection :: (Int, Maybe UTCTime) -> Text -> ClientState -> IO ClientState
+addConnection (attempts, lastTime) network st =
   do let defSettings = (view (clientConfig . configDefaults) st)
                      { _ssName = Just network
                      , _ssHostName = Text.unpack network
@@ -516,13 +516,15 @@ addConnection network st =
                   $ preview (clientConfig . configServers . ix network) st
 
      let (i,st') = st & clientNextConnectionId <+~ 1
+         delay = 15 * attempts
      c <- createConnection
+            delay
             i
             (view clientConnectionContext st')
             settings
             (view clientEvents st')
 
-     let cs = newNetworkState i network settings c
+     let cs = newNetworkState i network settings c (PingConnecting attempts lastTime)
      traverse_ (sendMsg cs) (initialMessages cs)
 
      return $ set (clientNetworkMap . at network) (Just i)

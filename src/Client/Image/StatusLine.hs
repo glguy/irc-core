@@ -67,6 +67,12 @@ latencyImage st
       , string (view palLatency pal) (showFFloat (Just 2) delta "s")
       , string defAttr ")"
       ]
+    PingConnecting n _ -> horizCat . fmap (string defAttr) $
+      [ "─(Connecting" ] ++
+      (if n > 0
+          then [": ", show n, "retr", if n == 1 then "y" else "ies"]
+          else []) ++
+      [ ")" ]
   | otherwise = emptyImage
   where
     pal = view (clientConfig . configPalette) st
