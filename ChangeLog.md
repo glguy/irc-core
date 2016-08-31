@@ -4,6 +4,8 @@
 
 * Remove `tls-insecure` configuration option in favor of `tls: yes-insecure`
 * Implement fancy command placeholder rendering and argument parsing
+* Improved reconnect logic
+* Improved connection error messages
 
 ## 2.11
 
