@@ -111,6 +111,7 @@ glirc_send_message token msgPtr =
 
 ------------------------------------------------------------------------
 
+-- | Print a message or error to the client window
 type Glirc_print =
   Ptr ()  {- ^ api token         -} ->
   MessageCode {- ^ enum message_code -} ->
@@ -158,6 +159,10 @@ glirc_list_networks stab =
 
 ------------------------------------------------------------------------
 
+-- | Case insensitive comparison suitable for use on channels and nicknames.
+-- Returns -1 if the first identifier is less than the second
+-- Returns 0 if the first identifier is equal to the second
+-- Returns 1 if the first identifier is greater than the second
 type Glirc_identifier_cmp =
   CString {- ^ identifier 1     -} ->
   CSize   {- ^ identifier 1 len -} ->

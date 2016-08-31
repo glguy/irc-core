@@ -168,7 +168,7 @@ doNetworkError networkId time ex st =
 
 
          reconnect = do
-           (delaySecs, mbDisconnectTime)
+           (attempts, mbDisconnectTime)
               <- case view csPingStatus cs of
                    PingSent tm -> pure (1, Just (addUTCTime (-60) tm))
                    PingConnecting n tm -> pure (n+1, tm)
@@ -177,7 +177,7 @@ doNetworkError networkId time ex st =
                      | otherwise ->
                         do now <- getCurrentTime
                            pure (1, Just now)
-           addConnection delaySecs mbDisconnectTime (view csNetwork cs) st2
+           addConnection attempts mbDisconnectTime (view csNetwork cs) st2
 
          nextAction
            | shouldReconnect = reconnect

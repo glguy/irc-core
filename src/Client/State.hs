@@ -507,7 +507,7 @@ removeNetwork networkId st =
 
 -- | Start a new connection. The delay is used for reconnections.
 addConnection ::
-  Int           {- ^ delay in seconds         -} ->
+  Int           {- ^ attempts                 -} ->
   Maybe UTCTime {- ^ optional disconnect time -} ->
   Text          {- ^ network name             -} ->
   ClientState ->
@@ -522,7 +522,8 @@ addConnection attempts lastTime network st =
                   $ preview (clientConfig . configServers . ix network) st
 
      let (i,st') = st & clientNextConnectionId <+~ 1
-         delay = 15 * attempts
+         -- don't bother delaying on the first reconnect
+         delay = 15 * max 0 (attempts - 1)
      c <- createConnection
             delay
             i

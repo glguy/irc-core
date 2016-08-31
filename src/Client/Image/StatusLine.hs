@@ -29,6 +29,7 @@ import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier, idText)
 import           Numeric
 
+-- | Renders the status line between messages and the textbox.
 statusLineImage :: ClientState -> Image
 statusLineImage st
   = content <|> charFill defAttr '─' fillSize 1

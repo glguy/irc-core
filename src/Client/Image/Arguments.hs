@@ -9,6 +9,7 @@ Maintainer  : emertens@gmail.com
 
 This module provides image rendering for the textbox in the
 context of command argument processing.
+
 -}
 
 module Client.Image.Arguments
@@ -24,6 +25,9 @@ import           Data.Char
 import qualified Data.Text as Text
 import           Graphics.Vty.Image
 
+-- | Render a 'String' with default attributes and replacing all of the
+-- control characters with reverse-video letters corresponding to caret
+-- notation.
 plainText :: String -> Image
 plainText "" = emptyImage
 plainText xs =
@@ -33,6 +37,11 @@ plainText xs =
                           controlImage cntl <|>
                           plainText rest
 
+-- | Parse command arguments against a given 'ArgumentSpec'.
+-- The given text will be rendered and then any missing arguments
+-- will be indicated by extra placeholder values appended onto the
+-- image. Parameters are rendered with 'plainText' except for
+-- the case of 'RemainingArg' which supports WYSIWYG.
 argumentsImage :: Palette -> ArgumentSpec a -> String -> Image
 argumentsImage pal spec xs
   | all (==' ') xs = placeholders

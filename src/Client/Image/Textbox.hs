@@ -11,7 +11,9 @@ This module provides the renderer for the client's text box input.
 
 -}
 
-module Client.Image.Textbox where
+module Client.Image.Textbox
+  ( textboxImage
+  ) where
 
 import           Client.Configuration
 import           Client.Commands
@@ -27,7 +29,10 @@ import           Data.List
 import qualified Data.Text as Text
 import           Graphics.Vty.Image
 
-textboxImage :: ClientState -> (Int, Image)
+-- | Compute the UI image for the text input box. This computes
+-- the logical cursor position on the screen to compensate for
+-- VTY's cursor placement behavior.
+textboxImage :: ClientState -> (Int, Image) -- ^ cursor column, image
 textboxImage st
   = (pos, croppedImage)
   where
@@ -51,7 +56,13 @@ textboxImage st
   beginning = char attr '^'
   ending    = char attr '$'
 
-renderContent :: Palette -> Edit.Content -> (String, Image)
+-- | Renders the whole, uncropped text box as well as the 'String'
+-- corresponding to the rendered image which can be used for computing
+-- the logical cursor position of the cropped version of the text box.
+renderContent ::
+  Palette         {- ^ palette                               -} ->
+  Edit.Content    {- ^ content                               -} ->
+  (String, Image) {- ^ plain text rendering, image rendering -}
 renderContent pal c = (txt, wholeImg)
   where
   as  = reverse (view Edit.above c)
@@ -99,6 +110,8 @@ myWcswidth :: String -> Int
 myWcswidth = sum . map myWcwidth
 
 
+-- | Render the active text box line using command highlighting and
+-- placeholders, and WYSIWYG mIRC formatting control characters.
 renderLine :: Palette -> String -> Image
 
 renderLine pal ('/':xs)
