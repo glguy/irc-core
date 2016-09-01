@@ -14,28 +14,14 @@ context of command argument processing.
 
 module Client.Image.Arguments
   ( argumentsImage
-  , plainText
   ) where
 
 import           Client.Commands.Arguments
 import           Client.Image.MircFormatting
 import           Client.Image.Palette
 import           Control.Lens
-import           Data.Char
 import qualified Data.Text as Text
 import           Graphics.Vty.Image
-
--- | Render a 'String' with default attributes and replacing all of the
--- control characters with reverse-video letters corresponding to caret
--- notation.
-plainText :: String -> Image
-plainText "" = emptyImage
-plainText xs =
-  case break isControl xs of
-    (first, ""       ) -> string defAttr first
-    (first, cntl:rest) -> string defAttr first <|>
-                          controlImage cntl <|>
-                          plainText rest
 
 -- | Parse command arguments against a given 'ArgumentSpec'.
 -- The given text will be rendered and then any missing arguments

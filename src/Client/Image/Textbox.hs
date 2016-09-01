@@ -40,13 +40,13 @@ textboxImage st
   (txt, content) =
      views (clientTextBox . Edit.content) (renderContent pal) st
 
-  pos = computeCharWidth (width-1) txt
+  pos = min (width-1) leftOfCurWidth
 
   pal = view (clientConfig . configPalette) st
 
   lineImage = beginning <|> content <|> ending
 
-  leftOfCurWidth = myWcswidth txt
+  leftOfCurWidth = myWcswidth ('^':txt)
 
   croppedImage
     | leftOfCurWidth < width = lineImage
@@ -69,33 +69,18 @@ renderContent pal c = (txt, wholeImg)
   bs  = view Edit.below c
   cur = view Edit.line c
 
+  curTxt  = view Edit.text cur
   leftCur = take (view Edit.pos cur) (view Edit.text cur)
 
-  -- ["one","two"] "three" --> "^two one three"
-  txt = '^' : foldl (\acc x -> x ++ ' ' : acc) leftCur as
+  -- ["one","two"] "three" --> "two one three"
+  txt = foldl (\acc x -> x ++ ' ' : acc) leftCur as
 
   wholeImg = horizCat
            $ intersperse (plainText "\n")
-           $ map (parseIrcTextExplicit . Text.pack) as
-          ++ renderLine pal (view Edit.text cur)
-           : map (parseIrcTextExplicit . Text.pack) bs
+           $ map renderOtherLine as
+          ++ renderLine pal curTxt
+           : map renderOtherLine bs
 
--- | Compute the number of code-points that will be visible
--- when the given string is truncated to fit in the given
--- number of terminal columns.
-computeCharWidth ::
-  Int    {- ^ rendered width           -} ->
-  String {- ^ input string             -} ->
-  Int    {- ^ codepoints that will fit -}
-computeCharWidth = go 0
-  where
-    go !acc _ [] = acc
-    go acc 0 _ = acc
-    go acc w (x:xs)
-      | z > w = acc + w -- didn't fit, will be filled in
-      | otherwise = go (acc+1) (w-z) xs
-      where
-        z = myWcwidth x
 
 -- | Version of 'wcwidth' that accounts for how control characters are
 -- rendered
@@ -109,6 +94,10 @@ myWcwidth x
 myWcswidth :: String -> Int
 myWcswidth = sum . map myWcwidth
 
+
+-- | Render an unfocused line
+renderOtherLine :: String -> Image
+renderOtherLine = parseIrcTextExplicit . Text.pack
 
 -- | Render the active text box line using command highlighting and
 -- placeholders, and WYSIWYG mIRC formatting control characters.

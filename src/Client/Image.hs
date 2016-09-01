@@ -37,7 +37,7 @@ clientPicture st = (pic, st')
     where
       (pos, img, st') = clientImage st
       pic = Picture
-              { picCursor     = Cursor pos (view clientHeight st - 1)
+              { picCursor     = AbsoluteCursor pos (view clientHeight st - 1)
               , picBackground = ClearBackground
               , picLayers     = [img]
               }

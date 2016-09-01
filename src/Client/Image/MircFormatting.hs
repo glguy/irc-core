@@ -13,6 +13,7 @@ This module parses mIRC encoded text and generates VTY images.
 module Client.Image.MircFormatting
   ( parseIrcText
   , parseIrcTextExplicit
+  , plainText
   , controlImage
   ) where
 
@@ -64,8 +65,8 @@ parseIrcTextExplicit :: Text -> Image
 parseIrcTextExplicit = parseIrcText' True
 
 parseIrcText' :: Bool -> Text -> Image
-parseIrcText' explicit = either (Vty.string defAttr) id
-                      . parseOnly (pIrcLine explicit defaultFormatState)
+parseIrcText' explicit = either plainText id
+                       . parseOnly (pIrcLine explicit defaultFormatState)
 
 data Segment = TextSegment Text | ControlSegment Char
 
@@ -157,3 +158,16 @@ controlImage = Vty.char attr . controlName
     controlName c
       | c < '\128' = chr (0x40 `xor` ord c)
       | otherwise  = '!'
+
+-- | Render a 'String' with default attributes and replacing all of the
+-- control characters with reverse-video letters corresponding to caret
+-- notation.
+plainText :: String -> Image
+plainText "" = emptyImage
+plainText xs =
+  case break isControl xs of
+    (first, ""       ) -> Vty.string defAttr first
+    (first, cntl:rest) -> Vty.string defAttr first Vty.<|>
+                          controlImage cntl Vty.<|>
+                          plainText rest
+
