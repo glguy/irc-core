@@ -76,6 +76,8 @@ import qualified Data.Map.Strict as Map
 import           Data.Bits
 import           Data.Foldable
 import           Data.List
+import           Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -191,7 +193,7 @@ newNetworkState ::
   NetworkState
 newNetworkState networkId network settings sock ping = NetworkState
   { _csNetworkId    = networkId
-  , _csUserInfo     = UserInfo (mkId (view ssNick settings)) "" ""
+  , _csUserInfo     = UserInfo (mkId (views ssNicks NonEmpty.head settings)) "" ""
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
   , _csChannelTypes = "#&"
@@ -255,6 +257,8 @@ applyMessage msgWhen msg cs =
     Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
     Reply RPL_SASLSUCCESS _ -> ([ircCapEnd], cs)
     Reply RPL_SASLFAIL _ -> ([ircCapEnd], cs)
+    Reply ERR_NICKNAMEINUSE (_:badnick:_)
+      | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
     Reply code args        -> noReply (doRpl code msgWhen args cs)
     Cap cmd params         -> doCap cmd params cs
     Authenticate param     -> doAuthenticate param cs
@@ -275,6 +279,16 @@ doWelcome msgWhen me
   . set csNick me
   . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
   . set csPingStatus PingNever
+
+doBadNick ::
+  Text {- ^ bad nickname -} ->
+  NetworkState ->
+  ([RawIrcMsg], NetworkState)
+doBadNick badNick cs =
+  case NonEmpty.dropWhile (badNick/=) (view (csSettings . ssNicks) cs) of
+    _:next:_ -> ([ircNick nextId], set csNick nextId cs)
+      where nextId = mkId next
+    _        -> ([], cs)
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> NetworkState -> NetworkState
 doTopic when user chan topic =

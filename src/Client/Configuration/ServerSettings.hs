@@ -16,7 +16,7 @@ module Client.Configuration.ServerSettings
   (
   -- * Server settings type
     ServerSettings(..)
-  , ssNick
+  , ssNicks
   , ssUser
   , ssReal
   , ssUserInfo
@@ -48,6 +48,8 @@ module Client.Configuration.ServerSettings
 
 import           Client.Commands.Interpolation
 import           Control.Lens
+import           Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -57,7 +59,7 @@ import           System.Environment
 
 -- | Static server-level settings
 data ServerSettings = ServerSettings
-  { _ssNick             :: !Text -- ^ connection nickname
+  { _ssNicks            :: !(NonEmpty Text) -- ^ connection nicknames
   , _ssUser             :: !Text -- ^ connection username
   , _ssReal             :: !Text -- ^ connection realname / GECOS
   , _ssUserInfo         :: !Text -- ^ CTCP userinfo
@@ -98,7 +100,7 @@ loadDefaultServerSettings =
   do env  <- getEnvironment
      let username = Text.pack (fromMaybe "guest" (lookup "USER" env))
      return ServerSettings
-       { _ssNick          = username
+       { _ssNicks         = username NonEmpty.:| []
        , _ssUser          = username
        , _ssReal          = username
        , _ssUserInfo      = username
