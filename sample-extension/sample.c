@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <string.h>
 
 #include "glirc-api.h"
 
@@ -13,12 +12,12 @@ static void stop(void *glirc, void * S) {
         fclose(file);
 }
 
-static void process_message(void *glirc, void *S, const struct glirc_message *msg) {
+static enum process_result process_message(void *glirc, void *S, const struct glirc_message *msg) {
         FILE *file = S;
-        char *cmd  = strndup(msg->command.str, msg->command.len);
-        fprintf(file, "%s\n", cmd);
+        fwrite(msg->command.str, 1, msg->command.len, file);
+        fputs("\n",file);
         fflush(file);
-        free(cmd);
+        return PASS_MESSAGE;
 }
 
 struct glirc_extension extension = {
