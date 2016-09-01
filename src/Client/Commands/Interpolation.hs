@@ -15,7 +15,6 @@ module Client.Commands.Interpolation
   ( ExpansionChunk(..)
   , parseExpansion
   , resolveMacroExpansions
-  , resolveCommandExpansions
   ) where
 
 import           Control.Applicative
@@ -72,10 +71,3 @@ resolveMacroExpansions var arg xs = Text.concat <$> traverse resolve1 xs
     resolve1 (VariableChunk v)  = var v
     resolve1 (IntegerChunk i)   = arg i
     resolve1 (DefaultChunk p q) = resolve1 p <|> resolve1 q
-
-resolveCommandExpansions
-  :: (Text -> Maybe Text) -- ^ variable resolution
-  -> Text
-  -> Maybe Text
-resolveCommandExpansions var cmd =
-  parseExpansion cmd >>= resolveMacroExpansions var (const Nothing)

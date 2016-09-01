@@ -17,6 +17,7 @@ module Client.EventLoop
 
 import           Client.CApi
 import           Client.Commands
+import           Client.Commands.Interpolation
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Errors (exceptionToLines)
@@ -267,17 +268,21 @@ processConnectCmd ::
   ZonedTime       {- ^ now             -} ->
   NetworkState    {- ^ current network -} ->
   ClientState                             ->
-  Text            {- ^ command         -} ->
+  [ExpansionChunk]{- ^ command         -} ->
   IO ClientState
 processConnectCmd now cs st0 cmdTxt =
   do dc <- forM disco $ \utc ->
              Text.pack . formatTime defaultTimeLocale "%H:%M:%S"
                <$> utcToLocalZonedTime utc
-     res <- executeUserCommand dc (Text.unpack cmdTxt) st0
-     return $! case res of
-       CommandFailure st -> reportConnectCmdError now cs cmdTxt st
-       CommandSuccess st -> st
-       CommandQuit    st -> st -- not supported
+     let failureCase = reportConnectCmdError now cs
+     case resolveMacroExpansions (commandExpansion dc st0) (const Nothing) cmdTxt of
+       Nothing -> return $! failureCase "Unable to expand connect command" st0
+       Just cmdTxt' ->
+         do res <- executeUserCommand dc (Text.unpack cmdTxt') st0
+            return $! case res of
+              CommandFailure st -> failureCase cmdTxt' st
+              CommandSuccess st -> st
+              CommandQuit    st -> st -- not supported
  where
  disco = case view csPingStatus cs of
    PingConnecting _ tm -> tm

@@ -15,6 +15,7 @@ module Client.Commands
   ( CommandResult(..)
   , execute
   , executeUserCommand
+  , commandExpansion
   , tabCompletion
   -- * Commands
   , Command(..)
@@ -124,28 +125,18 @@ executeUserCommand discoTime command st = do
   let key = Text.takeWhile (/=' ') tcmd
 
   case preview (clientConfig . configMacros . ix key) st of
-    Nothing -> case resolveCommandExpansions expandVar tcmd of
-      Nothing -> commandFailureMsg "Command interpolation failed" st
-      Just icmd -> executeCommand Nothing (Text.unpack icmd) st
+    Nothing     -> executeCommand Nothing command st
     Just cmdExs ->
-      case traverse (resolveMacroExpansions expandVar expandInt) cmdExs of
+      case traverse resolveMacro cmdExs of
         Nothing   -> commandFailureMsg "Macro expansions failed" st
         Just cmds -> process cmds st
   where
+    resolveMacro = resolveMacroExpansions (commandExpansion discoTime st) expandInt
+
     tcmd = Text.pack command
     args = Text.words tcmd
 
     expandInt i = preview (ix (fromInteger i)) args
-
-    expandVar v =
-      case v of
-        "network" -> views clientFocus focusNetwork st
-        "channel" -> previews (clientFocus . _ChannelFocus . _2) idText st
-        "nick"    -> do net <- views clientFocus focusNetwork st
-                        cs  <- preview (clientConnection net) st
-                        return (views csNick idText cs)
-        "disconnect" -> discoTime
-        _         -> Nothing
 
     process [] st0 = commandSuccess st0
     process (c:cs) st0 =
@@ -154,6 +145,18 @@ executeUserCommand discoTime command st = do
            CommandSuccess st1 -> process cs st1
            CommandFailure st1 -> process cs st1 -- ?
            CommandQuit st1    -> return (CommandQuit st1)
+
+commandExpansion :: Maybe Text -> ClientState -> Text -> Maybe Text
+commandExpansion discoTime st v =
+  case v of
+    "network" -> views clientFocus focusNetwork st
+    "channel" -> previews (clientFocus . _ChannelFocus . _2) idText st
+    "nick"    -> do net <- views clientFocus focusNetwork st
+                    cs  <- preview (clientConnection net) st
+                    return (views csNick idText cs)
+    "disconnect" -> discoTime
+    _         -> Nothing
+
 
 -- | Respond to the TAB key being pressed. This can dispatch to a command
 -- specific completion mode when relevant. Otherwise this will complete

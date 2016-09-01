@@ -261,7 +261,7 @@ parseServerSetting ss k v =
     "tls-client-cert"     -> setFieldWithMb ssTlsClientCert parseString
     "tls-client-key"      -> setFieldWithMb ssTlsClientKey  parseString
     "server-certificates" -> setFieldWith   ssServerCerts   (parseList parseString)
-    "connect-cmds"        -> setField       ssConnectCmds
+    "connect-cmds"        -> setFieldWith   ssConnectCmds   (parseList parseMacroCommand)
     "socks-host"          -> setFieldWithMb ssSocksHost     parseString
     "socks-port"          -> setFieldWith   ssSocksPort     parseNum
     "chanserv-channels"   -> setFieldWith   ssChanservChannels (parseList parseIdentifier)

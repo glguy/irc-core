@@ -46,6 +46,7 @@ module Client.Configuration.ServerSettings
 
   ) where
 
+import           Client.Commands.Interpolation
 import           Control.Lens
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
@@ -68,7 +69,7 @@ data ServerSettings = ServerSettings
   , _ssTls              :: !UseTls -- ^ use TLS to connect
   , _ssTlsClientCert    :: !(Maybe FilePath) -- ^ path to client TLS certificate
   , _ssTlsClientKey     :: !(Maybe FilePath) -- ^ path to client TLS key
-  , _ssConnectCmds      :: ![Text] -- ^ raw IRC messages to transmit upon successful connection
+  , _ssConnectCmds      :: ![[ExpansionChunk]] -- ^ commands to execute upon successful connection
   , _ssSocksHost        :: !(Maybe HostName) -- ^ hostname of SOCKS proxy
   , _ssSocksPort        :: !PortNumber -- ^ port of SOCKS proxy
   , _ssServerCerts      :: ![FilePath] -- ^ additional CA certificates for validating server
