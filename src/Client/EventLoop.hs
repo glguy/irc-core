@@ -245,6 +245,9 @@ doNetworkLine networkId time line st =
                                          }
 
                    -- record messages *before* applying the changes
+                   --
+                   -- Note: it's important to do this before 'clientResponse'
+                   -- as $nick won't be set until 'doWelcome' happens.
                    (replies, st2) = applyMessageToClientState time irc networkId cs recSt
 
 -- | Client-level responses to specific IRC messages.
@@ -267,11 +270,18 @@ processConnectCmd ::
   Text            {- ^ command         -} ->
   IO ClientState
 processConnectCmd now cs st0 cmdTxt =
-  do res <- executeUserCommand (Text.unpack cmdTxt) st0
+  do dc <- forM disco $ \utc ->
+             Text.pack . formatTime defaultTimeLocale "%H:%M:%S"
+               <$> utcToLocalZonedTime utc
+     res <- executeUserCommand dc (Text.unpack cmdTxt) st0
      return $! case res of
        CommandFailure st -> reportConnectCmdError now cs cmdTxt st
        CommandSuccess st -> st
        CommandQuit    st -> st -- not supported
+ where
+ disco = case view csPingStatus cs of
+   PingConnecting _ tm -> tm
+   _ -> Nothing
 
 
 reportConnectCmdError ::
