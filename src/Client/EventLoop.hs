@@ -271,9 +271,9 @@ processConnectCmd ::
   [ExpansionChunk]{- ^ command         -} ->
   IO ClientState
 processConnectCmd now cs st0 cmdTxt =
-  do dc <- forM disco $ \utc ->
+  do dc <- forM disco $ \t ->
              Text.pack . formatTime defaultTimeLocale "%H:%M:%S"
-               <$> utcToLocalZonedTime utc
+               <$> utcToLocalZonedTime t
      let failureCase = reportConnectCmdError now cs
      case resolveMacroExpansions (commandExpansion dc st0) (const Nothing) cmdTxt of
        Nothing -> return $! failureCase "Unable to expand connect command" st0

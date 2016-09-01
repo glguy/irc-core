@@ -76,7 +76,6 @@ import qualified Data.Map.Strict as Map
 import           Data.Bits
 import           Data.Foldable
 import           Data.List
-import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Maybe
 import           Data.Text (Text)

@@ -17,7 +17,6 @@ module Client.EventLoop.Errors
 import           Control.Exception
 import           Data.Char
 import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NonEmpty
 import           Network.Connection
 import           Network.TLS
 import           Network.Socks5
