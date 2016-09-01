@@ -169,7 +169,7 @@ Settings
 * `name` - text - name of server entry, defaults to `hostname`
 * `hostname` - text - hostname used to connect and to specify the server
 * `port` - number - port number, defaults to 6667 without TLS and 6697 with TLS
-* `nick` - text - nickname
+* `nick` - text or list of text - nicknames to try in order
 * `username` - text - username
 * `realname` - text - realname / GECOS
 * `password` - text - server password
@@ -366,7 +366,7 @@ Macro Expansions
 Variable names and integer indexes can be used when defining commands.
 Variables are specified with a leading `$`. For disambiguation a variable
 name can be surrounded by `{}`. `$channel` and `${channel}` are
-equivalent.
+equivalent. Default values can be provided following a pipe: `${var|default}`.
 
 * `channel` - current channel
 * `network` - current network name

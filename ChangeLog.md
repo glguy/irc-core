@@ -1,5 +1,11 @@
 # Revision history for glirc2
 
+## 2.13
+
+* Add disconnect expansion, support expansions in connect-cmds
+* Add default expansion syntax `${var|default}`
+* Add support for multiple nicknames to try on connect
+
 ## 2.12
 
 * Remove `tls-insecure` configuration option in favor of `tls: yes-insecure`

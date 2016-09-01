@@ -193,7 +193,7 @@ newNetworkState ::
   NetworkState
 newNetworkState networkId network settings sock ping = NetworkState
   { _csNetworkId    = networkId
-  , _csUserInfo     = UserInfo (mkId (views ssNicks NonEmpty.head settings)) "" ""
+  , _csUserInfo     = UserInfo "*" "" ""
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
   , _csChannelTypes = "#&"
@@ -280,14 +280,14 @@ doWelcome msgWhen me
   . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
   . set csPingStatus PingNever
 
+-- | Handle 'ERR_NICKNAMEINUSE' errors when connecting.
 doBadNick ::
   Text {- ^ bad nickname -} ->
   NetworkState ->
-  ([RawIrcMsg], NetworkState)
+  ([RawIrcMsg], NetworkState) {- ^ replies, updated state -}
 doBadNick badNick cs =
   case NonEmpty.dropWhile (badNick/=) (view (csSettings . ssNicks) cs) of
-    _:next:_ -> ([ircNick nextId], set csNick nextId cs)
-      where nextId = mkId next
+    _:next:_ -> ([ircNick (mkId next)], cs)
     _        -> ([], cs)
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> NetworkState -> NetworkState
@@ -617,7 +617,7 @@ initialMessages :: NetworkState -> [RawIrcMsg]
 initialMessages cs
    = [ ircCapLs ]
   ++ [ ircPass pass | Just pass <- [view ssPassword ss]]
-  ++ [ ircNick (view csNick cs)
+  ++ [ ircNick (mkId (views ssNicks NonEmpty.head ss))
      , ircUser (view ssUser ss) False True (view ssReal ss)
      ]
   where
