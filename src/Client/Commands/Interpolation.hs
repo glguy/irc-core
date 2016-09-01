@@ -14,7 +14,8 @@ by the current context.
 module Client.Commands.Interpolation
   ( ExpansionChunk(..)
   , parseExpansion
-  , resolveExpansions
+  , resolveMacroExpansions
+  , resolveCommandExpansions
   ) where
 
 import           Control.Applicative
@@ -26,8 +27,10 @@ import           Data.Text (Text)
 -- | Parsed chunk of an expandable command
 data ExpansionChunk
   = LiteralChunk Text    -- ^ regular text
-  | VariableChunk Text   -- ^ inline variable @$x@ or @${x y}@
+  | VariableChunk Text  -- ^ inline variable @$x@ or @${x y}@
   | IntegerChunk Integer -- ^ inline variable @$1@ or @${1}@
+  | DefaultChunk -- ^ bracketed variable with default @${x|lit}@
+      ExpansionChunk ExpansionChunk
   deriving Show
 
 parseExpansion :: Text -> Maybe [ExpansionChunk]
@@ -41,21 +44,38 @@ parseChunk =
   choice
     [ LiteralChunk     <$> P.takeWhile1 (/= '$')
     , LiteralChunk "$" <$  P.string "$$"
-    , string "${" *> parseVariable <* char '}'
+    , string "${" *> parseDefaulted <* char '}'
     , char '$' *> parseVariable
     ]
+
+parseDefaulted :: Parser ExpansionChunk
+parseDefaulted =
+  construct
+    <$> parseVariable
+    <*> optional (char '|' *> P.takeWhile1 (/= '}'))
+ where
+ construct ch Nothing = ch
+ construct ch (Just l) = DefaultChunk ch $ LiteralChunk l
 
 parseVariable :: Parser ExpansionChunk
 parseVariable = IntegerChunk  <$> P.decimal
             <|> VariableChunk <$> P.takeWhile1 isAlpha
 
-resolveExpansions ::
+resolveMacroExpansions ::
   (Text    -> Maybe Text) {- ^ variable resolution       -} ->
   (Integer -> Maybe Text) {- ^ argument index resolution -} ->
   [ExpansionChunk]                                          ->
   Maybe Text
-resolveExpansions var arg xs = Text.concat <$> traverse resolve1 xs
+resolveMacroExpansions var arg xs = Text.concat <$> traverse resolve1 xs
   where
     resolve1 (LiteralChunk lit) = Just lit
     resolve1 (VariableChunk v)  = var v
     resolve1 (IntegerChunk i)   = arg i
+    resolve1 (DefaultChunk p q) = resolve1 p <|> resolve1 q
+
+resolveCommandExpansions
+  :: (Text -> Maybe Text) -- ^ variable resolution
+  -> Text
+  -> Maybe Text
+resolveCommandExpansions var cmd =
+  parseExpansion cmd >>= resolveMacroExpansions var (const Nothing)

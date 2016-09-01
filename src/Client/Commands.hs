@@ -115,22 +115,25 @@ execute ::
 execute str st =
   case str of
     []          -> commandFailure st
-    '/':command -> executeUserCommand command st
+    '/':command -> executeUserCommand Nothing command st
     msg         -> executeChat msg st
 
 -- | Execute command provided by user, resolve aliases if necessary.
-executeUserCommand :: String -> ClientState -> IO CommandResult
-executeUserCommand command st =
-  let key = Text.pack (takeWhile (/=' ') command) in
+executeUserCommand :: Maybe Text -> String -> ClientState -> IO CommandResult
+executeUserCommand discoTime command st = do
+  let key = Text.takeWhile (/=' ') tcmd
 
   case preview (clientConfig . configMacros . ix key) st of
-    Nothing -> executeCommand Nothing command st
+    Nothing -> case resolveCommandExpansions expandVar tcmd of
+      Nothing -> commandFailureMsg "Command interpolation failed" st
+      Just icmd -> executeCommand Nothing (Text.unpack icmd) st
     Just cmdExs ->
-      case traverse (resolveExpansions expandVar expandInt) cmdExs of
+      case traverse (resolveMacroExpansions expandVar expandInt) cmdExs of
         Nothing   -> commandFailureMsg "Macro expansions failed" st
         Just cmds -> process cmds st
   where
-    args = Text.words (Text.pack command)
+    tcmd = Text.pack command
+    args = Text.words tcmd
 
     expandInt i = preview (ix (fromInteger i)) args
 
@@ -141,6 +144,7 @@ executeUserCommand command st =
         "nick"    -> do net <- views clientFocus focusNetwork st
                         cs  <- preview (clientConnection net) st
                         return (views csNick idText cs)
+        "disconnect" -> discoTime
         _         -> Nothing
 
     process [] st0 = commandSuccess st0
