@@ -147,12 +147,12 @@ doNetworkError networkId time ex st =
   do let (cs,st1) = removeNetwork networkId st
          st2 = foldl' (flip recordNetworkMessage) st1 msgs
 
-         msgs = [ ClientMessage
+         msgs = exceptionToLines ex <&> \e ->
+                ClientMessage
                  { _msgTime    = time
                  , _msgNetwork = view csNetwork cs
                  , _msgBody    = ErrorBody (Text.pack e)
                  }
-                | e <- exceptionToLines ex ]
 
          shouldReconnect =
            case view csPingStatus cs of

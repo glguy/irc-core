@@ -16,22 +16,23 @@ module Client.EventLoop.Errors
 
 import           Control.Exception
 import           Data.Char
+import           Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NonEmpty
 import           Network.Connection
 import           Network.TLS
 import           Network.Socks5
 
 -- | Compute the message message text to be used for a connection error
 exceptionToLines ::
-  SomeException {- ^ network error -} ->
-  [String]      {- ^ client lines  -}
+  SomeException   {- ^ network error -} ->
+  NonEmpty String {- ^ client lines  -}
 exceptionToLines
   = indentMessages
-  . map cleanLine
+  . fmap cleanLine
   . exceptionToLines'
 
-indentMessages :: [String] -> [String]
-indentMessages []    = ["PANIC: No error message generated"]
-indentMessages (x:xs) = x : map ("⋯ "++) xs
+indentMessages :: NonEmpty String -> NonEmpty String
+indentMessages (x :| xs) = x :| map ("⋯ "++) xs
 
 cleanLine :: String -> String
 cleanLine = map clean1
@@ -43,8 +44,8 @@ cleanLine = map clean1
       | otherwise   = x
 
 exceptionToLines' ::
-  SomeException {- ^ network error -} ->
-  [String]      {- ^ client lines  -}
+  SomeException   {- ^ network error -} ->
+  NonEmpty String {- ^ client lines  -}
 exceptionToLines' ex
 
   -- TLS package errors
@@ -52,44 +53,42 @@ exceptionToLines' ex
 
   -- connection package errors
   | Just (HostNotResolved str) <- fromException ex =
-      ["Host not resolved: " ++ str]
+      ("Host not resolved: " ++ str) :| []
 
   | Just (HostCannotConnect str exs) <- fromException ex =
-      ("Host cannot connect: " ++ str)
-    : concatMap explainIOError exs
+      ("Host cannot connect: " ++ str) :| map explainIOError exs
 
-  | Just LineTooLong <- fromException ex = ["Server IRC message too long"]
+  | Just LineTooLong <- fromException ex = "Server IRC message too long" :| []
 
   -- socks package errors
-  | Just err <- fromException ex = explainSocksError err
+  | Just err <- fromException ex = explainSocksError err :| []
 
   -- IOErrors, typically network package.
   | Just ioe <- fromException ex =
-     explainIOError ioe
+     explainIOError ioe :| []
 
   -- Anything else including glirc's errors (which use displayException)
-  | otherwise = [displayException ex]
+  | otherwise = displayException ex :| []
 
-explainIOError :: IOError -> [String]
-explainIOError ioe =
-  ["IO error: " ++ displayException ioe]
+explainIOError :: IOError -> String
+explainIOError ioe = "IO error: " ++ displayException ioe
 
-explainTLSException :: TLSException -> [String]
+explainTLSException :: TLSException -> NonEmpty String
 explainTLSException ex =
   case ex of
     ConnectionNotEstablished ->
-      ["Attempt to use connection out of order"]
+      "Attempt to use connection out of order" :| []
     Terminated _ _ tlsError ->
         "Connection closed due to early-termination in TLS layer"
-      : explainTLSError tlsError
+      :| explainTLSError tlsError
     HandshakeFailed (Error_Packet_Parsing str) ->
-      [ "Connection closed due to handshake failure in TLS layer"
-      , "Packet parse error: " ++ str
+        "Connection closed due to handshake failure in TLS layer" :|
+      [ "Packet parse error: " ++ str
       , "Please verify you're using a TLS enabled port"
       ]
     HandshakeFailed tlsError ->
         "Connection closed due to handshake failure in TLS layer"
-      : explainTLSError tlsError
+      :| explainTLSError tlsError
 
 explainTLSError :: TLSError -> [String]
 explainTLSError ex =
@@ -104,15 +103,15 @@ explainTLSError ex =
                                         : [ expect | not (null expect) ]
     Error_Packet_Parsing str       -> ["Packet parse error: " ++ str]
 
-explainSocksError :: SocksError -> [String]
+explainSocksError :: SocksError -> String
 explainSocksError ex =
   case ex of
-    SocksErrorGeneralServerFailure       -> ["SOCKS: General server failure"]
-    SocksErrorConnectionNotAllowedByRule -> ["SOCKS: Connection not allowed by rule"]
-    SocksErrorNetworkUnreachable         -> ["SOCKS: Network unreachable"]
-    SocksErrorHostUnreachable            -> ["SOCKS: Host unreachable"]
-    SocksErrorConnectionRefused          -> ["SOCKS: Connection refused"]
-    SocksErrorTTLExpired                 -> ["SOCKS: TTL Expired"]
-    SocksErrorCommandNotSupported        -> ["SOCKS: Command not supported"]
-    SocksErrorAddrTypeNotSupported       -> ["SOCKS: Address type not supported"]
-    SocksErrorOther n                    -> ["SOCKS: Unknown error " ++ show n]
+    SocksErrorGeneralServerFailure       -> "SOCKS: General server failure"
+    SocksErrorConnectionNotAllowedByRule -> "SOCKS: Connection not allowed by rule"
+    SocksErrorNetworkUnreachable         -> "SOCKS: Network unreachable"
+    SocksErrorHostUnreachable            -> "SOCKS: Host unreachable"
+    SocksErrorConnectionRefused          -> "SOCKS: Connection refused"
+    SocksErrorTTLExpired                 -> "SOCKS: TTL Expired"
+    SocksErrorCommandNotSupported        -> "SOCKS: Command not supported"
+    SocksErrorAddrTypeNotSupported       -> "SOCKS: Address type not supported"
+    SocksErrorOther n                    -> "SOCKS: Unknown error " ++ show n
