@@ -70,8 +70,7 @@ latencyImage st
       where
         retryImage
           | n > 0 = string defAttr ": " <|>
-                    string (view palLabel pal)
-                       (shows n (if n == 1 then "retry" else "retries"))
+                    string (view palLabel pal) ("retry " ++ show n)
           | otherwise = emptyImage
   | otherwise = emptyImage
   where

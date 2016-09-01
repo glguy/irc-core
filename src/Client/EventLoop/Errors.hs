@@ -34,12 +34,13 @@ indentMessages []    = ["PANIC: No error message generated"]
 indentMessages (x:xs) = x : map ("⋯ "++) xs
 
 cleanLine :: String -> String
-cleanLine = map $ \x ->
-  case x of
-    '\n' -> '⏎'
-    '\t' -> ' '
-    _ | isControl x -> '�'
-      | otherwise   -> x
+cleanLine = map clean1
+  where
+    clean1 x
+      | x < '\x20'  = chr (0x2400 + ord x)
+      | x == '\DEL' = '␡'
+      | isControl x = '�'
+      | otherwise   = x
 
 exceptionToLines' ::
   SomeException {- ^ network error -} ->
