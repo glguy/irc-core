@@ -18,6 +18,7 @@ import           Control.Exception
 import           Data.Char
 import           Network.Connection
 import           Network.TLS
+import           Network.Socks5
 
 -- | Compute the message message text to be used for a connection error
 exceptionToLines ::
@@ -55,6 +56,11 @@ exceptionToLines' ex
   | Just (HostCannotConnect str exs) <- fromException ex =
       ("Host cannot connect: " ++ str)
     : concatMap explainIOError exs
+
+  | Just LineTooLong <- fromException ex = ["Server IRC message too long"]
+
+  -- socks package errors
+  | Just err <- fromException ex = explainSocksError err
 
   -- IOErrors, typically network package.
   | Just ioe <- fromException ex =
@@ -96,3 +102,16 @@ explainTLSError ex =
     Error_Packet_unexpected msg expect -> ("Packet unexpected: " ++ msg)
                                         : [ expect | not (null expect) ]
     Error_Packet_Parsing str       -> ["Packet parse error: " ++ str]
+
+explainSocksError :: SocksError -> [String]
+explainSocksError ex =
+  case ex of
+    SocksErrorGeneralServerFailure       -> ["SOCKS: General server failure"]
+    SocksErrorConnectionNotAllowedByRule -> ["SOCKS: Connection not allowed by rule"]
+    SocksErrorNetworkUnreachable         -> ["SOCKS: Network unreachable"]
+    SocksErrorHostUnreachable            -> ["SOCKS: Host unreachable"]
+    SocksErrorConnectionRefused          -> ["SOCKS: Connection refused"]
+    SocksErrorTTLExpired                 -> ["SOCKS: TTL Expired"]
+    SocksErrorCommandNotSupported        -> ["SOCKS: Command not supported"]
+    SocksErrorAddrTypeNotSupported       -> ["SOCKS: Address type not supported"]
+    SocksErrorOther n                    -> ["SOCKS: Unknown error " ++ show n]
