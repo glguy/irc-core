@@ -37,6 +37,7 @@ import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Control.Applicative
+import           Control.Exception (displayException, try)
 import           Control.Lens
 import           Control.Monad
 import           Data.Char
@@ -56,6 +57,9 @@ import           Irc.Message
 import           Irc.UserInfo
 import           Irc.Modes
 import           LensUtils
+import           System.Process
+import           Text.Read
+import           Text.Regex.TDFA
 
 -- | Possible results of running a command
 data CommandResult
@@ -289,6 +293,10 @@ commands = HashMap.fromList
   , ( ["exec"]
     , Command (RemainingArg "arguments")
     $ ClientCommand cmdExec simpleClientTab
+    )
+  , ( ["url"]
+    , Command (OptTokenArg "number" NoArg)
+    $ ClientCommand cmdUrl noClientTab
     )
 
   --
@@ -1165,3 +1173,35 @@ recordSuccess now ste m =
     , _msgBody    = NormalBody m
     , _msgNetwork = ""
     } ste
+
+cmdUrl :: ClientCommand (Maybe (String, ()))
+cmdUrl st mbArg =
+  case view (clientConfig . configUrlOpener) st of
+    Nothing -> commandFailureMsg "/url requires url-opener to be configured" st
+    Just opener ->
+      case mbArg of
+        Nothing -> doUrlOpen opener 0
+        Just (arg,_) ->
+          case readMaybe arg of
+            Just n | n > 0 -> doUrlOpen opener (n-1)
+            _ -> commandFailureMsg "/url expected positive integer argument" st
+  where
+    focus = view clientFocus st
+
+    urlMatches :: Text -> [Text]
+    urlMatches = getAllTextMatches . match urlPattern
+
+    urls = toListOf ( clientWindows . ix focus . winMessages . folded . wlText
+                    . folding urlMatches) st
+
+    doUrlOpen opener n =
+      case preview (ix n) urls of
+        Just url -> openUrl opener (Text.unpack url) st
+        Nothing  -> commandFailureMsg "/url couldn't find requested URL" st
+
+openUrl :: FilePath -> String -> ClientState -> IO CommandResult
+openUrl opener url st =
+  do res <- try (callProcess opener [url])
+     case res of
+       Left e  -> commandFailureMsg (Text.pack (displayException (e :: IOError))) st
+       Right{} -> commandSuccess st

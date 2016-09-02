@@ -27,6 +27,7 @@ module Client.Configuration
   , configMacros
   , configExtensions
   , configExtraHighlights
+  , configUrlOpener
 
   -- * Loading configuration
   , loadConfiguration
@@ -75,6 +76,7 @@ data Configuration = Configuration
         -- ^ manually specified configuration path, used for reloading
   , _configMacros           :: HashMap Text [[ExpansionChunk]] -- ^ command macros
   , _configExtensions       :: [FilePath] -- ^ paths to shared library
+  , _configUrlOpener        :: Maybe FilePath -- ^ paths to url opening executable
   }
   deriving Show
 
@@ -186,6 +188,8 @@ parseConfiguration _configConfigPath def = parseSections $
 
      _configExtensions <- fromMaybe []
                     <$> sectionOptWith (parseList parseString) "extensions"
+
+     _configUrlOpener <- sectionOptWith parseString "url-opener"
 
      _configExtraHighlights <- maybe HashSet.empty HashSet.fromList
                     <$> sectionOptWith (parseList parseIdentifier) "extra-highlights"

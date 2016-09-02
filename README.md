@@ -162,6 +162,7 @@ Configuration sections:
 * `nick-padding` - nonnegative integer - Nicks are padded until they have the specified length
 * `extra-highlights` - list of text - Extra words/nicks to highlight
 * `extensions` - list of text - Filenames of extension to load
+* `url-opener` - text - Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS
 
 Settings
 --------
@@ -243,11 +244,11 @@ Client commands
 * `/connect <name>` - Connect to the given server
 * `/disconnect` - Forcefully terminate connection to the current server
 * `/reconnect` - Reconnect to the current server
-* `/reload` - Reload the previous configuration file (not retroactive!)
-* `/reload <path>` - Load a new configuration file
+* `/reload [path]` - Load a new configuration file (optional path)
 * `/windows` - List all open windows
-* `/extension <extension name> <params>` - Send the given params to the named extension
-* `/exec [-n network] [-c channel] <command> <arguments>` - Execute a command, If no network or channel are provided send output to client window, if network and channel are provided send output as messages, if network is provided send output as raw IRC messages.
+* `/extension <extension name> <params...>` - Send the given params to the named extension
+* `/exec [-n network] [-c channel] <command> <arguments...>` - Execute a command, If no network or channel are provided send output to client window, if network and channel are provided send output as messages, if network is provided send output as raw IRC messages.
+* `/url [n]` - Execute url-opener on the nth URL in the current window (defaults to first)
 
 Connection commands
 

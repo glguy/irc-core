@@ -40,6 +40,8 @@ module Client.State
 
   -- * Client operations
   , clientMatcher
+  , urlPattern
+
   , consumeInput
   , currentCompletionList
   , ircIgnorable
@@ -482,12 +484,17 @@ clientMatcher st =
   case break (==' ') (clientFirstLine st) of
     ("/grep" ,_:reStr) -> go True  reStr
     ("/grepi",_:reStr) -> go False reStr
+    ("/url"  ,_      ) -> match urlPattern
     _                  -> const True
   where
     go sensitive reStr =
       case compile defaultCompOpt{caseSensitive=sensitive} defaultExecOpt reStr of
         Left{}  -> const True
         Right r -> match r :: Text -> Bool
+
+urlPattern :: Regex
+urlPattern = makeRegex
+  ("https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[^[:space:]]*)"::String)
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the networkconnection exists and should
