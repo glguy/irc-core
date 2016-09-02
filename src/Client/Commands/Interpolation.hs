@@ -25,11 +25,14 @@ import           Data.Text (Text)
 
 -- | Parsed chunk of an expandable command
 data ExpansionChunk
-  = LiteralChunk Text    -- ^ regular text
-  | VariableChunk Text  -- ^ inline variable @$x@ or @${x y}@
-  | IntegerChunk Integer -- ^ inline variable @$1@ or @${1}@
-  | DefaultChunk -- ^ bracketed variable with default @${x|lit}@
-      ExpansionChunk Text
+  -- | regular text
+  = LiteralChunk Text
+  -- | inline variable @$x@ or @${x y}@
+  | VariableChunk Text
+  -- | inline variable @$1@ or @${1}@
+  | IntegerChunk Integer
+  -- | bracketed variable with default @${x|lit}@
+  | DefaultChunk ExpansionChunk Text
   deriving Show
 
 parseExpansion :: Text -> Maybe [ExpansionChunk]
