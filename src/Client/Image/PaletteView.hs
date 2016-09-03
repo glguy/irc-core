@@ -5,6 +5,9 @@ Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com
 
+Lines for the @/palette@ command. This view shows all the colors of
+the current palette as well as the colors available in the terminal.
+
 -}
 
 module Client.Image.PaletteView
@@ -22,8 +25,12 @@ digits = "0123456789ABCDEF"
 digitImage :: Char -> Image
 digitImage d = string defAttr [' ',d,' ']
 
+columns :: [Image] -> Image
 columns = horizCat . intersperse (char defAttr ' ')
 
+-- | Generate lines used for @/palette@. These lines show
+-- all the colors used in the current palette as well as
+-- the colors available for use in palettes.
 paletteViewLines :: Palette -> [Image]
 paletteViewLines pal =
   [ columns
