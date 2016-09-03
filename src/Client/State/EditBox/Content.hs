@@ -66,7 +66,7 @@ endLine :: String -> Line
 endLine s = Line (length s) s
 
 -- | Zipper-ish view of the multi-line content of an 'EditBox'.
--- Lines '_above' the '_currentLine' are stored in reverse order.
+-- Lines 'above' the 'currentLine' are stored in reverse order.
 data Content = Content
   { _above       :: ![String]
   , _currentLine :: !Line

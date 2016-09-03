@@ -22,6 +22,7 @@ import qualified Data.Text as Text
 import           Graphics.Vty.Image
 import           Irc.Identifier
 
+-- | Draw the image lines associated with the @/windows@ command.
 windowsImages :: ClientState -> [Image]
 windowsImages st
   = reverse

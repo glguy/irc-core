@@ -35,6 +35,8 @@ data ExpansionChunk
   | DefaultChunk ExpansionChunk Text
   deriving Show
 
+-- | Parse a 'Text' searching for the expansions as specified in
+-- 'ExpansionChunk'. @$$@ is used to escape a single @$@.
 parseExpansion :: Text -> Maybe [ExpansionChunk]
 parseExpansion txt =
   case parseOnly (many parseChunk <* endOfInput) txt of
@@ -63,11 +65,14 @@ parseVariable :: Parser ExpansionChunk
 parseVariable = IntegerChunk  <$> P.decimal
             <|> VariableChunk <$> P.takeWhile1 isAlpha
 
+-- | Attempt to expand all of the elements in the given list using
+-- the two expansion functions. If the expansion of any chunk
+-- fails the whole expansion fails.
 resolveMacroExpansions ::
   (Text    -> Maybe Text) {- ^ variable resolution       -} ->
   (Integer -> Maybe Text) {- ^ argument index resolution -} ->
-  [ExpansionChunk]                                          ->
-  Maybe Text
+  [ExpansionChunk]        {- ^ chunks                    -} ->
+  Maybe Text              {- ^ concatenated, expanded chunks -}
 resolveMacroExpansions var arg xs = Text.concat <$> traverse resolve1 xs
   where
     resolve1 (LiteralChunk lit) = Just lit

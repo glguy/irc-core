@@ -150,7 +150,12 @@ executeUserCommand discoTime command st = do
            CommandFailure st1 -> process cs st1 -- ?
            CommandQuit st1    -> return (CommandQuit st1)
 
-commandExpansion :: Maybe Text -> ClientState -> Text -> Maybe Text
+-- | Compute the replacement value for the given expansion variable.
+commandExpansion ::
+  Maybe Text  {- ^ disconnect time    -} ->
+  ClientState {- ^ client state       -} ->
+  Text        {- ^ expansion variable -} ->
+  Maybe Text  {- ^ expansion value    -}
 commandExpansion discoTime st v =
   case v of
     "network" -> views clientFocus focusNetwork st
@@ -243,10 +248,13 @@ executeCommand tabCompleteReversed str st =
               finish argSpec (exec channelId cs) (\x -> tab x channelId cs)
           | otherwise -> commandFailureMsg "This command requires an active chat window" st
 
--- Expands each alias to have its own copy of the command callbacks
+-- | Expands each alias to have its own copy of the command callbacks
 expandAliases :: [([a],b)] -> [(a,b)]
 expandAliases xs = [ (a,b) | (as,b) <- xs, a <- as ]
 
+
+-- | Map of built-in client commands to their implementations, tab completion
+-- logic, and argument structures.
 commands :: HashMap Text Command
 commands = HashMap.fromList
          $ expandAliases

@@ -18,17 +18,31 @@ import           Control.Lens
 import           System.Console.GetOpt
 import           System.Process
 
+-- | Settings for @/exec@ command.
+--
+-- When no network or channel are specified the output is sent to the client
+-- window.
+--
+-- When only a network is specified the output is sent as raw IRC commands to
+-- that network.
+--
+-- When only a channel is specified the output is sent as messages on the
+-- current network to the given channel.
+--
+-- When the network and channel are specified the output is sent as messages
+-- to the given channel on the given network.
 data ExecCmd = ExecCmd
-  { _execOutputNetwork :: Maybe String
-  , _execOutputChannel :: Maybe String
-  , _execCommand       :: String
-  , _execStdIn         :: String
-  , _execArguments     :: [String]
+  { _execOutputNetwork :: Maybe String -- ^ output network
+  , _execOutputChannel :: Maybe String -- ^ output channel
+  , _execCommand       :: String       -- ^ command filename
+  , _execStdIn         :: String       -- ^ stdin source
+  , _execArguments     :: [String]     -- ^ command arguments
   }
   deriving (Read,Show)
 
 makeLenses ''ExecCmd
 
+-- | Default values for @/exec@ to be overridden by flags.
 emptyExecCmd :: ExecCmd
 emptyExecCmd = ExecCmd
   { _execOutputNetwork = Nothing

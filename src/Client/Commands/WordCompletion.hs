@@ -77,8 +77,19 @@ currentWord box
   $ take n txt
  where Edit.Line n txt = view Edit.line box
 
+-- | Class for types that are isomorphic to 'String'
+-- and which can support a total order and a prefix
+-- predicate.
+--
+-- @
+-- 'Prefix.toString' ('fromString' x) == x
+-- 'fromString' ('Prefix.toString' x) == x
+-- 'Prefix.isPrefix' x y ==> x '<=' y
+-- @
 class (IsString a, Ord a) => Prefix a where
+  -- | Check if the first argument is a lexicographic prefix of the second.
   isPrefix :: a -> a -> Bool
+  -- | Convert to a 'String'.
   toString :: a -> String
 
 instance Prefix Identifier where
@@ -88,6 +99,7 @@ instance Prefix Identifier where
 instance Prefix Text where
   isPrefix = Text.isPrefixOf
   toString = Text.unpack
+
 
 tabSearch :: Prefix a => Bool -> a -> a -> [a] -> Maybe a
 tabSearch isReversed pat cur vals

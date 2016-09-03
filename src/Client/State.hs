@@ -669,7 +669,13 @@ jumpFocus i st
     windows = view clientWindows st
     (focus,_) = Map.elemAt i windows
 
-changeFocus :: Focus -> ClientState -> ClientState
+-- | Change the window focus to the given value, reset the subfocus
+-- to message view, reset the scroll, remember the previous focus
+-- if it changed.
+changeFocus ::
+  Focus       {- ^ new focus    -} ->
+  ClientState {- ^ client state -} ->
+  ClientState
 changeFocus focus st
   = set clientScroll 0
   . updatePrevious
@@ -682,7 +688,12 @@ changeFocus focus st
       | focus == oldFocus = id
       | otherwise         = set clientPrevFocus oldFocus
 
-changeSubfocus :: Subfocus -> ClientState -> ClientState
+-- | Change the subfocus to the given value, preserve the focus, reset
+-- the scroll.
+changeSubfocus ::
+  Subfocus    {- ^ new subfocus -} ->
+  ClientState {- ^ client state -} ->
+  ClientState
 changeSubfocus focus
   = set clientScroll 0
   . set clientSubfocus focus
@@ -718,13 +729,23 @@ stepFocus isReversed st
     isForward = not isReversed
     (l,r)     = Map.split (view clientFocus st) (view clientWindows st)
 
-clientHighlights :: NetworkState -> ClientState -> HashSet Identifier
+-- | Compute the set of extra identifiers that should be highlighted given
+-- a particular network state.
+clientHighlights ::
+  NetworkState       {- ^ network state               -} ->
+  ClientState        {- ^ client state                -} ->
+  HashSet Identifier {- ^ extra highlight identifiers -}
 clientHighlights cs st =
   HashSet.insert
     (view csNick cs)
     (view (clientConfig . configExtraHighlights) st)
 
-clientHighlightsNetwork :: Text -> ClientState -> HashSet Identifier
+-- | Compute the set of extra identifiers that should be highlighted given
+-- a particular network.
+clientHighlightsNetwork ::
+  Text               {- ^ network                     -} ->
+  ClientState        {- ^ client state                -} ->
+  HashSet Identifier {- ^ extra highlight identifiers -}
 clientHighlightsNetwork network st =
   case preview (clientConnection network) st of
     Just cs -> clientHighlights cs st

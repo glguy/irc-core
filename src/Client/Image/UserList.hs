@@ -8,7 +8,10 @@ Maintainer  : emertens@gmail.com
 
 This module renders the lines used in the channel user list.
 -}
-module Client.Image.UserList where
+module Client.Image.UserList
+  ( userListImages
+  , userInfoImages
+  ) where
 
 import           Client.Configuration
 import           Client.Image.Message
@@ -27,7 +30,9 @@ import           Graphics.Vty.Image
 import           Irc.Identifier
 import           Irc.UserInfo
 
--- | Render the lines used in a simple user list window.
+-- | Render the lines used by the @/users@ command in normal mode.
+-- These lines show the count of users having each channel mode
+-- in addition to the nicknames of the users.
 userListImages ::
   Text        {- ^ network -} ->
   Identifier  {- ^ channel -} ->
@@ -77,7 +82,9 @@ userListImages' cs channel st =
     usersHashMap =
       view (csChannels . ix channel . chanUsers) cs
 
--- | Render lines for detailed channel user list which shows full user info.
+-- | Render lines for the @/users@ command in detailed view.
+-- Each user will be rendered on a separate line with username
+-- and host visible when known.
 userInfoImages ::
   Text        {- ^ network -} ->
   Identifier  {- ^ channel -} ->

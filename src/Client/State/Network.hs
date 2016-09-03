@@ -143,6 +143,9 @@ makePrisms ''Transaction
 csNick :: Lens' NetworkState Identifier
 csNick = csUserInfo . uiNick
 
+-- | Transmit a 'RawIrcMsg' on the connection associated
+-- with the given network. For @PRIVMSG@ and @NOTICE@ overlong
+-- commands are detected and transmitted as multiple messages.
 sendMsg :: NetworkState -> RawIrcMsg -> IO ()
 sendMsg cs msg =
   case (view msgCommand msg, view msgParams msg) of
@@ -185,13 +188,15 @@ utf8ChunksOf n txt
           case Text.splitAt (charIx - startChar) currentTxt of
             (a,b) -> a : search byteIx charIx b xs'
 
+-- | Construct a new network state using the given settings and
+-- default values as specified by the IRC specification.
 newNetworkState ::
-  NetworkId ->
-  Text ->
-  ServerSettings ->
-  NetworkConnection ->
-  PingStatus ->
-  NetworkState
+  NetworkId         {- ^ unique network ID         -} ->
+  Text              {- ^ network name              -} ->
+  ServerSettings    {- ^ server settings           -} ->
+  NetworkConnection {- ^ active network connection -} ->
+  PingStatus        {- ^ initial ping status       -} ->
+  NetworkState      {- ^ new network state         -}
 newNetworkState networkId network settings sock ping = NetworkState
   { _csNetworkId    = networkId
   , _csUserInfo     = UserInfo "*" "" ""
@@ -213,7 +218,9 @@ newNetworkState networkId network settings sock ping = NetworkState
   }
 
 
-
+-- | Used for updates to a 'NetworkState' that require no reply.
+--
+-- @noReply x = ([], x)@
 noReply :: NetworkState -> ([RawIrcMsg], NetworkState)
 noReply x = ([], x)
 

@@ -122,6 +122,7 @@ notifyExtensions stab network msg aes
             then go rest msgPtr
             else return False
 
+-- | Notify an extension of a client command with the given parameters.
 commandExtension ::
   Ptr ()          {- ^ client state stableptr -} ->
   [Text]          {- ^ parameters             -} ->
