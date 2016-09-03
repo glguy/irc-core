@@ -39,6 +39,7 @@ module Client.State.Network
   , csNetwork
   , csNextPingTime
   , csPingStatus
+  , csLastReceived
   , csMessageHooks
 
   -- * User information
@@ -110,6 +111,7 @@ data NetworkState = NetworkState
   , _csNetwork      :: !Text -- ^ name of network connection
   , _csNextPingTime :: !(Maybe UTCTime) -- ^ time for next ping event
   , _csPingStatus   :: !PingStatus -- ^ state of ping timer
+  , _csLastReceived :: !(Maybe UTCTime) -- ^ time of last message received
   , _csMessageHooks :: ![Text] -- ^ names of message hooks to apply to this connection
   }
   deriving Show
@@ -206,6 +208,7 @@ newNetworkState networkId network settings sock ping = NetworkState
   , _csNetwork      = network
   , _csPingStatus   = ping
   , _csNextPingTime = Nothing
+  , _csLastReceived = Nothing
   , _csMessageHooks = view ssMessageHooks settings
   }
 
@@ -221,7 +224,12 @@ overChannels :: (ChannelState -> ChannelState) -> NetworkState -> NetworkState
 overChannels = overStrict (csChannels . traverse)
 
 applyMessage :: ZonedTime -> IrcMsg -> NetworkState -> ([RawIrcMsg], NetworkState)
-applyMessage msgWhen msg cs =
+applyMessage msgWhen msg cs
+  = applyMessage' msgWhen msg
+  $ set csLastReceived (Just $! zonedTimeToUTC msgWhen) cs
+
+applyMessage' :: ZonedTime -> IrcMsg -> NetworkState -> ([RawIrcMsg], NetworkState)
+applyMessage' msgWhen msg cs =
   case msg of
     Ping args -> ([ircPong args], cs)
     Pong _    -> noReply $ doPong msgWhen cs
