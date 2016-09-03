@@ -171,13 +171,10 @@ doNetworkError networkId time ex st =
          reconnect = do
            (attempts, mbDisconnectTime)
               <- case view csPingStatus cs of
-                   PingSent tm -> pure (1, Just (addUTCTime (-60) tm))
-                   PingConnecting n tm -> pure (n+1, tm)
-                   _ | Just tm <- view csNextPingTime cs ->
-                         pure (1, Just (addUTCTime (-60) tm))
-                     | otherwise ->
-                        do now <- getCurrentTime
-                           pure (1, Just now)
+                   PingConnecting n tm                   -> pure (n+1, tm)
+                   _ | Just tm <- view csLastReceived cs -> pure (1, Just tm)
+                     | otherwise -> do now <- getCurrentTime
+                                       pure (1, Just now)
            addConnection attempts mbDisconnectTime (view csNetwork cs) st2
 
          nextAction
