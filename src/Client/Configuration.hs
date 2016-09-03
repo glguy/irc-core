@@ -28,6 +28,7 @@ module Client.Configuration
   , configExtensions
   , configExtraHighlights
   , configUrlOpener
+  , configIgnores
 
   -- * Loading configuration
   , loadConfiguration
@@ -77,6 +78,7 @@ data Configuration = Configuration
   , _configMacros           :: HashMap Text [[ExpansionChunk]] -- ^ command macros
   , _configExtensions       :: [FilePath] -- ^ paths to shared library
   , _configUrlOpener        :: Maybe FilePath -- ^ paths to url opening executable
+  , _configIgnores          :: HashSet Identifier -- ^ initial ignore list
   }
   deriving Show
 
@@ -195,6 +197,10 @@ parseConfiguration _configConfigPath def = parseSections $
                     <$> sectionOptWith (parseList parseIdentifier) "extra-highlights"
 
      _configNickPadding <- sectionOpt "nick-padding"
+
+     _configIgnores <- maybe HashSet.empty HashSet.fromList
+                    <$> sectionOptWith (parseList parseIdentifier) "ignores"
+
      for_ _configNickPadding (\padding ->
        when (padding < 0)
             (liftConfigParser $
