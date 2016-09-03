@@ -72,14 +72,18 @@ parseColor :: Value -> ConfigParser Color
 parseColor v =
   case v of
     _ | Just i <- parseInteger v -> parseColorNumber i
+
     Atom a | Just c <- HashMap.lookup (atomName a) namedColors -> return c
+
     List [r,g,b]
       | Just r' <- parseInteger r
       , Just g' <- parseInteger g
       , Just b' <- parseInteger b ->
          parseRgb r' g' b'
+
     _ -> failure "Expected a color number, name, or RBG list"
 
+-- | Match integers between 0 and 255 as Terminal colors.
 parseColorNumber :: Integer -> ConfigParser Color
 parseColorNumber i
   | i < 0 = failure "Negative color not supported"
@@ -87,6 +91,8 @@ parseColorNumber i
   | i < 256 = return (Color240 (fromInteger (i - 16)))
   | otherwise = failure "Color value too high"
 
+-- | Accepts any integer literal or floating literal which can
+-- be losslessly converted to an integer.
 parseInteger :: Value -> Maybe Integer
 parseInteger v =
   case v of

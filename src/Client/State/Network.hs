@@ -22,6 +22,7 @@ module Client.State.Network
     NetworkState(..)
   , newNetworkState
 
+  -- * Lenses
   , csNick
   , csChannels
   , csSocket

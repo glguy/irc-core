@@ -16,6 +16,7 @@ import           Client.Image.ChannelInfo
 import           Client.Image.MaskList
 import           Client.Image.Message
 import           Client.Image.Palette
+import           Client.Image.PaletteView
 import           Client.Image.StatusLine
 import           Client.Image.Textbox
 import           Client.Image.UserList
@@ -66,6 +67,7 @@ messagePaneImages !st =
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel st
     (_, FocusWindows) -> windowsImages st
+    (_, FocusPalette) -> paletteViewLines (view (clientConfig . configPalette) st)
 
     _ -> chatMessageImages st
 

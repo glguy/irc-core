@@ -14,6 +14,8 @@ module Client.State
   (
   -- * Client state type
     ClientState(..)
+
+  -- * Lenses
   , clientWindows
   , clientTextBox
   , clientConnections
@@ -33,12 +35,12 @@ module Client.State
   , clientConnection
   , clientBell
   , clientExtensions
-  , withClientState
-  , clientShutdown
-  , clientStartExtensions
-  , clientPark
 
   -- * Client operations
+  , withClientState
+  , clientStartExtensions
+  , clientShutdown
+  , clientPark
   , clientMatcher
   , urlPattern
 

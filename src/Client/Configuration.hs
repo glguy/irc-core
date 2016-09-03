@@ -18,6 +18,8 @@ module Client.Configuration
   -- * Configuration type
     Configuration(..)
   , ConfigurationFailure(..)
+
+  -- * Lenses
   , configDefaults
   , configServers
   , configPalette
@@ -84,12 +86,20 @@ data Configuration = Configuration
 
 makeLenses ''Configuration
 
+-- | Failure cases when loading a configuration file.
 data ConfigurationFailure
-  = ConfigurationParseFailed String
+
+  -- | Error message from reading configuration file
+  = ConfigurationReadFailed String
+
+  -- | Error message from parser or lexer
+  | ConfigurationParseFailed String
+
+  -- | Error message from loading parsed configuration
   | ConfigurationMalformed String
-  | ConfigurationReadFailed String
   deriving Show
 
+-- | default instance
 instance Exception ConfigurationFailure
 
 defaultWindowNames :: Text

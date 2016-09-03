@@ -8,7 +8,9 @@ Maintainer  : emertens@gmail.com
 This module implements the rendering of the client window list.
 
 -}
-module Client.Image.Windows (windowsImages) where
+module Client.Image.Windows
+  ( windowsImages
+  ) where
 
 import           Client.Configuration
 import           Client.Image.Palette

@@ -11,7 +11,18 @@ This module renders the lines used in the channel mask list. A mask list
 can show channel bans, quiets, invites, and exceptions.
 -}
 
-module Client.Commands.Exec where
+module Client.Commands.Exec
+  ( -- * Exec command configuration
+    ExecCmd(..)
+
+  -- * Lenses
+  , execOutputNetwork
+  , execOutputChannel
+
+  -- * Operations
+  , parseExecCmd
+  , runExecCmd
+  ) where
 
 import           Control.Exception
 import           Control.Lens
@@ -65,8 +76,13 @@ options =
         "Use string as stdin"
   ]
 
+-- | Parse the arguments to @/exec@ looking for various flags
+-- and the command and its arguments.
+--
 -- TODO: support quoted strings
-parseExecCmd :: String -> Either [String] ExecCmd
+parseExecCmd ::
+  String                  {- ^ exec arguments          -} ->
+  Either [String] ExecCmd {- ^ error or parsed command -}
 parseExecCmd str =
   case getOpt RequireOrder options (words str) of
     (_, [] , errs) -> Left ("No command specified":errs)
@@ -77,7 +93,11 @@ parseExecCmd str =
                         $ emptyExecCmd
     (_,_, errs) -> Left errs
 
-runExecCmd :: ExecCmd -> IO (Either [String] [String])
+-- | Execute the requested command synchronously and return
+-- the output.
+runExecCmd ::
+  ExecCmd                       {- ^ exec configuration          -} ->
+  IO (Either [String] [String]) {- ^ error lines or output lines -}
 runExecCmd e =
   do res <- try (readProcess (view execCommand e)
                              (view execArguments e)

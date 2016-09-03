@@ -16,6 +16,8 @@ module Client.Configuration.ServerSettings
   (
   -- * Server settings type
     ServerSettings(..)
+
+  -- * Lenses
   , ssNicks
   , ssUser
   , ssReal

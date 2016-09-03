@@ -73,6 +73,7 @@ library
                        Client.Image.Message
                        Client.Image.MircFormatting
                        Client.Image.Palette
+                       Client.Image.PaletteView
                        Client.Image.StatusLine
                        Client.Image.Textbox
                        Client.Image.UserList

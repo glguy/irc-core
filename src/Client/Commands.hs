@@ -298,6 +298,10 @@ commands = HashMap.fromList
     , Command NoArg
     $ ClientCommand cmdWindows noClientTab
     )
+  , ( ["palette"]
+    , Command NoArg
+    $ ClientCommand cmdPalette noClientTab
+    )
   , ( ["exec"]
     , Command (RemainingArg "arguments")
     $ ClientCommand cmdExec simpleClientTab
@@ -443,27 +447,34 @@ commands = HashMap.fromList
     )
   ]
 
+-- | Provides no tab completion for client commands
 noClientTab :: Bool -> ClientCommand String
 noClientTab _ st _ = commandFailure st
 
+-- | Provides no tab completion for network commands
 noNetworkTab :: Bool -> NetworkCommand String
 noNetworkTab _ _ st _ = commandFailure st
 
+-- | Provides no tab completion for channel commands
 noChannelTab :: Bool -> ChannelCommand String
 noChannelTab _ _ _ st _ = commandFailure st
 
+-- | Provides nickname based tab completion for client commands
 simpleClientTab :: Bool -> ClientCommand String
 simpleClientTab isReversed st _ =
   nickTabCompletion isReversed st
 
+-- | Provides nickname based tab completion for network commands
 simpleNetworkTab :: Bool -> NetworkCommand String
 simpleNetworkTab isReversed _ st _ =
   nickTabCompletion isReversed st
 
+-- | Provides nickname based tab completion for channel commands
 simpleChannelTab :: Bool -> ChannelCommand String
 simpleChannelTab isReversed _ _ st _ =
   nickTabCompletion isReversed st
 
+-- | Implementation of @/exit@ command.
 cmdExit :: ClientCommand ()
 cmdExit st _ = return (CommandQuit st)
 
@@ -498,7 +509,8 @@ cmdClear st args =
             ChannelFocus network channel -> has (clientConnection network
                                                 .csChannels . ix channel) st
 
-
+-- | Implementation of @/quote@. Parses arguments as a raw IRC command and
+-- sends to the current network.
 cmdQuote :: NetworkCommand String
 cmdQuote cs st rest =
   case parseRawIrcMsg (Text.pack rest) of
@@ -622,6 +634,10 @@ cmdFocus st (network, mbChannel)
 -- | Implementation of @/windows@ command. Set subfocus to Windows.
 cmdWindows :: ClientCommand ()
 cmdWindows st _ = commandSuccess (changeSubfocus FocusWindows st)
+
+-- | Implementation of @/palette@ command. Set subfocus to Windows.
+cmdPalette :: ClientCommand ()
+cmdPalette st _ = commandSuccess (changeSubfocus FocusPalette st)
 
 simpleTabCompletion ::
   Prefix a =>

@@ -12,7 +12,10 @@ and dynamically loaded modules.
 -}
 
 module Client.CApi
-  ( ActiveExtension(..)
+  ( -- * Extension type
+    ActiveExtension(..)
+
+  -- * Extension callbacks
   , extensionSymbol
   , activateExtension
   , deactivateExtension

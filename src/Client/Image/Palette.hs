@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, OverloadedLists #-}
+{-# Language TemplateHaskell, OverloadedLists, OverloadedStrings #-}
 {-|
 Module      : Client.Image.Palette
 Description : Palette of colors used to render the UI
@@ -12,6 +12,8 @@ module Client.Image.Palette
   (
   -- * Palette type
     Palette(..)
+
+  -- * Lenses
   , palNicks
   , palSelf
   , palSelfHighlight
@@ -31,11 +33,14 @@ module Client.Image.Palette
   , palCommandOptional
   , palCommandRemaining
 
+  , paletteMap
+
   -- * Defaults
   , defaultPalette
   ) where
 
 import           Control.Lens
+import           Data.Text (Text)
 import           Data.Vector (Vector)
 import           Graphics.Vty.Attributes
 
@@ -94,3 +99,23 @@ defaultNickColorPalette =
   withForeColor defAttr <$>
     [cyan, magenta, green, yellow, blue,
      brightCyan, brightMagenta, brightGreen, brightBlue]
+
+paletteMap :: [(Text, ReifiedLens' Palette Attr)]
+paletteMap =
+  [ ("self"             , Lens palSelf)
+  , ("time"             , Lens palTime)
+  , ("meta"             , Lens palMeta)
+  , ("sigil"            , Lens palSigil)
+  , ("label"            , Lens palLabel)
+  , ("latency"          , Lens palLatency)
+  , ("window-name"      , Lens palWindowName)
+  , ("error"            , Lens palError)
+  , ("textbox"          , Lens palTextBox)
+  , ("activity"         , Lens palActivity)
+  , ("mention"          , Lens palMention)
+  , ("command"          , Lens palCommand)
+  , ("command-ready"    , Lens palCommandReady)
+  , ("command-required" , Lens palCommandRequired)
+  , ("command-optional" , Lens palCommandOptional)
+  , ("command-remaining", Lens palCommandRemaining)
+  ]

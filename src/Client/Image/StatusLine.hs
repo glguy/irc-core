@@ -154,6 +154,7 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
         FocusWindows  -> Just $ string (view palLabel pal) "windows"
         FocusInfo     -> Just $ string (view palLabel pal) "info"
         FocusUsers    -> Just $ string (view palLabel pal) "users"
+        FocusPalette  -> Just $ string (view palLabel pal) "palette"
         FocusMasks m  -> Just $ horizCat
           [ string (view palLabel pal) "masks"
           , char defAttr ':'

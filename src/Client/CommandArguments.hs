@@ -14,6 +14,8 @@ module Client.CommandArguments
   (
   -- * Command-line argument type
     CommandArguments(..)
+
+  -- * Lenses
   , cmdArgConfigFile
   , cmdArgInitialNetworks
 

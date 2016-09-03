@@ -54,6 +54,7 @@ data Subfocus
   | FocusUsers       -- ^ Show channel user list
   | FocusMasks !Char -- ^ Show channel mask list for given mode
   | FocusWindows     -- ^ Show client windows
+  | FocusPalette     -- ^ Show current palette
   deriving (Eq,Show)
 
 makePrisms ''Subfocus
