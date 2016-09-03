@@ -10,8 +10,8 @@ copyright:           2016 Eric Mertens
 category:            Network
 build-type:          Custom
 extra-source-files:  ChangeLog.md README.md
-                     linux_exported_symbols.txt
-                     macos_exported_symbols.txt
+                     exec/linux_exported_symbols.txt
+                     exec/macos_exported_symbols.txt
 cabal-version:       >=1.23
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
