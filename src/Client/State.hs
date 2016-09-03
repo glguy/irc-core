@@ -200,7 +200,7 @@ withClientState cfg k =
      k ClientState
         { _clientWindows           = _Empty # ()
         , _clientNetworkMap        = _Empty # ()
-        , _clientIgnores           = _Empty # ()
+        , _clientIgnores           = view configIgnores cfg
         , _clientConnections       = _Empty # ()
         , _clientTextBox           = Edit.defaultEditBox
         , _clientWidth             = width
