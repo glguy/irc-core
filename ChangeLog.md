@@ -5,6 +5,8 @@
 * Add disconnect expansion, support expansions in connect-cmds
 * Add default expansion syntax `${var|default}`
 * Add support for multiple nicknames to try on connect
+* Add `ignores` section to configuration
+* Add `url-opener` section to configuration and `/url` command
 
 ## 2.12
 

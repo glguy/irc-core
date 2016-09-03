@@ -163,6 +163,7 @@ Configuration sections:
 * `extra-highlights` - list of text - Extra words/nicks to highlight
 * `extensions` - list of text - Filenames of extension to load
 * `url-opener` - text - Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS
+* `ignores` - list of text - Initial list of nicknames to ignore
 
 Settings
 --------
