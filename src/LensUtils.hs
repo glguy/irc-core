@@ -17,6 +17,7 @@ module LensUtils
   -- * time lenses
   , zonedTimeLocalTime
   , localTimeTimeOfDay
+  , localTimeDay
   ) where
 
 import           Control.Lens
@@ -40,10 +41,15 @@ setStrict l x = set l $! x
 
 -- | 'Lens' to the 'LocalTime' component of a 'ZonedTime'
 zonedTimeLocalTime :: Lens' ZonedTime LocalTime
-zonedTimeLocalTime f (ZonedTime t z) = f t <&> \t' -> ZonedTime t' z
+zonedTimeLocalTime f (ZonedTime t z) = (ZonedTime ?? z) <$> f t
 {-# INLINE zonedTimeLocalTime #-}
 
 -- | 'Lens' to the 'TimeOfDay component of a 'LocalTime'.
 localTimeTimeOfDay :: Lens' LocalTime TimeOfDay
 localTimeTimeOfDay f (LocalTime d t) = LocalTime d <$> f t
 {-# INLINE localTimeTimeOfDay #-}
+
+-- | 'Lens' to the 'TimeOfDay component of a 'LocalTime'.
+localTimeDay :: Lens' LocalTime Day
+localTimeDay f (LocalTime d t) = (LocalTime ?? t) <$> f d
+{-# INLINE localTimeDay #-}
