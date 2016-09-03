@@ -713,12 +713,12 @@ cmdZncPlayback cs st rest =
     [timeStr]
        | Just tod <- parse timeFormats timeStr ->
           do now <- getZonedTime
-             let t1 = set (zonedTimeLocalTime . localTimeTimeOfDay) tod now
-                 t2 | zonedTimeToLocalTime t1 > zonedTimeToLocalTime now =
-                          over (zonedTimeLocalTime . localTimeDay)
-                               (addDays (-1)) t1
-                    | otherwise = t1
-             successZoned t2
+             let (nowTod,t) = (zonedTimeLocalTime . localTimeTimeOfDay <<.~ tod) now
+                 yesterday = over (zonedTimeLocalTime . localTimeDay) (addDays (-1))
+                 fixDay
+                   | tod <= nowTod = id
+                   | otherwise     = yesterday
+             successZoned (fixDay t)
 
     -- explicit date and time
     [dateStr,timeStr]
