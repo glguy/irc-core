@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.14
+
+* Add `/help`
+* Add `/palette`
+
 ## 2.13
 
 * Add disconnect expansion, support expansions in connect-cmds

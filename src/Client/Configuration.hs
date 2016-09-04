@@ -242,9 +242,7 @@ paletteHelper p k v =
     "mention"           -> setAttr palMention
     "command"           -> setAttr palCommand
     "command-ready"     -> setAttr palCommandReady
-    "command-required"  -> setAttr palCommandRequired
-    "command-optional"  -> setAttr palCommandOptional
-    "command-remaining" -> setAttr palCommandRemaining
+    "command-placeholder" -> setAttr palCommandPlaceholder
     _                   -> failure "Unknown palette entry"
   where
     setAttr l =

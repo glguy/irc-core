@@ -207,9 +207,7 @@ Palette
 * `mention` - attr - attr for mention notification
 * `command` - attr - attr for recognized command
 * `command-ready` - attr - attr for command with successful parse
-* `command-required` - attr - attr for required command argument placeholder
-* `command-optional` - attr - attr for optional command argument placeholder
-* `command-remaining` - attr - attr for remaining command text placeholder
+* `command-placeholder` - attr - attr for command argument placeholder
 
 Text Attributes
 ---------------
@@ -240,6 +238,7 @@ Commands
 
 Client commands
 
+* `/help [command]` - Show in-client help
 * `/exit` - Terminate the client
 * `/quit` - Gracefully terminate connection to the current server
 * `/connect <name>` - Connect to the given server

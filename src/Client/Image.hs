@@ -13,6 +13,7 @@ module Client.Image (clientPicture) where
 
 import           Client.Configuration
 import           Client.Image.ChannelInfo
+import           Client.Image.Help
 import           Client.Image.MaskList
 import           Client.Image.Message
 import           Client.Image.Palette
@@ -67,9 +68,12 @@ messagePaneImages !st =
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel st
     (_, FocusWindows) -> windowsImages st
-    (_, FocusPalette) -> paletteViewLines (view (clientConfig . configPalette) st)
+    (_, FocusPalette) -> paletteViewLines pal
+    (_, FocusHelp mb) -> helpImageLines mb pal
 
     _ -> chatMessageImages st
+  where
+    pal = view (clientConfig . configPalette) st
 
 chatMessageImages :: ClientState -> [Image]
 chatMessageImages st = windowLineProcessor focusedMessages

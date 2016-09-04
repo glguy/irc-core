@@ -69,6 +69,7 @@ library
                        Client.Image
                        Client.Image.Arguments
                        Client.Image.ChannelInfo
+                       Client.Image.Help
                        Client.Image.MaskList
                        Client.Image.Message
                        Client.Image.MircFormatting

@@ -19,7 +19,9 @@ module Client.Commands
   , tabCompletion
   -- * Commands
   , Command(..)
+  , CommandImpl(..)
   , commands
+  , commandsList
   ) where
 
 import           Client.CApi
@@ -44,6 +46,7 @@ import           Data.Char
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
 import           Data.HashSet (HashSet)
+import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
@@ -94,8 +97,8 @@ data CommandImpl a
   -- | requires an active channel window
   | ChannelCommand (ChannelCommand a) (Bool -> ChannelCommand String)
 
--- | Pair of a command and it's argument specification
-data Command = forall a.  Command (ArgumentSpec a) (CommandImpl a)
+-- | A command is an argument specification, implementation, and documentation
+data Command = forall a. Command (ArgumentSpec a) Text (CommandImpl a)
 
 -- | Consider the text entry successful and resume the client
 commandSuccess :: Monad m => ClientState -> m CommandResult
@@ -224,7 +227,7 @@ executeCommand tabCompleteReversed str st =
         Nothing         -> commandFailureMsg "Unknown command" st
         Just isReversed -> nickTabCompletion isReversed st
 
-    Just (Command argSpec impl) ->
+    Just (Command argSpec _docs impl) ->
       case impl of
         ClientCommand exec tab ->
           finish argSpec exec tab
@@ -249,200 +252,355 @@ executeCommand tabCompleteReversed str st =
           | otherwise -> commandFailureMsg "This command requires an active chat window" st
 
 -- | Expands each alias to have its own copy of the command callbacks
-expandAliases :: [([a],b)] -> [(a,b)]
-expandAliases xs = [ (a,b) | (as,b) <- xs, a <- as ]
+expandAliases :: [(NonEmpty a,b)] -> [(a,b)]
+expandAliases xs = [ (a,b) | (as,b) <- xs, a <- toList as ]
 
 
 -- | Map of built-in client commands to their implementations, tab completion
 -- logic, and argument structures.
 commands :: HashMap Text Command
-commands = HashMap.fromList
-         $ expandAliases
+commands = HashMap.fromList (expandAliases commandsList)
 
+commandsList :: [(NonEmpty Text,Command)]
+commandsList =
   --
   -- Client commands
   --
-  [ ( ["connect"]
+  [ ( pure "connect"
     , Command (ReqTokenArg "network" NoArg)
+      "Connect to \^Bnetwork\^B by name.\n\
+      \\n\
+      \If no name is configured the hostname is the 'name'.\n"
     $ ClientCommand cmdConnect tabConnect
     )
-  , ( ["exit"]
+  , ( pure "exit"
     , Command NoArg
+      "Exit the client immediately.\n"
     $ ClientCommand cmdExit noClientTab
     )
-  , ( ["focus"]
+  , ( pure "focus"
     , Command (ReqTokenArg "network" (OptTokenArg "channel" NoArg))
+      "Change the focused window.\n\
+      \\n\
+      \When only \^Bnetwork\^B is specified this switches to the network status window.\n\
+      \When \^Bnetwork\^B and \^Bchannel\^B are specified this switches to that chat window.\n\
+      \\n\
+      \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
+      \See also: /channel (aliased /c) to switch to a channel on the current network.\n"
     $ ClientCommand cmdFocus tabFocus
     )
-  , ( ["clear"]
+  , ( pure "clear"
     , Command (OptTokenArg "network" (OptTokenArg "channel" NoArg))
+      "Clear a window.\n\
+      \\n\
+      \If no arguments are provided the current window is cleared.\n\
+      \If \^Bnetwork\^B is provided the that network window is cleared.\n\
+      \If \^Bnetwork\^B and \^Bchannel\^B are provided that chat window is cleared.\n\
+      \\n\
+      \If a window is cleared and no longer active that window will be removed from the client.\n"
     $ ClientCommand cmdClear noClientTab
     )
-  , ( ["reconnect"]
+  , ( pure "reconnect"
     , Command NoArg
+      "Reconnect to the current network.\n"
     $ ClientCommand cmdReconnect noClientTab
     )
-  , ( ["ignore"]
+  , ( pure "ignore"
     , Command (RemainingArg "nicks")
+      "Toggle the soft-ignore on each of the space-delimited given nicknames.\n"
     $ ClientCommand cmdIgnore simpleClientTab
     )
-  , ( ["reload"]
+  , ( pure "reload"
     , Command (OptTokenArg "filename" NoArg)
+      "Reload the client configuration file.\n\
+      \\n\
+      \If \^Bfilename\^B is provided it will be used to reload.\n\
+      \Otherwise the previously loaded configuration file will be reloaded.\n"
     $ ClientCommand cmdReload tabReload
     )
-  , ( ["extension"]
+  , ( pure "extension"
     , Command (ReqTokenArg "extension" (RemainingArg "arguments"))
+      "Calls the process_command callback of the given extension.\n\
+      \\n\
+      \\^Bextension\^B should be the name of the loaded extension.\n"
     $ ClientCommand cmdExtension simpleClientTab
     )
-  , ( ["windows"]
+  , ( pure "windows"
     , Command NoArg
+      "Show a list of all client message windows.\n"
     $ ClientCommand cmdWindows noClientTab
     )
-  , ( ["palette"]
+  , ( pure "palette"
     , Command NoArg
+      "Show the current palette settings and a color chart to help pick new colors.\n"
     $ ClientCommand cmdPalette noClientTab
     )
-  , ( ["exec"]
+  , ( pure "exec"
     , Command (RemainingArg "arguments")
+      "Execute a command synchnonously sending the to a configuration destination.\n\
+      \\n\
+      \\^Barguments\^B: [-n network] [-c channel] [-i input] command [command arguments...]\n\
+      \\n\
+      \When \^Binput\^B is specified it is sent to the stdin.\n\
+      \\n\
+      \When neither \^Bnetwork\^B nor \^Bchannel\^B are specified output goes to client window (*)\n\
+      \When \^Bnetwork\^B is specified output is sent as raw IRC traffic to the network.\n\
+      \When \^Bchannel\^B is specified output is sent as chat to the given channel on the current network.\n\
+      \When \^Bnetwork\^B and \^Bchannel\^B are specified output is sent as chat to the given channel on the given network.\n\
+      \\n"
     $ ClientCommand cmdExec simpleClientTab
     )
-  , ( ["url"]
+  , ( pure "url"
     , Command (OptTokenArg "number" NoArg)
+      "Open a URL seen in chat.\n\
+      \\n\
+      \The URL is opened using the executable configured under \^Burl-opener\^B.\n\
+      \\n\
+      \When this command is active in the textbox, chat messages are filtered to only show ones with URLs.\n\
+      \\n\
+      \When \^Bnumber\^B is omitted it defaults to \^B1\^B. The number selects the URL to open counting back from the most recent.\n"
     $ ClientCommand cmdUrl noClientTab
+    )
+  , ( pure "help"
+    , Command (OptTokenArg "command" NoArg)
+      "Show command documentation.\n\
+      \\n\
+      \When \^Bcommand\^B is omitted a list of all commands is displayed.\n\
+      \When \^Bcommand\^B is specified detailed help for that command is shown.\n"
+    $ ClientCommand cmdHelp tabHelp
     )
 
   --
   -- Network commands
   --
-  , ( ["quote"]
+  , ( pure "quote"
     , Command (RemainingArg "raw IRC command")
+      "Send a raw IRC command.\n"
     $ NetworkCommand cmdQuote  simpleNetworkTab
     )
-  , ( ["j","join"]
+  , ( "join" :| ["j"]
     , Command (ReqTokenArg "channels" (OptTokenArg "keys" NoArg))
+      "Join a chat channel.\n\
+      \\n\
+      \\^Bchannels\^B: comma-separated list of channels\n\
+      \\^Bkeys\^B: comma-separated list of keys\n"
     $ NetworkCommand cmdJoin   simpleNetworkTab
     )
-  , ( ["c","channel"]
+  , ( "channel" :| ["c"]
     , Command (ReqTokenArg "channel" NoArg)
+      "Change the focused window.\n\
+      \\n\
+      \Changes the focus to the \^Bchannel\^B chat window on the current network.\n\
+      \\n\
+      \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
+      \See also: /focus to switch to a channel on a different network.\n\
+      \See also: /focus to switch to a channel on a different network.\n"
     $ NetworkCommand cmdChannel simpleNetworkTab
     )
-  , ( ["mode"]
+  , ( pure "mode"
     , Command (RemainingArg "modes and parameters")
+      "Sets IRC modes.\n\
+      \\n\
+      \Examples:\n\
+      \Setting a ban:           /mode +b *!*@hostname\n\
+      \Removing a quiet:        /mode -q *!*@hostname\n\
+      \Voicing two users:       /mode +vv user1 user2\n\
+      \Demoting an op to voice: /mode +v-o user1 user1\n\
+      \\n\
+      \When executed in a network window, mode changes are applied to your user.\n\
+      \When executed in a channel window, mode changes are applied to the channel.\n\
+      \\n\
+      \This command has parameter sensitive tab-completion.\n"
     $ NetworkCommand cmdMode   tabMode
     )
-  , ( ["msg"]
+  , ( pure "msg"
     , Command (ReqTokenArg "target" (RemainingArg "message"))
+      "Send a chat message to a user or a channel.\n\
+      \\n\
+      \\^Btarget\^B can be a channel or nickname.\n"
     $ NetworkCommand cmdMsg    simpleNetworkTab
     )
-  , ( ["notice"]
+  , ( pure "notice"
     , Command (ReqTokenArg "target" (RemainingArg "message"))
+      "Send a notice message to a user or a channel. Notices are typically used by bots.\n\
+      \\n\
+      \\^Btarget\^B can be a channel or nickname.\n"
     $ NetworkCommand cmdNotice simpleNetworkTab
     )
-  , ( ["ctcp"]
+  , ( pure "ctcp"
     , Command (ReqTokenArg "target" (ReqTokenArg "command" (RemainingArg "arguments")))
+      "Send a CTCP command to a user or a channel.\n\
+      \\n\
+      \Examples:\n\
+      \Version query:    /ctcp user1 version\n\
+      \Local-time query: /ctcp user1 time\n\
+      \\n\
+      \\^Btarget\^B can be a channel or nickname.\n\
+      \\^Bcommand\^B can be any CTCP command.\n\
+      \\^Barguments\^B are specific to a particular command.\n"
     $ NetworkCommand cmdCtcp simpleNetworkTab
     )
-  , ( ["nick"]
+  , ( pure "nick"
     , Command (ReqTokenArg "nick" NoArg)
+      "Change your nickname.\n"
     $ NetworkCommand cmdNick   simpleNetworkTab
     )
-  , ( ["quit"]
-    , Command (RemainingArg "quit message")
+  , ( pure "quit"
+    , Command (RemainingArg "reason")
+      "Gracefully disconnect the current network connection.\n\
+      \\n\
+      \\^Breason\^B: optional quit reason\n\
+      \\n\
+      \See also: /disconnect /exit\n"
     $ NetworkCommand cmdQuit   simpleNetworkTab
     )
-  , ( ["disconnect"]
+  , ( pure "disconnect"
     , Command NoArg
+      "Immediately terminate the current network connection.\n\
+      \\n\
+      \See also: /quit /exit\n"
     $ NetworkCommand cmdDisconnect noNetworkTab
     )
-  , ( ["who"]
+  , ( pure "who"
     , Command (RemainingArg "arguments")
+      "Send WHO query to server with given arguments.\n"
     $ NetworkCommand cmdWho simpleNetworkTab
     )
-  , ( ["whois"]
+  , ( pure "whois"
     , Command (RemainingArg "arguments")
+      "Send WHOIS query to server with given arguments.\n"
     $ NetworkCommand cmdWhois simpleNetworkTab
     )
-  , ( ["whowas"]
+  , ( pure "whowas"
     , Command (RemainingArg "arguments")
+      "Send WHOWAS query to server with given arguments.\n"
     $ NetworkCommand cmdWhowas simpleNetworkTab
     )
-  , ( ["ison"]
+  , ( pure "ison"
     , Command (RemainingArg "arguments")
+      "Send ISON query to server with given arguments.\n"
     $ NetworkCommand cmdIson   simpleNetworkTab
     )
-  , ( ["userhost"]
+  , ( pure "userhost"
     , Command (RemainingArg "arguments")
+      "Send USERHOST query to server with given arguments.\n"
     $ NetworkCommand cmdUserhost simpleNetworkTab
     )
-  , ( ["away"]
-    , Command (RemainingArg "arguments")
+  , ( pure "away"
+    , Command (RemainingArg "message")
+      "Set away status.\n\
+      \\n\
+      \When \^Bmessage\^B is omitted away status is cleared.\n"
     $ NetworkCommand cmdAway   simpleNetworkTab
     )
-  , ( ["links"]
+  , ( pure "links"
     , Command (RemainingArg "arguments")
+      "Send LINKS query to server with given arguments.\n"
     $ NetworkCommand cmdLinks  simpleNetworkTab
     )
-  , ( ["time"]
+  , ( pure "time"
     , Command (RemainingArg "arguments")
+      "Send TIME query to server with given arguments.\n"
     $ NetworkCommand cmdTime   simpleNetworkTab
     )
-  , ( ["stats"]
+  , ( pure "stats"
     , Command (RemainingArg "arguments")
+      "Send STATS query to server with given arguments.\n"
     $ NetworkCommand cmdStats  simpleNetworkTab
     )
-  , ( ["znc"]
+  , ( pure "znc"
     , Command (RemainingArg "arguments")
+      "Send command directly to ZNC.\n\
+      \\n\
+      \The advantage of this over /msg is that responses are not broadcast to call clients.\n"
     $ NetworkCommand cmdZnc    simpleNetworkTab
     )
-  , ( ["znc-playback"]
+  , ( pure "znc-playback"
     , Command (RemainingArg "arguments")
+      "Request playback from the ZNC 'playback' module.\n\
+      \\n\
+      \Note that the playback module is not installed in ZNC by default!\n"
     $ NetworkCommand cmdZncPlayback noNetworkTab
     )
 
-  , ( ["invite"]
+  , ( pure "invite"
     , Command (ReqTokenArg "nick" NoArg)
+      "Invite a user to the current channel.\n"
     $ ChannelCommand cmdInvite simpleChannelTab
     )
-  , ( ["topic"]
+  , ( pure "topic"
     , Command (RemainingArg "message")
+      "Set the topic on the current channel.\n\
+      \\n\
+      \Tab-completion with no \^Bmessage\^B specified will load the current topic for editing.\n"
     $ ChannelCommand cmdTopic tabTopic
     )
-  , ( ["kick"]
+  , ( pure "kick"
     , Command (ReqTokenArg "nick" (RemainingArg "reason"))
+      "Kick a user from the current channel.\n\
+      \\n\
+      \See also: /kickban /remove\n"
     $ ChannelCommand cmdKick   simpleChannelTab
     )
-  , ( ["kickban"]
+  , ( pure "kickban"
     , Command (ReqTokenArg "nick" (RemainingArg "reason"))
+      "Ban and kick a user from the current channel.\n\
+      \\n\
+      \Users are banned by hostname match.\n\
+      \See also: /kick /remove\n"
     $ ChannelCommand cmdKickBan simpleChannelTab
     )
-  , ( ["remove"]
+  , ( pure "remove"
     , Command (ReqTokenArg "nick" (RemainingArg "reason"))
+      "Remove a user from the current channel.\n\
+      \\n\
+      \Remove works like /kick except it results in a PART.\n\
+      \See also: /kick /kickban\n"
     $ ChannelCommand cmdRemove simpleChannelTab
     )
-  , ( ["part"]
+  , ( pure "part"
     , Command (RemainingArg "reason")
+      "Part from the current channel.\n"
     $ ChannelCommand cmdPart simpleChannelTab
     )
 
-  , ( ["users"]
+  , ( pure "users"
     , Command NoArg
+      "Show the user list for the current channel.\n\
+      \\n\
+      \Detailed view (F2) shows full hostmask.\n\
+      \Hostmasks can be populated with /who #channel.\n"
     $ ChannelCommand cmdUsers  noChannelTab
     )
-  , ( ["channelinfo"]
+  , ( pure "channelinfo"
     , Command NoArg
+      "Show information about the current channel.\n"
     $ ChannelCommand cmdChannelInfo noChannelTab
     )
-  , ( ["masks"]
+  , ( pure "masks"
     , Command (ReqTokenArg "mode" NoArg)
+      "Show mask lists for current channel.\n\
+      \\n\
+      \Common \^Bmode\^B values:\n\
+      \\^Bb\^B: bans\n\
+      \\^Bq\^B: quiets\n\
+      \\^BI\^B: invite exemptions (op view only)\n\
+      \\^Be\^B: ban exemption (op view only)s\n\
+      \\n\
+      \To populate the mask lists for the first time use: /mode \^Bmode\^B\n"
     $ ChannelCommand cmdMasks noChannelTab
     )
 
-  , ( ["me"]
+  , ( pure "me"
     , Command (RemainingArg "message")
+      "Send an 'action' to the current chat window.\n"
     $ ChatCommand cmdMe simpleChannelTab
     )
-  , ( ["say"]
+  , ( pure "say"
     , Command (RemainingArg "message")
+      "Send a message to the current chat window.\n\
+      \\n\
+      \This can be useful for sending a chat message with a leading '/'.\n"
     $ ChatCommand cmdSay simpleChannelTab
     )
   ]
@@ -638,6 +796,17 @@ cmdWindows st _ = commandSuccess (changeSubfocus FocusWindows st)
 -- | Implementation of @/palette@ command. Set subfocus to Windows.
 cmdPalette :: ClientCommand ()
 cmdPalette st _ = commandSuccess (changeSubfocus FocusPalette st)
+
+-- | Implementation of @/help@ command. Set subfocus to Windows.
+cmdHelp :: ClientCommand (Maybe (String, ()))
+cmdHelp st mb = commandSuccess (changeSubfocus focus st)
+  where
+    focus = FocusHelp (fmap (Text.pack . fst) mb)
+
+tabHelp :: Bool -> ClientCommand String
+tabHelp isReversed st _ = simpleTabCompletion id [] commandNames isReversed st
+  where
+    commandNames = [ cmd | (cmd :| _, _) <- commandsList ]
 
 simpleTabCompletion ::
   Prefix a =>

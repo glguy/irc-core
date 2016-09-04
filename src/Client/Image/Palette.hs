@@ -29,9 +29,7 @@ module Client.Image.Palette
   , palMention
   , palCommand
   , palCommandReady
-  , palCommandRequired
-  , palCommandOptional
-  , palCommandRemaining
+  , palCommandPlaceholder
 
   , paletteMap
 
@@ -61,9 +59,7 @@ data Palette = Palette
   , _palMention       :: Attr -- ^ window name with mention
   , _palCommand       :: Attr -- ^ known command
   , _palCommandReady  :: Attr -- ^ known command with complete arguments
-  , _palCommandRequired  :: Attr -- ^ required argument placeholder
-  , _palCommandOptional  :: Attr -- ^ optional argument placeholder
-  , _palCommandRemaining :: Attr -- ^ remaining command text placeholder
+  , _palCommandPlaceholder :: Attr -- ^ command argument placeholder
   }
   deriving Show
 
@@ -87,9 +83,7 @@ defaultPalette = Palette
   , _palMention                 = withForeColor defAttr red
   , _palCommand                 = withForeColor defAttr yellow
   , _palCommandReady            = withForeColor defAttr green
-  , _palCommandRequired         = withStyle defAttr reverseVideo
-  , _palCommandOptional         = withStyle defAttr reverseVideo
-  , _palCommandRemaining        = withStyle defAttr reverseVideo
+  , _palCommandPlaceholder      = withStyle defAttr reverseVideo
   }
 
 -- | Default nick highlighting colors that look nice in my dark solarized
@@ -115,7 +109,5 @@ paletteMap =
   , ("mention"          , Lens palMention)
   , ("command"          , Lens palCommand)
   , ("command-ready"    , Lens palCommandReady)
-  , ("command-required" , Lens palCommandRequired)
-  , ("command-optional" , Lens palCommandOptional)
-  , ("command-remaining", Lens palCommandRemaining)
+  , ("command-placeholder", Lens palCommandPlaceholder)
   ]

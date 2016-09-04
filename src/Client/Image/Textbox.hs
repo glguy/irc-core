@@ -104,8 +104,8 @@ renderOtherLine = parseIrcTextExplicit . Text.pack
 renderLine :: Palette -> String -> Image
 
 renderLine pal ('/':xs)
-  | (cmd,rest)            <- break isSpace xs
-  , Just (Command spec _) <- view (at (Text.pack cmd)) commands
+  | (cmd,rest)              <- break isSpace xs
+  , Just (Command spec _ _) <- view (at (Text.pack cmd)) commands
   , let attr =
           case parseArguments spec rest of
             Nothing -> view palCommand      pal

@@ -53,12 +53,12 @@ mkPlaceholders pal arg =
   case arg of
     NoArg           -> emptyImage
     ReqTokenArg n a -> leader
-                   <|> string (view palCommandRequired pal) n
+                   <|> string (view palCommandPlaceholder pal) n
                    <|> mkPlaceholders pal a
     OptTokenArg n a -> leader
-                   <|> string (view palCommandOptional pal) n
+                   <|> string (view palCommandPlaceholder pal) (n ++ "?")
                    <|> mkPlaceholders pal a
     RemainingArg n  -> leader
-                   <|> string (view palCommandRemaining pal) n
+                   <|> string (view palCommandPlaceholder pal) (n ++ "…")
   where
     leader = char defAttr ' '
