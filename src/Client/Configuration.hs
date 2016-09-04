@@ -31,6 +31,7 @@ module Client.Configuration
   , configExtraHighlights
   , configUrlOpener
   , configIgnores
+  , configActivityBar
 
   -- * Loading configuration
   , loadConfiguration
@@ -81,6 +82,7 @@ data Configuration = Configuration
   , _configExtensions       :: [FilePath] -- ^ paths to shared library
   , _configUrlOpener        :: Maybe FilePath -- ^ paths to url opening executable
   , _configIgnores          :: HashSet Identifier -- ^ initial ignore list
+  , _configActivityBar      :: Bool -- ^ initially visibility of the activity bar
   }
   deriving Show
 
@@ -210,6 +212,8 @@ parseConfiguration _configConfigPath def = parseSections $
 
      _configIgnores <- maybe HashSet.empty HashSet.fromList
                     <$> sectionOptWith (parseList parseIdentifier) "ignores"
+
+     _configActivityBar <- fromMaybe False <$> sectionOpt  "activity-bar"
 
      for_ _configNickPadding (\padding ->
        when (padding < 0)

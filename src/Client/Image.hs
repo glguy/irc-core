@@ -51,11 +51,7 @@ clientImage st = (pos, img, st')
   where
     (mp, st') = messagePane st
     (pos, tbImg) = textboxImage st'
-    img = vertCat
-            [ mp
-            , statusLineImage st'
-            , tbImg
-            ]
+    img = mp <-> statusLineImage st' <-> tbImg
 
 messagePaneImages :: ClientState -> [Image]
 messagePaneImages !st =
@@ -111,7 +107,12 @@ messagePane st = (img, st')
 
     scroll = view clientScroll st
     vh     = h + scroll
-    h      = view clientHeight st - 2
+
+    reservedLines
+      | view clientActivityBar st = 3
+      | otherwise                 = 2
+
+    h      = view clientHeight st - reservedLines
     w      = view clientWidth st
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]

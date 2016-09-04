@@ -32,13 +32,15 @@ import           Numeric
 -- | Renders the status line between messages and the textbox.
 statusLineImage :: ClientState -> Image
 statusLineImage st
-  = content <|> charFill defAttr '─' fillSize 1
+  = activityBar <->
+    content <|> charFill defAttr '─' fillSize 1
   where
     fillSize = max 0 (view clientWidth st - imageWidth content)
+    (activitySummary, activityBar) = activityImages st
     content = horizCat
       [ myNickImage st
       , focusImage st
-      , activityImage st
+      , activitySummary
       , detailImage st
       , scrollImage st
       , latencyImage st
@@ -86,21 +88,56 @@ detailImage st
   where
     attr = view (clientConfig . configPalette . palLabel) st
 
-activityImage :: ClientState -> Image
-activityImage st
-  | null indicators = emptyImage
-  | otherwise       = string defAttr "─[" <|>
-                      horizCat indicators <|>
-                      string defAttr "]"
+activityImages :: ClientState -> (Image, Image)
+activityImages st = (summary, activityBar)
   where
-    windows = views clientWindows Map.elems st
+    activityBar
+      | view clientActivityBar st = activityBar' <|> activityFill
+      | otherwise                 = emptyImage
+
+    summary
+      | null indicators = emptyImage
+      | otherwise       = string defAttr "─[" <|>
+                          horizCat indicators <|>
+                          string defAttr "]"
+
+    activityFill = charFill defAttr '─'
+                        (max 0 (view clientWidth st - imageWidth activityBar'))
+                        1
+
+    activityBar' = foldr baraux emptyImage
+                 $ zip winNames
+                 $ Map.toList
+                 $ view clientWindows st
+
+    baraux (i,(focus,w)) rest
+      | n == 0 = rest
+      | otherwise = string defAttr "─[" <|>
+                    char (view palWindowName pal) i <|>
+                    char defAttr              ':' <|>
+                    text' (view palLabel pal) focusText <|>
+                    char defAttr              ':' <|>
+                    string attr               (show n) <|>
+                    string defAttr "]" <|> rest
+      where
+        n   = view winUnread w
+        pal = view (clientConfig . configPalette) st
+        attr | view winMention w = view palMention pal
+             | otherwise         = view palActivity pal
+        focusText =
+          case focus of
+            Unfocused           -> Text.pack "*"
+            NetworkFocus net    -> net
+            ChannelFocus _ chan -> idText chan
+
+    windows     = views clientWindows Map.elems st
     windowNames = view (clientConfig . configWindowNames) st
-    winNames = Text.unpack windowNames ++ repeat '?'
-    indicators = aux (zip winNames windows)
-    aux [] = []
-    aux ((i,w):ws)
-      | view winUnread w == 0 = aux ws
-      | otherwise = char attr i : aux ws
+    winNames    = Text.unpack windowNames ++ repeat '?'
+
+    indicators  = foldr aux [] (zip winNames windows)
+    aux (i,w) rest
+      | view winUnread w == 0 = rest
+      | otherwise = char attr i : rest
       where
         pal = view (clientConfig . configPalette) st
         attr | view winMention w = view palMention pal

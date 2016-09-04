@@ -28,6 +28,7 @@ module Client.State
   , clientConfig
   , clientScroll
   , clientDetailView
+  , clientActivityBar
   , clientSubfocus
   , clientNextConnectionId
   , clientNetworkMap
@@ -145,6 +146,7 @@ data ClientState = ClientState
   , _clientConfig            :: !Configuration            -- ^ client configuration
   , _clientScroll            :: !Int                      -- ^ buffer scroll lines
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
+  , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
   , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored nicknames
@@ -216,6 +218,7 @@ withClientState cfg k =
         , _clientConfig            = cfg
         , _clientScroll            = 0
         , _clientDetailView        = False
+        , _clientActivityBar       = view configActivityBar cfg
         , _clientNextConnectionId  = 0
         , _clientBell              = False
         , _clientExtensions        = exts

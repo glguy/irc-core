@@ -4,6 +4,7 @@
 
 * Add `/help`
 * Add `/palette`
+* Add F3 to toggle activity detail bar
 
 ## 2.13
 

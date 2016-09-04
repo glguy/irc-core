@@ -85,6 +85,12 @@ instance FromConfig Text where
   parseConfig (Text x)          = return x
   parseConfig _                 = failure "expected text"
 
+-- | Matches @yes@ as 'True' and @no@ as 'False.
+instance FromConfig Bool where
+  parseConfig (Atom "yes")      = return True
+  parseConfig (Atom "no")       = return False
+  parseConfig _                 = failure "expected yes or no"
+
 -- | Matches 'Number' values ignoring the base
 instance FromConfig Integer where
   parseConfig (Number _ n)      = return n

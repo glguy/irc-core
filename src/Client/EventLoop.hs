@@ -399,7 +399,8 @@ doKey key modifier st =
         KChar '\t' -> doCommandResult False =<< tabCompletion False st
 
         KChar c    -> changeEditor (Edit.insert c)
-        KFun 2     -> eventLoop (over clientDetailView not st)
+        KFun 2     -> eventLoop (over clientDetailView  not st)
+        KFun 3     -> eventLoop (over clientActivityBar not st)
         _          -> eventLoop st
 
     _ -> eventLoop st -- unsupported modifier
