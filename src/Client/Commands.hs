@@ -516,8 +516,17 @@ commandsList =
     $ NetworkCommand cmdZnc    simpleNetworkTab
     )
   , ( pure "znc-playback"
-    , Command (RemainingArg "arguments")
+    , Command (OptTokenArg "time" (OptTokenArg "date" NoArg))
       "Request playback from the ZNC 'playback' module.\n\
+      \\n\
+      \\^Btime\^B determines the time to playback since.\n\
+      \\^Bdate\^B determines the date to playback since.\n\
+      \\n\
+      \When both \^Btime\^B and \^Bdate\^B are omitted, all playback is requested.\n\
+      \When both \^Bdate\^B is omitted it is defaulted the most recent date in the past that makes sense.\n\
+      \\n\
+      \Time format: HOURS:MINUTES (example: 7:00)\n\
+      \Date format: YEAR-MONTH-DAY (example: 2016-06-16)\n\
       \\n\
       \Note that the playback module is not installed in ZNC by default!\n"
     $ NetworkCommand cmdZncPlayback noNetworkTab
@@ -894,16 +903,15 @@ cmdZnc cs st rest =
   do sendMsg cs (ircZnc (Text.words (Text.pack rest)))
      commandSuccess st
 
--- TODO: support time ranges
-cmdZncPlayback :: NetworkCommand String
-cmdZncPlayback cs st rest =
-  case words rest of
+cmdZncPlayback :: NetworkCommand (Maybe (String, Maybe (String, ())))
+cmdZncPlayback cs st args =
+  case args of
 
     -- request everything
-    [] -> success "0"
+    Nothing -> success "0"
 
     -- current date explicit time
-    [timeStr]
+    Just (timeStr, Nothing)
        | Just tod <- parse timeFormats timeStr ->
           do now <- getZonedTime
              let (nowTod,t) = (zonedTimeLocalTime . localTimeTimeOfDay <<.~ tod) now
@@ -914,7 +922,7 @@ cmdZncPlayback cs st rest =
              successZoned (fixDay t)
 
     -- explicit date and time
-    [dateStr,timeStr]
+    Just (dateStr, Just (timeStr, _))
        | Just day  <- parse dateFormats dateStr
        , Just tod  <- parse timeFormats timeStr ->
           do tz <- getCurrentTimeZone
