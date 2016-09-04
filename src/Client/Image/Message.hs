@@ -302,7 +302,7 @@ ircLineImage rm !rp body =
       string (view palSigil pal) sigils <|>
       coloredUserInfo pal rm myNicks nick <|>
       string defAttr " set mode: " <|>
-      separatedParams params
+      ircWords params
 
     Authenticate{} -> string defAttr "AUTHENTICATE ***"
     BatchStart{}   -> string defAttr "BATCH +"
@@ -322,8 +322,15 @@ renderCapCmd cmd =
 separatorImage :: Image
 separatorImage = char (withForeColor defAttr blue) '·'
 
+-- | Process list of 'Text' as individual IRC formatted words
+-- separated by a special separator to distinguish parameters
+-- from words within parameters.
 separatedParams :: [Text] -> Image
 separatedParams = horizCat . intersperse separatorImage . map parseIrcText
+
+-- | Process list of 'Text' as individual IRC formatted words
+ircWords :: [Text] -> Image
+ircWords = horizCat . intersperse (char defAttr ' ') . map parseIrcText
 
 renderReplyCode :: RenderMode -> MessageRendererParams -> ReplyCode -> Image
 renderReplyCode rm rp code@(ReplyCode w) =
