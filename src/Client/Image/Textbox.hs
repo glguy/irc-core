@@ -18,6 +18,7 @@ module Client.Image.Textbox
 import           Client.Configuration
 import           Client.Commands
 import           Client.Commands.Arguments
+import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
 import           Client.Image.Arguments
 import           Client.Image.MircFormatting
@@ -39,7 +40,7 @@ textboxImage st
   = (pos, croppedImage)
   where
   width = view clientWidth st
-  macros = views (clientConfig . configMacros) (() <$) st
+  macros = views (clientConfig . configMacros) (fmap macroSpec) st
   (txt, content) =
      views (clientTextBox . Edit.content) (renderContent macros pal) st
 
@@ -63,7 +64,7 @@ textboxImage st
 -- corresponding to the rendered image which can be used for computing
 -- the logical cursor position of the cropped version of the text box.
 renderContent ::
-  Recognizer ()   {- ^ macro names                           -} ->
+  Recognizer MacroSpec {- ^ macro completions                     -} ->
   Palette         {- ^ palette                               -} ->
   Edit.Content    {- ^ content                               -} ->
   (String, Image) {- ^ plain text rendering, image rendering -}
@@ -105,22 +106,27 @@ renderOtherLine = parseIrcTextExplicit . Text.pack
 
 -- | Render the active text box line using command highlighting and
 -- placeholders, and WYSIWYG mIRC formatting control characters.
-renderLine :: Recognizer () -> Palette -> String -> Image
+renderLine :: Recognizer MacroSpec -> Palette -> String -> Image
 renderLine macros pal ('/':xs)
   = char defAttr '/' <|> string attr cmd <|> continue rest
  where
+ specAttr spec =
+   case parseArguments spec rest of
+     Nothing -> view palCommand      pal
+     Just{}  -> view palCommandReady pal
+
  (cmd, rest) = break isSpace xs
  allCommands = (Left <$> macros) <> (Right <$> commands)
  (attr, continue)
    = case recognize (Text.pack cmd) allCommands of
        Exact (Right (Command spec _ _)) ->
-         ( case parseArguments spec rest of
-             Nothing -> view palCommand      pal
-             Just{}  -> view palCommandReady pal
+         ( specAttr spec
          , argumentsImage pal spec
          )
-       Exact (Left _) ->
-         (view palCommand pal, renderOtherLine)
+       Exact (Left (MacroSpec spec)) ->
+         ( specAttr spec
+         , argumentsImage pal spec
+         )
        Prefix _ ->
          ( view palCommandPrefix pal
          , renderOtherLine

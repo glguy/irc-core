@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, GADTs #-}
 
 {-|
 Module      : Client.Commands.Interpolation
@@ -15,6 +15,9 @@ module Client.Commands.Interpolation
   ( ExpansionChunk(..)
   , parseExpansion
   , resolveMacroExpansions
+  , Macro(..)
+  , MacroSpec(..)
+  , parseMacroSpecs
   ) where
 
 import           Control.Applicative
@@ -22,6 +25,8 @@ import           Data.Attoparsec.Text as P
 import           Data.Char
 import qualified Data.Text as Text
 import           Data.Text (Text)
+
+import           Client.Commands.Arguments
 
 -- | Parsed chunk of an expandable command
 data ExpansionChunk
@@ -34,6 +39,35 @@ data ExpansionChunk
   -- | bracketed variable with default @${x|lit}@
   | DefaultChunk ExpansionChunk Text
   deriving Show
+
+data Macro
+  = Macro
+  { macroSpec :: MacroSpec
+  , macroCommands :: [[ExpansionChunk]]
+  } deriving Show
+
+data MacroSpec where
+  MacroSpec :: ArgumentSpec s -> MacroSpec
+
+instance Show MacroSpec where
+  show (MacroSpec as) = "MacroSpec (" ++ show as ++ ")"
+
+parseMacroSpecs :: Text -> Maybe MacroSpec
+parseMacroSpecs txt =
+  case parseOnly (macroSpecs <* endOfInput) txt of
+    Left{}     -> Nothing
+    Right spec -> Just spec
+
+macroSpecs :: Parser MacroSpec
+macroSpecs =
+  cons <$> P.takeWhile1 isAlpha
+       <*> optional (char '?')
+       <*  P.skipSpace
+       <*> macroSpecs
+    <|> pure (MacroSpec NoArg)
+ where
+ cons desc (Just _) (MacroSpec rest) = MacroSpec (OptTokenArg (Text.unpack desc) rest)
+ cons desc Nothing  (MacroSpec rest) = MacroSpec (ReqTokenArg (Text.unpack desc) rest)
 
 -- | Parse a 'Text' searching for the expansions as specified in
 -- 'ExpansionChunk'. @$$@ is used to escape a single @$@.
