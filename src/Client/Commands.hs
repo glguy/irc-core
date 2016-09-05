@@ -43,7 +43,6 @@ import           Control.Applicative
 import           Control.Exception (displayException, try)
 import           Control.Lens
 import           Control.Monad
-import           Data.Char
 import           Data.Foldable
 import           Data.HashSet (HashSet)
 import           Data.List.NonEmpty (NonEmpty((:|)))

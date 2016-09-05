@@ -17,9 +17,6 @@ module Client.Commands.Arguments
   ) where
 
 import           Control.Monad
-import           Data.Attoparsec.Text as P
-import           Data.Char
-
 
 -- | Description of a command's arguments indexed by the result of parsing
 -- those arguments. Arguments are annotated with a 'String' describing the
