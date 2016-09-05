@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+
 {-|
 Module      : Client.Image.Help
 Description : Renderer for help lines
@@ -17,8 +19,10 @@ import           Client.Image.Palette
 import           Client.Image.MircFormatting
 import           Client.Commands
 import           Client.Commands.Arguments
+import           Client.Commands.Recognizer
 import           Control.Lens
 import           Data.List.NonEmpty (NonEmpty((:|)))
+import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Image
@@ -37,9 +41,13 @@ helpImageLines mbCmd pal =
 
 commandHelpLines :: Text -> Palette -> [Image]
 commandHelpLines cmdName pal =
-  case view (at cmdName) commands of
-    Nothing -> [string (view palError pal) "Unknown command, try /help"]
-    Just (Command args doc impl) ->
+  case recognize cmdName commands of
+    Invalid -> [string (view palError pal) "Unknown command, try /help"]
+    Prefix sfxs ->
+      [string (view palError pal) $ "Unknown command, did you mean: " ++ suggestions]
+      where
+      suggestions = Text.unpack $ Text.intercalate " " ((cmdName <>) <$> sfxs)
+    Exact (Command args doc impl) ->
       reverse $ commandSummary pal (pure cmdName) args
               : emptyImage
               : explainContext impl

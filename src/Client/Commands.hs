@@ -28,6 +28,7 @@ import           Client.CApi
 import           Client.Commands.Arguments
 import           Client.Commands.Exec
 import           Client.Commands.Interpolation
+import           Client.Commands.Recognizer
 import           Client.Commands.WordCompletion
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
@@ -220,14 +221,13 @@ executeCommand tabCompleteReversed str st =
               Nothing -> commandFailure st
               Just arg -> exec st arg
   in
-  case HashMap.lookup cmdTxt commands of
+  case recognize cmdTxt commands of
 
-    Nothing ->
-      case tabCompleteReversed of
-        Nothing         -> commandFailureMsg "Unknown command" st
-        Just isReversed -> nickTabCompletion isReversed st
+    Prefix _
+      | Just isReversed <- tabCompleteReversed
+      -> nickTabCompletion isReversed st
 
-    Just (Command argSpec _docs impl) ->
+    Exact (Command argSpec _docs impl) ->
       case impl of
         ClientCommand exec tab ->
           finish argSpec exec tab
@@ -251,6 +251,8 @@ executeCommand tabCompleteReversed str st =
               finish argSpec (exec channelId cs) (\x -> tab x channelId cs)
           | otherwise -> commandFailureMsg "This command requires an active chat window" st
 
+    _ -> commandFailureMsg "Unknown command" st
+
 -- | Expands each alias to have its own copy of the command callbacks
 expandAliases :: [(NonEmpty a,b)] -> [(a,b)]
 expandAliases xs = [ (a,b) | (as,b) <- xs, a <- toList as ]
@@ -258,8 +260,8 @@ expandAliases xs = [ (a,b) | (as,b) <- xs, a <- toList as ]
 
 -- | Map of built-in client commands to their implementations, tab completion
 -- logic, and argument structures.
-commands :: HashMap Text Command
-commands = HashMap.fromList (expandAliases commandsList)
+commands :: Recognizer Command
+commands = fromCommands (expandAliases commandsList)
 
 commandsList :: [(NonEmpty Text,Command)]
 commandsList =
@@ -1260,7 +1262,7 @@ commandNameCompletion isReversed st =
     (cursorPos, line) = clientLine st
     leadingPart = takeWhile (not . isSpace) line
     possibilities = Text.cons '/' <$> commandNames
-    commandNames = HashMap.keys commands
+    commandNames = keys commands
                 ++ HashMap.keys (view (clientConfig . configMacros) st)
 
 -- | Complete the nickname at the current cursor position using the

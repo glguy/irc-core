@@ -18,6 +18,7 @@ module Client.Image.Textbox
 import           Client.Configuration
 import           Client.Commands
 import           Client.Commands.Arguments
+import           Client.Commands.Recognizer
 import           Client.Image.Arguments
 import           Client.Image.MircFormatting
 import           Client.Image.Palette
@@ -102,16 +103,26 @@ renderOtherLine = parseIrcTextExplicit . Text.pack
 -- | Render the active text box line using command highlighting and
 -- placeholders, and WYSIWYG mIRC formatting control characters.
 renderLine :: Palette -> String -> Image
-
 renderLine pal ('/':xs)
-  | (cmd,rest)              <- break isSpace xs
-  , Just (Command spec _ _) <- view (at (Text.pack cmd)) commands
-  , let attr =
-          case parseArguments spec rest of
-            Nothing -> view palCommand      pal
-            Just{}  -> view palCommandReady pal
-  = char defAttr '/' <|>
-    string attr cmd <|>
-    argumentsImage pal spec rest
+  = char defAttr '/' <|> string attr cmd <|> continue rest
+ where
+ (cmd, rest) = break isSpace xs
+ (attr, continue)
+   = case recognize (Text.pack cmd) commands of
+       Exact (Command spec _ _) ->
+         ( case parseArguments spec rest of
+             Nothing -> view palCommand      pal
+             Just{}  -> view palCommandReady pal
+         , argumentsImage pal spec
+         )
+       Prefix _ ->
+         ( view palCommandPrefix pal
+         , parseIrcTextExplicit . Text.pack
+         )
+       Invalid ->
+         ( view palCommandError pal
+         , parseIrcTextExplicit . Text.pack
+         )
 
 renderLine _ xs = parseIrcTextExplicit (Text.pack xs)
+
