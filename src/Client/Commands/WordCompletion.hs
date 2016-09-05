@@ -101,20 +101,20 @@ instance Prefix Text where
   toString = Text.unpack
 
 
-tabSearch :: Prefix a => Bool -> a -> a -> [a] -> Maybe a
+tabSearch ::
+  Prefix a =>
+  Bool {- ^ reversed        -} ->
+  a    {- ^ search prefix   -} ->
+  a    {- ^ previous result -} ->
+  [a]  {- ^ posibilities    -} ->
+  Maybe a
 tabSearch isReversed pat cur vals
-  | Just next <- advanceFun cur valSet
-  , isPrefix pat next
-  = Just next
-
-  | isReversed = find (isPrefix pat) (Set.toDescList valSet)
-
-  | otherwise  = do x <- Set.lookupGE pat valSet
-                    guard (isPrefix pat x)
-                    Just x
+  | Set.null valSet                    = Nothing
+  | Just next <- advanceFun cur valSet = Just next
+  | isReversed                         = Just $! Set.findMax valSet
+  | otherwise                          = Just $! Set.findMin valSet
   where
-    valSet = Set.fromList vals
+    valSet = Set.fromList (filter (isPrefix pat) vals)
 
     advanceFun | isReversed = Set.lookupLT
                | otherwise  = Set.lookupGT
-
