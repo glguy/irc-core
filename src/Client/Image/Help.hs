@@ -12,11 +12,11 @@ module Client.Image.Help
   ( helpImageLines
   ) where
 
-import           Client.Image.Arguments
-import           Client.Image.Palette
-import           Client.Image.MircFormatting
 import           Client.Commands
 import           Client.Commands.Arguments
+import           Client.Image.Arguments
+import           Client.Image.MircFormatting
+import           Client.Image.Palette
 import           Control.Lens
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.Text (Text)
@@ -29,13 +29,17 @@ import           Graphics.Vty.Image
 helpImageLines ::
   Maybe Text {- ^ optional command name -} ->
   Palette    {- ^ palette               -} ->
-  [Image]    {- ^ lines                 -}
+  [Image]    {- ^ help lines            -}
 helpImageLines mbCmd pal =
   case mbCmd of
     Nothing  -> listAllCommands pal
     Just cmd -> commandHelpLines cmd pal
 
-commandHelpLines :: Text -> Palette -> [Image]
+-- | Generate detailed help lines for the command with the given name.
+commandHelpLines ::
+  Text    {- ^ command name -} ->
+  Palette {- ^ palette      -} ->
+  [Image] {- ^ lines        -}
 commandHelpLines cmdName pal =
   case view (at cmdName) commands of
     Nothing -> [string (view palError pal) "Unknown command, try /help"]
@@ -48,7 +52,11 @@ commandHelpLines cmdName pal =
       where
         docs = Text.lines doc
 
-explainContext :: CommandImpl a -> Image
+-- | Generate an explanation of the context where the given command
+-- implementation will be valid.
+explainContext ::
+  CommandImpl a {- ^ command implementation -} ->
+  Image         {- ^ help line              -}
 explainContext impl =
   case impl of
     ClientCommand {} -> go "client command" "works everywhere"
@@ -59,13 +67,22 @@ explainContext impl =
     go x y = string (withStyle defAttr bold) x <|>
              string defAttr (": " ++ y)
 
-listAllCommands :: Palette -> [Image]
+-- | Generate the lines for the help window showing all commands.
+listAllCommands ::
+  Palette {- ^ palette    -} ->
+  [Image] {- ^ help lines -}
 listAllCommands pal =
   reverse
     [ commandSummary pal name args
     | (name, Command args _ _) <- commandsList ]
 
-commandSummary :: Palette -> NonEmpty Text -> ArgumentSpec a -> Image
+-- | Generate the help line for the given command and its
+-- specification for use in the list of commands.
+commandSummary ::
+  Palette        {- ^ palette                  -} ->
+  NonEmpty Text  {- ^ command name and aliases -} ->
+  ArgumentSpec a {- ^ argument specification   -} ->
+  Image          {- ^ summary help line        -}
 commandSummary pal (cmd :| _) args  =
   char defAttr '/' <|>
   text' (view palCommand pal) cmd <|>

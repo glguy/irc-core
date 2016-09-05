@@ -50,6 +50,7 @@ import           Graphics.Vty
 import           Irc.Codes
 import           Irc.Message
 import           Irc.RawIrcMsg
+import           LensUtils
 import           Network.Connection
 
 reconnectAttempts :: Int
@@ -115,6 +116,7 @@ eventLoop st0 =
          case networkEvent of
            NetworkLine  network time line -> doNetworkLine network time line st
            NetworkError network time ex   -> doNetworkError network time ex st
+           NetworkOpen  network time      -> doNetworkOpen  network time st
            NetworkClose network time      -> doNetworkClose network time st
 
 -- | Sound the terminal bell assuming that the @BEL@ control code
@@ -122,10 +124,29 @@ eventLoop st0 =
 beep :: Vty -> IO ()
 beep = ringTerminalBell . outputIface
 
+-- | Respond to a network connection successfully connecting.
+doNetworkOpen ::
+  NetworkId   {- ^ network id   -} ->
+  ZonedTime   {- ^ event time   -} ->
+  ClientState {- ^ client state -} ->
+  IO ()
+doNetworkOpen networkId time st =
+  case view (clientConnections . at networkId) st of
+    Nothing -> error "doNetworkOpen: Network missing"
+    Just cs ->
+      let msg = ClientMessage
+                  { _msgTime    = time
+                  , _msgNetwork = view csNetwork cs
+                  , _msgBody    = NormalBody "connection opened"
+                  }
+      in eventLoop $ recordNetworkMessage msg
+                   $ overStrict (clientConnections . ix networkId . csLastReceived)
+                                (\old -> old `seq` Just $! zonedTimeToUTC time) st
+
 -- | Respond to a network connection closing normally.
 doNetworkClose ::
-  NetworkId {- ^ finished network -} ->
-  ZonedTime {- ^ current time     -} ->
+  NetworkId {- ^ network id -} ->
+  ZonedTime {- ^ event time -} ->
   ClientState -> IO ()
 doNetworkClose networkId time st =
   let (cs,st') = removeNetwork networkId st

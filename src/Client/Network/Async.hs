@@ -62,12 +62,14 @@ data NetworkConnection = NetworkConnection
 -- are annotated with a network ID matching that given when the connection
 -- was created as well as the time at which the message was recieved.
 data NetworkEvent
-  = NetworkLine  !NetworkId !ZonedTime !ByteString
-    -- ^ Event for a new recieved line (newline removed)
+  -- | Event for successful connection to host
+  = NetworkOpen  !NetworkId !ZonedTime
+  -- | Event for a new recieved line (newline removed)
+  | NetworkLine  !NetworkId !ZonedTime !ByteString
+  -- | Final message indicating the network connection failed
   | NetworkError !NetworkId !ZonedTime !SomeException
-    -- ^ Final message indicating the network connection failed
+  -- | Final message indicating the network connection finished
   | NetworkClose !NetworkId !ZonedTime
-    -- ^ Final message indicating the network connection finished
 
 instance Show NetworkConnection where
   showsPrec p _ = showParen (p > 10)
@@ -142,19 +144,25 @@ startConnection ::
   TQueue NetworkEvent ->
   TQueue ByteString ->
   IO ()
-startConnection network cxt settings onInput outQueue =
+startConnection network cxt settings inQueue outQueue =
   do rate <- newRateLimit
                (view ssFloodPenalty settings)
                (view ssFloodThreshold settings)
      withConnection cxt settings $ \h ->
-       withAsync (sendLoop h outQueue rate)      $ \sender ->
-       withAsync (receiveLoop network h onInput) $ \receiver ->
-         do res <- waitEitherCatch sender receiver
-            case res of
-              Left  Right{}  -> fail "PANIC: sendLoop returned"
-              Right Right{}  -> return ()
-              Left  (Left e) -> throwIO e
-              Right (Left e) -> throwIO e
+       do reportNetworkOpen network inQueue
+          withAsync (sendLoop h outQueue rate) $ \sender ->
+            withAsync (receiveLoop network h inQueue) $ \receiver ->
+              do res <- waitEitherCatch sender receiver
+                 case res of
+                   Left  Right{}  -> fail "PANIC: sendLoop returned"
+                   Right Right{}  -> return ()
+                   Left  (Left e) -> throwIO e
+                   Right (Left e) -> throwIO e
+
+reportNetworkOpen :: NetworkId -> TQueue NetworkEvent -> IO ()
+reportNetworkOpen network inQueue =
+  do now <- getZonedTime
+     atomically (writeTQueue inQueue (NetworkOpen network now))
 
 sendLoop :: Connection -> TQueue ByteString -> RateLimit -> IO ()
 sendLoop h outQueue rate =
