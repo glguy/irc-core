@@ -232,22 +232,8 @@ paletteHelper p k v =
     "nick-colors" -> do xs <- Vector.fromList <$> parseList parseAttr v
                         when (null xs) (failure "Empty palette")
                         return $! set palNicks xs p
-
-    "self"              -> setAttr palSelf
     "self-highlight"    -> setAttrMb palSelfHighlight
-    "time"              -> setAttr palTime
-    "meta"              -> setAttr palMeta
-    "sigil"             -> setAttr palSigil
-    "label"             -> setAttr palLabel
-    "latency"           -> setAttr palLatency
-    "error"             -> setAttr palError
-    "textbox"           -> setAttr palTextBox
-    "window-name"       -> setAttr palWindowName
-    "activity"          -> setAttr palActivity
-    "mention"           -> setAttr palMention
-    "command"           -> setAttr palCommand
-    "command-ready"     -> setAttr palCommandReady
-    "command-placeholder" -> setAttr palCommandPlaceholder
+    _ | Just (Lens l) <- lookup k paletteMap -> setAttr l
     _                   -> failure "Unknown palette entry"
   where
     setAttr l =
