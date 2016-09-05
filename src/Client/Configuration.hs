@@ -324,7 +324,8 @@ parseMacroMap v = fromCommands <$> parseList parseMacro v
 parseMacro :: Value -> ConfigParser (Text, Macro)
 parseMacro = parseSections $
   do name     <- sectionReq "name"
-     spec     <- sectionReqWith parseMacroArguments "arguments"
+     spec     <- fromMaybe noMacroArguments
+             <$> sectionOptWith parseMacroArguments "arguments"
      commands <- sectionReqWith (parseList parseMacroCommand) "commands"
      return (name, Macro spec commands)
 

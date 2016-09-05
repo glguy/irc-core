@@ -18,6 +18,7 @@ module Client.Commands.Interpolation
   , Macro(..)
   , MacroSpec(..)
   , parseMacroSpecs
+  , noMacroArguments
   ) where
 
 import           Control.Applicative
@@ -53,6 +54,10 @@ instance Show MacroSpec where
   showsPrec p (MacroSpec as)
     = showParen (p >= 11)
     $ showString "MacroSpec " . showsPrec 11 as
+
+-- | Specification used when unspecified, no arguments.
+noMacroArguments :: MacroSpec
+noMacroArguments = MacroSpec NoArg
 
 parseMacroSpecs :: Text -> Maybe MacroSpec
 parseMacroSpecs txt =

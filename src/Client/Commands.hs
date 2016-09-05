@@ -130,7 +130,7 @@ execute str st =
 executeUserCommand :: Maybe Text -> String -> ClientState -> IO CommandResult
 executeUserCommand discoTime command st = do
   let key = Text.takeWhile (/=' ') tcmd
-      rest = dropWhile isSpace . dropWhile (not . isSpace) $ command
+      rest = dropWhile (==' ') . dropWhile (/=' ') $ command
 
   case views (clientConfig . configMacros) (recognize key) st of
     Exact (Macro (MacroSpec spec) cmdExs) ->
@@ -1003,7 +1003,7 @@ tabTopic ::
   ChannelCommand String
 tabTopic _ channelId cs st rest
 
-  | all isSpace rest
+  | all (==' ') rest
   , Just topic <- preview (csChannels . ix channelId . chanTopic) cs =
      do let textBox = set Edit.line (Edit.endLine $ "/topic " ++ Text.unpack topic)
         commandSuccess (over clientTextBox textBox st)
@@ -1263,7 +1263,7 @@ commandNameCompletion isReversed st =
   where
     n = length leadingPart
     (cursorPos, line) = clientLine st
-    leadingPart = takeWhile (not . isSpace) line
+    leadingPart = takeWhile (/=' ') line
     possibilities = Text.cons '/' <$> commandNames
     commandNames = keys commands
                 ++ keys (view (clientConfig . configMacros) st)

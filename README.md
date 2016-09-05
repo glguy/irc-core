@@ -362,6 +362,7 @@ Configuration
 -------------
 
 * `name` - text - name of macro
+* `arguments` - text - space separated list of argument names (suffix name with `?` when optional)
 * `commands` - list of text - commands to send after expansion
 
 Macro Expansions
