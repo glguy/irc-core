@@ -257,10 +257,10 @@ recordChannelMessage ::
   ClientMessage ->
   ClientState -> ClientState
 recordChannelMessage network channel msg st =
-  recordWindowLine focus importance wl st
+  recordWindowLine focus wl st
   where
     focus      = ChannelFocus network channel'
-    wl         = toWindowLine rendParams msg
+    wl         = toWindowLine rendParams importance msg
 
     rendParams = MessageRendererParams
       { rendStatusMsg   = statusModes
@@ -364,11 +364,11 @@ recordIrcMessage network target msg st =
     TargetUser user   ->
       foldl' (\st' chan -> overStrict
                              (clientWindows . ix (ChannelFocus network chan))
-                             (addToWindow WLBoring wl) st')
+                             (addToWindow wl) st')
            st chans
       where
         cfg   = view clientConfig st
-        wl    = toWindowLine' cfg msg
+        wl    = toWindowLine' cfg WLBoring msg
         chans = user
               : case preview (clientConnection network . csChannels) st of
                   Nothing -> []
@@ -401,39 +401,39 @@ computeUserSigils network channel user =
 
 -- | Record a message on a network window
 recordNetworkMessage :: ClientMessage -> ClientState -> ClientState
-recordNetworkMessage msg st = recordWindowLine focus importance wl st
+recordNetworkMessage msg st = recordWindowLine focus wl st
   where
     network    = view msgNetwork msg
     focus      | Text.null network = Unfocused
                | otherwise         = NetworkFocus (view msgNetwork msg)
     importance = msgImportance msg st
-    wl         = toWindowLine' cfg msg
+    wl         = toWindowLine' cfg importance msg
 
     cfg        = view clientConfig st
 
 -- | Record window line at the given focus creating the window if necessary
 recordWindowLine ::
   Focus ->
-  WindowLineImportance ->
   WindowLine ->
   ClientState -> ClientState
-recordWindowLine focus importance wl =
+recordWindowLine focus wl =
   over (clientWindows . at focus)
-       (\w -> Just $! addToWindow importance wl (fromMaybe emptyWindow w))
+       (\w -> Just $! addToWindow wl (fromMaybe emptyWindow w))
 
-toWindowLine :: MessageRendererParams -> ClientMessage -> WindowLine
-toWindowLine params msg = WindowLine
+toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
+toWindowLine params importance msg = WindowLine
   { _wlBody      = view msgBody msg
   , _wlText      = msgText (view msgBody msg)
   , _wlImage     = mkImage NormalRender
   , _wlFullImage = mkImage DetailedRender
+  , _wlImportance = importance
   }
   where
     mkImage mode =
       force (msgImage mode (view msgTime msg) params (view msgBody msg))
 
 -- | 'toWindowLine' but with mostly defaulted parameters.
-toWindowLine' :: Configuration -> ClientMessage -> WindowLine
+toWindowLine' :: Configuration -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine' config =
   toWindowLine defaultRenderParams
     { rendPalette     = view configPalette     config

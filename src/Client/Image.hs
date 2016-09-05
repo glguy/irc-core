@@ -12,21 +12,21 @@ This module provides the renderer for the client's UI.
 module Client.Image (clientPicture) where
 
 import           Client.Configuration
-import           Client.Image.ChannelInfo
-import           Client.Image.Help
-import           Client.Image.MaskList
 import           Client.Image.Message
 import           Client.Image.Palette
-import           Client.Image.PaletteView
 import           Client.Image.StatusLine
 import           Client.Image.Textbox
-import           Client.Image.UserList
-import           Client.Image.Windows
 import           Client.Message
 import           Client.State
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Client.View.ChannelInfo
+import           Client.View.Help
+import           Client.View.MaskList
+import           Client.View.Palette
+import           Client.View.UserList
+import           Client.View.Windows
 import           Control.Lens
 import           Graphics.Vty (Background(..), Picture(..), Cursor(..))
 import           Graphics.Vty.Image

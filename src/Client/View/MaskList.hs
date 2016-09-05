@@ -1,6 +1,6 @@
 {-# Language OverloadedStrings #-}
 {-|
-Module      : Client.Image.MaskList
+Module      : Client.View.MaskList
 Description : Line renderers for channel mask list view
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -9,7 +9,7 @@ Maintainer  : emertens@gmail.com
 This module renders the lines used in the channel mask list. A mask list
 can show channel bans, quiets, invites, and exceptions.
 -}
-module Client.Image.MaskList
+module Client.View.MaskList
   ( maskListImages
   ) where
 

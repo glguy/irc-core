@@ -1,5 +1,5 @@
 {-|
-Module      : Client.Image.Windows
+Module      : Client.View.Windows
 Description : View of the list of open windows
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -8,7 +8,7 @@ Maintainer  : emertens@gmail.com
 This module implements the rendering of the client window list.
 
 -}
-module Client.Image.Windows
+module Client.View.Windows
   ( windowsImages
   ) where
 

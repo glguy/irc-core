@@ -2,7 +2,7 @@
 {-# Language BangPatterns #-}
 
 {-|
-Module      : Client.Image.ChannelInfo
+Module      : Client.View.ChannelInfo
 Description : Channel information renderer
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -12,7 +12,7 @@ This module implements a renderer for the window that shows
 channel metadata.
 
 -}
-module Client.Image.ChannelInfo
+module Client.View.ChannelInfo
   ( channelInfoImages
   ) where
 

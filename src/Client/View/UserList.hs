@@ -1,6 +1,6 @@
 {-# Language OverloadedStrings #-}
 {-|
-Module      : Client.Image.UserList
+Module      : Client.View.UserList
 Description : Line renderers for channel user list view
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -8,7 +8,7 @@ Maintainer  : emertens@gmail.com
 
 This module renders the lines used in the channel user list.
 -}
-module Client.Image.UserList
+module Client.View.UserList
   ( userListImages
   , userInfoImages
   ) where

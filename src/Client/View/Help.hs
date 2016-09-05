@@ -1,7 +1,7 @@
 {-# Language OverloadedStrings #-}
 
 {-|
-Module      : Client.Image.Help
+Module      : Client.View.Help
 Description : Renderer for help lines
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -10,7 +10,7 @@ Maintainer  : emertens@gmail.com
 This module provides the rendering used for the @/help@ command.
 
 -}
-module Client.Image.Help
+module Client.View.Help
   ( helpImageLines
   ) where
 

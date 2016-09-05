@@ -1,5 +1,5 @@
 {-|
-Module      : Client.Image.PaletteView
+Module      : Client.View.Palette
 Description : View current palette and to see all terminal colors
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -10,7 +10,7 @@ the current palette as well as the colors available in the terminal.
 
 -}
 
-module Client.Image.PaletteView
+module Client.View.Palette
   ( paletteViewLines
   ) where
 
