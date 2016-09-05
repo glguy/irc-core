@@ -222,10 +222,6 @@ executeCommand tabCompleteReversed str st =
   in
   case recognize cmdTxt commands of
 
-    Prefix _
-      | Just isReversed <- tabCompleteReversed
-      -> nickTabCompletion isReversed st
-
     Exact (Command argSpec _docs impl) ->
       case impl of
         ClientCommand exec tab ->
@@ -250,7 +246,10 @@ executeCommand tabCompleteReversed str st =
               finish argSpec (exec channelId cs) (\x -> tab x channelId cs)
           | otherwise -> commandFailureMsg "This command requires an active chat window" st
 
-    _ -> commandFailureMsg "Unknown command" st
+    _ -> case tabCompleteReversed of
+           Just isReversed -> nickTabCompletion isReversed st
+           Nothing         -> commandFailureMsg "Unknown command" st
+
 
 -- | Expands each alias to have its own copy of the command callbacks
 expandAliases :: [(NonEmpty a,b)] -> [(a,b)]
