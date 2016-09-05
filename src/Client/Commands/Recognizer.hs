@@ -51,14 +51,14 @@ data Recognition a
 
 -- | Match common prefixes of two strings in a more convenient form than
 -- available from 'Data.Text'
-common :: Text -> Text -> (Text, Text, Text)
-common l r = fromMaybe ("", l, r) $ Text.commonPrefixes l r
+splitCommon :: Text -> Text -> (Text, Text, Text)
+splitCommon l r = fromMaybe ("", l, r) $ Text.commonPrefixes l r
 
 -- | Attempt to recognize a string, yielding a 'Recognition' result.
 recognize :: Text -> Recognizer a -> Recognition a
 recognize tx (Branch pf contained children)
-  = case common pf tx of
-      (common, pfsfx, txsfx) -> case Text.uncons txsfx of
+  = case splitCommon pf tx of
+      (_, pfsfx, txsfx) -> case Text.uncons txsfx of
         Nothing
           | Text.null pfsfx
           , Just a <- contained -> Exact a
@@ -80,7 +80,7 @@ both l@(Branch pfl conl chil) r@(Branch pfr conr chir)
   | Text.null pfl && null conl && null chil = r
   | Text.null pfr && null conr && null chir = l
   | otherwise
-  = case common pfl pfr of
+  = case splitCommon pfl pfr of
       (common, lsfx, rsfx) -> Branch common contained children
         where
         contained = (guard (Text.null lsfx) *> conl)
@@ -88,13 +88,13 @@ both l@(Branch pfl conl chil) r@(Branch pfr conr chir)
         children = case (Text.uncons lsfx, Text.uncons rsfx) of
           (Nothing, Nothing)
             -> unionWith both chil chir
-          (Just (l,lest), Nothing)
-            -> insertWith (flip both) l (Branch lest conl chil) chir
-          (Nothing, Just (r,rest))
-            -> insertWith both r (Branch rest conr chir) chil
-          (Just (l,lest), Just (r,rest))
-            -> fromList [ (l, Branch lest conl chil)
-                        , (r, Branch rest conr chir)
+          (Just (l',lest), Nothing)
+            -> insertWith (flip both) l' (Branch lest conl chil) chir
+          (Nothing, Just (r',rest))
+            -> insertWith both r' (Branch rest conr chir) chil
+          (Just (l',lest), Just (r',rest))
+            -> fromList [ (l', Branch lest conl chil)
+                        , (r', Branch rest conr chir)
                         ]
 
 -- | Union an arbitrary number of 'Recognizers' as with 'both'.
