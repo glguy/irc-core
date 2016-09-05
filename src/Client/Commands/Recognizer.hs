@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, DeriveFunctor #-}
 
 {-|
 Module      : Client.Commands.Recognizer
@@ -18,7 +18,6 @@ module Client.Commands.Recognizer
   , Recognition(..)
   , fromCommands
   , addCommand
-  , both
   , keys
   ) where
 
@@ -35,11 +34,15 @@ import Prelude hiding (all,null,lookup)
 
 data Recognizer a
   = Branch !Text !(Maybe a) !(HashMap Char (Recognizer a))
-  deriving (Show)
+  deriving (Show, Functor)
+
+instance Monoid (Recognizer a) where
+  mempty = Branch "" Nothing empty
+  mappend = both
 
 data Recognition a
   = Exact a | Prefix [Text] | Invalid
-  deriving (Show)
+  deriving (Show, Functor)
 
 common :: Text -> Text -> (Text, Text, Text)
 common l r = fromMaybe ("", l, r) $ commonPrefixes l r
@@ -71,7 +74,7 @@ both (Branch pfl conl chil) (Branch pfr conr chir)
           (Nothing, Nothing)
             -> unionWith both chil chir
           (Just (l,lest), Nothing)
-            -> insertWith both l (Branch lest conl chil) chir
+            -> insertWith (flip both) l (Branch lest conl chil) chir
           (Nothing, Just (r,rest))
             -> insertWith both r (Branch rest conr chir) chil
           (Just (l,lest), Just (r,rest))

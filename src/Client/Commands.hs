@@ -132,12 +132,12 @@ executeUserCommand :: Maybe Text -> String -> ClientState -> IO CommandResult
 executeUserCommand discoTime command st = do
   let key = Text.takeWhile (/=' ') tcmd
 
-  case preview (clientConfig . configMacros . ix key) st of
-    Nothing     -> executeCommand Nothing command st
-    Just cmdExs ->
+  case views (clientConfig . configMacros) (recognize key) st of
+    Exact cmdExs ->
       case traverse resolveMacro cmdExs of
         Nothing   -> commandFailureMsg "Macro expansions failed" st
         Just cmds -> process cmds st
+    _ ->  executeCommand Nothing command st
   where
     resolveMacro = resolveMacroExpansions (commandExpansion discoTime st) expandInt
 
@@ -1263,7 +1263,7 @@ commandNameCompletion isReversed st =
     leadingPart = takeWhile (not . isSpace) line
     possibilities = Text.cons '/' <$> commandNames
     commandNames = keys commands
-                ++ HashMap.keys (view (clientConfig . configMacros) st)
+                ++ keys (view (clientConfig . configMacros) st)
 
 -- | Complete the nickname at the current cursor position using the
 -- userlist for the currently focused channel (if any)

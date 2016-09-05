@@ -44,6 +44,7 @@ import           Client.Image.Palette
 import           Client.Configuration.Colors
 import           Client.Configuration.ServerSettings
 import           Client.Commands.Interpolation
+import           Client.Commands.Recognizer
 import           Control.Exception
 import           Control.Monad
 import           Config
@@ -78,7 +79,7 @@ data Configuration = Configuration
   , _configNickPadding      :: Maybe Integer -- ^ Padding of nicks
   , _configConfigPath       :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
-  , _configMacros           :: HashMap Text [[ExpansionChunk]] -- ^ command macros
+  , _configMacros           :: Recognizer [[ExpansionChunk]] -- ^ command macros
   , _configExtensions       :: [FilePath] -- ^ paths to shared library
   , _configUrlOpener        :: Maybe FilePath -- ^ paths to url opening executable
   , _configIgnores          :: HashSet Identifier -- ^ initial ignore list
@@ -197,7 +198,7 @@ parseConfiguration _configConfigPath def = parseSections $
      _configWindowNames <- fromMaybe defaultWindowNames
                     <$> sectionOpt "window-names"
 
-     _configMacros <- fromMaybe HashMap.empty
+     _configMacros <- fromMaybe mempty
                     <$> sectionOptWith parseMacroMap "macros"
 
      _configExtensions <- fromMaybe []
@@ -338,8 +339,8 @@ resolveConfigurationPath path
   | otherwise = do home <- getHomeDirectory
                    return (home </> path)
 
-parseMacroMap :: Value -> ConfigParser (HashMap Text [[ExpansionChunk]])
-parseMacroMap v = HashMap.fromList <$> parseList parseMacro v
+parseMacroMap :: Value -> ConfigParser (Recognizer [[ExpansionChunk]])
+parseMacroMap v = fromCommands <$> parseList parseMacro v
 
 parseMacro :: Value -> ConfigParser (Text, [[ExpansionChunk]])
 parseMacro = parseSections $
