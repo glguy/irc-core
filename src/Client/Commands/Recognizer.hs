@@ -24,12 +24,13 @@ module Client.Commands.Recognizer
 import Control.Monad
 import Control.Applicative hiding (empty)
 
-import Data.HashMap.Strict (lookup,insertWith,HashMap,empty,unionWith,fromList,toList)
-import Data.Monoid
-import Data.Text (Text, commonPrefixes, cons, uncons, null)
-import Data.Maybe
+import           Data.HashMap.Strict (lookup,insertWith,HashMap,empty,unionWith,fromList,toList)
+import           Data.Monoid
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Data.Maybe
 
-import Prelude hiding (all,null,lookup)
+import Prelude hiding (all,lookup)
 
 -- | A map from 'Text' values to 'a' values that is capable of yielding more
 -- detailed information when looking up keys that are not actually in the map.
@@ -51,19 +52,19 @@ data Recognition a
 -- | Match common prefixes of two strings in a more convenient form than
 -- available from 'Data.Text'
 common :: Text -> Text -> (Text, Text, Text)
-common l r = fromMaybe ("", l, r) $ commonPrefixes l r
+common l r = fromMaybe ("", l, r) $ Text.commonPrefixes l r
 
 -- | Attempt to recognize a string, yielding a 'Recognition' result.
 recognize :: Text -> Recognizer a -> Recognition a
 recognize tx (Branch pf contained children)
   = case common pf tx of
-      (common, pfsfx, txsfx) -> case uncons txsfx of
+      (common, pfsfx, txsfx) -> case Text.uncons txsfx of
         Nothing
-          | null pfsfx
+          | Text.null pfsfx
           , Just a <- contained -> Exact a
           | otherwise -> Prefix $ keys (Branch pfsfx contained children)
         Just (c, txrest)
-          | null pfsfx
+          | Text.null pfsfx
           , Just rec <- lookup c children
           -> recognize txrest rec
         _ -> Invalid
@@ -75,12 +76,16 @@ single tx v = Branch tx (Just $! v) empty
 -- | Union two 'Recognizers'. The stored values in the result are biased to the
 -- left if there is key overlap.
 both :: Recognizer a -> Recognizer a -> Recognizer a
-both (Branch pfl conl chil) (Branch pfr conr chir)
+both l@(Branch pfl conl chil) r@(Branch pfr conr chir)
+  | Text.null pfl && null conl && null chil = r
+  | Text.null pfr && null conr && null chir = l
+  | otherwise
   = case common pfl pfr of
       (common, lsfx, rsfx) -> Branch common contained children
         where
-        contained = (guard (null lsfx) *> conl) <|> (guard (null rsfx) *> conr)
-        children = case (uncons lsfx, uncons rsfx) of
+        contained = (guard (Text.null lsfx) *> conl)
+                <|> (guard (Text.null rsfx) *> conr)
+        children = case (Text.uncons lsfx, Text.uncons rsfx) of
           (Nothing, Nothing)
             -> unionWith both chil chir
           (Just (l,lest), Nothing)
@@ -119,4 +124,4 @@ keys (Branch pf contained children)
 
 -- | Auxiliary function for 'keys'.
 childKeys :: HashMap Char (Recognizer a) -> [Text]
-childKeys children = toList children >>= \(c,rec) -> cons c <$> keys rec
+childKeys children = toList children >>= \(c,rec) -> Text.cons c <$> keys rec
