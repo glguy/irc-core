@@ -51,7 +51,7 @@ recognize tx (Branch pf contained children)
         Nothing
           | null pfsfx
           , Just a <- contained -> Exact a
-          | otherwise -> Prefix $ (pfsfx <>) <$> childKeys children
+          | otherwise -> Prefix $ keys (Branch pfsfx contained children)
         Just (c, txrest)
           | null pfsfx
           , Just rec <- lookup c children
