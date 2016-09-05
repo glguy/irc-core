@@ -50,7 +50,9 @@ data MacroSpec where
   MacroSpec :: ArgumentSpec s -> MacroSpec
 
 instance Show MacroSpec where
-  show (MacroSpec as) = "MacroSpec (" ++ show as ++ ")"
+  showsPrec p (MacroSpec as)
+    = showParen (p >= 11)
+    $ showString "MacroSpec " . showsPrec 11 as
 
 parseMacroSpecs :: Text -> Maybe MacroSpec
 parseMacroSpecs txt =

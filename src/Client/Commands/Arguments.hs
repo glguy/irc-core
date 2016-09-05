@@ -39,10 +39,17 @@ data ArgumentSpec :: * -> * where
   NoArg        :: ArgumentSpec ()
 
 instance Show (ArgumentSpec s) where
-  show (ReqTokenArg s rest) = "ReqTokenArg " ++ show s ++ "(" ++ show rest ++ ")"
-  show (OptTokenArg s rest) = "OptTokenArg " ++ show s ++ "(" ++ show rest ++ ")"
-  show (RemainingArg s) = "RemainingArg " ++ show s
-  show NoArg = "NoArg"
+  showsPrec p spec =
+    case spec of
+      ReqTokenArg s rest -> showParen (p >= 11)
+                          $ showString "ReqTokenArg "
+                          . showsPrec 11 s . showChar ' ' . showsPrec 11 rest
+      OptTokenArg s rest -> showParen (p >= 11)
+                          $ showString "OptTokenArg "
+                          . showsPrec 11 s . showChar ' ' . showsPrec 11 rest
+      RemainingArg s     -> showParen (p >= 11)
+                          $ showString "RemainingArg " . showsPrec 11 s
+      NoArg              -> showString "NoArg"
 
 -- | Parse the given input string using an argument specification.
 -- The arguments should start with a space but might have more.
