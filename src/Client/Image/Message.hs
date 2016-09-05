@@ -31,7 +31,6 @@ import           Data.Hashable (hash)
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.List
-import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
@@ -368,9 +367,7 @@ coloredIdentifier palette icm myNicks ident =
     color
       | ident `HashSet.member` myNicks =
           case icm of
-            PrivmsgIdentifier -> fromMaybe
-                                   (view palSelf palette)
-                                   (view palSelfHighlight palette)
+            PrivmsgIdentifier -> view palSelfHighlight palette
             NormalIdentifier  -> view palSelf palette
 
       | otherwise = v Vector.! i

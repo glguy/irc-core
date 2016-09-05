@@ -232,17 +232,10 @@ paletteHelper p k v =
     "nick-colors" -> do xs <- Vector.fromList <$> parseList parseAttr v
                         when (null xs) (failure "Empty palette")
                         return $! set palNicks xs p
-    "self-highlight"    -> setAttrMb palSelfHighlight
-    _ | Just (Lens l) <- lookup k paletteMap -> setAttr l
-    _                   -> failure "Unknown palette entry"
-  where
-    setAttr l =
-      do !attr <- parseAttr v
-         return $! set l attr p
-
-    setAttrMb l =
-      do !attr <- parseAttr v
-         return $! set l (Just attr) p
+    _ | Just (Lens l) <- lookup k paletteMap ->
+          do !attr <- parseAttr v
+             return $! set l attr p
+    _ -> failure "Unknown palette entry"
 
 parseServers :: ServerSettings -> Value -> ConfigParser (HashMap Text ServerSettings)
 parseServers def v =

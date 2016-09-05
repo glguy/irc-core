@@ -48,7 +48,7 @@ import           Graphics.Vty.Attributes
 data Palette = Palette
   { _palNicks         :: Vector Attr -- ^ highlighting nicknames
   , _palSelf          :: Attr -- ^ own nickname(s)
-  , _palSelfHighlight :: Maybe Attr -- ^ own nickname(s) in mentions
+  , _palSelfHighlight :: Attr -- ^ own nickname(s) in mentions
   , _palTime          :: Attr -- ^ message timestamps
   , _palMeta          :: Attr -- ^ coalesced metadata
   , _palSigil         :: Attr -- ^ sigils (e.g. @+)
@@ -74,7 +74,7 @@ defaultPalette :: Palette
 defaultPalette = Palette
   { _palNicks                   = defaultNickColorPalette
   , _palSelf                    = withForeColor defAttr red
-  , _palSelfHighlight           = Nothing
+  , _palSelfHighlight           = withForeColor defAttr red
   , _palTime                    = withForeColor defAttr brightBlack
   , _palMeta                    = withForeColor defAttr brightBlack
   , _palSigil                   = withForeColor defAttr cyan
@@ -103,6 +103,7 @@ defaultNickColorPalette =
 paletteMap :: [(Text, ReifiedLens' Palette Attr)]
 paletteMap =
   [ ("self"             , Lens palSelf)
+  , ("self-highlight"   , Lens palSelfHighlight)
   , ("time"             , Lens palTime)
   , ("meta"             , Lens palMeta)
   , ("sigil"            , Lens palSigil)

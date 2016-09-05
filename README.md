@@ -195,7 +195,7 @@ Palette
 
 * `nick-colors` - List of attr - Use for nick highlights
 * `self` - attr - attr of our own nickname(s) outside of mentions
-* `self-highlight` - attr - attr of our own nickname(s) in mentions (defaults to `self`)
+* `self-highlight` - attr - attr of our own nickname(s) in mentions
 * `time` - attr - attr for timestamp
 * `meta` - attr - attr for metadata
 * `sigil` - attr - attr for sigils
@@ -207,7 +207,8 @@ Palette
 * `activity` - attr - attr for activity notification
 * `mention` - attr - attr for mention notification
 * `command` - attr - attr for recognized command
-* `command-ready` - attr - attr for command with successful parse
+* `command-prefix` - attr - attr for prefix of known command
+* `command-ready` - attr - attr for recognized command with arguments filled
 * `command-placeholder` - attr - attr for command argument placeholder
 
 Text Attributes
