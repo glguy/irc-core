@@ -57,6 +57,7 @@ library
                        Client.Commands.Arguments
                        Client.Commands.Exec
                        Client.Commands.Interpolation
+                       Client.Commands.Recognizer
                        Client.Commands.WordCompletion
                        Client.Configuration
                        Client.Configuration.Colors

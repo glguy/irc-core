@@ -18,6 +18,7 @@ module Client.Image.Textbox
 import           Client.Configuration
 import           Client.Commands
 import           Client.Commands.Arguments
+import           Client.Commands.Recognizer
 import           Client.Image.Arguments
 import           Client.Image.MircFormatting
 import           Client.Image.Palette
@@ -26,6 +27,7 @@ import qualified Client.State.EditBox as Edit
 import           Control.Lens
 import           Data.Char
 import           Data.List
+import           Data.Monoid
 import qualified Data.Text as Text
 import           Graphics.Vty.Image
 
@@ -37,8 +39,9 @@ textboxImage st
   = (pos, croppedImage)
   where
   width = view clientWidth st
+  macros = views (clientConfig . configMacros) (() <$) st
   (txt, content) =
-     views (clientTextBox . Edit.content) (renderContent pal) st
+     views (clientTextBox . Edit.content) (renderContent macros pal) st
 
   pos = min (width-1) leftOfCurWidth
 
@@ -60,10 +63,11 @@ textboxImage st
 -- corresponding to the rendered image which can be used for computing
 -- the logical cursor position of the cropped version of the text box.
 renderContent ::
+  Recognizer ()   {- ^ macro names                           -} ->
   Palette         {- ^ palette                               -} ->
   Edit.Content    {- ^ content                               -} ->
   (String, Image) {- ^ plain text rendering, image rendering -}
-renderContent pal c = (txt, wholeImg)
+renderContent macros pal c = (txt, wholeImg)
   where
   as  = reverse (view Edit.above c)
   bs  = view Edit.below c
@@ -78,7 +82,7 @@ renderContent pal c = (txt, wholeImg)
   wholeImg = horizCat
            $ intersperse (plainText "\n")
            $ map renderOtherLine as
-          ++ renderLine pal curTxt
+          ++ renderLine macros pal curTxt
            : map renderOtherLine bs
 
 
@@ -101,17 +105,30 @@ renderOtherLine = parseIrcTextExplicit . Text.pack
 
 -- | Render the active text box line using command highlighting and
 -- placeholders, and WYSIWYG mIRC formatting control characters.
-renderLine :: Palette -> String -> Image
+renderLine :: Recognizer () -> Palette -> String -> Image
+renderLine macros pal ('/':xs)
+  = char defAttr '/' <|> string attr cmd <|> continue rest
+ where
+ (cmd, rest) = break isSpace xs
+ allCommands = (Left <$> macros) <> (Right <$> commands)
+ (attr, continue)
+   = case recognize (Text.pack cmd) allCommands of
+       Exact (Right (Command spec _ _)) ->
+         ( case parseArguments spec rest of
+             Nothing -> view palCommand      pal
+             Just{}  -> view palCommandReady pal
+         , argumentsImage pal spec
+         )
+       Exact (Left _) ->
+         (view palCommand pal, renderOtherLine)
+       Prefix _ ->
+         ( view palCommandPrefix pal
+         , renderOtherLine
+         )
+       Invalid ->
+         ( view palCommandError pal
+         , renderOtherLine
+         )
 
-renderLine pal ('/':xs)
-  | (cmd,rest)              <- break isSpace xs
-  , Just (Command spec _ _) <- view (at (Text.pack cmd)) commands
-  , let attr =
-          case parseArguments spec rest of
-            Nothing -> view palCommand      pal
-            Just{}  -> view palCommandReady pal
-  = char defAttr '/' <|>
-    string attr cmd <|>
-    argumentsImage pal spec rest
+renderLine _ _ xs = parseIrcTextExplicit (Text.pack xs)
 
-renderLine _ xs = parseIrcTextExplicit (Text.pack xs)

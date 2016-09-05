@@ -30,6 +30,8 @@ module Client.Image.Palette
   , palCommand
   , palCommandReady
   , palCommandPlaceholder
+  , palCommandPrefix
+  , palCommandError
 
   , paletteMap
 
@@ -59,6 +61,8 @@ data Palette = Palette
   , _palMention       :: Attr -- ^ window name with mention
   , _palCommand       :: Attr -- ^ known command
   , _palCommandReady  :: Attr -- ^ known command with complete arguments
+  , _palCommandPrefix :: Attr -- ^ prefix of known command
+  , _palCommandError  :: Attr -- ^ unknown command
   , _palCommandPlaceholder :: Attr -- ^ command argument placeholder
   }
   deriving Show
@@ -83,6 +87,8 @@ defaultPalette = Palette
   , _palMention                 = withForeColor defAttr red
   , _palCommand                 = withForeColor defAttr yellow
   , _palCommandReady            = withForeColor defAttr green
+  , _palCommandPrefix           = withForeColor defAttr blue
+  , _palCommandError            = withForeColor defAttr red
   , _palCommandPlaceholder      = withStyle defAttr reverseVideo
   }
 
@@ -110,4 +116,6 @@ paletteMap =
   , ("command"          , Lens palCommand)
   , ("command-ready"    , Lens palCommandReady)
   , ("command-placeholder", Lens palCommandPlaceholder)
+  , ("command-prefix"   , Lens palCommandPrefix)
+  , ("command-error"    , Lens palCommandError)
   ]
