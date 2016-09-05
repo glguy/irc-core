@@ -130,10 +130,11 @@ execute str st =
 executeUserCommand :: Maybe Text -> String -> ClientState -> IO CommandResult
 executeUserCommand discoTime command st = do
   let key = Text.takeWhile (/=' ') tcmd
+      rest = dropWhile isSpace . dropWhile (not . isSpace) $ command
 
   case views (clientConfig . configMacros) (recognize key) st of
-    Exact cmdExs ->
-      case traverse resolveMacro cmdExs of
+    Exact (Macro (MacroSpec spec) cmdExs) ->
+      case parseArguments spec rest *> traverse resolveMacro cmdExs of
         Nothing   -> commandFailureMsg "Macro expansions failed" st
         Just cmds -> process cmds st
     _ ->  executeCommand Nothing command st

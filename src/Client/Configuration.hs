@@ -79,7 +79,7 @@ data Configuration = Configuration
   , _configNickPadding      :: Maybe Integer -- ^ Padding of nicks
   , _configConfigPath       :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
-  , _configMacros           :: Recognizer [[ExpansionChunk]] -- ^ command macros
+  , _configMacros           :: Recognizer Macro -- ^ command macros
   , _configExtensions       :: [FilePath] -- ^ paths to shared library
   , _configUrlOpener        :: Maybe FilePath -- ^ paths to url opening executable
   , _configIgnores          :: HashSet Identifier -- ^ initial ignore list
@@ -325,14 +325,22 @@ resolveConfigurationPath path
   | otherwise = do home <- getHomeDirectory
                    return (home </> path)
 
-parseMacroMap :: Value -> ConfigParser (Recognizer [[ExpansionChunk]])
+parseMacroMap :: Value -> ConfigParser (Recognizer Macro)
 parseMacroMap v = fromCommands <$> parseList parseMacro v
 
-parseMacro :: Value -> ConfigParser (Text, [[ExpansionChunk]])
+parseMacro :: Value -> ConfigParser (Text, Macro)
 parseMacro = parseSections $
   do name     <- sectionReq "name"
+     spec     <- sectionReqWith parseMacroArguments "arguments"
      commands <- sectionReqWith (parseList parseMacroCommand) "commands"
-     return (name, commands)
+     return (name, Macro spec commands)
+
+parseMacroArguments :: Value -> ConfigParser MacroSpec
+parseMacroArguments v =
+  do txt <- parseConfig v
+     case parseMacroSpecs txt of
+       Nothing -> failure "bad macro argument specs"
+       Just ex -> return ex
 
 parseMacroCommand :: Value -> ConfigParser [ExpansionChunk]
 parseMacroCommand v =
