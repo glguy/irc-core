@@ -26,6 +26,7 @@ module Client.Commands.Exec
 
 import           Control.Exception
 import           Control.Lens
+import           Data.List
 import           System.Console.GetOpt
 import           System.Process
 
@@ -78,13 +79,11 @@ options =
 
 -- | Parse the arguments to @/exec@ looking for various flags
 -- and the command and its arguments.
---
--- TODO: support quoted strings
 parseExecCmd ::
   String                  {- ^ exec arguments          -} ->
   Either [String] ExecCmd {- ^ error or parsed command -}
 parseExecCmd str =
-  case getOpt RequireOrder options (words str) of
+  case getOpt RequireOrder options (powerWords str) of
     (_, [] , errs) -> Left ("No command specified":errs)
     (fs, cmd:args, []) -> Right
                         $ foldl (\x f -> f x) ?? fs
@@ -105,3 +104,16 @@ runExecCmd e =
      return $ case res of
        Left er -> Left [show (er :: IOError)]
        Right x -> Right (lines x)
+
+-- | Power words is similar to 'words' except that when it encounters
+-- a word formatted as a Haskell 'String' literal it parses it as
+-- such. Only space is used as a delimiter.
+powerWords :: String -> [String]
+powerWords = unfoldr (splitWord . dropWhile isSp)
+  where
+    isSp x = x == ' '
+
+    splitWord xs
+      | null xs         = Nothing
+      | [x] <- reads xs = Just x
+      | otherwise       = Just (break isSp xs)

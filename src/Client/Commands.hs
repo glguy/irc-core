@@ -347,6 +347,10 @@ commandsList =
       \When \^Bnetwork\^B is specified output is sent as raw IRC traffic to the network.\n\
       \When \^Bchannel\^B is specified output is sent as chat to the given channel on the current network.\n\
       \When \^Bnetwork\^B and \^Bchannel\^B are specified output is sent as chat to the given channel on the given network.\n\
+      \\n\
+      \\^Barguments\^B is divided on spaces into words before being processed\
+      \ by getopt. Use Haskell string literal syntax to create arguments with\
+      \ escaped characters and spaces inside.\n\
       \\n"
     $ ClientCommand cmdExec simpleClientTab
     )
