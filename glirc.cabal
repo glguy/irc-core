@@ -84,9 +84,11 @@ library
                        Client.State.Focus
                        Client.State.Network
                        Client.State.Window
+                       Client.View
                        Client.View.ChannelInfo
                        Client.View.Help
                        Client.View.MaskList
+                       Client.View.Messages
                        Client.View.Palette
                        Client.View.UserList
                        Client.View.Windows
