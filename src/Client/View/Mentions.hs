@@ -94,7 +94,7 @@ windowEntries !detailed name net chan w =
   ]
 
 -- | Merge a list of sorted lists of mention lines into a single sorted list
--- in ascending order.
+-- in descending order.
 merge :: [[MentionLine]] -> [MentionLine]
 merge []  = []
 merge [x] = x
@@ -108,5 +108,5 @@ merge2 :: [MentionLine] -> [MentionLine] -> [MentionLine]
 merge2 [] ys = ys
 merge2 xs [] = xs
 merge2 xxs@(x:xs) yys@(y:ys)
-  | mlTimestamp x <= mlTimestamp y = x : merge2 xs yys
+  | mlTimestamp x >= mlTimestamp y = x : merge2 xs yys
   | otherwise                      = y : merge2 xxs ys
