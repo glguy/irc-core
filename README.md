@@ -344,6 +344,7 @@ Keyboard Shortcuts
 * `TAB` nickname completion
 * `F2` toggle detailed view
 * `F3` toggle detailed activity bar
+* `F4` toggle metadata visibility
 * `Page Up` scroll up
 * `Page Down` scroll down
 * `^B` bold

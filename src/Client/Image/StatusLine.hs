@@ -42,6 +42,7 @@ statusLineImage st
       , focusImage st
       , activitySummary
       , detailImage st
+      , nometaImage st
       , scrollImage st
       , latencyImage st
       ]
@@ -86,6 +87,14 @@ detailImage :: ClientState -> Image
 detailImage st
   | view clientDetailView st = infoBubble (string attr "detail")
   | otherwise = emptyImage
+  where
+    pal  = clientPalette st
+    attr = view palLabel pal
+
+nometaImage :: ClientState -> Image
+nometaImage st
+  | view clientShowMetadata st = emptyImage
+  | otherwise = infoBubble (string attr "nometa")
   where
     pal  = clientPalette st
     attr = view palLabel pal

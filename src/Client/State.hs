@@ -29,6 +29,7 @@ module Client.State
   , clientScroll
   , clientDetailView
   , clientActivityBar
+  , clientShowMetadata
   , clientSubfocus
   , clientNextConnectionId
   , clientNetworkMap
@@ -142,14 +143,18 @@ data ClientState = ClientState
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
 
+  , _clientConfig            :: !Configuration            -- ^ client configuration
+
   , _clientVty               :: !Vty                      -- ^ VTY handle
   , _clientTextBox           :: !Edit.EditBox             -- ^ primary text box
   , _clientWidth             :: !Int                      -- ^ current terminal width
   , _clientHeight            :: !Int                      -- ^ current terminal height
-  , _clientConfig            :: !Configuration            -- ^ client configuration
+
   , _clientScroll            :: !Int                      -- ^ buffer scroll lines
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
   , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
+  , _clientShowMetadata      :: !Bool                     -- ^ visible activity bar
+
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
   , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored nicknames
@@ -221,6 +226,7 @@ withClientState cfg k =
         , _clientConfig            = cfg
         , _clientScroll            = 0
         , _clientDetailView        = False
+        , _clientShowMetadata      = True
         , _clientActivityBar       = view configActivityBar cfg
         , _clientNextConnectionId  = 0
         , _clientBell              = False

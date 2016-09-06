@@ -47,9 +47,13 @@ windowLinesToImages st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
     ([], w:ws) -> view wlImage w : windowLinesToImages st ws
-    ((img,who,mbnext):mds, wls) ->
+    ((img,who,mbnext):mds, wls)
+
+      | view clientShowMetadata st ->
          startMetadata img mbnext who mds palette
        : windowLinesToImages st wls
+
+      | otherwise -> windowLinesToImages st wls
   where
     palette = clientPalette st
 
