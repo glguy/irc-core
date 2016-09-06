@@ -14,7 +14,6 @@ module Client.View.Messages
   ( chatMessageImages
   ) where
 
-import           Client.Configuration
 import           Client.Image.Palette
 import           Client.Image.Message
 import           Client.State
@@ -52,7 +51,7 @@ windowLinesToImages st wwls =
          startMetadata img mbnext who mds palette
        : windowLinesToImages st wls
   where
-    palette = view (clientConfig . configPalette) st
+    palette = clientPalette st
 
 ------------------------------------------------------------------------
 

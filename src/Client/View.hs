@@ -13,7 +13,6 @@ module Client.View
   ( viewLines
   ) where
 
-import           Client.Configuration
 import           Client.State
 import           Client.State.Focus
 import           Client.View.ChannelInfo
@@ -44,4 +43,4 @@ viewLines !st =
 
     _ -> chatMessageImages st
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st

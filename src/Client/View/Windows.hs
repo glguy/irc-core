@@ -12,7 +12,6 @@ module Client.View.Windows
   ( windowsImages
   ) where
 
-import           Client.Configuration
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Focus
@@ -20,7 +19,6 @@ import           Client.State.Window
 import           Control.Lens
 import           Data.List
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 import           Graphics.Vty.Image
 import           Irc.Identifier
 
@@ -31,11 +29,10 @@ windowsImages st
   $ createColumns
   $ zipWith (renderWindowColumns pal) names windows
   where
-    cfg     = view clientConfig st
     windows = views clientWindows Map.toAscList st
 
-    pal     = view configPalette cfg
-    names   = views configWindowNames Text.unpack cfg ++ repeat '?'
+    pal     = clientPalette st
+    names   = clientWindowNames st ++ repeat '?'
 
 renderWindowColumns :: Palette -> Char -> (Focus, Window) -> [Image]
 renderWindowColumns pal name (focus, win) =

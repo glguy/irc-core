@@ -13,7 +13,6 @@ module Client.View.UserList
   , userInfoImages
   ) where
 
-import           Client.Configuration
 import           Client.Image.Message
 import           Client.Image.Palette
 import           Client.State
@@ -43,7 +42,7 @@ userListImages network channel st =
     Just cs -> userListImages' cs channel st
     Nothing -> [text' (view palError pal) "No connection"]
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
 
 userListImages' :: NetworkState -> Identifier -> ClientState -> [Image]
 userListImages' cs channel st =
@@ -77,7 +76,7 @@ userListImages' cs channel st =
       | (sigil,n) <- Map.toList sigilCounts
       ]
 
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
 
     usersHashMap =
       view (csChannels . ix channel . chanUsers) cs
@@ -95,7 +94,7 @@ userInfoImages network channel st =
     Just cs -> userInfoImages' cs channel st
     Nothing -> [text' (view palError pal) "No connection"]
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
 
 userInfoImages' :: NetworkState -> Identifier -> ClientState -> [Image]
 userInfoImages' cs channel st = renderEntry <$> usersList
@@ -104,7 +103,7 @@ userInfoImages' cs channel st = renderEntry <$> usersList
 
     myNicks = clientHighlights cs st
 
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
 
     renderEntry (info, sigils) =
       string (view palSigil pal) sigils <|>

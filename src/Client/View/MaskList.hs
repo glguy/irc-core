@@ -13,7 +13,6 @@ module Client.View.MaskList
   ( maskListImages
   ) where
 
-import           Client.Configuration
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
@@ -40,7 +39,7 @@ maskListImages mode network channel st =
     Just entries -> maskListImages' entries st
 
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
     mbEntries = preview
                 ( clientConnection network
                 . csChannels . ix channel
@@ -50,7 +49,7 @@ maskListImages mode network channel st =
 maskListImages' :: HashMap Text MaskListEntry -> ClientState -> [Image]
 maskListImages' entries st = countImage : images
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
 
     countImage = text' (view palLabel pal) "Masks (visible/total): " <|>
                  string defAttr (show (length entryList)) <|>

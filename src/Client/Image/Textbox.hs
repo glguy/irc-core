@@ -46,8 +46,6 @@ textboxImage st
 
   pos = min (width-1) leftOfCurWidth
 
-  pal = view (clientConfig . configPalette) st
-
   lineImage = beginning <|> content <|> ending
 
   leftOfCurWidth = myWcswidth ('^':txt)
@@ -56,7 +54,8 @@ textboxImage st
     | leftOfCurWidth < width = lineImage
     | otherwise = cropLeft width (cropRight (leftOfCurWidth+1) lineImage)
 
-  attr      = view (clientConfig . configPalette . palTextBox) st
+  pal       = clientPalette st
+  attr      = view palTextBox pal
   beginning = char attr '^'
   ending    = char attr '$'
 

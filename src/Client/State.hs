@@ -56,6 +56,8 @@ module Client.State
   , clientTick
   , applyMessageToClientState
   , clientHighlights
+  , clientWindowNames
+  , clientPalette
 
   -- * Add messages to buffers
   , recordChannelMessage
@@ -85,6 +87,7 @@ import           Client.CApi
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
 import           Client.Image.Message
+import           Client.Image.Palette
 import           Client.Message
 import           Client.Network.Async
 import           Client.State.Channel
@@ -267,7 +270,7 @@ recordChannelMessage network channel msg st =
       , rendUserSigils  = computeMsgLineSigils network channel' msg st
       , rendNicks       = HashSet.fromList (channelUserList network channel' st)
       , rendMyNicks     = highlights
-      , rendPalette     = view (clientConfig . configPalette) st
+      , rendPalette     = clientPalette st
       , rendNickPadding = view (clientConfig . configNickPadding) st
       }
 
@@ -756,3 +759,13 @@ clientHighlightsNetwork network st =
   case preview (clientConnection network) st of
     Just cs -> clientHighlights cs st
     Nothing -> view (clientConfig . configExtraHighlights) st
+
+-- | Produce the list of window names configured for the client.
+clientWindowNames ::
+  ClientState ->
+  [Char]
+clientWindowNames = views (clientConfig . configWindowNames) Text.unpack
+
+-- | Produce the list of window names configured for the client.
+clientPalette :: ClientState -> Palette
+clientPalette = view (clientConfig . configPalette)

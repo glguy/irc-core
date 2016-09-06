@@ -14,7 +14,6 @@ module Client.Image.StatusLine
   ( statusLineImage
   ) where
 
-import           Client.Configuration
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
@@ -23,6 +22,7 @@ import           Client.State.Network
 import           Client.State.Window
 import           Control.Lens
 import qualified Data.Map.Strict as Map
+import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Image
@@ -56,7 +56,8 @@ scrollImage st
       , string defAttr ")"
       ]
   where
-    attr = view (clientConfig . configPalette . palLabel) st
+    pal  = clientPalette st
+    attr = view palLabel pal
 
 latencyImage :: ClientState -> Image
 latencyImage st
@@ -76,7 +77,7 @@ latencyImage st
           | otherwise = emptyImage
   | otherwise = emptyImage
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
 
 infoBubble :: Image -> Image
 infoBubble img = string defAttr "─(" <|> img <|> string defAttr ")"
@@ -86,7 +87,8 @@ detailImage st
   | view clientDetailView st = infoBubble (string attr "detail")
   | otherwise = emptyImage
   where
-    attr = view (clientConfig . configPalette . palLabel) st
+    pal  = clientPalette st
+    attr = view palLabel pal
 
 activityImages :: ClientState -> (Image, Image)
 activityImages st = (summary, activityBar)
@@ -121,7 +123,7 @@ activityImages st = (summary, activityBar)
                     string defAttr "]" <|> rest
       where
         n   = view winUnread w
-        pal = view (clientConfig . configPalette) st
+        pal = clientPalette st
         attr | view winMention w = view palMention pal
              | otherwise         = view palActivity pal
         focusText =
@@ -130,16 +132,15 @@ activityImages st = (summary, activityBar)
             NetworkFocus net    -> net
             ChannelFocus _ chan -> idText chan
 
-    windows     = views clientWindows Map.elems st
-    windowNames = view (clientConfig . configWindowNames) st
-    winNames    = Text.unpack windowNames ++ repeat '?'
+    windows  = views clientWindows Map.elems st
+    winNames = clientWindowNames st ++ repeat '?'
 
     indicators  = foldr aux [] (zip winNames windows)
     aux (i,w) rest
       | view winUnread w == 0 = rest
       | otherwise = char attr i : rest
       where
-        pal = view (clientConfig . configPalette) st
+        pal = clientPalette st
         attr | view winMention w = view palMention pal
              | otherwise         = view palActivity pal
 
@@ -151,7 +152,7 @@ myNickImage st =
     ChannelFocus network chan -> nickPart network (Just chan)
     Unfocused                 -> emptyImage
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
     nickPart network mbChan =
       case preview (clientConnection network) st of
         Nothing -> emptyImage
@@ -176,14 +177,13 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
       , renderedFocus
       ]
 
-    pal = view (clientConfig . configPalette) st
-    focus = view clientFocus st
-    windowNames = view (clientConfig . configWindowNames) st
+    pal         = clientPalette st
+    focus       = view clientFocus st
+    windowNames = clientWindowNames st
 
-    windowName =
-      case Map.lookupIndex focus (view clientWindows st) of
-        Just i | i < Text.length windowNames -> Text.index windowNames i
-        _ -> '?'
+    windowName = fromMaybe '?'
+               $ do i <- Map.lookupIndex focus (view clientWindows st)
+                    preview (ix i) windowNames
 
     subfocusName =
       case view clientSubfocus st of

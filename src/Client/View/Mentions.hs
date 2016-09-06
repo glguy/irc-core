@@ -14,7 +14,6 @@ module Client.View.Mentions
   ( mentionsViewLines
   ) where
 
-import           Client.Configuration
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Focus
@@ -22,7 +21,6 @@ import           Client.State.Window
 import qualified Data.Map as Map
 import           Control.Lens
 import           Data.Text (Text)
-import qualified Data.Text as Text
 import           Data.Time (UTCTime)
 import           Irc.Identifier (idText)
 import           Graphics.Vty.Image
@@ -34,10 +32,9 @@ mentionsViewLines :: ClientState -> [Image]
 mentionsViewLines st = addMarkers pal entries
 
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
 
-    names = views (clientConfig . configWindowNames) Text.unpack st
-         ++ repeat '?'
+    names = clientWindowNames st ++ repeat '?'
 
     detail = view clientDetailView st
 

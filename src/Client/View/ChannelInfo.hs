@@ -16,7 +16,6 @@ module Client.View.ChannelInfo
   ( channelInfoImages
   ) where
 
-import           Client.Configuration
 import           Client.Image.Message
 import           Client.Image.MircFormatting
 import           Client.Image.Palette
@@ -43,7 +42,7 @@ channelInfoImages network channelId st
 
   | otherwise = [text' (view palError pal) "No channel information"]
   where
-    pal = view (clientConfig . configPalette) st
+    pal = clientPalette st
 
 channelInfoImages' :: Palette -> HashSet Identifier -> ChannelState -> [Image]
 channelInfoImages' pal myNicks !channel

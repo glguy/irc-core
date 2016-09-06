@@ -18,7 +18,6 @@ module Client.EventLoop
 import           Client.CApi
 import           Client.Commands
 import           Client.Commands.Interpolation
-import           Client.Configuration
 import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Errors (exceptionToLines)
 import           Client.Hook
@@ -397,8 +396,8 @@ doKey key modifier st =
         KChar 'f' -> changeContent Edit.rightWord
         KChar 'a' -> eventLoop (jumpToActivity st)
         KChar 's' -> eventLoop (returnFocus st)
-        KChar c   | let names = view (clientConfig . configWindowNames) st
-                  , Just i <- Text.findIndex (==c) names ->
+        KChar c   | let names = clientWindowNames st
+                  , Just i <- elemIndex c names ->
                             eventLoop (jumpFocus i st)
         _ -> eventLoop st
 
