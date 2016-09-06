@@ -24,13 +24,6 @@ module Client.State.Focus
   , _ChannelFocus
   , _NetworkFocus
   , _Unfocused
-
-  -- * Subfocus Prisms
-  , _FocusMessages
-  , _FocusInfo
-  , _FocusUsers
-  , _FocusMasks
-  , _FocusWindows
   ) where
 
 import           Control.Lens
@@ -55,10 +48,9 @@ data Subfocus
   | FocusMasks !Char -- ^ Show channel mask list for given mode
   | FocusWindows     -- ^ Show client windows
   | FocusPalette     -- ^ Show current palette
+  | FocusMentions    -- ^ Show all mentions
   | FocusHelp (Maybe Text) -- ^ Show help window with optional command
   deriving (Eq,Show)
-
-makePrisms ''Subfocus
 
 -- | Unfocused first, followed by focuses sorted by network.
 -- Within the same network the network focus comes first and

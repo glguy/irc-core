@@ -1,5 +1,5 @@
 name:                glirc
-version:             2.14
+version:             2.15
 synopsis:            Console IRC client
 description:         Console IRC client
 license:             ISC
@@ -88,6 +88,7 @@ library
                        Client.View.ChannelInfo
                        Client.View.Help
                        Client.View.MaskList
+                       Client.View.Mentions
                        Client.View.Messages
                        Client.View.Palette
                        Client.View.UserList

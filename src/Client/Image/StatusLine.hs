@@ -191,6 +191,7 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
         FocusWindows  -> Just $ string (view palLabel pal) "windows"
         FocusInfo     -> Just $ string (view palLabel pal) "info"
         FocusUsers    -> Just $ string (view palLabel pal) "users"
+        FocusMentions -> Just $ string (view palLabel pal) "mentions"
         FocusPalette  -> Just $ string (view palLabel pal) "palette"
         FocusHelp mb  -> Just $ string (view palLabel pal) "help" <|>
                                 foldMap (\cmd -> char defAttr ':' <|>

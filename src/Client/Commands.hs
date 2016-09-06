@@ -330,6 +330,11 @@ commandsList =
       "Show a list of all client message windows.\n"
     $ ClientCommand cmdWindows noClientTab
     )
+  , ( pure "mentions"
+    , Command NoArg
+      "Show a list of all message that were highlighted as important.\n"
+    $ ClientCommand cmdMentions noClientTab
+    )
   , ( pure "palette"
     , Command NoArg
       "Show the current palette settings and a color chart to help pick new colors.\n"
@@ -805,6 +810,10 @@ cmdFocus st (network, mbChannel)
 -- | Implementation of @/windows@ command. Set subfocus to Windows.
 cmdWindows :: ClientCommand ()
 cmdWindows st _ = commandSuccess (changeSubfocus FocusWindows st)
+
+-- | Implementation of @/mentions@ command. Set subfocus to Windows.
+cmdMentions :: ClientCommand ()
+cmdMentions st _ = commandSuccess (changeSubfocus FocusMentions st)
 
 -- | Implementation of @/palette@ command. Set subfocus to Windows.
 cmdPalette :: ClientCommand ()

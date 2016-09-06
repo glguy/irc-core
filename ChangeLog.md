@@ -1,5 +1,12 @@
 # Revision history for glirc2
 
+## 2.15
+
+* Add `/mentions`
+* Add macro argument declarations
+* Add indication when a command is still a prefix or not of a valid command
+* Support quoted strings arguments to /exec
+
 ## 2.14
 
 * Add `/help`

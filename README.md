@@ -248,6 +248,8 @@ Client commands
 * `/reconnect` - Reconnect to the current server
 * `/reload [path]` - Load a new configuration file (optional path)
 * `/windows` - List all open windows
+* `/palette` - Show the client palette
+* `/mentions` - Show all the highlighted lines across all windows
 * `/extension <extension name> <params...>` - Send the given params to the named extension
 * `/exec [-n network] [-c channel] <command> <arguments...>` - Execute a command, If no network or channel are provided send output to client window, if network and channel are provided send output as messages, if network is provided send output as raw IRC messages.
 * `/url [n]` - Execute url-opener on the nth URL in the current window (defaults to first)

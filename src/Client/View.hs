@@ -19,6 +19,7 @@ import           Client.State.Focus
 import           Client.View.ChannelInfo
 import           Client.View.Help
 import           Client.View.MaskList
+import           Client.View.Mentions
 import           Client.View.Messages
 import           Client.View.Palette
 import           Client.View.UserList
@@ -37,6 +38,7 @@ viewLines !st =
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel st
     (_, FocusWindows) -> windowsImages st
+    (_, FocusMentions) -> mentionsViewLines st
     (_, FocusPalette) -> paletteViewLines pal
     (_, FocusHelp mb) -> helpImageLines mb pal
 
