@@ -34,13 +34,25 @@ chatMessageImages st = windowLineProcessor focusedMessages
         $ view (clientWindows . ix (view clientFocus st) . winMessages) st
 
     windowLineProcessor
-      | view clientDetailView st = map (view wlFullImage)
-      | otherwise                = windowLinesToImages st . filter (not . isNoisy)
+
+      | view clientDetailView st =
+          if view clientShowMetadata st
+            then map (view wlFullImage)
+            else detailedImagesWithoutMetadata st
+
+      | otherwise = windowLinesToImages st . filter (not . isNoisy)
 
     isNoisy msg =
       case view wlBody msg of
         IrcBody irc -> squelchIrcMsg irc
         _           -> False
+
+detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image]
+detailedImagesWithoutMetadata st wwls =
+  case gatherMetadataLines st wwls of
+    ([], [])   -> []
+    ([], w:ws) -> view wlFullImage w : detailedImagesWithoutMetadata st ws
+    (_:_, wls) -> detailedImagesWithoutMetadata st wls
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
 windowLinesToImages st wwls =

@@ -6,6 +6,7 @@
 * Add macro argument declarations
 * Add indication when a command is still a prefix or not of a valid command
 * Support quoted strings arguments to /exec
+* Add F4 to toggle visibility of metadata lines
 
 ## 2.14
 
