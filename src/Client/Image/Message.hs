@@ -52,7 +52,7 @@ data MessageRendererParams = MessageRendererParams
   , rendNickPadding :: Maybe Integer -- ^ nick padding
   }
 
--- | Default 'MessageRenderParams' with no sigils or nicknames specified
+-- | Default 'MessageRendererParams' with no sigils or nicknames specified
 defaultRenderParams :: MessageRendererParams
 defaultRenderParams = MessageRendererParams
   { rendStatusMsg   = ""

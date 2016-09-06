@@ -26,6 +26,8 @@ module Client.State.Window
   , wlText
   , wlImage
   , wlFullImage
+  , wlImportance
+  , wlTimestamp
 
   -- * Window line importance
   , WindowLineImportance(..)
@@ -39,6 +41,7 @@ module Client.State.Window
 import           Client.Message
 import           Control.Lens
 import           Data.Text (Text)
+import           Data.Time (UTCTime)
 import           Graphics.Vty.Image (Image)
 
 -- | A single message to be displayed in a window
@@ -48,6 +51,7 @@ data WindowLine = WindowLine
   , _wlImage      :: !Image       -- ^ Normal rendered image
   , _wlFullImage  :: !Image       -- ^ Detailed rendered image
   , _wlImportance :: !WindowLineImportance -- ^ Importance of message
+  , _wlTimestamp  :: {-# UNPACK #-} !UTCTime
   }
 
 -- | A 'Window' tracks all of the messages and metadata for a particular

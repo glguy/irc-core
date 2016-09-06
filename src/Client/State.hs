@@ -422,11 +422,12 @@ recordWindowLine focus wl =
 
 toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine params importance msg = WindowLine
-  { _wlBody      = view msgBody msg
-  , _wlText      = msgText (view msgBody msg)
-  , _wlImage     = mkImage NormalRender
-  , _wlFullImage = mkImage DetailedRender
+  { _wlBody       = view msgBody msg
+  , _wlText       = msgText (view msgBody msg)
+  , _wlImage      = mkImage NormalRender
+  , _wlFullImage  = mkImage DetailedRender
   , _wlImportance = importance
+  , _wlTimestamp  = zonedTimeToUTC (view msgTime msg)
   }
   where
     mkImage mode =
