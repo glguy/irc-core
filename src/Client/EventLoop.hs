@@ -375,6 +375,7 @@ doKey key modifier st =
         KChar 'u' -> changeEditor Edit.killHome
         KChar 'k' -> changeEditor Edit.killEnd
         KChar 'y' -> changeEditor Edit.yank
+        KChar 't' -> changeContent Edit.toggle
         KChar 'w' -> changeEditor (Edit.killWordBackward True)
         KChar 'b' -> changeEditor (Edit.insert '\^B')
         KChar 'c' -> changeEditor (Edit.insert '\^C')

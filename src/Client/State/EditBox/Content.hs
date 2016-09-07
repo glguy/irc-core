@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell #-}
+{-# Language TemplateHaskell, BangPatterns #-}
 {-|
 Module      : Client.State.EditBox.Content
 Description : Multiline text container with cursor
@@ -42,6 +42,7 @@ module Client.State.EditBox.Content
   , insertPastedString
   , insertString
   , insertChar
+  , toggle
   ) where
 
 import           Control.Lens hiding (below)
@@ -253,3 +254,18 @@ backwardLine c =
          $! over below (view text c :)
           $ set above as
           $ set line (endLine a) c
+
+toggle :: Content -> Content
+toggle !c
+  | p < 1     = c
+  | n < 2     = c
+  | n == p    = over text (swapAt (p-2)) c
+  | otherwise = set pos (p+1)
+              $ over text (swapAt (p-1)) c
+  where
+    p = view pos c
+    n = views text length c
+
+    swapAt 0 (x:y:z) = y:x:z
+    swapAt i (x:xs)  = x:swapAt (i-1) xs
+    swapAt _ _       = error "toggle: PANIC! Invalid argument"

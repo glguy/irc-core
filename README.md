@@ -325,34 +325,39 @@ Low-level
 Keyboard Shortcuts
 ==================
 
-* `^N` next channel
-* `^P` previous channel
+Note that these keybindings are using *Emacs* syntax. `C-a` means "hold
+control and press A". `M-a` means "hold meta key and press A". On most
+modern keyboards the *Meta* key is labeled *Alt* or *Option*.
+
+* `C-n` next channel
+* `C-p` previous channel
 * `M-#` jump to window - `1234567890qwertyuiop!@#$%^&*()QWERTYUIOP`
-* `M-A` jump to activity
-* `M-S` jump to previous window
-* `^A` beginning of line
-* `^E` end of line
-* `^K` delete to end
-* `^U` delete to beginning
-* `^D` delete at cursor
-* `^W` delete word backwards
-* `^Y` paste from yank buffer
-* `M-F` forward word
-* `M-B` backward word
-* `M-BACKSPACE` delete word backwards
+* `M-a` jump to activity
+* `M-s` jump to previous window
+* `C-a` beginning of line
+* `C-e` end of line
+* `C-k` delete to end
+* `C-u` delete to beginning
+* `C-d` delete at cursor
+* `C-w` delete word backwards
+* `C-y` paste from yank buffer
+* `C-t` swap characters at cursor
+* `M-f` forward word
+* `M-b` backward word
+* `M-Backspace` delete word backwards
 * `M-D` delete word forwards
-* `TAB` nickname completion
+* `Tab` nickname completion
 * `F2` toggle detailed view
 * `F3` toggle detailed activity bar
 * `F4` toggle metadata visibility
 * `Page Up` scroll up
 * `Page Down` scroll down
-* `^B` bold
-* `^C` color
-* `^V` reverse video
-* `^_` underline
-* `^]` italic
-* `^O` reset formatting
+* `C-b` bold
+* `C-c` color
+* `C-v` reverse video
+* `C-_` underline
+* `C-]` italic
+* `C-o` reset formatting
 * `M-Enter` insert newline
 
 Macros

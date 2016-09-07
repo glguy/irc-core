@@ -43,6 +43,7 @@ module Client.State.EditBox
   , killWordBackward
   , killWordForward
   , yank
+  , toggle
   , left
   , right
   , leftWord
