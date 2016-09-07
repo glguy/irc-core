@@ -329,11 +329,16 @@ Note that these keybindings are using *Emacs* syntax. `C-a` means "hold
 control and press A". `M-a` means "hold meta key and press A". On most
 modern keyboards the *Meta* key is labeled *Alt* or *Option*.
 
+Window navigation
+
 * `C-n` next channel
 * `C-p` previous channel
 * `M-#` jump to window - `1234567890qwertyuiop!@#$%^&*()QWERTYUIOP`
 * `M-a` jump to activity
 * `M-s` jump to previous window
+
+Editing
+
 * `C-a` beginning of line
 * `C-e` end of line
 * `C-k` delete to end
@@ -345,20 +350,30 @@ modern keyboards the *Meta* key is labeled *Alt* or *Option*.
 * `M-f` forward word
 * `M-b` backward word
 * `M-Backspace` delete word backwards
-* `M-D` delete word forwards
+* `M-d` delete word forwards
+* `M-Enter` insert newline
+
 * `Tab` nickname completion
+
+Client settings
+
 * `F2` toggle detailed view
 * `F3` toggle detailed activity bar
 * `F4` toggle metadata visibility
+
+Scrolling
+
 * `Page Up` scroll up
 * `Page Down` scroll down
+
+Formatting
+
 * `C-b` bold
 * `C-c` color
 * `C-v` reverse video
 * `C-_` underline
 * `C-]` italic
 * `C-o` reset formatting
-* `M-Enter` insert newline
 
 Macros
 ======
