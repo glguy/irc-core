@@ -17,21 +17,21 @@ import Data.Text (Text)
 import System.Exit
 import System.IO
 
-import Client.CommandArguments
 import Client.Configuration
 import Client.EventLoop
+import Client.Options
 import Client.State
 import Client.State.Focus
 
 -- | Main action for IRC client
 main :: IO ()
 main =
-  do args <- getCommandArguments
-     cfg  <- loadConfiguration' (view cmdArgConfigFile args)
+  do opts <- getOptions
+     cfg  <- loadConfiguration' (view optConfigFile opts)
      runInUnboundThread $
        withClientState cfg $
        clientStartExtensions >=>
-       addInitialNetworks (view cmdArgInitialNetworks args) >=>
+       addInitialNetworks (view optInitialNetworks opts) >=>
        eventLoop
 
 -- | Load configuration and handle errors along the way.

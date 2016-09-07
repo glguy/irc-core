@@ -49,8 +49,7 @@ library
   default-language:    Haskell2010
   build-tools:         hsc2hs
 
-  exposed-modules:     Client.CommandArguments
-                       Client.CApi
+  exposed-modules:     Client.CApi
                        Client.CApi.Exports
                        Client.CApi.Types
                        Client.Commands
@@ -77,6 +76,7 @@ library
                        Client.Message
                        Client.Network.Async
                        Client.Network.Connect
+                       Client.Options
                        Client.State
                        Client.State.Channel
                        Client.State.EditBox
