@@ -7,6 +7,9 @@
 * Add indication when a command is still a prefix or not of a valid command
 * Support quoted strings arguments to /exec
 * Add F4 to toggle visibility of metadata lines
+* tls-insecure setting was incorrectly behaving like normal insecure
+* Add `C-t` to swap characters
+* Add `ESC` to return to messages window
 
 ## 2.14
 
