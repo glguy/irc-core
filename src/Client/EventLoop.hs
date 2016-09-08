@@ -27,6 +27,7 @@ import           Client.Message
 import           Client.Network.Async
 import           Client.State
 import qualified Client.State.EditBox     as Edit
+import           Client.State.Focus
 import           Client.State.Network
 import           Control.Concurrent.STM
 import           Control.Exception
@@ -404,6 +405,7 @@ doKey key modifier st =
 
     [] -> -- no modifier
       case key of
+        KEsc       -> eventLoop (changeSubfocus FocusMessages st)
         KBS        -> changeContent Edit.backspace
         KDel       -> changeContent Edit.delete
         KLeft      -> changeContent Edit.left

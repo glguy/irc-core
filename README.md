@@ -336,6 +336,7 @@ Window navigation
 * `M-#` jump to window - `1234567890qwertyuiop!@#$%^&*()QWERTYUIOP`
 * `M-a` jump to activity
 * `M-s` jump to previous window
+* `ESC` return to messages view (from userlist, masklist, help, etc)
 
 Editing
 
