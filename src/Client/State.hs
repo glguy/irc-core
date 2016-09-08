@@ -474,8 +474,10 @@ currentCompletionList :: ClientState -> [Identifier]
 currentCompletionList st =
   case view clientFocus st of
     NetworkFocus network      -> networkChannelList network st
-    ChannelFocus network chan -> networkChannelList network st
-                              ++ channelUserList network chan st
+    ChannelFocus network chan ->
+         chan -- might be a disconnected channel or a private chat
+       : networkChannelList network st
+      ++ channelUserList network chan st
     _                         -> []
 
 networkChannelList ::
