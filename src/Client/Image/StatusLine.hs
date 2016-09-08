@@ -1,3 +1,4 @@
+{-# Language BangPatterns #-}
 {-|
 Module      : Client.Image.StatusLine
 Description : Renderer for status line
@@ -51,11 +52,8 @@ statusLineImage st
 scrollImage :: ClientState -> Image
 scrollImage st
   | 0 == view clientScroll st = emptyImage
-  | otherwise = horizCat
-      [ string defAttr "─("
-      , string attr "scroll"
-      , string defAttr ")"
-      ]
+  | otherwise = infoBubble
+              $ string attr "scroll"
   where
     pal  = clientPalette st
     attr = view palLabel pal
@@ -168,7 +166,6 @@ myNickImage st =
         Just cs -> string (view palSigil pal) myChanModes
                <|> text' defAttr (idText nick)
                <|> parens defAttr (string defAttr ('+' : view csModes cs))
-               <|> char defAttr '─'
           where
             nick      = view csNick cs
             myChanModes =
@@ -178,7 +175,7 @@ myNickImage st =
 
 
 focusImage :: ClientState -> Image
-focusImage st = parens defAttr majorImage <|> renderedSubfocus
+focusImage st = infoBubble majorImage <|> renderedSubfocus
   where
     majorImage = horizCat
       [ char (view palWindowName pal) windowName
@@ -186,7 +183,7 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
       , renderedFocus
       ]
 
-    pal         = clientPalette st
+    !pal        = clientPalette st
     focus       = view clientFocus st
     windowNames = clientWindowNames st
 
@@ -211,12 +208,7 @@ focusImage st = parens defAttr majorImage <|> renderedSubfocus
           , char (view palLabel pal) m
           ]
 
-    renderedSubfocus =
-      foldMap (\name -> horizCat
-          [ string defAttr "─("
-          , name
-          , char defAttr ')'
-          ]) subfocusName
+    renderedSubfocus = foldMap infoBubble subfocusName
 
     renderedFocus =
       case focus of
