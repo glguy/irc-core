@@ -297,7 +297,7 @@ parseNicks _ = failure "expected text or list of text"
 
 parseUseTls :: Value -> ConfigParser UseTls
 parseUseTls (Atom "yes")          = return UseTls
-parseUseTls (Atom "yes-insecure") = return UseInsecure
+parseUseTls (Atom "yes-insecure") = return UseInsecureTls
 parseUseTls (Atom "no")           = return UseInsecure
 parseUseTls _                     = failure "expected yes, yes-insecure, or no"
 
