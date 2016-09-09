@@ -21,6 +21,7 @@ import           Client.State.Channel
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Client.View (viewSubfocusLabel)
 import           Control.Lens
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
@@ -175,7 +176,9 @@ myNickImage st =
 
 
 focusImage :: ClientState -> Image
-focusImage st = infoBubble majorImage <|> renderedSubfocus
+focusImage st =
+    infoBubble majorImage <|>
+    foldMap infoBubble (viewSubfocusLabel st)
   where
     majorImage = horizCat
       [ char (view palWindowName pal) windowName
@@ -190,25 +193,6 @@ focusImage st = infoBubble majorImage <|> renderedSubfocus
     windowName = fromMaybe '?'
                $ do i <- Map.lookupIndex focus (view clientWindows st)
                     preview (ix i) windowNames
-
-    subfocusName =
-      case view clientSubfocus st of
-        FocusMessages -> Nothing
-        FocusWindows  -> Just $ string (view palLabel pal) "windows"
-        FocusInfo     -> Just $ string (view palLabel pal) "info"
-        FocusUsers    -> Just $ string (view palLabel pal) "users"
-        FocusMentions -> Just $ string (view palLabel pal) "mentions"
-        FocusPalette  -> Just $ string (view palLabel pal) "palette"
-        FocusHelp mb  -> Just $ string (view palLabel pal) "help" <|>
-                                foldMap (\cmd -> char defAttr ':' <|>
-                                            text' (view palLabel pal) cmd) mb
-        FocusMasks m  -> Just $ horizCat
-          [ string (view palLabel pal) "masks"
-          , char defAttr ':'
-          , char (view palLabel pal) m
-          ]
-
-    renderedSubfocus = foldMap infoBubble subfocusName
 
     renderedFocus =
       case focus of

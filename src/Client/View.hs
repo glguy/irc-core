@@ -11,8 +11,10 @@ This module selects the correct view based on the current state.
 -}
 module Client.View
   ( viewLines
+  , viewSubfocusLabel
   ) where
 
+import           Client.Image.Palette
 import           Client.State
 import           Client.State.Focus
 import           Client.View.ChannelInfo
@@ -44,3 +46,22 @@ viewLines !st =
     _ -> chatMessageImages st
   where
     pal = clientPalette st
+
+viewSubfocusLabel :: ClientState -> Maybe Image
+viewSubfocusLabel st =
+  let !pal = clientPalette st in
+  case view clientSubfocus st of
+    FocusMessages -> Nothing
+    FocusWindows  -> Just $ string (view palLabel pal) "windows"
+    FocusInfo     -> Just $ string (view palLabel pal) "info"
+    FocusUsers    -> Just $ string (view palLabel pal) "users"
+    FocusMentions -> Just $ string (view palLabel pal) "mentions"
+    FocusPalette  -> Just $ string (view palLabel pal) "palette"
+    FocusHelp mb  -> Just $ string (view palLabel pal) "help" <|>
+                            foldMap (\cmd -> char defAttr ':' <|>
+                                        text' (view palLabel pal) cmd) mb
+    FocusMasks m  -> Just $ horizCat
+      [ string (view palLabel pal) "masks"
+      , char defAttr ':'
+      , char (view palLabel pal) m
+      ]
