@@ -11,6 +11,7 @@ This module provides the renderer for the client's UI.
 -}
 module Client.Image (clientPicture) where
 
+import           Client.Image.Palette
 import           Client.Image.StatusLine
 import           Client.Image.Textbox
 import           Client.State
@@ -55,7 +56,8 @@ clientImage st = (pos, img, st'')
     renderExtra stIn focus1 = (stOut, outImg)
       where
         (stOut,msgImg) = messagePane splitHeight focus1 FocusMessages stIn
-        divider = withStyle defAttr reverseVideo
+        pal = clientPalette st
+        divider = view palWindowDivider pal
         outImg = msgImg <-> minorStatusLineImage focus1 st
                         <-> charFill divider ' ' (view clientWidth st) 1
 

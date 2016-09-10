@@ -32,6 +32,7 @@ module Client.Image.Palette
   , palCommandPlaceholder
   , palCommandPrefix
   , palCommandError
+  , palWindowDivider
 
   , paletteMap
 
@@ -64,6 +65,7 @@ data Palette = Palette
   , _palCommandPrefix :: Attr -- ^ prefix of known command
   , _palCommandError  :: Attr -- ^ unknown command
   , _palCommandPlaceholder :: Attr -- ^ command argument placeholder
+  , _palWindowDivider :: Attr -- ^ Divider between split windows
   }
   deriving Show
 
@@ -90,6 +92,7 @@ defaultPalette = Palette
   , _palCommandPrefix           = withForeColor defAttr blue
   , _palCommandError            = withForeColor defAttr red
   , _palCommandPlaceholder      = withStyle defAttr reverseVideo
+  , _palWindowDivider           = withStyle defAttr reverseVideo
   }
 
 -- | Default nick highlighting colors that look nice in my dark solarized
@@ -119,4 +122,5 @@ paletteMap =
   , ("command-placeholder", Lens palCommandPlaceholder)
   , ("command-prefix"   , Lens palCommandPrefix)
   , ("command-error"    , Lens palCommandError)
+  , ("window-divider"   , Lens palWindowDivider)
   ]

@@ -214,6 +214,7 @@ Palette
 * `command-prefix` - attr - attr for prefix of known command
 * `command-ready` - attr - attr for recognized command with arguments filled
 * `command-placeholder` - attr - attr for command argument placeholder
+* `window-divider` - attr - attr for the dividing line between split windows
 
 Text Attributes
 ---------------
