@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.16
+
+* Add `/splits` to show multiple chat windows simultaneously
+
 ## 2.15
 
 * Add `/mentions`

@@ -52,8 +52,7 @@ addMarkers ::
   [Image]       {- ^ mention images and channel labels -}
 addMarkers _ [] = []
 addMarkers !st (!ml : xs)
-  = mlImage ml
-  : map mlImage same
+  = map mlImage (ml:same)
  ++ minorStatusLineImage (mlFocus ml) st
   : addMarkers st rest
   where
