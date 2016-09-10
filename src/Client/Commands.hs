@@ -45,6 +45,7 @@ import           Control.Lens
 import           Control.Monad
 import           Data.Foldable
 import           Data.HashSet (HashSet)
+import           Data.List (nub)
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
@@ -385,7 +386,12 @@ commandsList =
     , Command (RemainingArg "focuses")
       "Set the extra message view splits.\n\
       \\n\
-      \\^Bfocues\^B: space delimited list of network:channel entries.\n"
+      \\^Bfocues\^B: space delimited list of focus names.\n\
+      \\n\
+      \Client:  *\n\
+      \Network: \^BNETWORK\^B\n\
+      \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
+      \User:    \^BNETWORK\^B:\^BNICK\^B\n"
     $ ClientCommand cmdSplits tabSplits
     )
 
@@ -837,9 +843,16 @@ cmdHelp st mb = commandSuccess (changeSubfocus focus st)
 
 -- | Tab completion for @/splits@
 tabSplits :: Bool -> ClientCommand String
-tabSplits isReversed st _ =
-  simpleTabCompletion id [] completions isReversed st
+tabSplits isReversed st rest
+  | all (' '==) rest =
+     do let cmd = "/splits " ++ unwords (Text.unpack . render <$> currentExtras)
+            newline = Edit.endLine cmd
+        commandSuccess (set (clientTextBox . Edit.line) newline st)
+
+  | otherwise = simpleTabCompletion id [] completions isReversed st
   where
+    currentExtras = view clientExtraFocus st
+
     completions = map render
                 $ Map.keys
                 $ view clientWindows st
@@ -852,7 +865,7 @@ tabSplits isReversed st _ =
 cmdSplits :: ClientCommand String
 cmdSplits st str = commandSuccess (set clientExtraFocus extras st)
   where
-    extras = map toFocus (words str)
+    extras = nub (map toFocus (words str))
 
     toFocus x =
       case break (==':') x of

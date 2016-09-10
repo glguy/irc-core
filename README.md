@@ -129,6 +129,10 @@ macros:
       * "clear"
       * "znc *status clearbuffer $channel"
 
+  * name: "mysplits"
+    commands:
+      * "splits gl:#haskell gl:#haskell-offtopic"
+
   -- Example use of macro in combination with an extension
   * name: "extra"
     commands:
@@ -253,6 +257,7 @@ Client commands
 * `/extension <extension name> <params...>` - Send the given params to the named extension
 * `/exec [-n network] [-c channel] <command> <arguments...>` - Execute a command, If no network or channel are provided send output to client window, if network and channel are provided send output as messages, if network is provided send output as raw IRC messages.
 * `/url [n]` - Execute url-opener on the nth URL in the current window (defaults to first)
+* `/splits [focuses...]` - Enable split-screen view. Focuses should be space delimited list of NETWORK:CHANNEL
 
 Connection commands
 
