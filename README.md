@@ -1,4 +1,4 @@
-My IRC client
+GLIRC - Advanced Console IRC Client
 =============
 
 [![Build Status](https://secure.travis-ci.org/glguy/irc-core.svg)](http://travis-ci.org/glguy/irc-core)
@@ -41,20 +41,24 @@ $ stack build
 Client Features
 ===============
 
+* All views and transformation are dynamic and don't change the underlying model.
 * Subsequent joins and parts fold into one line and do not scroll chat messages off the screen
 * Ignore support that folds ignored messages into the joins and parts. Toggle it off to see previously hidden messages
 * Detailed view to see all the messages in a channel in full detail with hostmask and timestamp (F2)
-* Nick tab completion
-* New message notification
-* View ban, quiet, invex, and exception lists
+* Context sensitive tab completion
+* Searchable ban, quiet, invex, and exception view separate from chat messages
+* Searchable user list, detailed view shows full hostmasks
 * WYSIWYG mIRC formatting input
+* Multi-line editing
+* Dynamic, in-place message searching
 * Chanserv integration
-* Each user's nick is assigned a consistent color, when a user's nick is rendered in a chat message it uses that same color.
+* Nicknames in chat messages are colored to match messages from that nickname
 * Support for /STATUSMSG/ messages (messages only voice or op users can see)
 * Run commands upon connection
-* Ban lists don't obstruct chat messages
-* Ban list and user list are searchable
+* Command macros
 * CERTFP and SASL authentication
+* Split-screen view
+* Configurable color palette
 
 TLS
 ===
@@ -105,7 +109,8 @@ defaults:
 
 -- Override the defaults when connecting to specific servers
 servers:
-  * hostname:      "chat.freenode.net"
+  * name: "fn"
+    hostname:      "chat.freenode.net"
     sasl-username: "someuser"
     sasl-password: "somepass"
     socks-host:    "socks5.example.com"
@@ -131,7 +136,7 @@ macros:
 
   * name: "mysplits"
     commands:
-      * "splits gl:#haskell gl:#haskell-offtopic"
+      * "splits fn:#haskell fn:#haskell-offtopic"
 
   -- Example use of macro in combination with an extension
   * name: "extra"
@@ -159,62 +164,68 @@ palette:
 Configuration sections:
 --------
 
-* `defaults` - These settings are used for all connections
-* `servers` - These settings are used to override defaults when the hostname matches
-* `palette` - Client color overrides
-* `window-names` - text - Names of windows (typically overridden on non QWERTY layouts)
-* `nick-padding` - nonnegative integer - Nicks are padded until they have the specified length
-* `extra-highlights` - list of text - Extra words/nicks to highlight
-* `extensions` - list of text - Filenames of extension to load
-* `url-opener` - text - Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS
-* `ignores` - list of text - Initial list of nicknames to ignore
-* `activity-bar` - yes or no - Initial setting for visibility of activity bar (default no)
+| setting            | type                | description                                                                                |
+|--------------------|---------------------|--------------------------------------------------------------------------------------------|
+| `defaults`         | server              | These settings are used for all connections                                                |
+| `servers`          | list of servers     | These settings are used to override defaults when the hostname matches                     |
+| `palette`          | palette             | Client color overrides                                                                     |
+| `window-names`     | text                | Names of windows (typically overridden on non QWERTY layouts)                              |
+| `nick-padding`     | nonnegative integer | Nicks are padded until they have the specified length                                      |
+| `extra-highlights` | list of text        | Extra words/nicks to highlight                                                             |
+| `extensions`       | list of text        | Filenames of extension to load                                                             |
+| `url-opener`       | text                | Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS |
+| `ignores`          | list of text        | Initial list of nicknames to ignore                                                        |
+| `activity-bar`     | yes or no           | Initial setting for visibility of activity bar (default no)                                |
 
-Settings
---------
+Server Settings
+---------------
 
-* `name` - text - name of server entry, defaults to `hostname`
-* `hostname` - text - hostname used to connect and to specify the server
-* `port` - number - port number, defaults to 6667 without TLS and 6697 with TLS
-* `nick` - text or list of text - nicknames to try in order
-* `username` - text - username
-* `realname` - text - realname / GECOS
-* `password` - text - server password
-* `sasl-username` - text - SASL username
-* `sasl-password` - text - SASL password
-* `tls` - yes/yes-insecure/no - use TLS to connect (insecure mode disables certificate checks)
-* `tls-client-cert` - text - path to TLS client certificate
-* `tls-client-key` - text - path to TLS client key
-* `connect-cmds` - list of text - client commands to send upon connection
-* `socks-host` - text - hostname of SOCKS proxy to connect through
-* `socks-port` - number - port number of SOCKS proxy to connect through
-* `server-certificates` - list of text - list of CA certificates to use when validating certificates
-* `chanserv-channels` - list of text - list of channels with chanserv op permission
-* `flood-penalty` - number - cost in seconds per message
-* `flood-threshold` - number - threshold of seconds for burst
-* `message-hooks` - list of text - names of hooks to enable
+| setting               | type                 | description                                                    |
+|-----------------------|----------------------|----------------------------------------------------------------|
+| `name`                | text                 | name of server entry, defaults to `hostname`                   |
+| `hostname`            | text                 | hostname used to connect and to specify the server             |
+| `port`                | number               | port number, defaults to 6667 without TLS and 6697 with TLS    |
+| `nick`                | text or list of text | nicknames to try in order                                      |
+| `username`            | text                 | server username                                                |
+| `realname`            | text                 | real name / GECOS                                              |
+| `password`            | text                 | server password                                                |
+| `sasl-username`       | text                 | SASL username                                                  |
+| `sasl-password`       | text                 | SASL password                                                  |
+| `tls`                 | yes/yes-insecure/no  | use TLS to connect (insecure mode disables certificate checks) |
+| `tls-client-cert`     | text                 | path to TLS client certificate                                 |
+| `tls-client-key`      | text                 | path to TLS client key                                         |
+| `connect-cmds`        | list of text         | client commands to send upon connection                        |
+| `socks-host`          | text                 | hostname of SOCKS proxy to connect through                     |
+| `socks-port`          | number               | port number of SOCKS proxy to connect through                  |
+| `server-certificates` | list of text         | list of CA certificates to use when validating certificates    |
+| `chanserv-channels`   | list of text         | list of channels with chanserv op permission                   |
+| `flood-penalty`       | number               | cost in seconds per message                                    |
+| `flood-threshold`     | number               | threshold in seconds for burst                                 |
+| `message-hooks`       | list of text         | names of hooks to enable                                       |
 
 Palette
 -------
 
-* `nick-colors` - List of attr - Use for nick highlights
-* `self` - attr - attr of our own nickname(s) outside of mentions
-* `self-highlight` - attr - attr of our own nickname(s) in mentions
-* `time` - attr - attr for timestamp
-* `meta` - attr - attr for metadata
-* `sigil` - attr - attr for sigils
-* `label` - attr - attr for information labels
-* `latency` - attr - attr for latency time
-* `error` - attr - attr for error messages
-* `textbox` - attr - attr for textbox edges
-* `window-name` - attr - attr for current window name
-* `activity` - attr - attr for activity notification
-* `mention` - attr - attr for mention notification
-* `command` - attr - attr for recognized command
-* `command-prefix` - attr - attr for prefix of known command
-* `command-ready` - attr - attr for recognized command with arguments filled
-* `command-placeholder` - attr - attr for command argument placeholder
-* `window-divider` - attr - attr for the dividing line between split windows
+| entry                 | type         | description                              |
+|-----------------------|--------------|------------------------------------------|
+| `nick-colors`         | list of attr | Use for nick highlights                  |
+| `self`                | attr         | our own nickname(s) outside of mentions  |
+| `self-highlight`      | attr         | our own nickname(s) in mentions          |
+| `time`                | attr         | timestamp on messages                    |
+| `meta`                | attr         | metadata (joins/parts/etc.)              |
+| `sigil`               | attr         | sigils (+@)                              |
+| `label`               | attr         | information labels                       |
+| `latency`             | attr         | latency time                             |
+| `error`               | attr         | error messages                           |
+| `textbox`             | attr         | textbox edges (^$)                       |
+| `window-name`         | attr         | current window name                      |
+| `activity`            | attr         | activity notification                    |
+| `mention`             | attr         | mention notification                     |
+| `command`             | attr         | recognized command                       |
+| `command-prefix`      | attr         | prefix of known command                  |
+| `command-ready`       | attr         | recognized command with arguments filled |
+| `command-placeholder` | attr         | command argument placeholder             |
+| `window-divider`      | attr         | the dividing line between split windows  |
 
 Text Attributes
 ---------------
