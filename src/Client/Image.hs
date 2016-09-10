@@ -68,9 +68,12 @@ clientImage st = (pos, img, st'')
     -- height of main window
     mainHeight  = h - splitsN*splitHeight - reservedLines
 
-    renderExtra stIn focus1 = (stOut, out <-> minorStatusLineImage focus1 st)
+    renderExtra stIn focus1 = (stOut, outImg)
       where
-        (stOut,out) = messagePane (splitHeight-1) focus FocusMessages stIn
+        (stOut,msgImg) = messagePane (splitHeight-2) focus1 FocusMessages stIn
+        divider = withStyle defAttr reverseVideo
+        outImg = msgImg <-> minorStatusLineImage focus1 st
+                        <-> charFill divider ' ' (view clientWidth st) 1
 
 messagePane :: Int -> Focus -> Subfocus -> ClientState -> (ClientState, Image)
 messagePane h focus subfocus st = (st', img)
