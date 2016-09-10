@@ -17,6 +17,7 @@ module Client.View.Messages
 import           Client.Image.Palette
 import           Client.Image.Message
 import           Client.State
+import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Client.Message
@@ -24,14 +25,14 @@ import           Control.Lens
 import           Irc.Identifier
 import           Graphics.Vty.Image
 
-chatMessageImages :: ClientState -> [Image]
-chatMessageImages st = windowLineProcessor focusedMessages
+chatMessageImages :: Focus -> ClientState -> [Image]
+chatMessageImages focus st = windowLineProcessor focusedMessages
   where
     matcher = clientMatcher st
 
     focusedMessages
         = filter (views wlText matcher)
-        $ view (clientWindows . ix (view clientFocus st) . winMessages) st
+        $ view (clientWindows . ix focus . winMessages) st
 
     windowLineProcessor
 

@@ -370,6 +370,7 @@ commandsList =
       \When \^Bnumber\^B is omitted it defaults to \^B1\^B. The number selects the URL to open counting back from the most recent.\n"
     $ ClientCommand cmdUrl noClientTab
     )
+
   , ( pure "help"
     , Command (OptTokenArg "command" NoArg)
       "Show command documentation.\n\
@@ -377,6 +378,14 @@ commandsList =
       \When \^Bcommand\^B is omitted a list of all commands is displayed.\n\
       \When \^Bcommand\^B is specified detailed help for that command is shown.\n"
     $ ClientCommand cmdHelp tabHelp
+    )
+
+  , ( pure "splits"
+    , Command (RemainingArg "focuses")
+      "Set the extra message view splits.\n\
+      \\n\
+      \\^Bfocues\^B: space delimited list of network:channel entries.\n"
+    $ ClientCommand cmdSplits simpleClientTab
     )
 
   --
@@ -824,6 +833,17 @@ cmdHelp :: ClientCommand (Maybe (String, ()))
 cmdHelp st mb = commandSuccess (changeSubfocus focus st)
   where
     focus = FocusHelp (fmap (Text.pack . fst) mb)
+
+cmdSplits :: ClientCommand String
+cmdSplits st str = commandSuccess (set clientExtraFocus extras st)
+  where
+    extras = map toFocus (words str)
+
+    toFocus x =
+      case break (==':') x of
+        ("*","")     -> Unfocused
+        (net,"")     -> NetworkFocus (Text.pack net)
+        (net,_:chan) -> ChannelFocus (Text.pack net) (mkId (Text.pack chan))
 
 tabHelp :: Bool -> ClientCommand String
 tabHelp isReversed st _ = simpleTabCompletion id [] commandNames isReversed st

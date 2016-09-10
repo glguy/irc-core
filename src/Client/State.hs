@@ -24,6 +24,7 @@ module Client.State
   , clientEvents
   , clientVty
   , clientFocus
+  , clientExtraFocus
   , clientConnectionContext
   , clientConfig
   , clientScroll
@@ -136,6 +137,7 @@ data ClientState = ClientState
   , _clientPrevFocus         :: !Focus              -- ^ previously focused buffer
   , _clientFocus             :: !Focus              -- ^ currently focused buffer
   , _clientSubfocus          :: !Subfocus           -- ^ sec
+  , _clientExtraFocus        :: ![Focus]            -- ^ extra messages windows to view
 
   , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
   , _clientNextConnectionId  :: !Int
@@ -222,6 +224,7 @@ withClientState cfg k =
         , _clientPrevFocus         = Unfocused
         , _clientFocus             = Unfocused
         , _clientSubfocus          = FocusMessages
+        , _clientExtraFocus        = []
         , _clientConnectionContext = cxt
         , _clientConfig            = cfg
         , _clientScroll            = 0

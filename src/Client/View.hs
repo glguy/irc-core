@@ -28,9 +28,9 @@ import           Client.View.Windows
 import           Control.Lens
 import           Graphics.Vty.Image
 
-viewLines :: ClientState -> [Image]
-viewLines !st =
-  case (view clientFocus st, view clientSubfocus st) of
+viewLines :: Focus -> Subfocus -> ClientState -> [Image]
+viewLines focus subfocus !st =
+  case (focus, subfocus) of
     (ChannelFocus network channel, FocusInfo) ->
       channelInfoImages network channel st
     (ChannelFocus network channel, FocusUsers)
@@ -43,14 +43,13 @@ viewLines !st =
     (_, FocusPalette) -> paletteViewLines pal
     (_, FocusHelp mb) -> helpImageLines mb pal
 
-    _ -> chatMessageImages st
+    _ -> chatMessageImages focus st
   where
     pal = clientPalette st
 
-viewSubfocusLabel :: ClientState -> Maybe Image
-viewSubfocusLabel st =
-  let !pal = clientPalette st in
-  case view clientSubfocus st of
+viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image
+viewSubfocusLabel pal subfocus =
+  case subfocus of
     FocusMessages -> Nothing
     FocusWindows  -> Just $ string (view palLabel pal) "windows"
     FocusInfo     -> Just $ string (view palLabel pal) "info"

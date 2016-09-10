@@ -13,6 +13,7 @@ window.
 -}
 module Client.Image.StatusLine
   ( statusLineImage
+  , minorStatusLineImage
   ) where
 
 import           Client.Image.Palette
@@ -21,7 +22,7 @@ import           Client.State.Channel
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
-import           Client.View (viewSubfocusLabel)
+import           Client.View
 import           Control.Lens
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
@@ -48,6 +49,13 @@ statusLineImage st
       , scrollImage st
       , latencyImage st
       ]
+
+minorStatusLineImage :: Focus -> ClientState -> Image
+minorStatusLineImage focus st =
+  content <|> charFill defAttr '─' fillSize 1
+  where
+    content = infoBubble (focusImageMajor focus st)
+    fillSize = max 0 (view clientWidth st - imageWidth content)
 
 
 scrollImage :: ClientState -> Image
@@ -177,34 +185,46 @@ myNickImage st =
 
 focusImage :: ClientState -> Image
 focusImage st =
-    infoBubble majorImage <|>
-    foldMap infoBubble (viewSubfocusLabel st)
+    infoBubble (focusImageMajor focus st) <|>
+    foldMap infoBubble (viewSubfocusLabel pal subfocus)
   where
-    majorImage = horizCat
-      [ char (view palWindowName pal) windowName
-      , char defAttr ':'
-      , renderedFocus
-      ]
 
     !pal        = clientPalette st
     focus       = view clientFocus st
+    subfocus    = view clientSubfocus st
+
+focusImageMajor :: Focus -> ClientState -> Image
+focusImageMajor focus st =
+  horizCat
+    [ char (view palWindowName pal) windowName
+    , char defAttr ':'
+    , viewFocusLabel st focus
+    ]
+  where
+    !pal        = clientPalette st
     windowNames = clientWindowNames st
 
     windowName = fromMaybe '?'
                $ do i <- Map.lookupIndex focus (view clientWindows st)
                     preview (ix i) windowNames
 
-    renderedFocus =
-      case focus of
-        Unfocused ->
-          char (view palError pal) '*'
-        NetworkFocus network ->
-          text' (view palLabel pal) network
-        ChannelFocus network channel ->
-          text' (view palLabel pal) network <|>
-          char defAttr ':' <|>
-          text' (view palLabel pal) (idText channel) <|>
-          channelModesImage network channel st
+
+parens :: Attr -> Image -> Image
+parens attr i = char attr '(' <|> i <|> char attr ')'
+
+viewFocusLabel :: ClientState -> Focus -> Image
+viewFocusLabel st focus =
+  let !pal = clientPalette st in
+  case focus of
+    Unfocused ->
+      char (view palError pal) '*'
+    NetworkFocus network ->
+      text' (view palLabel pal) network
+    ChannelFocus network channel ->
+      text' (view palLabel pal) network <|>
+      char defAttr ':' <|>
+      text' (view palLabel pal) (idText channel) <|>
+      channelModesImage network channel st
 
 channelModesImage :: Text -> Identifier -> ClientState -> Image
 channelModesImage network channel st =
@@ -215,5 +235,3 @@ channelModesImage network channel st =
       where (modes,args) = unzip (Map.toList modeMap)
     _ -> emptyImage
 
-parens :: Attr -> Image -> Image
-parens attr i = char attr '(' <|> i <|> char attr ')'
