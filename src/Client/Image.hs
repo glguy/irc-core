@@ -66,7 +66,7 @@ clientImage st = (pos, img, st'')
     splitHeight = h `div` (1 + splitsN)
 
     -- height of main window
-    mainHeight  = h - splitsN*splitHeight - reservedLines
+    mainHeight  = h - splitsN*splitHeight - 1
 
     renderExtra stIn focus1 = (stOut, outImg)
       where
