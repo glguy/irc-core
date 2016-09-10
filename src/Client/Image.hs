@@ -38,7 +38,7 @@ clientImage ::
   (Int, Image, ClientState) -- ^ text box cursor position, image, updated state
 clientImage st = (pos, img, st'')
   where
-    (st', mp) = messagePane mainHeight (view clientFocus st) (view clientSubfocus st) st
+    (st', mp) = messagePane mainHeight focus (view clientSubfocus st) st
     (st'', extras) = mapAccumL renderExtra st' splits
 
     (pos, tbImg) = textboxImage st''
@@ -49,13 +49,15 @@ clientImage st = (pos, img, st'')
 
     h = view clientHeight st - reservedLines
 
+    focus = view clientFocus st
+
     reservedLines
       | view clientActivityBar st = 2 -- textbox and activity
       | otherwise                 = 1 -- textbox
 
     -- hide the extra splits when not in detail view
     splits      = case view clientSubfocus st of
-                    FocusMessages -> view clientExtraFocus st
+                    FocusMessages -> delete focus (view clientExtraFocus st)
                     _             -> []
 
     splitsN     = length splits
@@ -66,7 +68,7 @@ clientImage st = (pos, img, st'')
     -- height of main window
     mainHeight  = h - splitsN*splitHeight - reservedLines
 
-    renderExtra stIn focus = (stOut, out <-> minorStatusLineImage focus st)
+    renderExtra stIn focus1 = (stOut, out <-> minorStatusLineImage focus1 st)
       where
         (stOut,out) = messagePane (splitHeight-1) focus FocusMessages stIn
 
