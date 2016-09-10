@@ -47,30 +47,14 @@ clientImage st = (pos, img, st'')
           statusLineImage st'' <->
           tbImg
 
-    h = view clientHeight st - reservedLines
-
     focus = view clientFocus st
 
-    reservedLines
-      | view clientActivityBar st = 2 -- textbox and activity
-      | otherwise                 = 1 -- textbox
-
-    -- hide the extra splits when not in detail view
-    splits      = case view clientSubfocus st of
-                    FocusMessages -> delete focus (view clientExtraFocus st)
-                    _             -> []
-
-    splitsN     = length splits
-
-    -- height of extra message split including status line
-    splitHeight = h `div` (1 + splitsN)
-
-    -- height of main window
-    mainHeight  = h - splitsN*splitHeight - 1
+    (mainHeight, splitHeight) = clientWindowHeights st
+    splits                    = clientExtraFocuses st
 
     renderExtra stIn focus1 = (stOut, outImg)
       where
-        (stOut,msgImg) = messagePane (splitHeight-2) focus1 FocusMessages stIn
+        (stOut,msgImg) = messagePane splitHeight focus1 FocusMessages stIn
         divider = withStyle defAttr reverseVideo
         outImg = msgImg <-> minorStatusLineImage focus1 st
                         <-> charFill divider ' ' (view clientWidth st) 1

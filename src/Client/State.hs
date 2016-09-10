@@ -61,6 +61,9 @@ module Client.State
   , clientWindowNames
   , clientPalette
 
+  , clientExtraFocuses
+  , clientWindowHeights
+
   -- * Add messages to buffers
   , recordChannelMessage
   , recordNetworkMessage
@@ -111,6 +114,7 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.IntMap (IntMap)
+import           Data.List
 import           Data.Maybe
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -662,7 +666,40 @@ pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
 
 -- | Compute the number of lines in a page at the current window size
 scrollAmount :: ClientState -> Int
-scrollAmount st = max 1 (view clientHeight st - 2)
+scrollAmount st = max 1 (min main extra)
+  where
+    (main,extra) = clientWindowHeights st
+
+
+
+
+-- | List of extra focuses to display as split windows
+clientExtraFocuses :: ClientState -> [Focus]
+clientExtraFocuses st =
+  case view clientSubfocus st of
+    FocusMessages -> view clientFocus st `delete` view clientExtraFocus st
+    _             -> []
+
+-- | Number of lines to allocate for the focused window and the
+-- main window. This doesn't include the textbox, activity bar,
+-- or status line.
+clientWindowHeights ::
+  ClientState {- ^ client state              -} ->
+  (Int,Int)   {- ^ main height, extra height -}
+clientWindowHeights st = (max 0 (h - overhead - extras*d), max 0 (d-overhead))
+  where
+    d        = h `quot` (1 + extras)
+
+    h        = max 0 (view clientHeight st - reservedLines) -- lines available
+
+    extras   = length (clientExtraFocuses st)
+
+    overhead = 2 -- status line and textbox/divider
+
+    reservedLines
+      | view clientActivityBar st = 1 -- activity bar
+      | otherwise                 = 0
+
 
 
 ------------------------------------------------------------------------
