@@ -48,6 +48,7 @@ import           Data.HashSet (HashSet)
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Monoid ((<>))
@@ -385,7 +386,7 @@ commandsList =
       "Set the extra message view splits.\n\
       \\n\
       \\^Bfocues\^B: space delimited list of network:channel entries.\n"
-    $ ClientCommand cmdSplits simpleClientTab
+    $ ClientCommand cmdSplits tabSplits
     )
 
   --
@@ -834,6 +835,20 @@ cmdHelp st mb = commandSuccess (changeSubfocus focus st)
   where
     focus = FocusHelp (fmap (Text.pack . fst) mb)
 
+-- | Tab completion for @/splits@
+tabSplits :: Bool -> ClientCommand String
+tabSplits isReversed st _ =
+  simpleTabCompletion id [] completions isReversed st
+  where
+    completions = map render
+                $ Map.keys
+                $ view clientWindows st
+
+    render Unfocused          = "*"
+    render (NetworkFocus x)   = x
+    render (ChannelFocus x y) = x <> ":" <> idText y
+
+-- | Implementation of @/splits@
 cmdSplits :: ClientCommand String
 cmdSplits st str = commandSuccess (set clientExtraFocus extras st)
   where
