@@ -460,13 +460,17 @@ clientTick :: ClientState -> ClientState
 clientTick = set clientBell False . markSeen
 
 
--- | Mark the messages on the current window as seen.
+-- | Mark the messages on the current window (and any splits) as seen.
 markSeen :: ClientState -> ClientState
 markSeen st =
   case view clientSubfocus st of
-    FocusMessages ->
-       overStrict (clientWindows . ix (view clientFocus st)) windowSeen st
+    FocusMessages -> foldl' aux st focuses
     _             -> st
+  where
+    aux acc focus = overStrict (clientWindows . ix focus) windowSeen acc
+
+    focuses = view clientFocus st
+            : view clientExtraFocus st
 
 -- | Add the textbox input to the edit history and clear the textbox.
 consumeInput :: ClientState -> ClientState
