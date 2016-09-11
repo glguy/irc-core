@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings, NondecreasingIndentation #-}
+{-# Language BangPatterns, OverloadedStrings, NondecreasingIndentation #-}
 
 {-|
 Module      : Client.EventLoop
@@ -106,8 +106,8 @@ eventLoop st0 =
 
      event <- getEvent st
      case event of
-       TimerEvent networkId action  -> doTimerEvent networkId action st
-       VtyEvent vtyEvent         -> doVtyEvent vtyEvent st
+       TimerEvent networkId action  -> eventLoop =<< doTimerEvent networkId action st
+       VtyEvent vtyEvent -> traverse_ eventLoop =<< doVtyEvent vtyEvent st
        NetworkEvent networkEvent ->
          do let h = case networkEvent of
                       NetworkLine  net time line -> doNetworkLine  net time line
@@ -334,7 +334,10 @@ lookups ks m = mapMaybe (\k -> preview (ix k) m) ks
 
 
 -- | Respond to a VTY event.
-doVtyEvent :: Event -> ClientState -> IO ()
+doVtyEvent ::
+  Event                  {- ^ vty event             -} ->
+  ClientState            {- ^ client state          -} ->
+  IO (Maybe ClientState) {- ^ nothing when finished -}
 doVtyEvent vtyEvent st =
   case vtyEvent of
     EvKey k modifier -> doKey k modifier st
@@ -342,19 +345,23 @@ doVtyEvent vtyEvent st =
       do let vty = view clientVty st
          refresh vty
          (w,h) <- displayBounds (outputIface vty)
-         eventLoop $ set clientWidth w
-                   $ set clientHeight h st
+         return $! Just $! set clientWidth  w
+                         $ set clientHeight h st
     EvPaste utf8 ->
-       let str = Text.unpack (Text.decodeUtf8With Text.lenientDecode utf8)
-           st' = over clientTextBox (Edit.insertPaste str) st
-       in eventLoop st'
-    _ -> eventLoop st
+       do let str = Text.unpack (Text.decodeUtf8With Text.lenientDecode utf8)
+          return $! Just $! over clientTextBox (Edit.insertPaste str) st
+    _ -> return (Just st)
 
 
 -- | Map keyboard inputs to actions in the client
-doKey :: Key -> [Modifier] -> ClientState -> IO ()
+doKey ::
+  Key         {- ^ key pressed    -} ->
+  [Modifier]  {- ^ modifiers held -} ->
+  ClientState {- ^ client state   -} ->
+  IO (Maybe ClientState)
 doKey key modifier st =
-  let changeEditor  f = eventLoop (over clientTextBox f st)
+  let continue !out   = return (Just out)
+      changeEditor  f = continue (over clientTextBox f st)
       changeContent f = changeEditor
                       $ over Edit.content f
                       . set  Edit.lastOperation Edit.OtherOperation
@@ -376,10 +383,11 @@ doKey key modifier st =
         KChar '_' -> changeEditor (Edit.insert '\^_')
         KChar 'o' -> changeEditor (Edit.insert '\^O')
         KChar 'v' -> changeEditor (Edit.insert '\^V')
-        KChar 'p' -> eventLoop (retreatFocus st)
-        KChar 'n' -> eventLoop (advanceFocus st)
-        KChar 'l' -> refresh (view clientVty st) >> eventLoop st
-        _         -> eventLoop st
+        KChar 'p' -> continue (retreatFocus st)
+        KChar 'n' -> continue (advanceFocus st)
+        KChar 'l' -> do refresh (view clientVty st)
+                        continue st
+        _         -> continue st
 
     [MMeta] ->
       case key of
@@ -388,16 +396,16 @@ doKey key modifier st =
         KChar 'd' -> changeEditor (Edit.killWordForward True)
         KChar 'b' -> changeContent Edit.leftWord
         KChar 'f' -> changeContent Edit.rightWord
-        KChar 'a' -> eventLoop (jumpToActivity st)
-        KChar 's' -> eventLoop (returnFocus st)
+        KChar 'a' -> continue (jumpToActivity st)
+        KChar 's' -> continue (returnFocus st)
         KChar c   | let names = clientWindowNames st
                   , Just i <- elemIndex c names ->
-                            eventLoop (jumpFocus i st)
-        _ -> eventLoop st
+                            continue (jumpFocus i st)
+        _ -> continue st
 
     [] -> -- no modifier
       case key of
-        KEsc       -> eventLoop (changeSubfocus FocusMessages st)
+        KEsc       -> continue (changeSubfocus FocusMessages st)
         KBS        -> changeContent Edit.backspace
         KDel       -> changeContent Edit.delete
         KLeft      -> changeContent Edit.left
@@ -406,8 +414,8 @@ doKey key modifier st =
         KEnd       -> changeEditor Edit.end
         KUp        -> changeEditor $ \ed -> fromMaybe ed $ Edit.earlier ed
         KDown      -> changeEditor $ \ed -> fromMaybe ed $ Edit.later ed
-        KPageUp    -> eventLoop (pageUp st)
-        KPageDown  -> eventLoop (pageDown st)
+        KPageUp    -> continue (pageUp st)
+        KPageDown  -> continue (pageDown st)
 
         KEnter     -> doCommandResult True  =<< executeInput st
         KBackTab   -> doCommandResult False =<< tabCompletion True  st
@@ -416,32 +424,43 @@ doKey key modifier st =
         KChar c    -> changeEditor (Edit.insert c)
 
         -- toggles
-        KFun 2     -> eventLoop (over clientDetailView  not st)
-        KFun 3     -> eventLoop (over clientActivityBar not st)
-        KFun 4     -> eventLoop (over clientShowMetadata not st)
+        KFun 2     -> continue (over clientDetailView  not st)
+        KFun 3     -> continue (over clientActivityBar not st)
+        KFun 4     -> continue (over clientShowMetadata not st)
 
-        _          -> eventLoop st
+        _          -> continue st
 
-    _ -> eventLoop st -- unsupported modifier
+    _ -> continue st -- unsupported modifier
 
--- | Process 'CommandResult' by either running the 'eventLoop' with the
--- new 'ClientState' or returning.
-doCommandResult :: Bool -> CommandResult -> IO ()
+
+-- | Process 'CommandResult' and update the 'ClientState' textbox
+-- and error state. When quitting return 'Nothing'.
+doCommandResult ::
+  Bool          {- ^ clear on success -} ->
+  CommandResult {- ^ command result   -} ->
+  IO (Maybe ClientState)
 doCommandResult clearOnSuccess res =
+  let continue !st = return (Just st) in
   case res of
-    CommandQuit    st -> clientShutdown st
-    CommandSuccess st -> eventLoop (if clearOnSuccess then consumeInput st else st)
-    CommandFailure st -> eventLoop (set clientBell True st)
+    CommandQuit    st -> Nothing <$ clientShutdown st
+    CommandSuccess st -> continue (if clearOnSuccess then consumeInput st else st)
+    CommandFailure st -> continue (set clientBell True st)
 
-executeInput :: ClientState -> IO CommandResult
+
+-- | Execute the the command on the first line of the text box
+executeInput ::
+  ClientState {- ^ client state -} ->
+  IO CommandResult
 executeInput st = execute (clientFirstLine st) st
 
 
 -- | Respond to a timer event.
 doTimerEvent ::
-  NetworkId {- ^ Network related to event -} ->
-  TimedAction {- ^ Action to perform -} ->
-  ClientState -> IO ()
+  NetworkId   {- ^ Network related to event -} ->
+  TimedAction {- ^ Action to perform        -} ->
+  ClientState {- ^ client state             -} ->
+  IO ClientState
 doTimerEvent networkId action =
-  eventLoop <=< traverseOf (clientConnections . ix networkId)
-                           (applyTimedAction action)
+  traverseOf
+    (clientConnections . ix networkId)
+    (applyTimedAction action)
