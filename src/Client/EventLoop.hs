@@ -35,7 +35,6 @@ import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import           Data.Foldable
-import qualified Data.IntMap as IntMap
 import           Data.List
 import           Data.Maybe
 import           Data.Monoid
@@ -76,26 +75,23 @@ getEvent st =
   where
     vtyEventChannel = _eventChannel (inputIface (view clientVty st))
 
-    possibleTimedEvents =
-      [ (networkId, runAt, action)
-           | (networkId, cs) <- views clientConnections IntMap.toList st
-           , Just (runAt, action) <- [nextTimedAction cs]
-           ]
-
-    earliestEvent
-      | null possibleTimedEvents = Nothing
-      | otherwise = Just (minimumBy (comparing (\(_,runAt,_) -> runAt)) possibleTimedEvents)
-
     prepareTimer =
-      case earliestEvent of
+      case earliestEvent st of
         Nothing -> return retry
-        Just (networkId,runAt,action) ->
+        Just (networkId,(runAt,action)) ->
           do now <- getCurrentTime
              let microsecs = truncate (1000000 * diffUTCTime runAt now)
              var <- registerDelay (max 0 microsecs)
              return $ do ready <- readTVar var
                          unless ready retry
                          return (TimerEvent networkId action)
+
+-- | Compute the earliest scheduled timed action for the client
+earliestEvent :: ClientState -> Maybe (NetworkId, (UTCTime, TimedAction))
+earliestEvent =
+  minimumByOf
+    (clientConnections . (ifolded <. folding nextTimedAction) . withIndex)
+    (comparing (fst . snd))
 
 -- | Apply this function to an initial 'ClientState' to launch the client.
 eventLoop :: ClientState -> IO ()
@@ -166,14 +162,8 @@ doNetworkError ::
   ClientState -> IO ()
 doNetworkError networkId time ex st =
   do let (cs,st1) = removeNetwork networkId st
-         st2 = foldl' (flip recordNetworkMessage) st1 msgs
-
-         msgs = exceptionToLines ex <&> \e ->
-                ClientMessage
-                 { _msgTime    = time
-                 , _msgNetwork = view csNetwork cs
-                 , _msgBody    = ErrorBody (Text.pack e)
-                 }
+         st2 = foldl' (\acc msg -> recordError time cs (Text.pack msg) acc) st1
+             $ exceptionToLines ex
 
          shouldReconnect =
            case view csPingStatus cs of
@@ -219,13 +209,8 @@ doNetworkLine networkId time line st =
       let network = view csNetwork cs in
       case parseRawIrcMsg (asUtf8 line) of
         Nothing ->
-          do let txt = Text.pack ("Malformed message: " ++ show line)
-                 msg = ClientMessage
-                        { _msgTime    = time
-                        , _msgNetwork = network
-                        , _msgBody    = ErrorBody txt
-                        }
-             eventLoop (recordNetworkMessage msg st)
+          do let msg = Text.pack ("Malformed message: " ++ show line)
+             eventLoop (recordError time cs msg st)
 
         Just raw ->
           do (st1,passed) <- clientPark st $ \ptr ->
@@ -285,14 +270,14 @@ clientResponse now irc cs st =
 processConnectCmd ::
   ZonedTime       {- ^ now             -} ->
   NetworkState    {- ^ current network -} ->
-  ClientState                             ->
+  ClientState     {- ^ client state    -} ->
   [ExpansionChunk]{- ^ command         -} ->
   IO ClientState
 processConnectCmd now cs st0 cmdTxt =
   do dc <- forM disco $ \t ->
              Text.pack . formatTime defaultTimeLocale "%H:%M:%S"
                <$> utcToLocalZonedTime t
-     let failureCase = reportConnectCmdError now cs
+     let failureCase e = recordError now cs ("Bad connect-cmd: " <> e)
      case resolveMacroExpansions (commandExpansion dc st0) (const Nothing) cmdTxt of
        Nothing -> return $! failureCase "Unable to expand connect command" st0
        Just cmdTxt' ->
@@ -307,17 +292,17 @@ processConnectCmd now cs st0 cmdTxt =
    _ -> Nothing
 
 
-reportConnectCmdError ::
+recordError ::
   ZonedTime       {- ^ now             -} ->
   NetworkState    {- ^ current network -} ->
-  Text            {- ^ bad command     -} ->
-  ClientState ->
+  Text            {- ^ error message   -} ->
+  ClientState     {- ^ client state    -} ->
   ClientState
-reportConnectCmdError now cs cmdTxt =
+recordError now cs msg =
   recordNetworkMessage ClientMessage
     { _msgTime    = now
     , _msgNetwork = view csNetwork cs
-    , _msgBody    = ErrorBody ("Bad connect-cmd: " <> cmdTxt)
+    , _msgBody    = ErrorBody msg
     }
 
 -- | Find the ZNC provided server time
