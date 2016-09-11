@@ -109,11 +109,12 @@ eventLoop st0 =
        TimerEvent networkId action  -> doTimerEvent networkId action st
        VtyEvent vtyEvent         -> doVtyEvent vtyEvent st
        NetworkEvent networkEvent ->
-         case networkEvent of
-           NetworkLine  network time line -> doNetworkLine network time line st
-           NetworkError network time ex   -> doNetworkError network time ex st
-           NetworkOpen  network time      -> doNetworkOpen  network time st
-           NetworkClose network time      -> doNetworkClose network time st
+         do let h = case networkEvent of
+                      NetworkLine  net time line -> doNetworkLine  net time line
+                      NetworkError net time ex   -> doNetworkError net time ex
+                      NetworkOpen  net time      -> doNetworkOpen  net time
+                      NetworkClose net time      -> doNetworkClose net time
+            eventLoop =<< h st
 
 -- | Sound the terminal bell assuming that the @BEL@ control code
 -- is supported.
@@ -125,83 +126,90 @@ doNetworkOpen ::
   NetworkId   {- ^ network id   -} ->
   ZonedTime   {- ^ event time   -} ->
   ClientState {- ^ client state -} ->
-  IO ()
+  IO ClientState
 doNetworkOpen networkId time st =
   case view (clientConnections . at networkId) st of
     Nothing -> error "doNetworkOpen: Network missing"
     Just cs ->
-      let msg = ClientMessage
-                  { _msgTime    = time
-                  , _msgNetwork = view csNetwork cs
-                  , _msgBody    = NormalBody "connection opened"
-                  }
-      in eventLoop $ recordNetworkMessage msg
-                   $ overStrict (clientConnections . ix networkId . csLastReceived)
-                                (\old -> old `seq` Just $! zonedTimeToUTC time) st
+      do let msg = ClientMessage
+                     { _msgTime    = time
+                     , _msgNetwork = view csNetwork cs
+                     , _msgBody    = NormalBody "connection opened"
+                     }
+         return $! recordNetworkMessage msg
+                 $ overStrict (clientConnections . ix networkId . csLastReceived)
+                              (\old -> old `seq` Just $! zonedTimeToUTC time)
+                              st
 
 -- | Respond to a network connection closing normally.
 doNetworkClose ::
-  NetworkId {- ^ network id -} ->
-  ZonedTime {- ^ event time -} ->
-  ClientState -> IO ()
+  NetworkId   {- ^ network id   -} ->
+  ZonedTime   {- ^ event time   -} ->
+  ClientState {- ^ client state -} ->
+  IO ClientState
 doNetworkClose networkId time st =
-  let (cs,st') = removeNetwork networkId st
-      msg = ClientMessage
-              { _msgTime    = time
-              , _msgNetwork = view csNetwork cs
-              , _msgBody    = NormalBody "connection closed"
-              }
-  in eventLoop $ recordNetworkMessage msg st'
+  do let (cs,st') = removeNetwork networkId st
+         msg = ClientMessage
+                 { _msgTime    = time
+                 , _msgNetwork = view csNetwork cs
+                 , _msgBody    = NormalBody "connection closed"
+                 }
+     return (recordNetworkMessage msg st')
 
 
 -- | Respond to a network connection closing abnormally.
 doNetworkError ::
-  NetworkId {- ^ failed network -} ->
-  ZonedTime {- ^ current time   -} ->
+  NetworkId     {- ^ failed network     -} ->
+  ZonedTime     {- ^ current time       -} ->
   SomeException {- ^ termination reason -} ->
-  ClientState -> IO ()
+  ClientState   {- ^ client state       -} ->
+  IO ClientState
 doNetworkError networkId time ex st =
   do let (cs,st1) = removeNetwork networkId st
          st2 = foldl' (\acc msg -> recordError time cs (Text.pack msg) acc) st1
              $ exceptionToLines ex
+     reconnectLogic ex cs st2
 
-         shouldReconnect =
-           case view csPingStatus cs of
-             PingConnecting n _
-               | n == 0 || n > reconnectAttempts -> False
+reconnectLogic ::
+  SomeException {- ^ thread failure reason -} ->
+  NetworkState  {- ^ failed network        -} ->
+  ClientState   {- ^ client state          -} ->
+  IO ClientState
+reconnectLogic ex cs st
 
-             _ | Just HostNotResolved{}   <-              fromException ex -> True
-               | Just HostCannotConnect{} <-              fromException ex -> True
-               | Just PingTimeout         <-              fromException ex -> True
-               | Just ResourceVanished    <- ioe_type <$> fromException ex -> True
-               | Just NoSuchThing         <- ioe_type <$> fromException ex -> True
+  | shouldReconnect =
+      do (attempts, mbDisconnectTime) <- computeRetryInfo
+         addConnection attempts mbDisconnectTime (view csNetwork cs) st
 
-               | otherwise -> False
+  | otherwise = return st
 
+  where
+    computeRetryInfo =
+      case view csPingStatus cs of
+        PingConnecting n tm                   -> pure (n+1, tm)
+        _ | Just tm <- view csLastReceived cs -> pure (1, Just tm)
+          | otherwise                         -> do now <- getCurrentTime
+                                                    pure (1, Just now)
 
-         reconnect = do
-           (attempts, mbDisconnectTime)
-              <- case view csPingStatus cs of
-                   PingConnecting n tm                   -> pure (n+1, tm)
-                   _ | Just tm <- view csLastReceived cs -> pure (1, Just tm)
-                     | otherwise -> do now <- getCurrentTime
-                                       pure (1, Just now)
-           addConnection attempts mbDisconnectTime (view csNetwork cs) st2
-
-         nextAction
-           | shouldReconnect = reconnect
-           | otherwise       = return st2
-
-     eventLoop =<< nextAction
+    shouldReconnect =
+      case view csPingStatus cs of
+        PingConnecting n _ | n == 0 || n > reconnectAttempts          -> False
+        _ | Just HostNotResolved{}   <-              fromException ex -> True
+          | Just HostCannotConnect{} <-              fromException ex -> True
+          | Just PingTimeout         <-              fromException ex -> True
+          | Just ResourceVanished    <- ioe_type <$> fromException ex -> True
+          | Just NoSuchThing         <- ioe_type <$> fromException ex -> True
+          | otherwise                                                 -> False
 
 
 -- | Respond to an IRC protocol line. This will parse the message, updated the
 -- relevant connection state and update the UI buffers.
 doNetworkLine ::
-  NetworkId {- ^ Network ID of message -} ->
-  ZonedTime {- ^ current time          -} ->
-  ByteString {- ^ Raw IRC message without newlines -} ->
-  ClientState -> IO ()
+  NetworkId   {- ^ Network ID of message            -} ->
+  ZonedTime   {- ^ current time                     -} ->
+  ByteString  {- ^ Raw IRC message without newlines -} ->
+  ClientState {- ^ client state                     -} ->
+  IO ClientState
 doNetworkLine networkId time line st =
   case view (clientConnections . at networkId) st of
     Nothing -> error "doNetworkLine: Network missing"
@@ -210,7 +218,7 @@ doNetworkLine networkId time line st =
       case parseRawIrcMsg (asUtf8 line) of
         Nothing ->
           do let msg = Text.pack ("Malformed message: " ++ show line)
-             eventLoop (recordError time cs msg st)
+             return $! recordError time cs msg st
 
         Just raw ->
           do (st1,passed) <- clientPark st $ \ptr ->
@@ -218,7 +226,7 @@ doNetworkLine networkId time line st =
                                  (view (clientExtensions . esActive) st)
 
 
-             if not passed then eventLoop st1 else do
+             if not passed then return st1 else do
 
              let time' = computeEffectiveTime time (view msgTags raw)
 
@@ -230,10 +238,9 @@ doNetworkLine networkId time line st =
                           messageHooks
 
              case stateHook (cookIrcMsg raw) of
-               Nothing  -> eventLoop st1 -- Message ignored
+               Nothing  -> return st1 -- Message ignored
                Just irc -> do traverse_ (sendMsg cs) replies
-                              st3 <- clientResponse time' irc cs st2
-                              eventLoop st3
+                              clientResponse time' irc cs st2
                  where
                    -- state with message recorded
                    recSt = case viewHook irc of
