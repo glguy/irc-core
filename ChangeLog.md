@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.17
+
+* Add `reconnect-attempts` setting
+
 ## 2.16
 
 * Add `/splits` to show multiple chat windows simultaneously

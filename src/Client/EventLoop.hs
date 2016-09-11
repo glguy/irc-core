@@ -52,8 +52,6 @@ import           Irc.RawIrcMsg
 import           LensUtils
 import           Network.Connection
 
-reconnectAttempts :: Int
-reconnectAttempts = 6
 
 -- | Sum of the three possible event types the event loop handles
 data ClientEvent
@@ -95,26 +93,24 @@ earliestEvent =
 
 -- | Apply this function to an initial 'ClientState' to launch the client.
 eventLoop :: ClientState -> IO ()
-eventLoop st0 =
-  do let st1 = clientTick st0
-         vty = view clientVty st
-         (pic, st) = clientPicture st1
+eventLoop st =
+  do let vty = view clientVty st
+     when (view clientBell st) (beep vty)
 
-     -- check st0 for bell, it will be always be cleared in st1
-     when (view clientBell st0) (beep vty)
+     let (pic, st') = clientPicture (clientTick st)
      update vty pic
 
-     event <- getEvent st
+     event <- getEvent st'
      case event of
-       TimerEvent networkId action  -> eventLoop =<< doTimerEvent networkId action st
-       VtyEvent vtyEvent -> traverse_ eventLoop =<< doVtyEvent vtyEvent st
+       TimerEvent networkId action  -> eventLoop =<< doTimerEvent networkId action st'
+       VtyEvent vtyEvent -> traverse_ eventLoop =<< doVtyEvent vtyEvent st'
        NetworkEvent networkEvent ->
-         do let h = case networkEvent of
-                      NetworkLine  net time line -> doNetworkLine  net time line
-                      NetworkError net time ex   -> doNetworkError net time ex
-                      NetworkOpen  net time      -> doNetworkOpen  net time
-                      NetworkClose net time      -> doNetworkClose net time
-            eventLoop =<< h st
+         eventLoop =<<
+         case networkEvent of
+           NetworkLine  net time line -> doNetworkLine  net time line st'
+           NetworkError net time ex   -> doNetworkError net time ex st'
+           NetworkOpen  net time      -> doNetworkOpen  net time st'
+           NetworkClose net time      -> doNetworkClose net time st'
 
 -- | Sound the terminal bell assuming that the @BEL@ control code
 -- is supported.
@@ -190,6 +186,8 @@ reconnectLogic ex cs st
         _ | Just tm <- view csLastReceived cs -> pure (1, Just tm)
           | otherwise                         -> do now <- getCurrentTime
                                                     pure (1, Just now)
+
+    reconnectAttempts = view (csSettings . ssReconnectAttempts) cs
 
     shouldReconnect =
       case view csPingStatus cs of

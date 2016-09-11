@@ -202,6 +202,7 @@ Server Settings
 | `flood-penalty`       | number               | cost in seconds per message                                    |
 | `flood-threshold`     | number               | threshold in seconds for burst                                 |
 | `message-hooks`       | list of text         | names of hooks to enable                                       |
+| `reconnect-attempts`  | int                  | number of reconnections to attempt on error                    |
 
 Palette
 -------

@@ -39,6 +39,7 @@ module Client.Configuration.ServerSettings
   , ssFloodThreshold
   , ssMessageHooks
   , ssName
+  , ssReconnectAttempts
 
   -- * Load function
   , loadDefaultServerSettings
@@ -82,6 +83,7 @@ data ServerSettings = ServerSettings
   , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
   , _ssMessageHooks     :: ![Text] -- ^ Initial message hooks
   , _ssName             :: !(Maybe Text) -- ^ The name referencing the server in commands
+  , _ssReconnectAttempts:: !Int -- ^ The number of reconnect attempts to make on error
   }
   deriving Show
 
@@ -123,4 +125,5 @@ loadDefaultServerSettings =
        , _ssFloodThreshold   = 10
        , _ssMessageHooks     = []
        , _ssName             = Nothing
+       , _ssReconnectAttempts= 6 -- six feels great
        }

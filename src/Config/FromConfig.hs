@@ -100,6 +100,15 @@ instance FromConfig Integer where
       n = floatingToRatio c e
   parseConfig _                 = failure "expected integral number"
 
+instance FromConfig Int where
+  parseConfig v =
+    do i <- parseConfig v
+       let small = minBound :: Int
+           large = maxBound :: Int
+       when (i < toInteger small || toInteger large < i)
+          (failure "int out of range")
+       return (fromInteger i)
+
 -- | Matches 'Number' values ignoring the base
 instance Integral a => FromConfig (Ratio a) where
   parseConfig (Number _ n)   = return $! fromIntegral n

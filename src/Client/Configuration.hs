@@ -273,7 +273,8 @@ parseServerSetting ss k v =
     "flood-threshold"     -> setField       ssFloodThreshold
     "message-hooks"       -> setField       ssMessageHooks
     "name"                -> setFieldMb     ssName
-    _                     -> failure "Unknown section"
+    "reconnect-attempts"  -> setField       ssReconnectAttempts
+    _                     -> failure "Unknown setting"
   where
     setField   l = setFieldWith   l parseConfig
     setFieldMb l = setFieldWithMb l parseConfig
