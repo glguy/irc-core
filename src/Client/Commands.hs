@@ -301,7 +301,7 @@ commandsList =
       \If \^Bnetwork\^B and \^Bchannel\^B are provided that chat window is cleared.\n\
       \\n\
       \If a window is cleared and no longer active that window will be removed from the client.\n"
-    $ ClientCommand cmdClear noClientTab
+    $ ClientCommand cmdClear tabFocus
     )
   , ( pure "reconnect"
     , Command NoArg
@@ -707,16 +707,17 @@ cmdClear st args =
     Just (network, Just (channel, _)) ->
         clearFocus (ChannelFocus (Text.pack network) (mkId (Text.pack channel)))
   where
-    clearFocus focus = commandSuccess (windowEffect st)
+    clearFocus focus = commandSuccess (focusEffect (windowEffect st))
       where
         windowEffect
-          | isActive  = clearWindow
-          | otherwise = deleteWindow
+          | isActive  = setWindow (Just emptyWindow)
+          | otherwise = setWindow Nothing
 
-        deleteWindow = advanceFocus . setWindow Nothing
-        clearWindow  =                setWindow (Just emptyWindow)
+        focusEffect
+          | not isActive && view clientFocus st == focus = advanceFocus
+          | otherwise                                    = id
 
-        setWindow = set (clientWindows . at (view clientFocus st))
+        setWindow = set (clientWindows . at focus)
 
         isActive =
           case focus of
