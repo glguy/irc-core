@@ -420,7 +420,7 @@ commandsList =
       \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
       \See also: /focus to switch to a channel on a different network.\n\
       \See also: /focus to switch to a channel on a different network.\n"
-    $ NetworkCommand cmdChannel simpleNetworkTab
+    $ NetworkCommand cmdChannel tabChannel
     )
   , ( pure "mode"
     , Command (RemainingArg "modes and parameters")
@@ -1129,6 +1129,18 @@ cmdChannel :: NetworkCommand (String, ())
 cmdChannel cs st (channel, _) =
   commandSuccess
     $ changeFocus (ChannelFocus (view csNetwork cs) (mkId (Text.pack channel))) st
+
+-- | Tab completion for @/channel@
+tabChannel ::
+  Bool {- ^ reversed order -} ->
+  NetworkCommand String
+tabChannel isReversed cs st _ =
+  simpleTabCompletion id [] completions isReversed st
+  where
+    completions =
+      [ idText chan
+          | ChannelFocus net chan <- Map.keys (view clientWindows st)
+          , net == view csNetwork cs ]
 
 
 cmdQuit :: NetworkCommand String
