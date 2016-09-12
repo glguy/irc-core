@@ -170,4 +170,3 @@ plainText xs =
     (first, cntl:rest) -> Vty.string defAttr first Vty.<|>
                           controlImage cntl Vty.<|>
                           plainText rest
-

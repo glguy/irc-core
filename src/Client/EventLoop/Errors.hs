@@ -15,7 +15,6 @@ module Client.EventLoop.Errors
   ) where
 
 import           Control.Exception
-import           Data.Char
 import           Data.List.NonEmpty (NonEmpty(..))
 import           Network.Connection
 import           Network.TLS
@@ -27,20 +26,10 @@ exceptionToLines ::
   NonEmpty String {- ^ client lines  -}
 exceptionToLines
   = indentMessages
-  . fmap cleanLine
   . exceptionToLines'
 
 indentMessages :: NonEmpty String -> NonEmpty String
 indentMessages (x :| xs) = x :| map ("⋯ "++) xs
-
-cleanLine :: String -> String
-cleanLine = map clean1
-  where
-    clean1 x
-      | x < '\x20'  = chr (0x2400 + ord x)
-      | x == '\DEL' = '␡'
-      | isControl x = '�'
-      | otherwise   = x
 
 exceptionToLines' ::
   SomeException   {- ^ network error -} ->

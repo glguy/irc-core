@@ -76,13 +76,20 @@ msgImage rm when params body = horizCat
   , bodyImage rm params body
   ]
 
+cleanChar :: Char -> Char
+cleanChar x
+  | x < '\x20'  = chr (0x2400 + ord x)
+  | x == '\DEL' = '␡'
+  | isControl x = '�'
+  | otherwise   = x
+
 errorImage ::
   MessageRendererParams ->
   Text {- ^ error message -} ->
   Image
 errorImage params txt = horizCat
   [ text' (view palError (rendPalette params)) "error "
-  , text' defAttr txt
+  , text' defAttr (Text.map cleanChar txt)
   ]
 
 normalImage ::
@@ -91,7 +98,7 @@ normalImage ::
   Image
 normalImage params txt = horizCat
   [ text' (view palLabel (rendPalette params)) "client "
-  , text' defAttr txt
+  , text' defAttr (Text.map cleanChar txt)
   ]
 
 -- | Render the given time according to the current mode and palette.
