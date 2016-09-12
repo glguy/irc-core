@@ -46,6 +46,7 @@ statusLineImage st
       , detailImage st
       , nometaImage st
       , scrollImage st
+      , filterImage st
       , latencyImage st
       ]
 
@@ -60,8 +61,16 @@ minorStatusLineImage focus st =
 scrollImage :: ClientState -> Image
 scrollImage st
   | 0 == view clientScroll st = emptyImage
-  | otherwise = infoBubble
-              $ string attr "scroll"
+  | otherwise = infoBubble (string attr "scroll")
+  where
+    pal  = clientPalette st
+    attr = view palLabel pal
+
+filterImage :: ClientState -> Image
+filterImage st =
+  case clientActiveRegex st of
+    Nothing -> emptyImage
+    Just {} -> infoBubble (string attr "filtered")
   where
     pal  = clientPalette st
     attr = view palLabel pal

@@ -3,6 +3,7 @@
 ## 2.17
 
 * Add `reconnect-attempts` setting
+* Add peristence for `/grep` and `/grepi`
 
 ## 2.16
 

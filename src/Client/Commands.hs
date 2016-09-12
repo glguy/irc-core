@@ -64,6 +64,7 @@ import           LensUtils
 import           System.Process
 import           Text.Read
 import           Text.Regex.TDFA
+import           Text.Regex.TDFA.String (compile)
 
 -- | Possible results of running a command
 data CommandResult
@@ -394,6 +395,29 @@ commandsList =
       \User:    \^BNETWORK\^B:\^BNICK\^B\n"
     $ ClientCommand cmdSplits tabSplits
     )
+
+  , ( pure "grep"
+    , Command (RemainingArg "regular-expression")
+      "Set the persistent regular expression.\n\
+      \\n\
+      \Clear the regular expression by calling this without an argument.\n\
+      \\n\
+      \\^B/grep\^O is case-sensitive.\n\
+      \\^B/grepi\^O is case-insensitive.\n"
+    $ ClientCommand (cmdGrep True) simpleClientTab
+    )
+
+  , ( pure "grepi"
+    , Command (RemainingArg "regular-expression")
+      "Set the persistent regular expression.\n\
+      \\n\
+      \Clear the regular expression by calling this without an argument.\n\
+      \\n\
+      \\^B/grep\^O is case-sensitive.\n\
+      \\^B/grepi\^O is case-insensitive.\n"
+    $ ClientCommand (cmdGrep False) simpleClientTab
+    )
+
 
   --
   -- Network commands
@@ -1492,3 +1516,14 @@ openUrl opener url st =
      case res of
        Left e  -> commandFailureMsg (Text.pack (displayException (e :: IOError))) st
        Right{} -> commandSuccess st
+
+-- | Implementation of @/grep@ and @/grepi@
+cmdGrep ::
+  Bool {- ^ case sensitive -} ->
+  ClientCommand String
+cmdGrep sensitive st str
+  | null str  = commandSuccess (set clientRegex Nothing st)
+  | otherwise =
+      case compile defaultCompOpt{caseSensitive=sensitive} defaultExecOpt str of
+        Left e -> commandFailureMsg (Text.pack e) st
+        Right r -> commandSuccess (set clientRegex (Just r) st)

@@ -38,6 +38,7 @@ module Client.State
   , clientConnection
   , clientBell
   , clientExtensions
+  , clientRegex
 
   -- * Client operations
   , withClientState
@@ -45,6 +46,7 @@ module Client.State
   , clientShutdown
   , clientPark
   , clientMatcher
+  , clientActiveRegex
   , urlPattern
 
   , consumeInput
@@ -160,6 +162,7 @@ data ClientState = ClientState
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
   , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
   , _clientShowMetadata      :: !Bool                     -- ^ visible activity bar
+  , _clientRegex             :: (Maybe Regex)             -- ^ optional persistent filter
 
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
@@ -234,6 +237,7 @@ withClientState cfg k =
         , _clientScroll            = 0
         , _clientDetailView        = False
         , _clientShowMetadata      = True
+        , _clientRegex             = Nothing
         , _clientActivityBar       = view configActivityBar cfg
         , _clientNextConnectionId  = 0
         , _clientBell              = False
@@ -506,19 +510,27 @@ channelUserList ::
 channelUserList network channel =
   views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys
 
--- | Construct a text matching predicate used to filter the message window.
 clientMatcher :: ClientState -> Text -> Bool
 clientMatcher st =
+  case clientActiveRegex st of
+    Nothing -> const True
+    Just r  -> matchTest r
+
+-- | Construct a text matching predicate used to filter the message window.
+clientActiveRegex :: ClientState -> Maybe Regex
+clientActiveRegex st =
   case break (==' ') (clientFirstLine st) of
     ("/grep" ,_:reStr) -> go True  reStr
     ("/grepi",_:reStr) -> go False reStr
-    ("/url"  ,_      ) -> match urlPattern
-    _                  -> const True
+    ("/url"  ,_      ) -> Just urlPattern
+    _ -> case view clientRegex st of
+           Nothing -> Nothing
+           Just r  -> Just r
   where
     go sensitive reStr =
       case compile defaultCompOpt{caseSensitive=sensitive} defaultExecOpt reStr of
-        Left{}  -> const True
-        Right r -> match r :: Text -> Bool
+        Left{}  -> Nothing
+        Right r -> Just r
 
 urlPattern :: Regex
 urlPattern = makeRegex
