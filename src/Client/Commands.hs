@@ -910,9 +910,11 @@ tabFocus isReversed st _ =
     networks   = map mkId $ HashMap.keys $ view clientNetworkMap st
     params     = words $ uncurry take $ clientLine st
 
-    completions
-      | length params == 2 = networks
-      | otherwise          = currentCompletionList st
+    completions =
+      case params of
+        [_cmd,_net]      -> networks
+        [_cmd,net,_chan] -> channelWindowsOnNetwork (Text.pack net) st
+        _                -> []
 
 cmdWhois :: NetworkCommand String
 cmdWhois cs st rest =
@@ -1137,10 +1139,17 @@ tabChannel ::
 tabChannel isReversed cs st _ =
   simpleTabCompletion id [] completions isReversed st
   where
-    completions =
-      [ idText chan
-          | ChannelFocus net chan <- Map.keys (view clientWindows st)
-          , net == view csNetwork cs ]
+    completions = channelWindowsOnNetwork (view csNetwork cs) st
+
+-- | Return the list of identifiers for open channel windows on
+-- the given network name.
+channelWindowsOnNetwork ::
+  Text         {- ^ network              -} ->
+  ClientState  {- ^ client state         -} ->
+  [Identifier] {- ^ open channel windows -}
+channelWindowsOnNetwork network st =
+  [ chan | ChannelFocus net chan <- Map.keys (view clientWindows st)
+         , net == network ]
 
 
 cmdQuit :: NetworkCommand String
