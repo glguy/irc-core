@@ -21,6 +21,8 @@ import           Client.Image.MircFormatting
 import           Client.Image.Palette
 import           Client.Commands.Recognizer
 import           Control.Lens
+import           Data.Foldable (toList)
+import           Data.List (delete)
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
@@ -51,14 +53,20 @@ commandHelpLines cmdName pal =
       [string (view palError pal) $ "Unknown command, did you mean: " ++ suggestions]
       where
       suggestions = Text.unpack $ Text.intercalate " " ((cmdName <>) <$> sfxs)
-    Exact (Command args doc impl) ->
+    Exact (Command names args doc impl) ->
       reverse $ commandSummary pal (pure cmdName) args
               : emptyImage
-              : explainContext impl
+              : aliasLines
+             ++ explainContext impl
               : emptyImage
               : map parseIrcText docs
       where
         docs = Text.lines doc
+        aliasLines =
+          case delete cmdName (toList names) of
+            [] -> []
+            ns -> [ text' defAttr (Text.unwords ("Aliases:":ns))
+                  , emptyImage ]
 
 -- | Generate an explanation of the context where the given command
 -- implementation will be valid.
@@ -81,8 +89,8 @@ listAllCommands ::
   [Image] {- ^ help lines -}
 listAllCommands pal =
   reverse
-    [ commandSummary pal name args
-    | (name, Command args _ _) <- commandsList ]
+    [ commandSummary pal names args
+    | Command names args _ _ <- commandsList ]
 
 -- | Generate the help line for the given command and its
 -- specification for use in the list of commands.
