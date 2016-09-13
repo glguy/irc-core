@@ -64,6 +64,11 @@ module Client.State.Network
   , TimedAction(..)
   , nextTimedAction
   , applyTimedAction
+
+  -- * Moderation
+  , useChanServ
+  , sendModeration
+  , sendTopic
   ) where
 
 import           Client.Configuration.ServerSettings
@@ -820,3 +825,48 @@ applyTimedAction action cs =
          sendMsg cs (ircPing ["ping"])
          return $! set csNextPingTime (Just $! addUTCTime 60 now)
                 $  set csPingStatus   (PingSent now) cs
+
+------------------------------------------------------------------------
+-- Moderation
+------------------------------------------------------------------------
+
+-- | Used to send commands that require ops to perform.
+-- If this channel is one that the user has chanserv access and ops are needed
+-- then ops are requested and the commands are queued, otherwise send them
+-- directly.
+sendModeration ::
+  Identifier      {- ^ channel       -} ->
+  [RawIrcMsg]     {- ^ commands      -} ->
+  NetworkState    {- ^ network state -} ->
+  IO NetworkState
+sendModeration channel cmds cs
+  | useChanServ channel cs =
+      do let cmd = ircPrivmsg "ChanServ" (Text.unwords ["OP", idText channel])
+         sendMsg cs cmd
+         return $ csChannels . ix channel . chanQueuedModeration <>~ cmds $ cs
+  | otherwise = cs <$ traverse_ (sendMsg cs) cmds
+
+useChanServ ::
+  Identifier   {- ^ channel            -} ->
+  NetworkState {- ^ network state      -} ->
+  Bool         {- ^ chanserv available -}
+useChanServ channel cs =
+  channel `elem` view (csSettings . ssChanservChannels) cs &&
+  not (iHaveOp channel cs)
+
+sendTopic ::
+  Identifier   {- ^ channel       -} ->
+  Text         {- ^ topic         -} ->
+  NetworkState {- ^ network state -} ->
+  IO ()
+sendTopic channelId topic cs = sendMsg cs cmd
+  where
+    chanservTopicCmd =
+      ircPrivmsg
+        "ChanServ"
+        (Text.unwords ["TOPIC", idText channelId, topic])
+
+    cmd
+      | Text.null topic          = ircTopic channelId ""
+      | useChanServ channelId cs = chanservTopicCmd
+      | otherwise                = ircTopic channelId topic
