@@ -678,11 +678,8 @@ pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
 
 -- | Compute the number of lines in a page at the current window size
 scrollAmount :: ClientState -> Int
-scrollAmount st = max 1 extra -- extra will be equal to main or 1 smaller
-  where
-    (main,extra) = clientWindowHeights st
-
-
+scrollAmount = max 1 . snd . clientWindowHeights
+               -- extra will be equal to main or 1 smaller
 
 
 -- | List of extra focuses to display as split windows
