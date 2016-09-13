@@ -1499,6 +1499,7 @@ recordSuccess now ste m =
     , _msgNetwork = ""
     } ste
 
+
 cmdUrl :: ClientCommand (Maybe (String, ()))
 cmdUrl st mbArg =
   case view (clientConfig . configUrlOpener) st of
