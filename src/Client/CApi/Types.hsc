@@ -48,28 +48,42 @@ import Foreign.C
 import Foreign.Ptr
 import Foreign.Storable
 
+-- | Tag for describing the kind of message to display in the client
+-- as used in `glirc_print`.
+--
+-- @enum message_code;@
 newtype MessageCode = MessageCode CInt deriving Eq
 #enum MessageCode, MessageCode, NORMAL_MESSAGE, ERROR_MESSAGE
 
+-- | Result used to determine what to do after processing a message with
+-- the 'ProcessMessage' callback.
+--
+-- @enum process_result;@
 newtype MessageResult = MessageResult CInt deriving Eq
 #enum MessageResult, MessageResult, PASS_MESSAGE, DROP_MESSAGE
 
+--
+
+-- | @typedef void *start(void *glirc, const char *path);@
 type StartExtension =
   Ptr ()      {- ^ api token                   -} ->
   CString     {- ^ path to extension           -} ->
   IO (Ptr ()) {- ^ initialized extension state -}
 
+-- | @typedef void stop(void *glirc, void *S);@
 type StopExtension =
   Ptr () {- ^ api token       -} ->
   Ptr () {- ^ extension state -} ->
   IO ()
 
+-- | Type of @typedef enum process_result process_message(void *glirc, void *S, const struct glirc_message *);@
 type ProcessMessage =
   Ptr ()     {- ^ api token       -} ->
   Ptr ()     {- ^ extention state -} ->
   Ptr FgnMsg {- ^ message to send -} ->
   IO MessageResult
 
+-- | @typedef void process_command(void *glirc, void *S, const struct glirc_command *);@
 type ProcessCommand =
   Ptr ()     {- ^ api token       -} ->
   Ptr ()     {- ^ extension state -} ->
@@ -86,14 +100,14 @@ foreign import ccall "dynamic" runProcessCommand :: Dynamic ProcessCommand
 
 ------------------------------------------------------------------------
 
--- | @struct glirc_extension@
+-- | @struct glirc_extension;@
 data FgnExtension = FgnExtension
-  { fgnStart   :: FunPtr StartExtension -- ^ Optional callback
-  , fgnStop    :: FunPtr StopExtension  -- ^ Optional callback
-  , fgnMessage :: FunPtr ProcessMessage -- ^ Optional callback
-  , fgnCommand :: FunPtr ProcessCommand -- ^ Optional callback
+  { fgnStart   :: FunPtr StartExtension -- ^ Optional startup callback
+  , fgnStop    :: FunPtr StopExtension  -- ^ Optional shutdown callback
+  , fgnMessage :: FunPtr ProcessMessage -- ^ Optional message received callback
+  , fgnCommand :: FunPtr ProcessCommand -- ^ Optional client command callback
   , fgnName    :: CString               -- ^ Null-terminated name
-  , fgnMajorVersion, fgnMinorVersion :: CInt
+  , fgnMajorVersion, fgnMinorVersion :: CInt -- ^ extension version
   }
 
 instance Storable FgnExtension where

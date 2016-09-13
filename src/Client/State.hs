@@ -589,7 +589,7 @@ applyMessageToClientState ::
   IrcMsg                     {- ^ message recieved         -} ->
   NetworkId                  {- ^ message network          -} ->
   NetworkState               {- ^ network connection state -} ->
-  ClientState                                                 ->
+  ClientState                {- ^ client state             -} ->
   ([RawIrcMsg], ClientState) {- ^ response , updated state -}
 applyMessageToClientState time irc networkId cs st =
   cs' `seq` (reply, st')
@@ -678,7 +678,7 @@ pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
 
 -- | Compute the number of lines in a page at the current window size
 scrollAmount :: ClientState -> Int
-scrollAmount st = max 1 (min main extra)
+scrollAmount st = max 1 extra -- extra will be equal to main or 1 smaller
   where
     (main,extra) = clientWindowHeights st
 
@@ -739,7 +739,7 @@ jumpFocus i st
   | 0 <= i, i < Map.size windows = changeFocus focus st
   | otherwise                    = st
   where
-    windows = view clientWindows st
+    windows   = view clientWindows st
     (focus,_) = Map.elemAt i windows
 
 -- | Change the window focus to the given value, reset the subfocus
