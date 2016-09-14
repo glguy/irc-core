@@ -1001,7 +1001,7 @@ cmdWhowas cs st rest =
 
 cmdIson :: NetworkCommand String
 cmdIson cs st rest =
-  do sendMsg cs (ircIson (Text.pack <$> words rest))
+  do sendMsg cs (ircIson [Text.pack (unwords (words rest))])
      commandSuccess st
 
 cmdUserhost :: NetworkCommand String
