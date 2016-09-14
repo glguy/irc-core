@@ -73,6 +73,7 @@ Startup
 ```
 glirc [FLAGS] INITIAL_NETWORKS...
   -c PATH  --config=PATH  Configuration file path
+  -!       --noconnect    Disable autoconnecting
   -h       --help         Show help
   -v       --version      Show version
 ```

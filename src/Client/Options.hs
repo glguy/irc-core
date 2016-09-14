@@ -17,6 +17,7 @@ module Client.Options
   -- * Lenses
   , optConfigFile
   , optInitialNetworks
+  , optNoConnect
 
   -- * Options loader
   , getOptions
@@ -38,6 +39,7 @@ import           Paths_glirc (version)
 data Options = Options
   { _optConfigFile      :: Maybe FilePath -- ^ configuration file path
   , _optInitialNetworks :: [Text]         -- ^ initial networks
+  , _optNoConnect       :: Bool           -- ^ disable autoconnect
   , _optShowHelp        :: Bool           -- ^ show help message
   , _optShowVersion     :: Bool           -- ^ show version message
   }
@@ -51,6 +53,7 @@ defaultOptions = Options
   , _optInitialNetworks = []
   , _optShowHelp        = False
   , _optShowVersion     = False
+  , _optNoConnect       = False
   }
 
 -- | Option descriptions
@@ -58,6 +61,8 @@ options :: [OptDescr (Options -> Options)]
 options =
   [ Option "c" ["config"]  (ReqArg (set optConfigFile . Just) "PATH")
     "Configuration file path"
+  , Option "!" ["noconnect"] (NoArg (set optNoConnect True))
+    "Disable autoconnecting"
   , Option "h" ["help"]    (NoArg (set optShowHelp True))
     "Show help"
   , Option "v" ["version"] (NoArg (set optShowVersion True))

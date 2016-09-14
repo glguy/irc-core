@@ -32,8 +32,15 @@ main =
      runInUnboundThread $
        withClientState cfg $
        clientStartExtensions >=>
-       addInitialNetworks (view optInitialNetworks opts) >=>
+       initialNetworkLogic opts >=>
        eventLoop
+
+initialNetworkLogic :: Options -> ClientState -> IO ClientState
+initialNetworkLogic opts st
+  | view optNoConnect opts = return st
+  | otherwise              = addInitialNetworks networks st
+  where
+    networks = nub (clientAutoconnects st ++ view optInitialNetworks opts)
 
 -- | Load configuration and handle errors along the way.
 loadConfiguration' :: Maybe FilePath -> IO Configuration
@@ -53,15 +60,13 @@ loadConfiguration' path =
          hPutStrLn stderr msg
          exitFailure
 
--- | Create connections for all the networks on the command line.
+-- | Create connections for the given networks.
 -- Set the client focus to the first network listed.
 addInitialNetworks ::
   [Text] {- networks -} ->
   ClientState           ->
   IO ClientState
-addInitialNetworks optNetworks st =
-  case nub (clientAutoconnects st ++ optNetworks) of
-    []        -> return st
-    networks  ->
-      do st' <- foldM (flip (addConnection 0 Nothing)) st networks
-         return (set clientFocus (NetworkFocus (head networks)) st')
+addInitialNetworks [] st = return st
+addInitialNetworks (n:ns) st =
+  do st' <- foldM (flip (addConnection 0 Nothing)) st (n:ns)
+     return $! set clientFocus (NetworkFocus n) st'
