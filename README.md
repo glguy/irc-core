@@ -31,7 +31,7 @@ $ cabal install --dep
 $ cabal build
 ```
 
-Building with stack using ghc-8 resolver (nightly resolvers can work using --solver)
+Building with stack using ghc-8 resolver (lts-7 resolvers can work using --solver)
 
 ```
 $ stack init --resolver=ghc-8
