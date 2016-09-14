@@ -23,7 +23,6 @@ import           Client.EventLoop.Errors (exceptionToLines)
 import           Client.Hook
 import           Client.Hooks
 import           Client.Image
-import           Client.Image.StatusLine (activityBarImage)
 import           Client.Message
 import           Client.Network.Async
 import           Client.State
@@ -413,8 +412,8 @@ doKey key modifier st =
         KEnd       -> changeEditor Edit.end
         KUp        -> changeEditor $ \ed -> fromMaybe ed $ Edit.earlier ed
         KDown      -> changeEditor $ \ed -> fromMaybe ed $ Edit.later ed
-        KPageUp    -> continue (scrollWrapper pageUp st)
-        KPageDown  -> continue (scrollWrapper pageDown st)
+        KPageUp    -> continue (scrollClient ( scrollAmount st) st)
+        KPageDown  -> continue (scrollClient (-scrollAmount st) st)
 
         KEnter     -> doCommandResult True  =<< executeInput st
         KBackTab   -> doCommandResult False =<< tabCompletion True  st
@@ -430,15 +429,6 @@ doKey key modifier st =
         _          -> continue st
 
     _ -> continue st -- unsupported modifier
-
--- | To scroll we'll need to know how much of the screen is spent showing
--- the activity bar.
-scrollWrapper ::
-  (Int -> ClientState -> ClientState) ->
-  ClientState -> ClientState
-scrollWrapper f st = f activityBarSize st
-  where
-    activityBarSize = imageHeight (activityBarImage st)
 
 
 -- | Process 'CommandResult' and update the 'ClientState' textbox
