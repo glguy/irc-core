@@ -204,6 +204,7 @@ Server Settings
 | `message-hooks`       | list of text         | names of hooks to enable                                       |
 | `reconnect-attempts`  | int                  | number of reconnections to attempt on error                    |
 | `autoconnect`         | yes or no            | automatically connect at client startup                        |
+| `nick-completion`     | default or slack     | set this to slack to use `@` sigils when completing nicks      |
 
 Palette
 -------

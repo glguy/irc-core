@@ -66,6 +66,7 @@ module Client.State
 
   , clientExtraFocuses
   , clientWindowHeights
+  , currentNickCompletionMode
 
   -- * Add messages to buffers
   , recordChannelMessage
@@ -92,6 +93,7 @@ module Client.State
   ) where
 
 import           Client.CApi
+import           Client.Commands.WordCompletion
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
 import           Client.Image.Message
@@ -495,6 +497,13 @@ currentCompletionList st =
        : networkChannelList network st
       ++ channelUserList network chan st
     _                         -> []
+
+-- | Returns the 'WordCompletionMode' associated with the current network.
+currentNickCompletionMode :: ClientState -> WordCompletionMode
+currentNickCompletionMode st =
+  fromMaybe defaultNickWordCompleteMode $
+  do network <- views clientFocus focusNetwork st
+     preview (clientConnection network . csSettings . ssNickCompletion) st
 
 networkChannelList ::
   Text         {- ^ network -} ->

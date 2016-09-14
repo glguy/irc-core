@@ -11,19 +11,38 @@ This module provides the tab-completion logic used for nicknames and channels.
 module Client.Commands.WordCompletion
   ( Prefix(..)
   , wordComplete
+
+  -- * Word completion modes
+  , WordCompletionMode(..)
+  , plainWordCompleteMode
+  , defaultNickWordCompleteMode
+  , slackNickWordCompleteMode
   ) where
 
 import qualified Client.State.EditBox as Edit
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
-import           Data.Char
 import           Data.List
 import qualified Data.Set as Set
 import           Data.String (IsString(..))
 import qualified Data.Text as Text
 import           Data.Text (Text)
 import           Irc.Identifier
+
+-- | Word completion prefix and suffix
+data WordCompletionMode = WordCompletionMode
+  { wcmStartPrefix, wcmStartSuffix, wcmMiddlePrefix, wcmMiddleSuffix :: String }
+  deriving Show
+
+plainWordCompleteMode :: WordCompletionMode
+plainWordCompleteMode = WordCompletionMode "" "" "" ""
+
+defaultNickWordCompleteMode :: WordCompletionMode
+defaultNickWordCompleteMode = WordCompletionMode "" ": " "" ""
+
+slackNickWordCompleteMode :: WordCompletionMode
+slackNickWordCompleteMode = WordCompletionMode "@" " " "@" ""
 
 -- | Perform word completion on a text box.
 --
@@ -37,13 +56,13 @@ import           Irc.Identifier
 -- completions.
 wordComplete ::
   Prefix a =>
-  (String -> String) {- ^ leading update operation -} ->
+  WordCompletionMode {- ^ leading update operation -} ->
   Bool               {- ^ reversed -} ->
   [a]       {- ^ priority completions -} ->
   [a]       {- ^ possible completions -} ->
   Edit.EditBox -> Maybe Edit.EditBox
-wordComplete leadingCase isReversed hint vals box =
-  do let current = currentWord box
+wordComplete mode isReversed hint vals box =
+  do let current = currentWord mode box
      guard (not (null current))
      let cur = fromString current
      case view Edit.lastOperation box of
@@ -51,7 +70,7 @@ wordComplete leadingCase isReversed hint vals box =
          | isPrefix pat cur ->
 
          do next <- tabSearch isReversed pat cur vals
-            Just $ replaceWith leadingCase (toString next) box
+            Just $ replaceWith mode (toString next) box
          where
            pat = fromString patternStr
 
@@ -59,23 +78,27 @@ wordComplete leadingCase isReversed hint vals box =
          do next <- find (isPrefix cur) hint <|>
                     tabSearch isReversed cur cur vals
             Just $ set Edit.lastOperation (Edit.TabOperation current)
-                 $ replaceWith leadingCase (toString next) box
+                 $ replaceWith mode (toString next) box
 
-replaceWith :: (String -> String) -> String -> Edit.EditBox -> Edit.EditBox
-replaceWith leadingCase str box =
+replaceWith :: WordCompletionMode -> String -> Edit.EditBox -> Edit.EditBox
+replaceWith (WordCompletionMode spfx ssfx mpfx msfx) str box =
     let box1 = Edit.killWordBackward False box
-        str1 | view Edit.pos box1 == 0 = leadingCase str
-             | otherwise               = str
+        str1 | view Edit.pos box1 == 0 = spfx ++ str ++ ssfx
+             | otherwise               = mpfx ++ str ++ msfx
     in over Edit.content (Edit.insertString str1) box1
 
-currentWord :: Edit.EditBox -> String
-currentWord box
-  = reverse
-  $ takeWhile (not . isSpace)
-  $ dropWhile (\x -> x==' ' || x==':')
+currentWord :: WordCompletionMode -> Edit.EditBox -> String
+currentWord (WordCompletionMode spfx ssfx mpfx msfx) box
+  = dropWhile (`elem`pfx)
+  $ reverse
+  $ takeWhile (/= ' ')
+  $ dropWhile (`elem`sfx)
   $ reverse
   $ take n txt
- where Edit.Line n txt = view Edit.line box
+  where
+    pfx = spfx++mpfx
+    sfx = ssfx++msfx
+    Edit.Line n txt = view Edit.line box
 
 -- | Class for types that are isomorphic to 'String'
 -- and which can support a total order and a prefix

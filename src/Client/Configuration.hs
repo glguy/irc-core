@@ -45,6 +45,7 @@ import           Client.Configuration.Colors
 import           Client.Configuration.ServerSettings
 import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
+import           Client.Commands.WordCompletion
 import           Control.Exception
 import           Control.Monad
 import           Config
@@ -275,6 +276,7 @@ parseServerSetting ss k v =
     "name"                -> setFieldMb     ssName
     "reconnect-attempts"  -> setField       ssReconnectAttempts
     "autoconnect"         -> setField       ssAutoconnect
+    "nick-completion"     -> setFieldWith   ssNickCompletion parseNickCompletion
     _                     -> failure "Unknown setting"
   where
     setField   l = setFieldWith   l parseConfig
@@ -344,3 +346,10 @@ parseMacroCommand v =
      case parseExpansion txt of
        Nothing -> failure "bad macro line"
        Just ex -> return ex
+
+parseNickCompletion :: Value -> ConfigParser WordCompletionMode
+parseNickCompletion v =
+  case v of
+    Atom "default" -> return defaultNickWordCompleteMode
+    Atom "slack"   -> return slackNickWordCompleteMode
+    _              -> failure "expected default or slack"

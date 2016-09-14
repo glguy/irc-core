@@ -41,6 +41,7 @@ module Client.Configuration.ServerSettings
   , ssName
   , ssReconnectAttempts
   , ssAutoconnect
+  , ssNickCompletion
 
   -- * Load function
   , loadDefaultServerSettings
@@ -51,6 +52,7 @@ module Client.Configuration.ServerSettings
   ) where
 
 import           Client.Commands.Interpolation
+import           Client.Commands.WordCompletion
 import           Control.Lens
 import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -86,6 +88,7 @@ data ServerSettings = ServerSettings
   , _ssName             :: !(Maybe Text) -- ^ The name referencing the server in commands
   , _ssReconnectAttempts:: !Int -- ^ The number of reconnect attempts to make on error
   , _ssAutoconnect      :: Bool -- ^ Connect to this network on server startup
+  , _ssNickCompletion   :: WordCompletionMode -- ^ Nick completion mode for this server
   }
   deriving Show
 
@@ -129,4 +132,5 @@ loadDefaultServerSettings =
        , _ssName             = Nothing
        , _ssReconnectAttempts= 6 -- six feels great
        , _ssAutoconnect      = False
+       , _ssNickCompletion   = defaultNickWordCompleteMode
        }

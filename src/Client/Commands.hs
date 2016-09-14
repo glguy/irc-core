@@ -914,7 +914,8 @@ tabSplits isReversed st rest
             newline = Edit.endLine cmd
         commandSuccess (set (clientTextBox . Edit.line) newline st)
 
-  | otherwise = simpleTabCompletion id [] completions isReversed st
+  | otherwise =
+        simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
     currentExtras = view clientExtraFocus st
 
@@ -939,28 +940,30 @@ cmdSplits st str = commandSuccess (set clientExtraFocus extras st)
         (net,_:chan) -> ChannelFocus (Text.pack net) (mkId (Text.pack chan))
 
 tabHelp :: Bool -> ClientCommand String
-tabHelp isReversed st _ = simpleTabCompletion id [] commandNames isReversed st
+tabHelp isReversed st _ =
+  simpleTabCompletion plainWordCompleteMode [] commandNames isReversed st
   where
     commandNames = fst <$> expandAliases commandsList
 
 simpleTabCompletion ::
   Prefix a =>
-  (String -> String) {- ^ leading transform -} ->
-  [a] {- ^ hints           -} ->
-  [a] {- ^ all completions -} ->
-  Bool {- ^ reversed order -} ->
-  ClientState -> IO CommandResult
-simpleTabCompletion lead hints completions isReversed st =
+  WordCompletionMode {- ^ word completion mode -} ->
+  [a]                {- ^ hints                -} ->
+  [a]                {- ^ all completions      -} ->
+  Bool               {- ^ reversed order       -} ->
+  ClientState        {- ^ client state         -} ->
+  IO CommandResult
+simpleTabCompletion mode hints completions isReversed st =
   case traverseOf clientTextBox tryCompletion st of
     Nothing  -> commandFailure st
     Just st' -> commandSuccess st'
   where
-    tryCompletion = wordComplete lead isReversed hints completions
+    tryCompletion = wordComplete mode isReversed hints completions
 
 -- | @/connect@ tab completes known server names
 tabConnect :: Bool -> ClientCommand String
 tabConnect isReversed st _ =
-  simpleTabCompletion id [] networks isReversed st
+  simpleTabCompletion plainWordCompleteMode [] networks isReversed st
   where
     networks = views clientNetworkMap               HashMap.keys st
             ++ views (clientConfig . configServers) HashMap.keys st
@@ -970,7 +973,7 @@ tabConnect isReversed st _ =
 -- the current networks are used.
 tabFocus :: Bool -> ClientCommand String
 tabFocus isReversed st _ =
-  simpleTabCompletion id [] completions isReversed st
+  simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
     networks   = map mkId $ HashMap.keys $ view clientNetworkMap st
     params     = words $ uncurry take $ clientLine st
@@ -1195,7 +1198,7 @@ tabChannel ::
   Bool {- ^ reversed order -} ->
   NetworkCommand String
 tabChannel isReversed cs st _ =
-  simpleTabCompletion id [] completions isReversed st
+  simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
     completions = channelWindowsOnNetwork (view csNetwork cs) st
 
@@ -1325,7 +1328,7 @@ tabMode isReversed cs st rest =
               [ (pol,mode) | (pol,mode,arg) <- parsedModes, not (Text.null arg) ]
       , (pol,mode):_      <- drop (paramIndex-3) parsedModesWithParams
       , let (hint, completions) = computeModeCompletion pol mode channel cs st
-      -> simpleTabCompletion id hint completions isReversed st
+      -> simpleTabCompletion plainWordCompleteMode hint completions isReversed st
 
     _ -> commandFailure st
 
@@ -1394,7 +1397,7 @@ isPublicChannelMode _                  = False
 commandNameCompletion :: Bool -> ClientState -> Maybe ClientState
 commandNameCompletion isReversed st =
   do guard (cursorPos == n)
-     clientTextBox (wordComplete id isReversed [] possibilities) st
+     clientTextBox (wordComplete plainWordCompleteMode isReversed [] possibilities) st
   where
     n = length leadingPart
     (cursorPos, line) = clientLine st
@@ -1407,10 +1410,11 @@ commandNameCompletion isReversed st =
 -- userlist for the currently focused channel (if any)
 nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO CommandResult
 nickTabCompletion isReversed st =
-  simpleTabCompletion (++": ") hint completions isReversed st
+  simpleTabCompletion mode hint completions isReversed st
   where
     hint          = activeNicks st
     completions   = currentCompletionList st
+    mode          = currentNickCompletionMode st
 
 cmdExtension :: ClientCommand (String, String)
 cmdExtension st (name,params) =
