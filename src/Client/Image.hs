@@ -18,7 +18,6 @@ import           Client.State
 import           Client.State.Focus
 import           Client.View
 import           Control.Lens
-import           Data.List
 import           Graphics.Vty (Background(..), Picture(..), Cursor(..))
 import           Graphics.Vty.Image
 
@@ -34,6 +33,7 @@ clientPicture st = (pic, st')
               , picLayers     = [img]
               }
 
+-- | Primary UI render logic
 clientImage ::
   ClientState               {- ^ client state -} ->
   (Int, Image, ClientState) {- ^ text box cursor position, image, updated state -}
@@ -42,10 +42,13 @@ clientImage st = (pos, img, st')
     (mainHeight, splitHeight) = clientWindowHeights (imageHeight activityBar) st
     splitFocuses              = clientExtraFocuses st
     focus                     = view clientFocus st
+    (pos , tbImg )            = textboxImage st
 
-    (pos , tbImg ) = textboxImage st'
-    (st' , msgs  ) = messagePane mainHeight focus (view clientSubfocus st) st
-    (_   , splits) = mapAccumL renderExtra st' splitFocuses
+    -- update client state for scroll clamp
+    st' = over clientScroll (max 0 . subtract overscroll) st
+
+    (overscroll, msgs) = messagePane mainHeight focus (view clientSubfocus st) st
+    splits = renderExtra st' <$> splitFocuses
     -- outgoing state is ignored here, splits don't get to truncate scrollback
 
     img = vertCat splits      <->
@@ -58,16 +61,24 @@ clientImage st = (pos, img, st')
         -- must be st, not st', needed to compute window heights
         -- before rendering the message panes
 
-    renderExtra stIn focus1 = (stOut, outImg)
+    renderExtra stIn focus1 = outImg
       where
-        (stOut,msgImg) = messagePane splitHeight focus1 FocusMessages stIn
-        pal = clientPalette st
+        (_,msgImg) = messagePane splitHeight focus1 FocusMessages stIn
+        pal = clientPalette stIn
         divider = view palWindowDivider pal
-        outImg = msgImg <-> minorStatusLineImage focus1 st
-                        <-> charFill divider ' ' (view clientWidth st) 1
+        outImg = msgImg <-> minorStatusLineImage focus1 stIn
+                        <-> charFill divider ' ' (view clientWidth stIn) 1
 
-messagePane :: Int -> Focus -> Subfocus -> ClientState -> (ClientState, Image)
-messagePane h focus subfocus st = (st', img)
+-- | Generate an image corresponding to the image lines of the given
+-- focus and subfocus. Returns the number of lines overscrolled to
+-- assist in clamping scroll to the lines available in the window.
+messagePane ::
+  Int          {- ^ available rows                -} ->
+  Focus        {- ^ focused window                -} ->
+  Subfocus     {- ^ subfocus to render            -} ->
+  ClientState  {- ^ client state                  -} ->
+  (Int, Image) {- ^ overscroll, rendered messages -}
+messagePane h focus subfocus st = (overscroll, img)
   where
     images = viewLines focus subfocus st
     vimg   = assemble emptyImage images
@@ -75,8 +86,6 @@ messagePane h focus subfocus st = (st', img)
     img    = pad 0 (h - imageHeight vimg1) 0 0 vimg1
 
     overscroll = vh - imageHeight vimg
-
-    st' = over clientScroll (max 0 . subtract overscroll) st
 
     assemble acc _ | imageHeight acc >= vh = cropTop vh acc
     assemble acc [] = acc
@@ -87,9 +96,15 @@ messagePane h focus subfocus st = (st', img)
 
     w      = view clientWidth st
 
-lineWrap :: Int -> Image -> Image
+-- | Given an image, break the image up into chunks of at most the
+-- given width and stack the resulting chunks vertically top-to-bottom.
+lineWrap ::
+  Int   {- ^ maximum image width -} ->
+  Image {- ^ unwrapped image     -} ->
+  Image {- ^ wrapped image       -}
 lineWrap w img
-  | imageWidth img > w = cropRight w img <-> lineWrap w (cropLeft (imageWidth img - w) img)
+  | imageWidth img > w = cropRight w img <->
+                         lineWrap w (cropLeft (imageWidth img - w) img)
   | otherwise = img <|> char defAttr ' '
-                        -- trailing space with default attributes deals with bug in VTY
-                        -- where the formatting will continue past the end of chat messages
+      -- trailing space with default attributes deals with bug in VTY
+      -- where the formatting will continue past the end of chat messages
