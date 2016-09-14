@@ -43,6 +43,7 @@ import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.State
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
 import           Data.Monoid
 import           Data.Ratio
 import           Data.Text (Text)
@@ -142,7 +143,8 @@ liftConfigParser = SectionParser . lift
 -- of the sections from that value.
 parseSections :: SectionParser a -> Value -> ConfigParser a
 parseSections (SectionParser p) (Sections xs) =
-  do (res, xs') <- runStateT p (toHashMap xs)
+  do hm <- toHashMap xs
+     (res, xs') <- runStateT p hm
      let unused = HashMap.keys xs'
      unless (null unused)
        (failure ("unknown keys: " <> Text.intercalate ", " unused))
@@ -177,8 +179,19 @@ sectionReqWith p key =
                           Nothing -> failure ("section required: " <> key)
                           Just x  -> return x
 
-toHashMap :: [Section] -> HashMap Text Value
-toHashMap xs = HashMap.fromList [ (k,v) | Section k v <- xs ] -- todo: handle duplicate sections
+toHashMap :: [Section] -> ConfigParser (HashMap Text Value)
+toHashMap xs =
+  case duplicateCheck xs of
+    Just key -> failure ("duplicate section: " <> key)
+    Nothing  -> return $! HashMap.fromList [ (k,v) | Section k v <- xs ]
+
+duplicateCheck :: [Section] -> Maybe Text
+duplicateCheck = go HashSet.empty
+  where
+    go _ [] = Nothing
+    go seen (Section x _:xs)
+      | HashSet.member x seen = Just x
+      | otherwise             = go (HashSet.insert x seen) xs
 
 floatingToRatio :: Integral a => Integer -> Integer -> Ratio a
 floatingToRatio c e = fromIntegral c * 10 ^^ e
