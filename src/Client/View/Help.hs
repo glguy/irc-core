@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language BangPatterns, OverloadedStrings #-}
 
 {-|
 Module      : Client.View.Help
@@ -53,15 +53,15 @@ commandHelpLines cmdName pal =
       [string (view palError pal) $ "Unknown command, did you mean: " ++ suggestions]
       where
       suggestions = Text.unpack $ Text.intercalate " " ((cmdName <>) <$> sfxs)
-    Exact (Command names args doc impl) ->
-      reverse $ commandSummary pal (pure cmdName) args
+    Exact Command{cmdNames = names, cmdImplementation = impl,
+                  cmdArgumentSpec = spec, cmdDocumentation = doc} ->
+      reverse $ commandSummary pal (pure cmdName) spec
               : emptyImage
               : aliasLines
              ++ explainContext impl
               : emptyImage
-              : map parseIrcText docs
+              : map parseIrcText (Text.lines doc)
       where
-        docs = Text.lines doc
         aliasLines =
           case delete cmdName (toList names) of
             [] -> []
@@ -89,8 +89,8 @@ listAllCommands ::
   [Image] {- ^ help lines -}
 listAllCommands pal =
   reverse
-    [ commandSummary pal names args
-    | Command names args _ _ <- commandsList ]
+    [ commandSummary pal names spec
+    | Command{ cmdNames = names, cmdArgumentSpec = spec } <- commandsList ]
 
 -- | Generate the help line for the given command and its
 -- specification for use in the list of commands.

@@ -118,7 +118,7 @@ renderLine macros pal ('/':xs)
  allCommands = (Left <$> macros) <> (Right <$> commands)
  (attr, continue)
    = case recognize (Text.pack cmd) allCommands of
-       Exact (Right (Command _ spec _ _)) ->
+       Exact (Right Command{cmdArgumentSpec = spec}) ->
          ( specAttr spec
          , argumentsImage pal spec
          )

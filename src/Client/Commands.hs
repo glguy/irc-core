@@ -98,8 +98,20 @@ data CommandImpl a
   -- | requires an active channel window
   | ChannelCommand (ChannelCommand a) (Bool -> ChannelCommand String)
 
--- | A command is a list of aliases, an argument specification, implementation, and documentation
-data Command = forall a. Command (NonEmpty Text) (ArgumentSpec a) Text (CommandImpl a)
+
+-- | A command is a list of aliases, an argument specification, implementation,
+-- and documentation. The arguments and implementation must match so that
+-- the parsed arguments will match what the implementation expects.
+data Command = forall a. Command
+  -- | Names of this command, first in the list is the "primary" name
+  { cmdNames          :: NonEmpty Text
+  -- | Specification of the arguments of the command
+  , cmdArgumentSpec   :: ArgumentSpec a
+  -- | Multi-line IRC-formatted documentation text used for @/help@
+  , cmdDocumentation  :: Text
+  -- | Implementation of the command for both execution and tab completion
+  , cmdImplementation :: CommandImpl a
+  }
 
 -- | Consider the text entry successful and resume the client
 commandSuccess :: Monad m => ClientState -> m CommandResult
@@ -224,7 +236,7 @@ executeCommand tabCompleteReversed str st =
   in
   case recognize cmdTxt commands of
 
-    Exact (Command _names argSpec _docs impl) ->
+    Exact Command{cmdImplementation=impl, cmdArgumentSpec=argSpec} ->
       case impl of
         ClientCommand exec tab ->
           finish argSpec exec tab
@@ -256,7 +268,7 @@ executeCommand tabCompleteReversed str st =
 -- | Expands each alias to have its own copy of the command callbacks
 expandAliases :: [Command] -> [(Text,Command)]
 expandAliases xs =
-  [ (name,cmd) | cmd@(Command names _ _ _) <- xs, name <- toList names ]
+  [ (name, cmd) | cmd <- xs, name <- toList (cmdNames cmd) ]
 
 
 -- | Map of built-in client commands to their implementations, tab completion
