@@ -400,12 +400,14 @@ commandsList =
       (RemainingArg "focuses")
       "Set the extra message view splits.\n\
       \\n\
-      \\^Bfocues\^B: space delimited list of focus names.\n\
+      \\^Bfocuses\^B: space delimited list of focus names.\n\
       \\n\
       \Client:  *\n\
       \Network: \^BNETWORK\^B\n\
       \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
-      \User:    \^BNETWORK\^B:\^BNICK\^B\n"
+      \User:    \^BNETWORK\^B:\^BNICK\^B\n\
+      \\n\
+      \Not providing an argument unsplits the current windows.\n"
     $ ClientCommand cmdSplits tabSplits
 
   , Command
