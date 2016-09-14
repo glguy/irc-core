@@ -35,23 +35,28 @@ clientPicture st = (pic, st')
               }
 
 clientImage ::
-  ClientState ->
-  (Int, Image, ClientState) -- ^ text box cursor position, image, updated state
-clientImage st = (pos, img, st'')
+  ClientState               {- ^ client state -} ->
+  (Int, Image, ClientState) {- ^ text box cursor position, image, updated state -}
+clientImage st = (pos, img, st')
   where
-    (st', mp) = messagePane mainHeight focus (view clientSubfocus st) st
-    (st'', extras) = mapAccumL renderExtra st' splits
+    (mainHeight, splitHeight) = clientWindowHeights (imageHeight activityBar) st
+    splitFocuses              = clientExtraFocuses st
+    focus                     = view clientFocus st
 
-    (pos, tbImg) = textboxImage st''
-    img = vertCat extras <->
-          mp <->
-          statusLineImage st'' <->
+    (pos , tbImg ) = textboxImage st'
+    (st' , msgs  ) = messagePane mainHeight focus (view clientSubfocus st) st
+    (_   , splits) = mapAccumL renderExtra st' splitFocuses
+    -- outgoing state is ignored here, splits don't get to truncate scrollback
+
+    img = vertCat splits      <->
+          msgs                <->
+          activityBar         <->
+          statusLineImage st' <->
           tbImg
 
-    focus = view clientFocus st
-
-    (mainHeight, splitHeight) = clientWindowHeights st
-    splits                    = clientExtraFocuses st
+    activityBar = activityBarImage st
+        -- must be st, not st', needed to compute window heights
+        -- before rendering the message panes
 
     renderExtra stIn focus1 = (stOut, outImg)
       where

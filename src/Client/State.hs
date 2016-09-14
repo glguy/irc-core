@@ -684,16 +684,19 @@ clientStartExtensions st =
 ------------------------------------------------------------------------
 
 -- | Scroll the current buffer to show older messages
-pageUp :: ClientState -> ClientState
-pageUp st = over clientScroll (+ scrollAmount st) st
+pageUp :: Int -> ClientState -> ClientState
+pageUp a st = over clientScroll (+ scrollAmount a st) st
 
 -- | Scroll the current buffer to show newer messages
-pageDown :: ClientState -> ClientState
-pageDown st = over clientScroll (max 0 . subtract (scrollAmount st)) st
+pageDown :: Int -> ClientState -> ClientState
+pageDown a st = over clientScroll (max 0 . subtract (scrollAmount a st)) st
 
 -- | Compute the number of lines in a page at the current window size
-scrollAmount :: ClientState -> Int
-scrollAmount = max 1 . snd . clientWindowHeights
+scrollAmount ::
+  Int         {- ^ activity bar size         -} ->
+  ClientState {- ^ client state              -} ->
+  Int         {- ^ scroll amount             -}
+scrollAmount actSize st = max 1 (snd (clientWindowHeights actSize st))
                -- extra will be equal to main or 1 smaller
 
 
@@ -708,22 +711,19 @@ clientExtraFocuses st =
 -- main window. This doesn't include the textbox, activity bar,
 -- or status line.
 clientWindowHeights ::
+  Int         {- ^ activity bar size         -} ->
   ClientState {- ^ client state              -} ->
   (Int,Int)   {- ^ main height, extra height -}
-clientWindowHeights st = (max 0 (h - overhead - extras*d), max 0 (d-overhead))
+clientWindowHeights activityBar st =
+  (max 0 (h - overhead - extras*d), max 0 (d-overhead))
   where
     d        = h `quot` (1 + extras)
 
-    h        = max 0 (view clientHeight st - reservedLines) -- lines available
+    h        = max 0 (view clientHeight st - activityBar) -- lines available
 
     extras   = length (clientExtraFocuses st)
 
     overhead = 2 -- status line and textbox/divider
-
-    reservedLines
-      | view clientActivityBar st = 1 -- activity bar
-      | otherwise                 = 0
-
 
 
 ------------------------------------------------------------------------

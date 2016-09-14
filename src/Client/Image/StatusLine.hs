@@ -14,6 +14,7 @@ window.
 module Client.Image.StatusLine
   ( statusLineImage
   , minorStatusLineImage
+  , activityBarImage
   ) where
 
 import           Client.Image.Palette
@@ -32,17 +33,16 @@ import           Irc.Identifier (Identifier, idText)
 import           Numeric
 
 -- | Renders the status line between messages and the textbox.
-statusLineImage :: ClientState -> Image
-statusLineImage st
-  = activityBar <->
-    content <|> charFill defAttr '─' fillSize 1
+statusLineImage ::
+  ClientState {- ^ client state             -} ->
+  Image       {- ^ activity bar, status bar -}
+statusLineImage st = content <|> charFill defAttr '─' fillSize 1
   where
     fillSize = max 0 (view clientWidth st - imageWidth content)
-    (activitySummary, activityBar) = activityImages st
     content = horizCat
       [ myNickImage st
       , focusImage st
-      , activitySummary
+      , activitySummary st
       , detailImage st
       , nometaImage st
       , scrollImage st
@@ -114,37 +114,53 @@ nometaImage st
     pal  = clientPalette st
     attr = view palLabel pal
 
-activityImages :: ClientState -> (Image, Image)
-activityImages st = (summary, activityBar)
+-- | Image for little box with active window names:
+--
+-- @-[15p]@
+activitySummary :: ClientState -> Image
+activitySummary st
+  | null indicators = emptyImage
+  | otherwise       = string defAttr "─[" <|>
+                      horizCat indicators <|>
+                      string defAttr "]"
   where
-    activityBar
-      | view clientActivityBar st = activityBar' <|> activityFill
-      | otherwise                 = emptyImage
+    winNames = clientWindowNames st ++ repeat '?'
 
-    summary
-      | null indicators = emptyImage
-      | otherwise       = string defAttr "─[" <|>
-                          horizCat indicators <|>
-                          string defAttr "]"
+    indicators = foldr aux [] (zip winNames windows)
+    windows    = views clientWindows Map.elems st
 
-    activityFill = charFill defAttr '─'
-                        (max 0 (view clientWidth st - imageWidth activityBar'))
-                        1
+    aux (i,w) rest
+      | view winUnread w == 0 = rest
+      | otherwise = char attr i : rest
+      where
+        pal = clientPalette st
+        attr | view winMention w = view palMention pal
+             | otherwise         = view palActivity pal
 
-    activityBar' = foldr baraux emptyImage
-                 $ zip winNames
+-- | Multi-line activity information enabled by F3
+activityBarImage :: ClientState -> Image
+activityBarImage st
+  | view clientActivityBar st = activityBar'
+  | otherwise                 = emptyImage
+  where
+    activityBar' = makeLines (view clientWidth st)
+                 $ catMaybes
+                 $ zipWith baraux winNames
                  $ Map.toList
                  $ view clientWindows st
 
-    baraux (i,(focus,w)) rest
-      | n == 0 = rest
-      | otherwise = string defAttr "─[" <|>
+    winNames = clientWindowNames st ++ repeat '?'
+
+    baraux i (focus,w)
+      | n == 0 = Nothing -- todo: make configurable
+      | otherwise = Just
+                  $ string defAttr "─[" <|>
                     char (view palWindowName pal) i <|>
                     char defAttr              ':' <|>
                     text' (view palLabel pal) focusText <|>
                     char defAttr              ':' <|>
                     string attr               (show n) <|>
-                    string defAttr "]" <|> rest
+                    string defAttr "]"
       where
         n   = view winUnread w
         pal = clientPalette st
@@ -156,17 +172,23 @@ activityImages st = (summary, activityBar)
             NetworkFocus net    -> net
             ChannelFocus _ chan -> idText chan
 
-    windows  = views clientWindows Map.elems st
-    winNames = clientWindowNames st ++ repeat '?'
 
-    indicators  = foldr aux [] (zip winNames windows)
-    aux (i,w) rest
-      | view winUnread w == 0 = rest
-      | otherwise = char attr i : rest
-      where
-        pal = clientPalette st
-        attr | view winMention w = view palMention pal
-             | otherwise         = view palActivity pal
+
+makeLines ::
+  Int     {- ^ window width       -} ->
+  [Image] {- ^ components to pack -} ->
+  Image
+makeLines _ [] = emptyImage
+makeLines w (x:xs) = go x xs
+  where
+
+    go acc (y:ys)
+      | let acc' = acc <|> y
+      , imageWidth acc' <= w
+      = go acc' ys
+
+    go acc ys = makeLines w ys
+            <-> acc <|> charFill defAttr '─' (max 0 (w - imageWidth acc)) 1
 
 
 myNickImage :: ClientState -> Image
