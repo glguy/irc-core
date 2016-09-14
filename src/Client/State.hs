@@ -62,6 +62,7 @@ module Client.State
   , clientHighlights
   , clientWindowNames
   , clientPalette
+  , clientAutoconnects
 
   , clientExtraFocuses
   , clientWindowHeights
@@ -835,3 +836,10 @@ clientWindowNames = views (clientConfig . configWindowNames) Text.unpack
 -- | Produce the list of window names configured for the client.
 clientPalette :: ClientState -> Palette
 clientPalette = view (clientConfig . configPalette)
+
+-- | Returns the list of network names that requested autoconnection.
+clientAutoconnects :: ClientState -> [Text]
+clientAutoconnects st =
+  [ network | (network, cfg) <- views (clientConfig . configServers) HashMap.toList st
+            , view ssAutoconnect cfg
+            ]

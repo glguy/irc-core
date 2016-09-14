@@ -274,6 +274,7 @@ parseServerSetting ss k v =
     "message-hooks"       -> setField       ssMessageHooks
     "name"                -> setFieldMb     ssName
     "reconnect-attempts"  -> setField       ssReconnectAttempts
+    "autoconnect"         -> setField       ssAutoconnect
     _                     -> failure "Unknown setting"
   where
     setField   l = setFieldWith   l parseConfig

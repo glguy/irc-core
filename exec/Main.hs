@@ -13,6 +13,7 @@ module Main where
 import Control.Concurrent
 import Control.Lens
 import Control.Monad
+import Data.List (nub)
 import Data.Text (Text)
 import System.Exit
 import System.IO
@@ -58,9 +59,9 @@ addInitialNetworks ::
   [Text] {- networks -} ->
   ClientState           ->
   IO ClientState
-addInitialNetworks networks st =
-  case networks of
+addInitialNetworks optNetworks st =
+  case nub (clientAutoconnects st ++ optNetworks) of
     []        -> return st
-    network:_ ->
+    networks  ->
       do st' <- foldM (flip (addConnection 0 Nothing)) st networks
-         return (set clientFocus (NetworkFocus network) st')
+         return (set clientFocus (NetworkFocus (head networks)) st')

@@ -203,6 +203,7 @@ Server Settings
 | `flood-threshold`     | number               | threshold in seconds for burst                                 |
 | `message-hooks`       | list of text         | names of hooks to enable                                       |
 | `reconnect-attempts`  | int                  | number of reconnections to attempt on error                    |
+| `autoconnect`         | yes or no            | automatically connect at client startup                        |
 
 Palette
 -------

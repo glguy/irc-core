@@ -40,6 +40,7 @@ module Client.Configuration.ServerSettings
   , ssMessageHooks
   , ssName
   , ssReconnectAttempts
+  , ssAutoconnect
 
   -- * Load function
   , loadDefaultServerSettings
@@ -84,6 +85,7 @@ data ServerSettings = ServerSettings
   , _ssMessageHooks     :: ![Text] -- ^ Initial message hooks
   , _ssName             :: !(Maybe Text) -- ^ The name referencing the server in commands
   , _ssReconnectAttempts:: !Int -- ^ The number of reconnect attempts to make on error
+  , _ssAutoconnect      :: Bool -- ^ Connect to this network on server startup
   }
   deriving Show
 
@@ -126,4 +128,5 @@ loadDefaultServerSettings =
        , _ssMessageHooks     = []
        , _ssName             = Nothing
        , _ssReconnectAttempts= 6 -- six feels great
+       , _ssAutoconnect      = False
        }
