@@ -1,5 +1,11 @@
 # Revision history for irc-core
 
+## 2.2.0.0  -- 2016-09-15
+
+* `ircIson` packs all the nicks into a single argument
+* `Eq` and `Ord` instances for `ReplyCode`
+* Use `Text` for nickname targets in Irc.Commands
+
 ## 2.1.1.1  -- 2016-08-28
 
 * Added parsing tests

@@ -369,7 +369,6 @@ ircIgnorable msg !st =
     CtcpNotice who _ _ _ -> checkUser who
     _               -> Nothing
   where
-    ignores = view clientIgnores st
     checkUser !who
       | identIgnored (userNick who) st = Just (userNick who)
       | otherwise                      = Nothing

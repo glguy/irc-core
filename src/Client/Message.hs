@@ -74,8 +74,8 @@ msgText (NormalBody txt) = txt
 
 msgSummary :: MessageBody -> IrcSummary
 msgSummary (IrcBody    irc) = ircSummary irc
-msgSummary (ErrorBody  txt) = NoSummary
-msgSummary (NormalBody txt) = NoSummary
+msgSummary (ErrorBody  _  ) = NoSummary
+msgSummary (NormalBody _  ) = NoSummary
 
 ircSummary :: IrcMsg -> IrcSummary
 ircSummary msg =

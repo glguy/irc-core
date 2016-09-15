@@ -307,7 +307,7 @@ doBadNick ::
   ([RawIrcMsg], NetworkState) {- ^ replies, updated state -}
 doBadNick badNick cs =
   case NonEmpty.dropWhile (badNick/=) (view (csSettings . ssNicks) cs) of
-    _:next:_ -> ([ircNick (mkId next)], cs)
+    _:next:_ -> ([ircNick next], cs)
     _        -> ([], cs)
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> NetworkState -> NetworkState
@@ -637,7 +637,7 @@ initialMessages :: NetworkState -> [RawIrcMsg]
 initialMessages cs
    = [ ircCapLs ]
   ++ [ ircPass pass | Just pass <- [view ssPassword ss]]
-  ++ [ ircNick (mkId (views ssNicks NonEmpty.head ss))
+  ++ [ ircNick (views ssNicks NonEmpty.head ss)
      , ircUser (view ssUser ss) False True (view ssReal ss)
      ]
   where

@@ -201,7 +201,7 @@ executeChat msg st =
       | Just !cs <- preview (clientConnection network) st ->
           do now <- getZonedTime
              let msgTxt = Text.pack $ takeWhile (/='\n') msg
-                 ircMsg = ircPrivmsg channel msgTxt
+                 ircMsg = ircPrivmsg (idText channel) msgTxt
                  myNick = UserInfo (view csNick cs) "" ""
                  entry = ClientMessage
                             { _msgTime    = now
@@ -805,7 +805,7 @@ cmdMe channelId cs st rest =
                     , _msgNetwork = network
                     , _msgBody = IrcBody (Ctcp myNick channelId "ACTION" (Text.pack rest))
                     }
-     sendMsg cs (ircPrivmsg channelId actionTxt)
+     sendMsg cs (ircPrivmsg (idText channelId) actionTxt)
      commandSuccess
        $ recordChannelMessage network channelId entry st
 
@@ -816,7 +816,7 @@ cmdCtcp cs st (target, (cmd, args)) =
          argTxt = Text.pack args
          tgtTxt = Text.pack target
 
-     sendMsg cs (ircPrivmsg (mkId tgtTxt) ("\^A" <> cmdTxt <> " " <> argTxt <> "\^A"))
+     sendMsg cs (ircPrivmsg tgtTxt ("\^A" <> cmdTxt <> " " <> argTxt <> "\^A"))
      chatCommand
         (\src tgt -> Ctcp src tgt cmdTxt argTxt)
         tgtTxt cs st
@@ -829,7 +829,7 @@ cmdNotice cs st (target, rest)
       do let restTxt = Text.pack rest
              tgtTxt = Text.pack target
 
-         sendMsg cs (ircNotice (mkId tgtTxt) restTxt)
+         sendMsg cs (ircNotice tgtTxt restTxt)
          chatCommand
             (\src tgt -> Notice src tgt restTxt)
             tgtTxt cs st
@@ -842,7 +842,7 @@ cmdMsg cs st (target, rest)
       do let restTxt = Text.pack rest
              tgtTxt = Text.pack target
 
-         sendMsg cs (ircPrivmsg (mkId tgtTxt) restTxt)
+         sendMsg cs (ircPrivmsg tgtTxt restTxt)
          chatCommand
             (\src tgt -> Privmsg src tgt restTxt)
             tgtTxt cs st
@@ -1036,7 +1036,7 @@ cmdWhowas cs st rest =
 
 cmdIson :: NetworkCommand String
 cmdIson cs st rest =
-  do sendMsg cs (ircIson [Text.pack (unwords (words rest))])
+  do sendMsg cs (ircIson (Text.pack <$> words rest))
      commandSuccess st
 
 cmdUserhost :: NetworkCommand String
@@ -1118,7 +1118,7 @@ cmdMode cs st rest = modeCommand (Text.pack <$> words rest) cs st
 
 cmdNick :: NetworkCommand (String, ())
 cmdNick cs st (nick,_) =
-  do sendMsg cs (ircNick (mkId (Text.pack nick)))
+  do sendMsg cs (ircNick (Text.pack nick))
      commandSuccess st
 
 cmdPart :: ChannelCommand String
@@ -1508,7 +1508,7 @@ cmdExec st rest =
     sendToChannel cs channel msgs =
       commandSuccess =<<
       foldM (\st1 msg ->
-        do sendMsg cs (ircPrivmsg (mkId channel) msg)
+        do sendMsg cs (ircPrivmsg channel msg)
            chatCommand'
               (\src tgt -> Privmsg src tgt msg)
               channel

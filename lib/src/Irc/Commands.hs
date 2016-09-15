@@ -55,17 +55,17 @@ import qualified Data.ByteArray.Encoding as Enc
 
 -- | PRIVMSG command
 ircPrivmsg ::
-  Identifier {- ^ target  -} ->
-  Text       {- ^ message -} ->
+  Text {- ^ target  -} ->
+  Text {- ^ message -} ->
   RawIrcMsg
-ircPrivmsg who msg = rawIrcMsg "PRIVMSG" [idText who, msg]
+ircPrivmsg who msg = rawIrcMsg "PRIVMSG" [who, msg]
 
 -- | NOTICE command
 ircNotice ::
-  Identifier {- ^ target  -} ->
-  Text       {- ^ message -} ->
+  Text {- ^ target  -} ->
+  Text {- ^ message -} ->
   RawIrcMsg
-ircNotice who msg = rawIrcMsg "NOTICE" [idText who, msg]
+ircNotice who msg = rawIrcMsg "NOTICE" [who, msg]
 
 -- | MODE command
 ircMode ::
@@ -94,9 +94,9 @@ ircWhowas = rawIrcMsg "WHOWAS"
 
 -- | NICK command
 ircNick ::
-  Identifier {- ^ nickname -} ->
+  Text {- ^ nickname -} ->
   RawIrcMsg
-ircNick nick = rawIrcMsg "NICK" [idText nick]
+ircNick nick = rawIrcMsg "NICK" [nick]
 
 -- | PART command
 ircPart ::
@@ -175,9 +175,9 @@ ircPong = rawIrcMsg "PONG"
 
 -- | ISON command
 ircIson ::
-  [Text] {- ^ parameters -} ->
+  [Text] {- ^ nicknames -} ->
   RawIrcMsg
-ircIson = rawIrcMsg "ISON"
+ircIson nicks = rawIrcMsg "ISON" [Text.unwords nicks]
 
 -- | TIME command
 ircTime ::

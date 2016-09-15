@@ -1,5 +1,5 @@
 {-# Language TypeFamilies, EmptyCase, TypeOperators, MultiParamTypeClasses, StandaloneDeriving, DeriveGeneric #-}
-{-# OPTIONS_GHC -funfolding-creation-threshold=1500 -funfolding-use-threshold=5000 #-}
+{-# OPTIONS_GHC -Wno-orphans -funfolding-creation-threshold=1500 -funfolding-use-threshold=5000 #-}
 {-|
 Module      : Client.Image.PackedImage
 Description : Packed vty Image type

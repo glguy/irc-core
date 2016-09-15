@@ -119,7 +119,7 @@ library
                        filepath             >=1.4.1  && <1.5,
                        gitrev               >=1.2    && <1.3,
                        hashable             >=1.2.4  && <1.3,
-                       irc-core             >=2.1.2  && <2.2,
+                       irc-core             >=2.2    && <2.3,
                        lens                 >=4.14   && <4.15,
                        network              >=2.6.2  && <2.7,
                        process              >=1.4.2  && <1.5,
