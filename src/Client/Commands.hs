@@ -103,8 +103,8 @@ data CommandImpl a
 -- and documentation. The arguments and implementation must match so that
 -- the parsed arguments will match what the implementation expects.
 data Command = forall a. Command
-  -- | Names of this command, first in the list is the "primary" name
-  { cmdNames          :: NonEmpty Text
+  { -- | Names of this command, first in the list is the "primary" name
+    cmdNames          :: NonEmpty Text
   -- | Specification of the arguments of the command
   , cmdArgumentSpec   :: ArgumentSpec a
   -- | Multi-line IRC-formatted documentation text used for @/help@
