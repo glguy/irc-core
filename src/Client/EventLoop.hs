@@ -394,6 +394,8 @@ doKey key modifier st =
         KChar 'd' -> changeEditor (Edit.killWordForward True)
         KChar 'b' -> changeContent Edit.leftWord
         KChar 'f' -> changeContent Edit.rightWord
+        KLeft     -> changeContent Edit.leftWord
+        KRight    -> changeContent Edit.rightWord
         KChar 'a' -> continue (jumpToActivity st)
         KChar 's' -> continue (returnFocus st)
         KChar c   | let names = clientWindowNames st

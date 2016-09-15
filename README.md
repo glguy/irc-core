@@ -371,6 +371,8 @@ Editing
 * `C-t` swap characters at cursor
 * `M-f` forward word
 * `M-b` backward word
+* `M-Right` forward word
+* `M-Left` backward word
 * `M-Backspace` delete word backwards
 * `M-d` delete word forwards
 * `M-Enter` insert newline
