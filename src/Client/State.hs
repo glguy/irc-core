@@ -47,7 +47,6 @@ module Client.State
   , clientPark
   , clientMatcher
   , clientActiveRegex
-  , urlPattern
 
   , consumeInput
   , currentCompletionList
@@ -63,6 +62,7 @@ module Client.State
   , clientWindowNames
   , clientPalette
   , clientAutoconnects
+  , clientActiveCommand
 
   , clientExtraFocuses
   , currentNickCompletionMode
@@ -87,6 +87,9 @@ module Client.State
   -- * Extensions
   , ExtensionState
   , esActive
+
+  -- * URL view
+  , urlPattern
 
   ) where
 
@@ -527,10 +530,9 @@ clientMatcher st =
 -- | Construct a text matching predicate used to filter the message window.
 clientActiveRegex :: ClientState -> Maybe Regex
 clientActiveRegex st =
-  case break (==' ') (clientFirstLine st) of
-    ("/grep" ,_:reStr) -> go True  reStr
-    ("/grepi",_:reStr) -> go False reStr
-    ("/url"  ,_      ) -> Just urlPattern
+  case clientActiveCommand st of
+    Just ("grep" ,reStr) -> go True  reStr
+    Just ("grepi",reStr) -> go False reStr
     _ -> case view clientRegex st of
            Nothing -> Nothing
            Just r  -> Just r
@@ -542,12 +544,23 @@ clientActiveRegex st =
         Left{}  -> Nothing
         Right r -> Just r
 
+
+-- | Compute the command and arguments currently in the textbox.
+clientActiveCommand ::
+  ClientState           {- ^ client state                     -} ->
+  Maybe (String,String) {- ^ command name and argument string -}
+clientActiveCommand st =
+  case break (==' ') (clientFirstLine st) of
+    ('/':cmd,_:args) -> Just (cmd,args)
+    _                -> Nothing
+
+
 urlPattern :: Regex
 Right urlPattern =
   compile
     defaultCompOpt
     defaultExecOpt{captureGroups=False}
-    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[^[:space:]]*)"
+    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[^[:cntrl:][:space:]]*)"
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the networkconnection exists and should

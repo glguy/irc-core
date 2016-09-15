@@ -21,6 +21,7 @@ import           Client.View.MaskList
 import           Client.View.Mentions
 import           Client.View.Messages
 import           Client.View.Palette
+import           Client.View.UrlSelection
 import           Client.View.UserList
 import           Client.View.Windows
 import           Control.Lens
@@ -29,6 +30,7 @@ import           Graphics.Vty.Image
 viewLines :: Focus -> Subfocus -> ClientState -> [Image]
 viewLines focus subfocus !st =
   case (focus, subfocus) of
+    _ | Just ("url",_) <- clientActiveCommand st -> urlSelectionView focus st
     (ChannelFocus network channel, FocusInfo) ->
       channelInfoImages network channel st
     (ChannelFocus network channel, FocusUsers)
@@ -40,7 +42,6 @@ viewLines focus subfocus !st =
     (_, FocusMentions) -> mentionsViewLines st
     (_, FocusPalette) -> paletteViewLines pal
     (_, FocusHelp mb) -> helpImageLines mb pal
-
     _ -> chatMessageImages focus st
   where
     pal = clientPalette st

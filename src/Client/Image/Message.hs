@@ -20,6 +20,7 @@ module Client.Image.Message
   , quietIdentifier
   , coloredUserInfo
   , coloredIdentifier
+  , cleanText
   ) where
 
 import           Client.Image.MircFormatting
@@ -83,13 +84,16 @@ cleanChar x
   | isControl x = '�'
   | otherwise   = x
 
+cleanText :: Text -> Text
+cleanText = Text.map cleanChar
+
 errorImage ::
   MessageRendererParams ->
   Text {- ^ error message -} ->
   Image
 errorImage params txt = horizCat
   [ text' (view palError (rendPalette params)) "error "
-  , text' defAttr (Text.map cleanChar txt)
+  , text' defAttr (cleanText txt)
   ]
 
 normalImage ::
@@ -98,7 +102,7 @@ normalImage ::
   Image
 normalImage params txt = horizCat
   [ text' (view palLabel (rendPalette params)) "client "
-  , text' defAttr (Text.map cleanChar txt)
+  , text' defAttr (cleanText txt)
   ]
 
 -- | Render the given time according to the current mode and palette.

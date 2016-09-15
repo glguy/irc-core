@@ -91,6 +91,7 @@ library
                        Client.View.Mentions
                        Client.View.Messages
                        Client.View.Palette
+                       Client.View.UrlSelection
                        Client.View.UserList
                        Client.View.Windows
                        Config.FromConfig
