@@ -38,18 +38,18 @@ module Client.State.Window
   , windowSeen
   ) where
 
+import           Client.Image.PackedImage
 import           Client.Message
 import           Control.Lens
 import           Data.Text (Text)
 import           Data.Time (UTCTime)
-import           Graphics.Vty.Image (Image)
 
 -- | A single message to be displayed in a window
 data WindowLine = WindowLine
   { _wlBody       :: !MessageBody -- ^ Original Haskell value
   , _wlText       :: {-# UNPACK #-} !Text -- ^ Searchable text form
-  , _wlImage      :: !Image       -- ^ Normal rendered image
-  , _wlFullImage  :: !Image       -- ^ Detailed rendered image
+  , _wlImage      :: !Image'      -- ^ Normal rendered image
+  , _wlFullImage  :: !Image'      -- ^ Detailed rendered image
   , _wlImportance :: !WindowLineImportance -- ^ Importance of message
   , _wlTimestamp  :: {-# UNPACK #-} !UTCTime
   }

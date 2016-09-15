@@ -14,6 +14,7 @@ module Client.View.Messages
   ( chatMessageImages
   ) where
 
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Image.Message
 import           Client.State
@@ -38,7 +39,7 @@ chatMessageImages focus st = windowLineProcessor focusedMessages
 
       | view clientDetailView st =
           if view clientShowMetadata st
-            then map (view wlFullImage)
+            then map (views wlFullImage unpackImage)
             else detailedImagesWithoutMetadata st
 
       | otherwise = windowLinesToImages st . filter (not . isNoisy)
@@ -52,14 +53,14 @@ detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image]
 detailedImagesWithoutMetadata st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> view wlFullImage w : detailedImagesWithoutMetadata st ws
+    ([], w:ws) -> views wlFullImage unpackImage w : detailedImagesWithoutMetadata st ws
     (_:_, wls) -> detailedImagesWithoutMetadata st wls
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
 windowLinesToImages st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> view wlImage w : windowLinesToImages st ws
+    ([], w:ws) -> views wlImage unpackImage w : windowLinesToImages st ws
     ((img,who,mbnext):mds, wls)
 
       | view clientShowMetadata st ->

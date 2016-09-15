@@ -75,6 +75,7 @@ library
                        Client.Image.Arguments
                        Client.Image.Message
                        Client.Image.MircFormatting
+                       Client.Image.PackedImage
                        Client.Image.Palette
                        Client.Image.StatusLine
                        Client.Image.Textbox

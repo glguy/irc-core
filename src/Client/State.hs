@@ -98,6 +98,7 @@ import           Client.Commands.WordCompletion
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
 import           Client.Image.Message
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Message
 import           Client.Network.Async
@@ -448,8 +449,8 @@ toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -
 toWindowLine params importance msg = WindowLine
   { _wlBody       = view msgBody msg
   , _wlText       = msgText (view msgBody msg)
-  , _wlImage      = mkImage NormalRender
-  , _wlFullImage  = mkImage DetailedRender
+  , _wlImage      = packImage (mkImage NormalRender)
+  , _wlFullImage  = packImage (mkImage DetailedRender)
   , _wlImportance = importance
   , _wlTimestamp  = zonedTimeToUTC (view msgTime msg)
   }
