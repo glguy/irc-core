@@ -18,19 +18,27 @@ module Client.Image.PackedImage
 
 import qualified Data.Text as S
 import qualified Data.Text.Lazy as L
+import           Data.Foldable
 import           GHC.Generics
-import           Graphics.Vty.Attributes
+import           Graphics.Vty.Image
 import           Graphics.Vty.Image.Internal
 
 deriving instance Generic Image
 
 -- | Convert normal 'Image' into packed 'Image''
 packImage :: Image -> Image'
-packImage = mirror
+packImage = mirror . compress
 
 -- | Convert packed 'Image'' into normal 'Image'
 unpackImage :: Image' -> Image
 unpackImage = mirror
+
+compress :: Image -> Image
+compress i = foldl' (<|>) emptyImage (horizList i [])
+
+horizList :: Image -> [Image] -> [Image]
+horizList (HorizJoin x y _ _) = horizList x . horizList y
+horizList x = (x:)
 
 -- | Packed, strict version of 'Image' used for long-term storage of images.
 data Image'
@@ -72,7 +80,7 @@ data Image'
       {-# UNPACK #-} !Int
       {-# UNPACK #-} !Int
   | EmptyImage'
-  deriving Generic
+  deriving (Show, Generic)
 
 ------------------------------------------------------------------------
 

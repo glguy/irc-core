@@ -72,7 +72,6 @@ msgImage ::
   MessageRendererParams -> MessageBody -> Image
 msgImage rm when params body = horizCat
   [ renderTime rm (rendPalette params) when
-  , char defAttr ' '
   , statusMsgImage (rendStatusMsg params)
   , bodyImage rm params body
   ]
@@ -140,7 +139,7 @@ bodyImage rm params body =
 timeImage :: Palette -> ZonedTime -> Image
 timeImage palette
   = string (view palTime palette)
-  . formatTime defaultTimeLocale "%R"
+  . formatTime defaultTimeLocale "%R "
 
 -- | Render a 'ZonedTime' as full date and time user quiet attributes
 --
@@ -150,7 +149,7 @@ timeImage palette
 datetimeImage :: Palette -> ZonedTime -> Image
 datetimeImage palette
   = string (view palTime palette)
-  . formatTime defaultTimeLocale "%F %T"
+  . formatTime defaultTimeLocale "%F %T "
 
 -- | Level of detail to use when rendering
 data RenderMode
@@ -407,7 +406,7 @@ coloredUserInfo palette DetailedRender myNicks !ui =
     quietAttr = view palMeta palette
     aux x xs
       | Text.null xs = emptyImage
-      | otherwise    = char defAttr x <|> text' quietAttr xs
+      | otherwise    = char quietAttr x <|> text' quietAttr xs
 
 -- | Render an identifier without using colors. This is useful for metadata.
 quietIdentifier :: Palette -> Identifier -> Image
