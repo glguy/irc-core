@@ -266,10 +266,12 @@ clientResponse :: ZonedTime -> IrcMsg -> NetworkState -> ClientState -> IO Clien
 clientResponse now irc cs st =
   case irc of
     Reply RPL_WELCOME _ ->
-      foldM
-        (processConnectCmd now cs)
-        st
-        (view (csSettings . ssConnectCmds) cs)
+      -- run connection commands with the network focused and restore it afterward
+      do let focus = NetworkFocus (view csNetwork cs)
+         st' <- foldM (processConnectCmd now cs)
+                      (set clientFocus focus st)
+                      (view (csSettings . ssConnectCmds) cs)
+         return $! set clientFocus (view clientFocus st) st'
     _ -> return st
 
 processConnectCmd ::
