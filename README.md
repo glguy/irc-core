@@ -3,6 +3,8 @@ GLIRC - Advanced Console IRC Client
 
 [![Build Status](https://secure.travis-ci.org/glguy/irc-core.svg)](http://travis-ci.org/glguy/irc-core)
 
+[Wiki Documentation](https://github.com/glguy/irc-core/wiki)
+
 ![](https://raw.githubusercontent.com/wiki/glguy/irc-core/images/screenshot.png)
 
 Building
@@ -177,6 +179,7 @@ Configuration sections:
 | `url-opener`       | text                | Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS |
 | `ignores`          | list of text        | Initial list of nicknames to ignore                                                        |
 | `activity-bar`     | yes or no           | Initial setting for visibility of activity bar (default no)                                |
+| `macros`           | list of macros      | User-configurable client commands                                                          |
 
 Server Settings
 ---------------
@@ -267,7 +270,7 @@ Client commands
 * `/disconnect` - Forcefully terminate connection to the current server
 * `/reconnect` - Reconnect to the current server
 * `/reload [path]` - Load a new configuration file (optional path)
-* `/windows` - List all open windows
+* `/windows [filter]` - List all open windows (filters: networks, channels, users)
 * `/palette` - Show the client palette
 * `/mentions` - Show all the highlighted lines across all windows
 * `/extension <extension name> <params...>` - Send the given params to the named extension

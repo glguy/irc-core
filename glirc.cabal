@@ -2,6 +2,11 @@ name:                glirc
 version:             2.17
 synopsis:            Console IRC client
 description:         Console IRC client
+                     .
+                     glirc is a console IRC client with an emphasis on providing
+                     dynamic views into the model of your IRC connections.
+                     .
+                     <https://github.com/glguy/irc-core/wiki Documentation Wiki>
 license:             ISC
 license-file:        LICENSE
 author:              Eric Mertens
