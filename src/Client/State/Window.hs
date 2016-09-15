@@ -22,7 +22,8 @@ module Client.State.Window
 
   -- * Window lines
   , WindowLine(..)
-  , wlBody
+  , wlActor
+  , wlSummary
   , wlText
   , wlImage
   , wlFullImage
@@ -43,10 +44,12 @@ import           Client.Message
 import           Control.Lens
 import           Data.Text (Text)
 import           Data.Time (UTCTime)
+import           Irc.Identifier
 
 -- | A single message to be displayed in a window
 data WindowLine = WindowLine
-  { _wlBody       :: !MessageBody -- ^ Original Haskell value
+  { _wlActor      :: {-# UNPACK #-} !Identifier
+  , _wlSummary    :: !IrcSummary  -- ^ Summary value
   , _wlText       :: {-# UNPACK #-} !Text -- ^ Searchable text form
   , _wlImage      :: !Image'      -- ^ Normal rendered image
   , _wlFullImage  :: !Image'      -- ^ Detailed rendered image

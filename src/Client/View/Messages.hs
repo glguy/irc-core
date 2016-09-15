@@ -23,7 +23,9 @@ import           Client.State.Network
 import           Client.State.Window
 import           Client.Message
 import           Control.Lens
+import           Control.Monad
 import           Irc.Identifier
+import           Irc.Message
 import           Graphics.Vty.Image
 
 chatMessageImages :: Focus -> ClientState -> [Image]
@@ -45,9 +47,9 @@ chatMessageImages focus st = windowLineProcessor focusedMessages
       | otherwise = windowLinesToImages st . filter (not . isNoisy)
 
     isNoisy msg =
-      case view wlBody msg of
-        IrcBody irc -> squelchIrcMsg irc
-        _           -> False
+      case view wlSummary msg of
+        ReplySummary code -> squelchIrcMsg (Reply code [])
+        _                 -> False
 
 detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image]
 detailedImagesWithoutMetadata st wwls =
@@ -128,9 +130,6 @@ metadataWindowLine ::
   Maybe (Image, Identifier, Maybe Identifier)
         {- ^ Image, incoming identifier, outgoing identifier if changed -}
 metadataWindowLine st wl =
-  case view wlBody wl of
-    IrcBody irc
-      | Just who <- ircIgnorable irc st -> Just (ignoreImage, who, Nothing)
-      | otherwise                       -> metadataImg irc
-    _                                   -> Nothing
-
+  case view wlSummary wl of
+    ChatSummary who -> (ignoreImage, who, Nothing) <$ guard (identIgnored who st)
+    summary         -> metadataImg summary

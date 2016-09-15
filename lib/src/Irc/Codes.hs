@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 
 -- | Type of numeric reply codes
 newtype ReplyCode = ReplyCode Word
+  deriving (Eq, Ord)
 
 instance Show ReplyCode where
   showsPrec p (ReplyCode x) = showsPrec p x

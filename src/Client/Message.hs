@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Message
 Description : Messages to be added to buffers
@@ -25,6 +25,10 @@ module Client.Message
   , _NormalBody
 
   -- * Client message operations
+  , IrcSummary(..)
+  , msgSummary
+
+  -- * Client message operations
   , msgText
   ) where
 
@@ -32,6 +36,9 @@ import           Control.Lens
 import           Data.Text (Text)
 import           Data.Time (ZonedTime)
 import           Irc.Message
+import           Irc.Identifier
+import           Irc.UserInfo
+import           Irc.Codes
 
 data MessageBody
   = IrcBody    !IrcMsg
@@ -46,6 +53,17 @@ data ClientMessage = ClientMessage
   , _msgTime    :: !ZonedTime
   }
 
+data IrcSummary
+  = JoinSummary {-# UNPACK #-} !Identifier
+  | QuitSummary {-# UNPACK #-} !Identifier
+  | PartSummary {-# UNPACK #-} !Identifier
+  | NickSummary {-# UNPACK #-} !Identifier {-# UNPACK #-} !Identifier
+  | ReplySummary {-# UNPACK #-} !ReplyCode
+  | ChatSummary {-# UNPACK #-} !Identifier
+  | CtcpSummary {-# UNPACK #-} !Identifier
+  | NoSummary
+  deriving (Eq, Show)
+
 makeLenses ''ClientMessage
 
 -- | Compute a searchable text representation of the message
@@ -53,3 +71,23 @@ msgText :: MessageBody -> Text
 msgText (IrcBody    irc) = ircMsgText irc
 msgText (ErrorBody  txt) = txt
 msgText (NormalBody txt) = txt
+
+msgSummary :: MessageBody -> IrcSummary
+msgSummary (IrcBody    irc) = ircSummary irc
+msgSummary (ErrorBody  txt) = NoSummary
+msgSummary (NormalBody txt) = NoSummary
+
+ircSummary :: IrcMsg -> IrcSummary
+ircSummary msg =
+  case msg of
+    Join who _      -> JoinSummary (userNick who)
+    Part who _ _    -> PartSummary (userNick who)
+    Quit who _      -> QuitSummary (userNick who)
+    Nick who who'   -> NickSummary (userNick who) who'
+    Privmsg who _ _ -> ChatSummary (userNick who)
+    Notice who _ _  -> ChatSummary (userNick who)
+    Ctcp who _ "ACTION" _ -> ChatSummary (userNick who)
+    Ctcp who _ _ _ -> CtcpSummary (userNick who)
+    CtcpNotice who _ _ _ -> ChatSummary (userNick who)
+    Reply code _    -> ReplySummary code
+    _               -> NoSummary

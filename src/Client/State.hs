@@ -50,7 +50,7 @@ module Client.State
 
   , consumeInput
   , currentCompletionList
-  , ircIgnorable
+  , identIgnored
   , clientFirstLine
   , clientLine
   , abortNetwork
@@ -359,7 +359,7 @@ msgImportance msg st =
 -- | Predicate for messages that should be ignored based on the
 -- configurable ignore list
 ircIgnorable :: IrcMsg -> ClientState -> Maybe Identifier
-ircIgnorable msg st =
+ircIgnorable msg !st =
   case msg of
     Privmsg who _ _ -> checkUser who
     Notice  who _ _ -> checkUser who
@@ -371,8 +371,11 @@ ircIgnorable msg st =
   where
     ignores = view clientIgnores st
     checkUser !who
-      | HashSet.member (userNick who) ignores = Just (userNick who)
-      | otherwise                             = Nothing
+      | identIgnored (userNick who) st = Just (userNick who)
+      | otherwise                      = Nothing
+
+identIgnored :: Identifier -> ClientState -> Bool
+identIgnored who st = HashSet.member who (view clientIgnores st)
 
 
 -- | Record a message in the windows corresponding to the given target
@@ -447,7 +450,8 @@ recordWindowLine focus wl =
 
 toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine params importance msg = WindowLine
-  { _wlBody       = view msgBody msg
+  { _wlActor      = actor
+  , _wlSummary    = msgSummary (view msgBody msg)
   , _wlText       = msgText (view msgBody msg)
   , _wlImage      = packImage (mkImage NormalRender)
   , _wlFullImage  = packImage (mkImage DetailedRender)
@@ -457,6 +461,7 @@ toWindowLine params importance msg = WindowLine
   where
     mkImage mode =
       force (msgImage mode (view msgTime msg) params (view msgBody msg))
+    actor = fromMaybe "" (previews (msgBody . _IrcBody . folding msgActor) userNick msg)
 
 -- | 'toWindowLine' but with mostly defaulted parameters.
 toWindowLine' :: Configuration -> WindowLineImportance -> ClientMessage -> WindowLine

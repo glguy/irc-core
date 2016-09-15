@@ -1379,8 +1379,7 @@ activeNicks st =
       toListOf
         ( clientWindows    . ix focus
         . winMessages      . folded
-        . wlBody           . _IrcBody
-        . folding msgActor . to userNick
+        . wlActor
         . filtered isActive
         . filtered isNotSelf ) st
       where
