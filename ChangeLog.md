@@ -4,6 +4,10 @@
 
 * Add `reconnect-attempts` setting
 * Add peristence for `/grep` and `/grepi`
+* Add filter argument to `/windows`
+* Better tab completion for `/channel` and `/focus`
+* Isolate and number urls in view with `/url`
+* Map `M-Left` and `M-Right` to backward word and forward word
 
 ## 2.16
 

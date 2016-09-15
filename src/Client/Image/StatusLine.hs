@@ -1,4 +1,4 @@
-{-# Language BangPatterns #-}
+{-# Language OverloadedStrings, BangPatterns #-}
 {-|
 Module      : Client.Image.StatusLine
 Description : Renderer for status line
@@ -269,16 +269,27 @@ viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image
 viewSubfocusLabel pal subfocus =
   case subfocus of
     FocusMessages -> Nothing
-    FocusWindows  -> Just $ string (view palLabel pal) "windows"
+    FocusWindows filt -> Just $ string (view palLabel pal) "windows" <|>
+                                opt (windowFilterName filt)
     FocusInfo     -> Just $ string (view palLabel pal) "info"
     FocusUsers    -> Just $ string (view palLabel pal) "users"
     FocusMentions -> Just $ string (view palLabel pal) "mentions"
     FocusPalette  -> Just $ string (view palLabel pal) "palette"
     FocusHelp mb  -> Just $ string (view palLabel pal) "help" <|>
-                            foldMap (\cmd -> char defAttr ':' <|>
-                                        text' (view palLabel pal) cmd) mb
+                            opt mb
     FocusMasks m  -> Just $ horizCat
       [ string (view palLabel pal) "masks"
       , char defAttr ':'
       , char (view palLabel pal) m
       ]
+  where
+    opt = foldMap (\cmd -> char defAttr ':' <|>
+                           text' (view palLabel pal) cmd)
+
+windowFilterName :: WindowsFilter -> Maybe Text
+windowFilterName x =
+  case x of
+    AllWindows     -> Nothing
+    NetworkWindows -> Just "networks"
+    ChannelWindows -> Just "channels"
+    UserWindows    -> Just "users"

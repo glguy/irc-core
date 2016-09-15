@@ -22,7 +22,6 @@ import           Control.Lens
 import           Graphics.Vty.Image
 import           Text.Regex.TDFA
 import           Data.Text (Text)
-import qualified Data.Text as Text
 
 
 urlSelectionView :: Focus -> ClientState -> [Image]

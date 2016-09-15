@@ -38,7 +38,7 @@ viewLines focus subfocus !st =
       | otherwise                -> userListImages network channel st
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel st
-    (_, FocusWindows) -> windowsImages st
+    (_, FocusWindows filt) -> windowsImages filt st
     (_, FocusMentions) -> mentionsViewLines st
     (_, FocusPalette) -> paletteViewLines pal
     (_, FocusHelp mb) -> helpImageLines mb pal

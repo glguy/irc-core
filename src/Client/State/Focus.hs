@@ -16,6 +16,7 @@ module Client.State.Focus
   ( -- * Types
     Focus(..)
   , Subfocus(..)
+  , WindowsFilter(..)
 
   -- * Focus operations
   , focusNetwork
@@ -46,7 +47,7 @@ data Subfocus
   | FocusInfo        -- ^ Show channel metadata
   | FocusUsers       -- ^ Show channel user list
   | FocusMasks !Char -- ^ Show channel mask list for given mode
-  | FocusWindows     -- ^ Show client windows
+  | FocusWindows WindowsFilter -- ^ Show client windows
   | FocusPalette     -- ^ Show current palette
   | FocusMentions    -- ^ Show all mentions
   | FocusHelp (Maybe Text) -- ^ Show help window with optional command
@@ -71,3 +72,11 @@ focusNetwork :: Focus -> Maybe Text {- ^ network -}
 focusNetwork Unfocused = Nothing
 focusNetwork (NetworkFocus network) = Just network
 focusNetwork (ChannelFocus network _) = Just network
+
+-- | Filter argument for 'FocusWindows'
+data WindowsFilter
+  = AllWindows     -- ^ no filter
+  | NetworkWindows -- ^ only network windows
+  | ChannelWindows -- ^ only channel windows
+  | UserWindows    -- ^ only user windows
+  deriving (Eq, Show)

@@ -16,6 +16,7 @@ import           Client.Image.Palette
 import           Client.State
 import           Client.State.Focus
 import           Client.State.Window
+import           Client.State.Network
 import           Control.Lens
 import           Data.List
 import qualified Data.Map as Map
@@ -23,23 +24,49 @@ import           Graphics.Vty.Image
 import           Irc.Identifier
 
 -- | Draw the image lines associated with the @/windows@ command.
-windowsImages :: ClientState -> [Image]
-windowsImages st
-  = reverse
-  $ createColumns
-  $ zipWith (renderWindowColumns pal) names windows
+windowsImages :: WindowsFilter -> ClientState -> [Image]
+windowsImages filt st = reverse (createColumns windows)
   where
-    windows = views clientWindows Map.toAscList st
+    windows = [ renderWindowColumns pal n k v
+              | (n,(k,v)) <- zip names
+                           $ views clientWindows Map.toAscList st
+              , windowMatcher filt st k
+              ]
 
     pal     = clientPalette st
     names   = clientWindowNames st ++ repeat '?'
 
-renderWindowColumns :: Palette -> Char -> (Focus, Window) -> [Image]
-renderWindowColumns pal name (focus, win) =
+
+------------------------------------------------------------------------
+
+windowMatcher :: WindowsFilter -> ClientState -> Focus -> Bool
+
+windowMatcher AllWindows _ _ = True
+
+windowMatcher NetworkWindows _ NetworkFocus{} = True
+
+windowMatcher ChannelWindows st (ChannelFocus net chan) =
+  case preview (clientConnection net) st of
+    Just cs -> isChannelIdentifier cs chan
+    Nothing -> True
+
+windowMatcher UserWindows st (ChannelFocus net chan) =
+  case preview (clientConnection net) st of
+    Just cs -> not (isChannelIdentifier cs chan)
+    Nothing -> True
+
+windowMatcher _ _ _ = False
+
+------------------------------------------------------------------------
+
+
+renderWindowColumns :: Palette -> Char -> Focus -> Window -> [Image]
+renderWindowColumns pal name focus win =
   [ char (view palWindowName pal) name
   , renderedFocus pal focus
   , renderedWindowInfo pal win
   ]
+
 
 createColumns :: [[Image]] -> [Image]
 createColumns xs = map makeRow xs

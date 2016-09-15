@@ -350,9 +350,12 @@ commandsList =
 
   , Command
       (pure "windows")
-      NoArg
-      "Show a list of all client message windows.\n"
-    $ ClientCommand cmdWindows noClientTab
+      (OptTokenArg "kind" NoArg)
+      "Show a list of all windows with an optional argument to limit the kinds of windows listed.\n\
+      \\n\
+      \\^Bkind\^O: one of \^Bnetworks\^O, \^Bchannels\^O, \^Busers\^O\n\
+      \\n"
+    $ ClientCommand cmdWindows tabWindows
 
   , Command
       (pure "mentions")
@@ -902,9 +905,27 @@ cmdFocus st (network, mbChannel)
          commandSuccess
            $ changeFocus focus st
 
+
+tabWindows :: Bool -> ClientCommand String
+tabWindows isReversed st _ =
+  simpleTabCompletion plainWordCompleteMode [] completions isReversed st
+  where
+    completions = ["networks","channels","users"] :: [Text]
+
+
 -- | Implementation of @/windows@ command. Set subfocus to Windows.
-cmdWindows :: ClientCommand ()
-cmdWindows st _ = commandSuccess (changeSubfocus FocusWindows st)
+cmdWindows :: ClientCommand (Maybe (String, ()))
+cmdWindows st arg =
+  case arg of
+    Nothing             -> success AllWindows
+    Just ("networks",_) -> success NetworkWindows
+    Just ("channels",_) -> success ChannelWindows
+    Just ("users"   ,_) -> success UserWindows
+    _                   -> commandFailureMsg errmsg st
+  where
+    errmsg = "/windows expected networks, channels, or users"
+    success x =
+      commandSuccess (changeSubfocus (FocusWindows x) st)
 
 -- | Implementation of @/mentions@ command. Set subfocus to Windows.
 cmdMentions :: ClientCommand ()
