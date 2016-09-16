@@ -1,4 +1,3 @@
-{-# Language BangPatterns #-}
 {-|
 Module      : Client.View.UrlSelection
 Description : URL selection module
@@ -32,20 +31,33 @@ urlSelectionView ::
   ClientState {- ^ client state        -} ->
   [Image]     {- ^ image lines         -}
 urlSelectionView focus arg st =
-    zipWith (draw selected) [1..]
-         $ toListOf (clientWindows . ix focus . winMessages . each . wlText . folding textUrls) st
+  zipWith (draw selected) [1..] (toListOf urled st)
   where
+    urled = clientWindows . ix focus
+          . winMessages   . each
+          . wlText        . folding textUrls
+
     selected
       | all (==' ') arg         = 1
       | Just i <- readMaybe arg = i
-      | otherwise               = 0
+      | otherwise               = 0 -- won't match
 
 
-textUrls :: Text -> [Text]
+-- | Match with 'urlPattern' and extract all full text matches
+textUrls ::
+  Text   {- ^ haystack     -} ->
+  [Text] {- ^ matched URLs -}
 textUrls = getAllTextMatches . match urlPattern
 
-draw :: Int -> Int -> Text -> Image
-draw selected i url = string attr (shows i ". ") <|> text' attr (cleanText url)
+
+-- | Render one line of the url list
+draw ::
+  Int   {- ^ selected index -} ->
+  Int   {- ^ url index      -} ->
+  Text  {- ^ url text       -} ->
+  Image {- ^ rendered line  -}
+draw selected i url = string attr (shows i ". ") <|>
+                      text' attr (cleanText url)
   where
     attr | selected == i = withStyle defAttr reverseVideo
          | otherwise     = defAttr
