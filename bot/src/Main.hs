@@ -16,7 +16,7 @@ import           Data.Foldable (for_)
 import qualified Data.Text as Text
 import           Irc.Codes
 import           Irc.Commands   (ircUser, ircNick, ircPong, ircNotice, ircQuit)
-import           Irc.Identifier (mkId)
+import           Irc.Identifier (idText)
 import           Irc.Message    (IrcMsg(Ping, Privmsg, Reply), cookIrcMsg)
 import           Irc.RateLimit  (RateLimit, newRateLimit, tickRateLimit)
 import           Irc.RawIrcMsg  (RawIrcMsg, parseRawIrcMsg, renderRawIrcMsg, asUtf8)
@@ -107,7 +107,7 @@ sendHello config h =
          mode_w  = False
          mode_i  = True
      sendMsg config h (ircUser botUser mode_w mode_i botReal)
-     sendMsg config h (ircNick (mkId botNick))
+     sendMsg config h (ircNick botNick)
 
 eventLoop :: Config -> Connection -> IO ()
 eventLoop config h =
@@ -121,11 +121,11 @@ eventLoop config h =
             -- quit on request or echo message back as notices
             Privmsg who _me txt
               | txt == "!quit" -> sendMsg config h (ircQuit "Quit requested")
-              | otherwise      -> sendMsg config h (ircNotice (userNick who) txt)
+              | otherwise      -> sendMsg config h (ircNotice (idText (userNick who)) txt)
 
             Reply ERR_NICKNAMEINUSE _ ->
               do n <- randomRIO (1,1000::Int)
-                 let newNick = mkId (Text.pack (configNick config ++ show n))
+                 let newNick = Text.pack (configNick config ++ show n)
                  sendMsg config h (ircNick newNick)
 
             _ -> return ()
