@@ -1378,7 +1378,7 @@ activeNicks st =
     focus@(ChannelFocus network channel) ->
       toListOf
         ( clientWindows    . ix focus
-        . winMessages      . folded
+        . winMessages      . each
         . wlSummary        . folding summaryActor
         . filtered isActive
         . filtered isNotSelf ) st
@@ -1564,7 +1564,7 @@ cmdUrl st mbArg =
     urlMatches :: Text -> [Text]
     urlMatches = getAllTextMatches . match urlPattern
 
-    urls = toListOf ( clientWindows . ix focus . winMessages . folded . wlText
+    urls = toListOf ( clientWindows . ix focus . winMessages . each . wlText
                     . folding urlMatches) st
 
     doUrlOpen opener n =

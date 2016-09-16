@@ -1,4 +1,4 @@
-{-# Language BangPatterns, TemplateHaskell #-}
+{-# Language MultiParamTypeClasses, BangPatterns, TemplateHaskell #-}
 
 {-|
 Module      : Client.State.Window
@@ -55,10 +55,14 @@ data WindowLine = WindowLine
   , _wlTimestamp  :: {-# UNPACK #-} !UTCTime
   }
 
+data WindowLines
+  = {-# UNPACK #-} !WindowLine :- WindowLines
+  | Nil
+
 -- | A 'Window' tracks all of the messages and metadata for a particular
 -- message buffer.
 data Window = Window
-  { _winMessages :: ![WindowLine] -- ^ Messages to display, newest first
+  { _winMessages :: !WindowLines  -- ^ Messages to display, newest first
   , _winUnread   :: !Int          -- ^ Messages added since buffer was visible
   , _winTotal    :: !Int          -- ^ Messages in buffer
   , _winMention  :: !Bool         -- ^ Indicates an important event is unread
@@ -74,6 +78,7 @@ data WindowLineImportance
 makeLenses ''Window
 makeLenses ''WindowLine
 
+
 -- | Lens for the '_wlImage' field viewed in unpacked form.
 wlImage :: Lens' WindowLine Image
 wlImage = wlImage' . _Image'
@@ -88,7 +93,7 @@ wlFullImage = wlFullImage' . _Image'
 -- | A window with no messages
 emptyWindow :: Window
 emptyWindow = Window
-  { _winMessages = []
+  { _winMessages = Nil
   , _winUnread   = 0
   , _winTotal    = 0
   , _winMention  = False
@@ -98,7 +103,7 @@ emptyWindow = Window
 -- unread count will be updated according to the given importance.
 addToWindow :: WindowLine -> Window -> Window
 addToWindow !msg !win = Window
-    { _winMessages = msg : view winMessages win
+    { _winMessages = msg :- view winMessages win
     , _winTotal    = view winTotal win + 1
     , _winUnread   = view winUnread win
                    + (if view wlImportance msg == WLBoring then 0 else 1)
@@ -110,3 +115,8 @@ addToWindow !msg !win = Window
 windowSeen :: Window -> Window
 windowSeen = set winUnread 0
            . set winMention False
+
+
+instance Each WindowLines WindowLines WindowLine WindowLine where
+  each _ Nil = pure Nil
+  each f (x :- xs) = (:-) <$> f x <*> each f xs

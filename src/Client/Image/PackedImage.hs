@@ -1,4 +1,4 @@
-{-# Language TypeFamilies, EmptyCase, TypeOperators, MultiParamTypeClasses, StandaloneDeriving, DeriveGeneric #-}
+{-# Language TypeOperators, MultiParamTypeClasses, StandaloneDeriving, DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-orphans -funfolding-creation-threshold=1500 -funfolding-use-threshold=5000 #-}
 {-|
 Module      : Client.Image.PackedImage
@@ -18,7 +18,6 @@ module Client.Image.PackedImage
 import           Control.Lens (Iso', iso)
 import qualified Data.Text as S
 import qualified Data.Text.Lazy as L
-import           Data.Foldable
 import           Data.List
 import           GHC.Generics
 import           Graphics.Vty.Image
@@ -26,23 +25,28 @@ import           Graphics.Vty.Image.Internal
 
 deriving instance Generic Image
 
+
 -- | Isomorphism between packed images and normal images.
 _Image' :: Iso' Image' Image
 _Image' = iso mirror (mirror . compress)
 {-# INLINE _Image' #-}
+
 
 -- | Attempts to locate adjacent text sections with equal attributes
 -- so that they can be merged.
 compress :: Image -> Image
 compress = horizCat . map horizCat . groupBy textsWithEqAttr . flip horizList []
 
+
 textsWithEqAttr :: Image -> Image -> Bool
 textsWithEqAttr (HorizText a _ _ _) (HorizText b _ _ _) = a == b
 textsWithEqAttr _                 _                     = False
 
+
 horizList :: Image -> [Image] -> [Image]
 horizList (HorizJoin x y _ _) = horizList x . horizList y
 horizList x = (x:)
+
 
 -- | Packed, strict version of 'Image' used for long-term storage of images.
 data Image'
@@ -112,9 +116,6 @@ instance (GMirror f1 g1, GMirror f2 g2) => GMirror (f1 :+: f2) (g1 :+: g2) where
 
 instance GMirror U1 U1 where
   gmirror _ = U1
-
-instance GMirror V1 V1 where
-  gmirror x = case x of {}
 
 instance Mirror a b => GMirror (K1 i a) (K1 j b) where
   gmirror (K1 x) = K1 (mirror x)

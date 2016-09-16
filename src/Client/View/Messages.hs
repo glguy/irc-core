@@ -33,8 +33,9 @@ chatMessageImages focus st = windowLineProcessor focusedMessages
     matcher = clientMatcher st
 
     focusedMessages
-        = filter (views wlText matcher)
-        $ view (clientWindows . ix focus . winMessages) st
+        = toListOf ( clientWindows . ix focus
+                   . winMessages . each
+                   . filtered (views wlText matcher)) st
 
     windowLineProcessor
 

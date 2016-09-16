@@ -27,7 +27,7 @@ import           Data.Text (Text)
 urlSelectionView :: Focus -> ClientState -> [Image]
 urlSelectionView focus st =
     zipWith draw [1..]
-         $ toListOf (clientWindows . ix focus . winMessages . folded . wlText . folding textUrls) st
+         $ toListOf (clientWindows . ix focus . winMessages . each . wlText . folding textUrls) st
 
 textUrls :: Text -> [Text]
 textUrls = getAllTextMatches . match urlPattern

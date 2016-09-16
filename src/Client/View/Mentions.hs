@@ -73,8 +73,8 @@ windowEntries !detailed name focus w =
       , mlFocus      = focus
       , mlImage      = if detailed then view wlFullImage l else view wlImage l
       }
-  | l <- view winMessages w
-  , WLImportant == view wlImportance l
+  | let p x = WLImportant == view wlImportance x
+  , l <- toListOf (winMessages . each . filtered p) w
   ]
 
 -- | Merge a list of sorted lists of mention lines into a single sorted list
