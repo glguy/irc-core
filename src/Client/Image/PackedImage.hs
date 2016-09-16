@@ -12,29 +12,33 @@ This module provides a more memory efficient way to store images.
 -}
 module Client.Image.PackedImage
   ( Image'
-  , packImage
-  , unpackImage
+  , _Image'
   ) where
 
+import           Control.Lens (Iso', iso)
 import qualified Data.Text as S
 import qualified Data.Text.Lazy as L
 import           Data.Foldable
+import           Data.List
 import           GHC.Generics
 import           Graphics.Vty.Image
 import           Graphics.Vty.Image.Internal
 
 deriving instance Generic Image
 
--- | Convert normal 'Image' into packed 'Image''
-packImage :: Image -> Image'
-packImage = mirror . compress
+-- | Isomorphism between packed images and normal images.
+_Image' :: Iso' Image' Image
+_Image' = iso mirror (mirror . compress)
+{-# INLINE _Image' #-}
 
--- | Convert packed 'Image'' into normal 'Image'
-unpackImage :: Image' -> Image
-unpackImage = mirror
-
+-- | Attempts to locate adjacent text sections with equal attributes
+-- so that they can be merged.
 compress :: Image -> Image
-compress i = foldl' (<|>) emptyImage (horizList i [])
+compress = horizCat . map horizCat . groupBy textsWithEqAttr . flip horizList []
+
+textsWithEqAttr :: Image -> Image -> Bool
+textsWithEqAttr (HorizText a _ _ _) (HorizText b _ _ _) = a == b
+textsWithEqAttr _                 _                     = False
 
 horizList :: Image -> [Image] -> [Image]
 horizList (HorizJoin x y _ _) = horizList x . horizList y
@@ -43,7 +47,7 @@ horizList x = (x:)
 -- | Packed, strict version of 'Image' used for long-term storage of images.
 data Image'
   = HorizText'
-      {-# UNPACK #-} !Attr
+      Attr -- don't unpack, these get reused from the palette
       {-# UNPACK #-} !S.Text
       {-# UNPACK #-} !Int
       {-# UNPACK #-} !Int
@@ -69,7 +73,6 @@ data Image'
       {-# UNPACK #-} !Int
       {-# UNPACK #-} !Int
       {-# UNPACK #-} !Int
-
   | CropBottom'
       !Image'
       {-# UNPACK #-} !Int

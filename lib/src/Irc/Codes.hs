@@ -26,8 +26,13 @@ import qualified Data.Text as Text
 newtype ReplyCode = ReplyCode Word
   deriving (Eq, Ord)
 
+-- | Shows number
 instance Show ReplyCode where
   showsPrec p (ReplyCode x) = showsPrec p x
+
+-- | Reads only the number
+instance Read ReplyCode where
+  reads str = [ (ReplyCode x, xs) | (x,xs) <- reads str ]
 
 -- | Categories for reply codes
 data ReplyType
@@ -35,6 +40,7 @@ data ReplyType
   | CommandReply      -- ^ 200-399 Responses to commands
   | ErrorReply        -- ^ 200-399 Errors
   | UnknownReply      -- ^ Uncategorized
+  deriving (Eq, Ord, Read, Show)
 
 pattern RPL_WELCOME                 = ReplyCode 001
 pattern RPL_YOURHOST                = ReplyCode 002
@@ -433,11 +439,15 @@ pattern ERR_NOLANGUAGE              = ReplyCode 982
 pattern ERR_TEXTTOOSHORT            = ReplyCode 983
 pattern ERR_NUMERIC_ERR             = ReplyCode 999
 
+-- | Information describing the category and human decipherable name of a
+-- reply.
 data ReplyCodeInfo = ReplyCodeInfo
-  { replyCodeType :: !ReplyType
-  , replyCodeText :: !Text
+  { replyCodeType :: !ReplyType -- ^ category
+  , replyCodeText :: !Text      -- ^ human-decipherable name
   }
+  deriving (Eq, Ord, Show, Read)
 
+-- | Compute information for a reply code
 replyCodeInfo :: ReplyCode -> ReplyCodeInfo
 replyCodeInfo (ReplyCode w) =
   case replyCodeInfoTable Vector.!? i of
@@ -446,9 +456,12 @@ replyCodeInfo (ReplyCode w) =
   where
     i = fromIntegral w
 
+-- | Categorize a reply code using the unknown category and simply showing
+-- the reply code's number as its name.
 defaultReplyCodeInfo :: Int -> ReplyCodeInfo
 defaultReplyCodeInfo = ReplyCodeInfo UnknownReply . Text.pack . show
 
+-- | Information about reply codes as derived from Freenode's ircd-seven.
 replyCodeInfoTable :: Vector ReplyCodeInfo
 replyCodeInfoTable
   = Vector.accumulate

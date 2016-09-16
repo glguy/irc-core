@@ -72,7 +72,7 @@ windowEntries !detailed name focus w =
       { mlTimestamp  = view wlTimestamp l
       , mlWindowName = name
       , mlFocus      = focus
-      , mlImage      = unpackImage (if detailed then view wlFullImage l else view wlImage l)
+      , mlImage      = if detailed then view wlFullImage l else view wlImage l
       }
   | l <- view winMessages w
   , WLImportant == view wlImportance l

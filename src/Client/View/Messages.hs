@@ -41,7 +41,7 @@ chatMessageImages focus st = windowLineProcessor focusedMessages
 
       | view clientDetailView st =
           if view clientShowMetadata st
-            then map (views wlFullImage unpackImage)
+            then map (view wlFullImage)
             else detailedImagesWithoutMetadata st
 
       | otherwise = windowLinesToImages st . filter (not . isNoisy)
@@ -55,14 +55,14 @@ detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image]
 detailedImagesWithoutMetadata st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> views wlFullImage unpackImage w : detailedImagesWithoutMetadata st ws
+    ([], w:ws) -> view wlFullImage w : detailedImagesWithoutMetadata st ws
     (_:_, wls) -> detailedImagesWithoutMetadata st wls
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
 windowLinesToImages st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> views wlImage unpackImage w : windowLinesToImages st ws
+    ([], w:ws) -> view wlImage w : windowLinesToImages st ws
     ((img,who,mbnext):mds, wls)
 
       | view clientShowMetadata st ->

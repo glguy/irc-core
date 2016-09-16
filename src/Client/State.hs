@@ -452,8 +452,8 @@ toWindowLine params importance msg = WindowLine
   { _wlActor      = actor
   , _wlSummary    = msgSummary (view msgBody msg)
   , _wlText       = msgText (view msgBody msg)
-  , _wlImage      = packImage (mkImage NormalRender)
-  , _wlFullImage  = packImage (mkImage DetailedRender)
+  , _wlImage'     = _Image' # mkImage NormalRender
+  , _wlFullImage' = _Image' # mkImage DetailedRender
   , _wlImportance = importance
   , _wlTimestamp  = zonedTimeToUTC (view msgTime msg)
   }
