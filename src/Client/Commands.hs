@@ -1379,7 +1379,7 @@ activeNicks st =
       toListOf
         ( clientWindows    . ix focus
         . winMessages      . folded
-        . wlActor
+        . wlSummary        . folding summaryActor
         . filtered isActive
         . filtered isNotSelf ) st
       where
@@ -1393,6 +1393,15 @@ activeNicks st =
                        . chanUsers) st
 
     _ -> []
+
+  where
+    -- Returns the 'Identifier' of the nickname responsible for
+    -- the window line when that action was significant enough to
+    -- be considered a hint for tab completion.
+    summaryActor :: IrcSummary -> Maybe Identifier
+    summaryActor (ChatSummary who) = Just who
+    summaryActor (JoinSummary who) = Just who
+    summaryActor _                 = Nothing
 
 -- | Use the *!*@host masks of users for channel lists when setting list modes
 --

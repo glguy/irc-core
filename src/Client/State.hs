@@ -449,8 +449,7 @@ recordWindowLine focus wl =
 
 toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine params importance msg = WindowLine
-  { _wlActor      = actor
-  , _wlSummary    = msgSummary (view msgBody msg)
+  { _wlSummary    = msgSummary (view msgBody msg)
   , _wlText       = msgText (view msgBody msg)
   , _wlImage'     = _Image' # mkImage NormalRender
   , _wlFullImage' = _Image' # mkImage DetailedRender
@@ -460,7 +459,6 @@ toWindowLine params importance msg = WindowLine
   where
     mkImage mode =
       force (msgImage mode (view msgTime msg) params (view msgBody msg))
-    actor = fromMaybe "" (previews (msgBody . _IrcBody . folding msgActor) userNick msg)
 
 -- | 'toWindowLine' but with mostly defaulted parameters.
 toWindowLine' :: Configuration -> WindowLineImportance -> ClientMessage -> WindowLine

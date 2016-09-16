@@ -53,6 +53,8 @@ data ClientMessage = ClientMessage
   , _msgTime    :: !ZonedTime
   }
 
+makeLenses ''ClientMessage
+
 data IrcSummary
   = JoinSummary {-# UNPACK #-} !Identifier
   | QuitSummary {-# UNPACK #-} !Identifier
@@ -64,7 +66,6 @@ data IrcSummary
   | NoSummary
   deriving (Eq, Show)
 
-makeLenses ''ClientMessage
 
 -- | Compute a searchable text representation of the message
 msgText :: MessageBody -> Text
@@ -72,10 +73,12 @@ msgText (IrcBody    irc) = ircMsgText irc
 msgText (ErrorBody  txt) = txt
 msgText (NormalBody txt) = txt
 
+
 msgSummary :: MessageBody -> IrcSummary
 msgSummary (IrcBody    irc) = ircSummary irc
 msgSummary (ErrorBody  _  ) = NoSummary
 msgSummary (NormalBody _  ) = NoSummary
+
 
 ircSummary :: IrcMsg -> IrcSummary
 ircSummary msg =

@@ -22,7 +22,6 @@ module Client.State.Window
 
   -- * Window lines
   , WindowLine(..)
-  , wlActor
   , wlSummary
   , wlText
   , wlImage
@@ -45,12 +44,10 @@ import           Control.Lens
 import           Data.Text (Text)
 import           Data.Time (UTCTime)
 import           Graphics.Vty.Image (Image)
-import           Irc.Identifier
 
 -- | A single message to be displayed in a window
 data WindowLine = WindowLine
-  { _wlActor      :: {-# UNPACK #-} !Identifier
-  , _wlSummary    :: !IrcSummary  -- ^ Summary value
+  { _wlSummary    :: !IrcSummary  -- ^ Summary value
   , _wlText       :: {-# UNPACK #-} !Text -- ^ Searchable text form
   , _wlImage'     :: !Image'      -- ^ Normal rendered image
   , _wlFullImage' :: !Image'      -- ^ Detailed rendered image
@@ -86,6 +83,7 @@ wlImage = wlImage' . _Image'
 wlFullImage :: Lens' WindowLine Image
 wlFullImage = wlFullImage' . _Image'
 {-# INLINE wlFullImage #-}
+
 
 -- | A window with no messages
 emptyWindow :: Window

@@ -14,7 +14,6 @@ module Client.View.Mentions
   ( mentionsViewLines
   ) where
 
-import           Client.Image.PackedImage
 import           Client.Image.StatusLine
 import           Client.State
 import           Client.State.Focus

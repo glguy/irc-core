@@ -14,7 +14,6 @@ module Client.View.Messages
   ( chatMessageImages
   ) where
 
-import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Image.Message
 import           Client.State
