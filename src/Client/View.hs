@@ -30,7 +30,8 @@ import           Graphics.Vty.Image
 viewLines :: Focus -> Subfocus -> ClientState -> [Image]
 viewLines focus subfocus !st =
   case (focus, subfocus) of
-    _ | Just ("url",_) <- clientActiveCommand st -> urlSelectionView focus st
+    _ | Just ("url",arg) <- clientActiveCommand st ->
+      urlSelectionView focus arg st
     (ChannelFocus network channel, FocusInfo) ->
       channelInfoImages network channel st
     (ChannelFocus network channel, FocusUsers)

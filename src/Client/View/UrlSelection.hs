@@ -16,22 +16,36 @@ module Client.View.UrlSelection
 
 import           Client.State
 import           Client.State.Window
-import           Client.State.Focus
 import           Client.Image.Message
+import           Client.State.Focus
 import           Control.Lens
-import           Graphics.Vty.Image
-import           Text.Regex.TDFA
 import           Data.Text (Text)
+import           Graphics.Vty.Image
+import           Text.Read (readMaybe)
+import           Text.Regex.TDFA
 
 
-urlSelectionView :: Focus -> ClientState -> [Image]
-urlSelectionView focus st =
-    zipWith draw [1..]
+-- | Generate the lines used for the view when typing @/url@
+urlSelectionView ::
+  Focus       {- ^ window to search    -} ->
+  String      {- ^ argument to command -} ->
+  ClientState {- ^ client state        -} ->
+  [Image]     {- ^ image lines         -}
+urlSelectionView focus arg st =
+    zipWith (draw selected) [1..]
          $ toListOf (clientWindows . ix focus . winMessages . each . wlText . folding textUrls) st
+  where
+    selected
+      | all (==' ') arg         = 1
+      | Just i <- readMaybe arg = i
+      | otherwise               = 0
+
 
 textUrls :: Text -> [Text]
 textUrls = getAllTextMatches . match urlPattern
 
-draw :: Int -> Text -> Image
-draw i url = string defAttr (shows i ". ")
-         <|> text' defAttr (cleanText url)
+draw :: Int -> Int -> Text -> Image
+draw selected i url = string attr (shows i ". ") <|> text' attr (cleanText url)
+  where
+    attr | selected == i = withStyle defAttr reverseVideo
+         | otherwise     = defAttr
