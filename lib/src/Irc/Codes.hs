@@ -32,7 +32,7 @@ instance Show ReplyCode where
 
 -- | Reads only the number
 instance Read ReplyCode where
-  reads str = [ (ReplyCode x, xs) | (x,xs) <- reads str ]
+  readsPrec p str = [ (ReplyCode x, xs) | (x,xs) <- readsPrec p str ]
 
 -- | Categories for reply codes
 data ReplyType
