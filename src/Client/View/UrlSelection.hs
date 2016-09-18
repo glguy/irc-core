@@ -35,19 +35,12 @@ urlSelectionView focus arg st =
   where
     urled = clientWindows . ix focus
           . winMessages   . each
-          . wlText        . folding textUrls
+          . wlText        . folding urlMatches
 
     selected
       | all (==' ') arg         = 1
       | Just i <- readMaybe arg = i
       | otherwise               = 0 -- won't match
-
-
--- | Match with 'urlPattern' and extract all full text matches
-textUrls ::
-  Text   {- ^ haystack     -} ->
-  [Text] {- ^ matched URLs -}
-textUrls = getAllTextMatches . match urlPattern
 
 
 -- | Render one line of the url list

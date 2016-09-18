@@ -90,6 +90,7 @@ module Client.State
 
   -- * URL view
   , urlPattern
+  , urlMatches
 
   ) where
 
@@ -563,7 +564,16 @@ Right urlPattern =
   compile
     defaultCompOpt
     defaultExecOpt{captureGroups=False}
-    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[^[:cntrl:][:space:]]*)"
+    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[^[:cntrl:][:space:]]*)|\
+    \<https?://[^>]*>"
+
+urlMatches :: Text -> [Text]
+urlMatches = map removeBrackets . getAllTextMatches . match urlPattern
+  where
+    removeBrackets t =
+      case Text.uncons t of
+       Just ('<',t') | not (Text.null t') -> Text.init t'
+       _                                  -> t
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the networkconnection exists and should

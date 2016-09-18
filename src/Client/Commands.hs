@@ -1573,9 +1573,6 @@ cmdUrl st mbArg =
   where
     focus = view clientFocus st
 
-    urlMatches :: Text -> [Text]
-    urlMatches = getAllTextMatches . match urlPattern
-
     urls = toListOf ( clientWindows . ix focus . winMessages . each . wlText
                     . folding urlMatches) st
 
