@@ -260,6 +260,7 @@ parseServerSetting ss k v =
     "password"            -> setFieldMb     ssPassword
     "sasl-username"       -> setFieldMb     ssSaslUsername
     "sasl-password"       -> setFieldMb     ssSaslPassword
+    "sasl-ecdsa-key"      -> setFieldWithMb ssSaslEcdsaFile parseString
     "hostname"            -> setFieldWith   ssHostName      parseString
     "port"                -> setFieldWithMb ssPort          parseNum
     "tls"                 -> setFieldWith   ssTls           parseUseTls

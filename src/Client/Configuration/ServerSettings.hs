@@ -25,6 +25,7 @@ module Client.Configuration.ServerSettings
   , ssPassword
   , ssSaslUsername
   , ssSaslPassword
+  , ssSaslEcdsaFile
   , ssHostName
   , ssPort
   , ssTls
@@ -71,7 +72,8 @@ data ServerSettings = ServerSettings
   , _ssUserInfo         :: !Text -- ^ CTCP userinfo
   , _ssPassword         :: !(Maybe Text) -- ^ server password
   , _ssSaslUsername     :: !(Maybe Text) -- ^ SASL username
-  , _ssSaslPassword     :: !(Maybe Text) -- ^ SASL password
+  , _ssSaslPassword     :: !(Maybe Text) -- ^ SASL plain password
+  , _ssSaslEcdsaFile    :: !(Maybe FilePath) -- ^ SASL ecdsa private key
   , _ssHostName         :: !HostName -- ^ server hostname
   , _ssPort             :: !(Maybe PortNumber) -- ^ server port
   , _ssTls              :: !UseTls -- ^ use TLS to connect
@@ -116,6 +118,7 @@ loadDefaultServerSettings =
        , _ssPassword      = Text.pack <$> lookup "IRCPASSWORD" env
        , _ssSaslUsername  = Nothing
        , _ssSaslPassword  = Text.pack <$> lookup "SASLPASSWORD" env
+       , _ssSaslEcdsaFile = Nothing
        , _ssHostName      = ""
        , _ssPort          = Nothing
        , _ssTls           = UseInsecure

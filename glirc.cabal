@@ -54,7 +54,8 @@ library
   default-language:    Haskell2010
   build-tools:         hsc2hs
 
-  exposed-modules:     Client.CApi
+  exposed-modules:     Client.Authentication.Ecdsa
+                       Client.CApi
                        Client.CApi.Exports
                        Client.CApi.Types
                        Client.Commands
@@ -123,6 +124,7 @@ library
                        hashable             >=1.2.4  && <1.3,
                        irc-core             >=2.2    && <2.3,
                        lens                 >=4.14   && <4.15,
+                       memory               >=0.13   && <0.14,
                        network              >=2.6.2  && <2.7,
                        process              >=1.4.2  && <1.5,
                        regex-tdfa           >=1.2    && <1.3,

@@ -3,6 +3,7 @@
 ## 2.18
 
 * Add digraph support under `M-k` and `/digraphs`
+* Add ECDSA-NIST256P-CHALLENGE support for Freenode via Tor
 
 ## 2.17
 

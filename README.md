@@ -194,7 +194,8 @@ Server Settings
 | `realname`            | text                 | real name / GECOS                                              |
 | `password`            | text                 | server password                                                |
 | `sasl-username`       | text                 | SASL username                                                  |
-| `sasl-password`       | text                 | SASL password                                                  |
+| `sasl-password`       | text                 | SASL password (PLAIN mode)                                     |
+| `sasl-ecdsa-key`      | text                 | Path ecdsa private key file (ECDSA-NIST256P-CHALLENGE mode)    |
 | `tls`                 | yes/yes-insecure/no  | use TLS to connect (insecure mode disables certificate checks) |
 | `tls-client-cert`     | text                 | path to TLS client certificate                                 |
 | `tls-client-key`      | text                 | path to TLS client key                                         |

@@ -71,6 +71,7 @@ module Client.State.Network
   , sendTopic
   ) where
 
+import qualified Client.Authentication.Ecdsa as Ecdsa
 import           Client.Configuration.ServerSettings
 import           Client.Network.Async
 import           Client.State.Channel
@@ -119,7 +120,16 @@ data NetworkState = NetworkState
   , _csPingStatus   :: !PingStatus -- ^ state of ping timer
   , _csLastReceived :: !(Maybe UTCTime) -- ^ time of last message received
   , _csMessageHooks :: ![Text] -- ^ names of message hooks to apply to this connection
+  , _csAuthenticationState :: !AuthenticateState
   }
+  deriving Show
+
+-- | State of the authentication transaction
+data AuthenticateState
+  = AS_None -- ^ no active transaction
+  | AS_PlainStarted -- ^ PLAIN mode initiated
+  | AS_EcdsaStarted -- ^ ECDSA-NIST mode initiated
+  | AS_EcdsaWaitChallenge -- ^ ECDSA_NIST user sent waiting for challenge
   deriving Show
 
 -- | Pair of username and hostname. Empty strings represent missing information.
@@ -221,6 +231,7 @@ newNetworkState networkId network settings sock ping = NetworkState
   , _csNextPingTime = Nothing
   , _csLastReceived = Nothing
   , _csMessageHooks = view ssMessageHooks settings
+  , _csAuthenticationState = AS_None
   }
 
 
@@ -602,17 +613,36 @@ supportedCaps cs =
   where
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslUsername ss)
-                   , isJust (view ssSaslPassword ss) ]
+                   , isJust (view ssSaslPassword ss) ||
+                     isJust (view ssSaslEcdsaFile ss) ]
 
 doAuthenticate :: Text -> NetworkState -> ([RawIrcMsg], NetworkState)
-doAuthenticate "+" cs
-  | Just user <- view ssSaslUsername ss
-  , Just pass <- view ssSaslPassword ss
-  = ([ircAuthenticate (encodePlainAuthentication user pass)], cs)
+doAuthenticate param cs =
+  case view csAuthenticationState cs of
+    AS_PlainStarted
+      | "+" <- param
+      , Just user <- view ssSaslUsername ss
+      , Just pass <- view ssSaslPassword ss
+      -> ([ircAuthenticate (encodePlainAuthentication user pass)],
+          set csAuthenticationState AS_None cs)
+
+    AS_EcdsaStarted
+      | "+" <- param
+      , Just user <- view ssSaslUsername ss
+      -> ([ircAuthenticate (Ecdsa.encodeUsername user)],
+          set csAuthenticationState AS_EcdsaWaitChallenge cs)
+
+    AS_EcdsaWaitChallenge
+      | Just path <- view ssSaslEcdsaFile ss
+      , Just resp <- Ecdsa.computeResponse path param
+      -> ([ircAuthenticate resp],
+          set csAuthenticationState AS_None cs)
+
+    _ -> ([ircCapEnd], cs) -- really shouldn't happen
+
   where
     ss = view csSettings cs
 
-doAuthenticate _ cs = ([ircCapEnd], cs)
 
 doCap :: CapCmd -> [Text] -> NetworkState -> ([RawIrcMsg], NetworkState)
 doCap cmd args cs =
@@ -626,8 +656,13 @@ doCap cmd args cs =
 
     (CapAck,[capsTxt])
       | "sasl" `elem` caps ->
-          ([ircAuthenticate plainAuthenticationMode], cs)
+          if isJust (view ssSaslEcdsaFile ss)
+            then ([ircAuthenticate Ecdsa.authenticationMode], set csAuthenticationState AS_EcdsaStarted cs)
+          else if isJust (view ssSaslUsername ss)
+            then ([ircAuthenticate plainAuthenticationMode], set csAuthenticationState AS_PlainStarted cs)
+          else ([ircCapEnd], cs)
       where
+        ss   = view csSettings cs
         caps = Text.words capsTxt
 
     _ -> ([ircCapEnd], cs)
