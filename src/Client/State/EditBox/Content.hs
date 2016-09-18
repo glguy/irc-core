@@ -280,7 +280,7 @@ digraph :: Content -> Maybe Content
 digraph !c =
   do let Line n txt = view line c
      guard (2 <= n)
-     let (pfx,x:y:sfx) = splitAt (view pos c - 2) (view text c)
+     let (pfx,x:y:sfx) = splitAt (n - 2) txt
      d <- lookupDigraph x y
      let line' = Line (n-1) (pfx++d:sfx)
      Just $! set line line' c

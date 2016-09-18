@@ -2,7 +2,7 @@
 
 ## 2.18
 
-* Add digraph support under `M-k`
+* Add digraph support under `M-k` and `/digraphs`
 
 ## 2.17
 

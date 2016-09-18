@@ -21,6 +21,7 @@ module Client.Image.Message
   , coloredUserInfo
   , coloredIdentifier
   , cleanText
+  , cleanChar
   ) where
 
 import           Client.Image.MircFormatting

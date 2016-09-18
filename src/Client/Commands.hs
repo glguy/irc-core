@@ -370,6 +370,14 @@ commandsList =
     $ ClientCommand cmdPalette noClientTab
 
   , Command
+      (pure "digraphs")
+      NoArg
+      "Show the table of digraphs.\n\
+      \\n\
+      \To enter a digraph type the two-character entry and press M-k.\n"
+    $ ClientCommand cmdDigraphs noClientTab
+
+  , Command
       (pure "exec")
       (RemainingArg "arguments")
       "Execute a command synchnonously sending the to a configuration destination.\n\
@@ -927,15 +935,19 @@ cmdWindows st arg =
     success x =
       commandSuccess (changeSubfocus (FocusWindows x) st)
 
--- | Implementation of @/mentions@ command. Set subfocus to Windows.
+-- | Implementation of @/mentions@ command. Set subfocus to Mentions.
 cmdMentions :: ClientCommand ()
 cmdMentions st _ = commandSuccess (changeSubfocus FocusMentions st)
 
--- | Implementation of @/palette@ command. Set subfocus to Windows.
+-- | Implementation of @/palette@ command. Set subfocus to Palette.
 cmdPalette :: ClientCommand ()
 cmdPalette st _ = commandSuccess (changeSubfocus FocusPalette st)
 
--- | Implementation of @/help@ command. Set subfocus to Windows.
+-- | Implementation of @/digraphs@ command. Set subfocus to Digraphs.
+cmdDigraphs :: ClientCommand ()
+cmdDigraphs st _ = commandSuccess (changeSubfocus FocusDigraphs st)
+
+-- | Implementation of @/help@ command. Set subfocus to Help.
 cmdHelp :: ClientCommand (Maybe (String, ()))
 cmdHelp st mb = commandSuccess (changeSubfocus focus st)
   where

@@ -92,6 +92,7 @@ library
                        Client.State.Window
                        Client.View
                        Client.View.ChannelInfo
+                       Client.View.Digraphs
                        Client.View.Help
                        Client.View.MaskList
                        Client.View.Mentions
