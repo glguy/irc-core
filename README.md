@@ -379,6 +379,7 @@ Editing
 * `M-Backspace` delete word backwards
 * `M-d` delete word forwards
 * `M-Enter` insert newline
+* `M-k` insert digraph (2-characters before cursor)
 
 * `Tab` nickname completion
 

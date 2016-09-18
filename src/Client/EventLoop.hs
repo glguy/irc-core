@@ -365,6 +365,11 @@ doKey key modifier st =
       changeContent f = changeEditor
                       $ over Edit.content f
                       . set  Edit.lastOperation Edit.OtherOperation
+
+      mbChangeEditor f =
+        case clientTextBox f st of
+          Nothing -> continue $! set clientBell True st
+          Just st' -> continue st'
   in
   case modifier of
     [MCtrl] ->
@@ -391,6 +396,9 @@ doKey key modifier st =
 
     [MMeta] ->
       case key of
+        KChar c   | let names = clientWindowNames st
+                  , Just i <- elemIndex c names ->
+                            continue (jumpFocus i st)
         KEnter    -> changeEditor (Edit.insert '\^J')
         KBS       -> changeEditor (Edit.killWordBackward True)
         KChar 'd' -> changeEditor (Edit.killWordForward True)
@@ -400,9 +408,7 @@ doKey key modifier st =
         KRight    -> changeContent Edit.rightWord
         KChar 'a' -> continue (jumpToActivity st)
         KChar 's' -> continue (returnFocus st)
-        KChar c   | let names = clientWindowNames st
-                  , Just i <- elemIndex c names ->
-                            continue (jumpFocus i st)
+        KChar 'k' -> mbChangeEditor Edit.insertDigraph
         _ -> continue st
 
     [] -> -- no modifier

@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.18
+
+* Add digraph support under `M-k`
+
 ## 2.17
 
 * Add `reconnect-attempts` setting

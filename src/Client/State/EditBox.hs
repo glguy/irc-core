@@ -54,6 +54,7 @@ module Client.State.EditBox
   , earlier
   , later
   , success
+  , insertDigraph
 
   -- * Last operation
   , LastOperation(..)
@@ -241,7 +242,14 @@ insert c
   = set lastOperation OtherOperation
   . over content (insertChar c)
 
+
 insertPaste :: String -> EditBox -> EditBox
 insertPaste paste
   = over content (insertPastedString paste)
+  . set lastOperation OtherOperation
+
+
+insertDigraph :: EditBox -> Maybe EditBox
+insertDigraph
+  = content digraph
   . set lastOperation OtherOperation

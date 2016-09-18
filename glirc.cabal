@@ -1,5 +1,5 @@
 name:                glirc
-version:             2.17
+version:             2.18
 synopsis:            Console IRC client
 description:         Console IRC client
                      .
@@ -104,6 +104,7 @@ library
 
   other-modules:       LensUtils
                        StrictUnit
+                       Digraphs
                        Paths_glirc
 
   build-depends:       base                 >=4.9    && <4.10,

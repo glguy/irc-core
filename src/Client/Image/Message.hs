@@ -162,7 +162,7 @@ rightPad :: RenderMode -> Maybe Integer -> Image -> Image
 rightPad NormalRender (Just minWidth) i =
   let h = 1
       w = max 0 (fromIntegral minWidth - imageWidth i)
-  in i <|> backgroundFill w h
+  in i <|> string defAttr (replicate w ' ')
 rightPad _ _ i = i
 
 -- | Render a chat message given a rendering mode, the sigils of the user

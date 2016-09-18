@@ -43,11 +43,14 @@ module Client.State.EditBox.Content
   , insertString
   , insertChar
   , toggle
+  , digraph
   ) where
 
 import           Control.Lens hiding (below)
+import           Control.Monad (guard)
 import           Data.Char (isAlphaNum)
 import           Data.List (find)
+import           Digraphs (lookupDigraph)
 
 data Line = Line
   { _pos  :: !Int
@@ -269,3 +272,15 @@ toggle !c
     swapAt 0 (x:y:z) = y:x:z
     swapAt i (x:xs)  = x:swapAt (i-1) xs
     swapAt _ _       = error "toggle: PANIC! Invalid argument"
+
+
+-- | Use the two characters preceeding the cursor as a digraph and replace
+-- them with the corresponding character.
+digraph :: Content -> Maybe Content
+digraph !c =
+  do let Line n txt = view line c
+     guard (2 <= n)
+     let (pfx,x:y:sfx) = splitAt (view pos c - 2) (view text c)
+     d <- lookupDigraph x y
+     let line' = Line (n-1) (pfx++d:sfx)
+     Just $! set line line' c
