@@ -161,8 +161,7 @@ data RenderMode
 -- the minimum width.
 rightPad :: RenderMode -> Maybe Integer -> Image -> Image
 rightPad NormalRender (Just minWidth) i =
-  let h = 1
-      w = max 0 (fromIntegral minWidth - imageWidth i)
+  let w = max 0 (fromIntegral minWidth - imageWidth i)
   in i <|> string defAttr (replicate w ' ')
 rightPad _ _ i = i
 
