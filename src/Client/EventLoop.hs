@@ -349,7 +349,6 @@ doVtyEvent vtyEvent st =
     EvKey k modifier -> doKey k modifier st
     EvResize{} -> -- ignore event parameters due to raw TChan use
       do let vty = view clientVty st
-         refresh vty
          (w,h) <- displayBounds (outputIface vty)
          return $! Just $! set clientWidth  w
                          $ set clientHeight h st
