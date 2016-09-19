@@ -24,8 +24,7 @@ digraphLines ::
   ClientState {- ^ client state -} ->
   [Image]     {- ^ output lines -}
 digraphLines st
-  = map (\x -> char defAttr '\x202a' <|> x <|> char defAttr '\x202c')
-  $ map (horizCat . intersperse sep)
+  = map (horizCat . intersperse sep)
   $ chunksOf entriesPerLine
   $ map (text' defAttr)
   $ filter matcher
