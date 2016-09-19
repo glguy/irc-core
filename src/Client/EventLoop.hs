@@ -245,27 +245,27 @@ doNetworkLine networkId time line st =
 
              case stateHook (cookIrcMsg raw) of
                Nothing  -> return st1 -- Message ignored
-               Just irc -> do traverse_ (sendMsg cs) replies
-                              clientResponse time' irc cs st2
-                 where
-                   -- state with message recorded
-                   recSt = case viewHook irc of
-                             Nothing   -> st1 -- Message hidden
-                             Just irc' -> recordIrcMessage network target msg st1
-                               where
-                                 myNick = view csNick cs
-                                 target = msgTarget myNick irc
-                                 msg = ClientMessage
-                                         { _msgTime    = time'
-                                         , _msgNetwork = network
-                                         , _msgBody    = IrcBody irc'
-                                         }
+               Just irc ->
+                 do -- state with message recorded
+                    -- record messages *before* applying state changes
+                    let st2 =
+                          case viewHook irc of
+                            Nothing   -> st1 -- Message hidden
+                            Just irc' -> recordIrcMessage network target msg st1
+                              where
+                                myNick = view csNick cs
+                                target = msgTarget myNick irc
+                                msg = ClientMessage
+                                        { _msgTime    = time'
+                                        , _msgNetwork = network
+                                        , _msgBody    = IrcBody irc'
+                                        }
 
-                   -- record messages *before* applying the changes
-                   --
-                   -- Note: it's important to do this before 'clientResponse'
-                   -- as $nick won't be set until 'doWelcome' happens.
-                   (replies, st2) = applyMessageToClientState time irc networkId cs recSt
+                    let (replies, st3) = applyMessageToClientState time irc networkId cs st2
+
+                    traverse_ (sendMsg cs) replies
+                    clientResponse time' irc cs st3
+
 
 -- | Client-level responses to specific IRC messages.
 -- This is in contrast to the connection state tracking logic in
