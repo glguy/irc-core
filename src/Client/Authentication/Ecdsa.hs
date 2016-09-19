@@ -21,13 +21,12 @@ module Client.Authentication.Ecdsa
   ) where
 
 import           Client.Configuration (resolveConfigurationPath)
-import           Control.Exception (try)
+import           Control.Exception (displayException, try)
 import           Data.ByteArray.Encoding
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import           System.IO.Error (IOError)
-import           System.IO.Unsafe (unsafePerformIO)
 import           System.Process (readProcess)
 
 authenticationMode :: Text
@@ -36,11 +35,11 @@ authenticationMode = "ECDSA-NIST256P-CHALLENGE"
 encodeUsername :: Text -> Text
 encodeUsername = Text.decodeUtf8 . convertToBase Base64 . Text.encodeUtf8
 
-computeResponse :: FilePath -> Text -> Maybe Text
+computeResponse :: FilePath -> Text -> IO (Either String Text)
 computeResponse privateKeyFile challenge =
-  unsafePerformIO $
   do path <- resolveConfigurationPath privateKeyFile
-     res <- try (readProcess "ecdsatool" ["sign", path, Text.unpack challenge] "")
-     return $! case words <$> res :: Either IOError [String] of
-                 Right [resp] -> Just $! Text.pack resp
-                 _            -> Nothing
+     res  <- try (readProcess "ecdsatool" ["sign", path, Text.unpack challenge] "")
+     return $! case words <$> res of
+                 Right [resp] -> Right $! Text.pack resp
+                 Right _      -> Left "bad sasl ecdsa response message"
+                 Left e       -> Left (displayException (e :: IOError))

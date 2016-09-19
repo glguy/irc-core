@@ -15,6 +15,7 @@ import           Client.Image.Message (cleanChar)
 import           Client.State
 import           Control.Lens
 import           Data.List
+import           Data.List.Split
 import qualified Data.Text as Text
 import           Digraphs
 import           Graphics.Vty.Image
@@ -53,9 +54,3 @@ drawEntry (x,y,z) = output ++ replicate (entryWidth - wcswidth output) ' '
     z1 = cleanChar z
     z2 | wcwidth z1 == 0 = [' ', dottedCircle, z1]
        | otherwise       = [' ', z1]
-
-chunksOf :: Int -> [a] -> [[a]]
-chunksOf _ [] = []
-chunksOf n xs = a : chunksOf n b
-  where
-    (a,b) = splitAt n xs

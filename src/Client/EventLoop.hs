@@ -15,6 +15,7 @@ module Client.EventLoop
   ( eventLoop
   ) where
 
+import qualified Client.Authentication.Ecdsa as Ecdsa
 import           Client.CApi
 import           Client.Commands
 import           Client.Commands.Interpolation
@@ -48,6 +49,7 @@ import           Data.Time
 import           GHC.IO.Exception (IOErrorType(..), ioe_type)
 import           Graphics.Vty
 import           Irc.Codes
+import           Irc.Commands
 import           Irc.Message
 import           Irc.RawIrcMsg
 import           LensUtils
@@ -267,7 +269,7 @@ doNetworkLine networkId time line st =
 
 -- | Client-level responses to specific IRC messages.
 -- This is in contrast to the connection state tracking logic in
--- "Client.NetworkState   "
+-- "Client.NetworkState"
 clientResponse :: ZonedTime -> IrcMsg -> NetworkState -> ClientState -> IO ClientState
 clientResponse now irc cs st =
   case irc of
@@ -278,7 +280,39 @@ clientResponse now irc cs st =
                       (set clientFocus focus st)
                       (view (csSettings . ssConnectCmds) cs)
          return $! set clientFocus (view clientFocus st) st'
+
+    Authenticate challenge
+      | AS_EcdsaWaitChallenge <- view csAuthenticationState cs ->
+         processSaslEcdsa now challenge cs st
+
     _ -> return st
+
+
+processSaslEcdsa ::
+  ZonedTime    {- ^ message time  -} ->
+  Text         {- ^ challenge     -} ->
+  NetworkState {- ^ network state -} ->
+  ClientState  {- ^ client state  -} ->
+  IO ClientState
+processSaslEcdsa now challenge cs st =
+  case view ssSaslEcdsaFile ss of
+    Nothing ->
+      do sendMsg cs ircCapEnd
+         return $! recordError now cs "panic: ecdsatool malformed output" st
+
+    Just path ->
+      do res <- Ecdsa.computeResponse path challenge
+         case res of
+           Left e ->
+             do sendMsg cs ircCapEnd
+                return $! recordError now cs (Text.pack e) st
+           Right resp ->
+             do sendMsg cs (ircAuthenticate resp)
+                return $! set asLens AS_None st
+  where
+    ss = view csSettings cs
+    asLens = clientConnections . ix (view csNetworkId cs) . csAuthenticationState
+
 
 processConnectCmd ::
   ZonedTime       {- ^ now             -} ->

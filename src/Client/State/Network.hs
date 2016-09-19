@@ -20,6 +20,7 @@ module Client.State.Network
   (
   -- * Connection state
     NetworkState(..)
+  , AuthenticateState(..)
   , newNetworkState
 
   -- * Lenses
@@ -42,6 +43,7 @@ module Client.State.Network
   , csPingStatus
   , csLastReceived
   , csMessageHooks
+  , csAuthenticationState
 
   -- * User information
   , UserAndHost(..)
@@ -632,11 +634,7 @@ doAuthenticate param cs =
       -> ([ircAuthenticate (Ecdsa.encodeUsername user)],
           set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
-    AS_EcdsaWaitChallenge
-      | Just path <- view ssSaslEcdsaFile ss
-      , Just resp <- Ecdsa.computeResponse path param
-      -> ([ircAuthenticate resp],
-          set csAuthenticationState AS_None cs)
+    AS_EcdsaWaitChallenge -> ([], cs) -- handled in Client.EventLoop!
 
     _ -> ([ircCapEnd], cs) -- really shouldn't happen
 
