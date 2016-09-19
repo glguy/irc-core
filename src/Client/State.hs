@@ -39,6 +39,7 @@ module Client.State
   , clientBell
   , clientExtensions
   , clientRegex
+  , clientLogQueue
 
   -- * Client operations
   , withClientState
@@ -101,6 +102,7 @@ import           Client.Configuration.ServerSettings
 import           Client.Image.Message
 import           Client.Image.PackedImage
 import           Client.Image.Palette
+import           Client.Log
 import           Client.Message
 import           Client.Network.Async
 import           Client.State.Channel
@@ -174,7 +176,8 @@ data ClientState = ClientState
 
   , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored nicknames
 
-  , _clientExtensions        :: !ExtensionState
+  , _clientExtensions        :: !ExtensionState           -- ^ state of loaded extensions
+  , _clientLogQueue          :: ![LogLine]                -- ^ log lines ready to write
   }
 
 data ExtensionState = ExtensionState
@@ -248,6 +251,7 @@ withClientState cfg k =
         , _clientNextConnectionId  = 0
         , _clientBell              = False
         , _clientExtensions        = exts
+        , _clientLogQueue          = []
         }
 
 -- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
@@ -274,16 +278,18 @@ abortNetwork network st =
   case preview (clientConnection network) st of
     Nothing -> return st
     Just cs -> do abortConnection ForcedDisconnect (view csSocket cs)
-                  return $ set (clientNetworkMap . at network) Nothing st
+                  return $! over clientNetworkMap (sans network) st
 
 -- | Add a message to the window associated with a given channel
 recordChannelMessage ::
   Text       {- ^ network -} ->
   Identifier {- ^ channel -} ->
   ClientMessage ->
-  ClientState -> ClientState
-recordChannelMessage network channel msg st =
-  recordWindowLine focus wl st
+  ClientState ->
+  ClientState
+recordChannelMessage network channel msg st
+  = recordLogLine msg channel
+  $ recordWindowLine focus wl st
   where
     focus      = ChannelFocus network channel'
     wl         = toWindowLine rendParams importance msg
@@ -302,6 +308,20 @@ recordChannelMessage network channel msg st =
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
     importance              = msgImportance msg st
     highlights              = clientHighlightsNetwork network st
+
+
+recordLogLine ::
+  ClientMessage {- ^ message      -} ->
+  Identifier    {- ^ target       -} ->
+  ClientState   {- ^ client state -} ->
+  ClientState
+recordLogLine msg target st =
+  case view (clientConnection (view msgNetwork msg) . csSettings . ssLogDir) st of
+    Nothing -> st
+    Just dir ->
+      case renderLogLine msg dir target of
+        Nothing  -> st
+        Just ll  -> over clientLogQueue (cons ll) st
 
 
 -- | Extract the status mode sigils from a message target.
@@ -368,7 +388,7 @@ ircIgnorable msg !st =
     Ctcp who _ "ACTION" _ -> checkUser who
     -- notice ctcp responses are not already metadata
     CtcpNotice who _ _ _ -> checkUser who
-    _               -> Nothing
+    _                    -> Nothing
   where
     checkUser !who
       | identIgnored (userNick who) st = Just (userNick who)
@@ -443,7 +463,8 @@ recordNetworkMessage msg st = recordWindowLine focus wl st
 recordWindowLine ::
   Focus ->
   WindowLine ->
-  ClientState -> ClientState
+  ClientState ->
+  ClientState
 recordWindowLine focus wl =
   over (clientWindows . at focus)
        (\w -> Just $! addToWindow wl (fromMaybe emptyWindow w))
@@ -473,7 +494,9 @@ toWindowLine' config =
 
 -- | Function applied to the client state every redraw.
 clientTick :: ClientState -> ClientState
-clientTick = set clientBell False . markSeen
+clientTick = set clientBell False
+           . markSeen
+           . set clientLogQueue []
 
 
 -- | Mark the messages on the current window (and any splits) as seen.

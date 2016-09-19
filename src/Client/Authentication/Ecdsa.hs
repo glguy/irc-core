@@ -43,4 +43,4 @@ computeResponse privateKeyFile challenge =
      res <- try (readProcess "ecdsatool" ["sign", path, Text.unpack challenge] "")
      return $! case words <$> res :: Either IOError [String] of
                  Right [resp] -> Just $! Text.pack resp
-                 Left{}       -> Nothing
+                 _            -> Nothing

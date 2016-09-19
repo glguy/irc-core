@@ -23,6 +23,7 @@ import           Client.EventLoop.Errors (exceptionToLines)
 import           Client.Hook
 import           Client.Hooks
 import           Client.Image
+import           Client.Log
 import           Client.Message
 import           Client.Network.Async
 import           Client.State
@@ -96,6 +97,7 @@ eventLoop :: ClientState -> IO ()
 eventLoop st =
   do let vty = view clientVty st
      when (view clientBell st) (beep vty)
+     processLogEntries st
 
      let (pic, st') = clientPicture (clientTick st)
      update vty pic
@@ -116,6 +118,10 @@ eventLoop st =
 -- is supported.
 beep :: Vty -> IO ()
 beep = ringTerminalBell . outputIface
+
+processLogEntries :: ClientState -> IO ()
+processLogEntries =
+  traverse_ writeLogLine . reverse . view clientLogQueue
 
 -- | Respond to a network connection successfully connecting.
 doNetworkOpen ::

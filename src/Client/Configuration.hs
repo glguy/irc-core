@@ -278,6 +278,7 @@ parseServerSetting ss k v =
     "reconnect-attempts"  -> setField       ssReconnectAttempts
     "autoconnect"         -> setField       ssAutoconnect
     "nick-completion"     -> setFieldWith   ssNickCompletion parseNickCompletion
+    "log-dir"             -> setFieldWithMb ssLogDir parseString
     _                     -> failure "Unknown setting"
   where
     setField   l = setFieldWith   l parseConfig

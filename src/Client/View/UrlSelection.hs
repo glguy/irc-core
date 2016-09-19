@@ -21,7 +21,6 @@ import           Control.Lens
 import           Data.Text (Text)
 import           Graphics.Vty.Image
 import           Text.Read (readMaybe)
-import           Text.Regex.TDFA
 
 
 -- | Generate the lines used for the view when typing @/url@

@@ -43,6 +43,7 @@ module Client.Configuration.ServerSettings
   , ssReconnectAttempts
   , ssAutoconnect
   , ssNickCompletion
+  , ssLogDir
 
   -- * Load function
   , loadDefaultServerSettings
@@ -91,6 +92,7 @@ data ServerSettings = ServerSettings
   , _ssReconnectAttempts:: !Int -- ^ The number of reconnect attempts to make on error
   , _ssAutoconnect      :: Bool -- ^ Connect to this network on server startup
   , _ssNickCompletion   :: WordCompletionMode -- ^ Nick completion mode for this server
+  , _ssLogDir           :: Maybe FilePath -- ^ Directory to save logs of chat
   }
   deriving Show
 
@@ -136,4 +138,5 @@ loadDefaultServerSettings =
        , _ssReconnectAttempts= 6 -- six feels great
        , _ssAutoconnect      = False
        , _ssNickCompletion   = defaultNickWordCompleteMode
+       , _ssLogDir           = Nothing
        }

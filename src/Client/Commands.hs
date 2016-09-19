@@ -209,7 +209,7 @@ executeChat msg st =
                             , _msgBody    = IrcBody (Privmsg myNick channel msgTxt)
                             }
              sendMsg cs ircMsg
-             commandSuccess $ recordChannelMessage network channel entry st
+             commandSuccess $! recordChannelMessage network channel entry st
 
     _ -> commandFailureMsg "This command requires an active channel" st
 
@@ -815,7 +815,7 @@ cmdMe channelId cs st rest =
                     }
      sendMsg cs (ircPrivmsg (idText channelId) actionTxt)
      commandSuccess
-       $ recordChannelMessage network channelId entry st
+       $! recordChannelMessage network channelId entry st
 
 -- | Implementation of @/ctcp@
 cmdCtcp :: NetworkCommand (String, (String, String))
@@ -887,7 +887,7 @@ chatCommand' con targetsTxt cs st =
                        | targetId <- targetIds ]
 
      return $! foldl' (\acc (targetId, entry) ->
-                         recordChannelMessage network targetId entry acc)
+                        recordChannelMessage network targetId entry acc)
                       st
                       entries
 

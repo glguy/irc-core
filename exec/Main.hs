@@ -36,11 +36,11 @@ main =
        eventLoop
 
 initialNetworkLogic :: Options -> ClientState -> IO ClientState
-initialNetworkLogic opts st
-  | view optNoConnect opts = return st
-  | otherwise              = addInitialNetworks networks st
+initialNetworkLogic opts st = addInitialNetworks (nub networks) st
   where
-    networks = nub (clientAutoconnects st ++ view optInitialNetworks opts)
+    networks
+      | view optNoConnect opts = view optInitialNetworks opts
+      | otherwise              = view optInitialNetworks opts ++ clientAutoconnects st
 
 -- | Load configuration and handle errors along the way.
 loadConfiguration' :: Maybe FilePath -> IO Configuration

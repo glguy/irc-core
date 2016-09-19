@@ -272,7 +272,7 @@ applyMessage' msgWhen msg cs =
            noReply
          $ forgetUser' (userNick user) -- possibly forget
          $ if userNick user == view csNick cs
-             then set (csChannels . at chan) Nothing cs
+             then over csChannels (sans chan) cs
              else overChannel chan (partChannel (userNick user)) cs
 
     Nick oldNick newNick ->
@@ -588,7 +588,7 @@ doChannelModes when who chan changes cs = overChannel chan applyChannelModes cs
         in setStrict (chanLists . ix mode . at arg) entry c
 
       | polarity  = set (chanModes . at mode) (Just arg) c
-      | otherwise = set (chanModes . at mode) Nothing    c
+      | otherwise = over chanModes (sans mode) c
 
     setPrefixMode polarity sigil sigils
       | not polarity        = delete sigil sigils
@@ -786,7 +786,7 @@ recordUser (UserInfo nick user host)
                     (Just (UserAndHost user host))
 
 forgetUser :: Identifier -> NetworkState -> NetworkState
-forgetUser nick = set (csUsers . at nick) Nothing
+forgetUser = over csUsers . sans
 
 renameUser :: Identifier -> Identifier -> NetworkState -> NetworkState
 renameUser old new cs = set (csUsers . at new) entry cs'
