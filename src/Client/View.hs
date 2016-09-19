@@ -43,7 +43,7 @@ viewLines focus subfocus !st =
     (_, FocusWindows filt) -> windowsImages filt st
     (_, FocusMentions) -> mentionsViewLines st
     (_, FocusPalette) -> paletteViewLines pal
-    (_, FocusDigraphs) -> digraphLines (view clientWidth st)
+    (_, FocusDigraphs) -> digraphLines st
     (_, FocusHelp mb) -> helpImageLines mb pal
     _ -> chatMessageImages focus st
   where
