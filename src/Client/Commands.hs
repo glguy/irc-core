@@ -1184,10 +1184,17 @@ cmdChannelInfo :: ChannelCommand ()
 cmdChannelInfo _ _ st _ = commandSuccess (changeSubfocus FocusInfo st)
 
 cmdMasks :: ChannelCommand (String,())
-cmdMasks _ cs st (rest,_) =
+cmdMasks channel cs st (rest,_) =
   case rest of
     [mode] | mode `elem` view (csModeTypes . modesLists) cs ->
-        commandSuccess (changeSubfocus (FocusMasks mode) st)
+
+        do let connecting = has (csPingStatus . _PingConnecting) cs
+               listLoaded = has (csChannels . ix channel . chanLists . ix mode) cs
+           unless (connecting || listLoaded)
+             (sendMsg cs (ircMode channel [Text.singleton mode]))
+
+           commandSuccess (changeSubfocus (FocusMasks mode) st)
+
     _ -> commandFailureMsg "Unknown mask mode" st
 
 cmdKick :: ChannelCommand (String, String)

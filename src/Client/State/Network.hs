@@ -63,6 +63,7 @@ module Client.State.Network
 
   -- * Timer information
   , PingStatus(..)
+  , _PingConnecting
   , TimedAction(..)
   , nextTimedAction
   , applyTimedAction
@@ -148,6 +149,7 @@ data PingStatus
   | PingConnecting !Int !(Maybe UTCTime) -- ^ number of attempts, last known connection time
   deriving Show
 
+
 data Transaction
   = NoTransaction
   | NamesTransaction [Text]
@@ -157,6 +159,7 @@ data Transaction
 
 makeLenses ''NetworkState
 makePrisms ''Transaction
+makePrisms ''PingStatus
 
 csNick :: Lens' NetworkState Identifier
 csNick = csUserInfo . uiNick
