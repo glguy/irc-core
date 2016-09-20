@@ -315,6 +315,7 @@ commandsList =
       \If no arguments are provided the current window is cleared.\n\
       \If \^Bnetwork\^B is provided the that network window is cleared.\n\
       \If \^Bnetwork\^B and \^Bchannel\^B are provided that chat window is cleared.\n\
+      \If \^Bnetwork\^B is provided and \^Bchannel\^B is \^B*\^O all windows for that network are cleared.\n\
       \\n\
       \If a window is cleared and no longer active that window will be removed from the client.\n"
     $ ClientCommand cmdClear tabFocus
@@ -769,17 +770,26 @@ cmdClear st args =
     Nothing                 -> clearFocus (view clientFocus st)
     Just ("*", Nothing)     -> clearFocus Unfocused
     Just (network, Nothing) -> clearFocus (NetworkFocus (Text.pack network))
+    Just (network, Just ("*", _)) -> clearNetworkWindows network
     Just (network, Just (channel, _)) ->
         clearFocus (ChannelFocus (Text.pack network) (mkId (Text.pack channel)))
   where
-    clearFocus focus = commandSuccess (focusEffect (windowEffect st))
+    clearNetworkWindows network
+      = commandSuccess
+      $ foldl' (flip clearFocus1) st
+      $ filter (\x -> focusNetwork x == Just (Text.pack network))
+      $ views clientWindows Map.keys st
+
+    clearFocus focus = commandSuccess (clearFocus1 focus st)
+
+    clearFocus1 focus st' = focusEffect (windowEffect st')
       where
         windowEffect
           | isActive  = setWindow (Just emptyWindow)
           | otherwise = setWindow Nothing
 
         focusEffect
-          | not isActive && view clientFocus st == focus = advanceFocus
+          | not isActive && view clientFocus st' == focus = advanceFocus
           | otherwise                                    = id
 
         setWindow = set (clientWindows . at focus)
@@ -787,9 +797,9 @@ cmdClear st args =
         isActive =
           case focus of
             Unfocused                    -> False
-            NetworkFocus network         -> has (clientConnection network) st
+            NetworkFocus network         -> has (clientConnection network) st'
             ChannelFocus network channel -> has (clientConnection network
-                                                .csChannels . ix channel) st
+                                                .csChannels . ix channel) st'
 
 -- | Implementation of @/quote@. Parses arguments as a raw IRC command and
 -- sends to the current network.
