@@ -357,8 +357,9 @@ modern keyboards the *Meta* key is labeled *Alt* or *Option*.
 
 Window navigation
 
-* `C-n` next channel
-* `C-p` previous channel
+* `C-n` next window
+* `C-p` previous window
+* `C-x` next network
 * `M-#` jump to window - `1234567890qwertyuiop!@#$%^&*()QWERTYUIOP`
 * `M-a` jump to activity
 * `M-s` jump to previous window

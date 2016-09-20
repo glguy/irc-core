@@ -78,6 +78,7 @@ module Client.State
   , changeSubfocus
   , returnFocus
   , advanceFocus
+  , advanceNetworkFocus
   , retreatFocus
   , jumpToActivity
   , jumpFocus
@@ -110,6 +111,7 @@ import qualified Client.State.EditBox as Edit
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
 import           Control.DeepSeq
@@ -133,7 +135,7 @@ import qualified Data.Text as Text
 import           Data.Time
 import           Foreign.Ptr
 import           Foreign.StablePtr
-import           Graphics.Vty
+import           Graphics.Vty hiding ((<|>))
 import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
@@ -807,29 +809,44 @@ returnFocus st = changeFocus (view clientPrevFocus st) st
 -- | Step focus to the next window when on message view. Otherwise
 -- switch to message view.
 advanceFocus :: ClientState -> ClientState
-advanceFocus = stepFocus False
+advanceFocus = stepFocus $ \l r ->
+  fst . fst <$> Map.minViewWithKey r <|>
+  fst . fst <$> Map.minViewWithKey l
 
 -- | Step focus to the previous window when on message view. Otherwise
 -- switch to message view.
 retreatFocus :: ClientState -> ClientState
-retreatFocus = stepFocus True
+retreatFocus = stepFocus $ \l r ->
+  fst . fst <$> Map.maxViewWithKey l <|>
+  fst . fst <$> Map.maxViewWithKey r
+
+-- | Step focus to the next window when on message view. Otherwise
+-- switch to message view.
+advanceNetworkFocus :: ClientState -> ClientState
+advanceNetworkFocus = stepFocus $ \l r ->
+  fst . fst <$> Map.minViewWithKey (Map.filterWithKey isNetwork r) <|>
+  fst . fst <$> Map.minViewWithKey (Map.filterWithKey isNetwork l)
+  where
+    isNetwork k _ = has _NetworkFocus k
+
+-- | Selection function used in 'stepFocus'
+type FocusSelector =
+  Map Focus Window {- ^ windows before current window -} ->
+  Map Focus Window {- ^ windows after current window  -} ->
+  Maybe Focus      {- ^ window to focus               -}
 
 -- | Step focus to the next window when on message view. Otherwise
 -- switch to message view. Reverse the step order when argument is 'True'.
-stepFocus :: Bool {- ^ reversed -} -> ClientState -> ClientState
-stepFocus isReversed st
-  | view clientSubfocus st /= FocusMessages = changeSubfocus FocusMessages st
-
-  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey l = changeFocus k st
-  | isReversed, Just ((k,_),_) <- Map.maxViewWithKey r = changeFocus k st
-
-  | isForward , Just ((k,_),_) <- Map.minViewWithKey r = changeFocus k st
-  | isForward , Just ((k,_),_) <- Map.minViewWithKey l = changeFocus k st
-
-  | otherwise                                          = st
+stepFocus ::
+  FocusSelector {- ^ selection function -} ->
+  ClientState   {- ^ client state       -} ->
+  ClientState
+stepFocus selector st =
+  case selector l r of
+    Just k  -> changeFocus k st
+    Nothing -> st
   where
-    isForward = not isReversed
-    (l,r)     = Map.split (view clientFocus st) (view clientWindows st)
+    (l,r) = Map.split (view clientFocus st) (view clientWindows st)
 
 -- | Compute the set of extra identifiers that should be highlighted given
 -- a particular network state.

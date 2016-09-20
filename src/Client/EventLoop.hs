@@ -429,6 +429,7 @@ doKey key modifier st =
         KChar 'v' -> changeEditor (Edit.insert '\^V')
         KChar 'p' -> continue (retreatFocus st)
         KChar 'n' -> continue (advanceFocus st)
+        KChar 'x' -> continue (advanceNetworkFocus st)
         KChar 'l' -> do refresh (view clientVty st)
                         continue st
         _         -> continue st
