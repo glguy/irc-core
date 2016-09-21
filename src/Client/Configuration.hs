@@ -32,6 +32,7 @@ module Client.Configuration
   , configUrlOpener
   , configIgnores
   , configActivityBar
+  , configBellOnMention
 
   -- * Loading configuration
   , loadConfiguration
@@ -85,6 +86,7 @@ data Configuration = Configuration
   , _configUrlOpener        :: Maybe FilePath -- ^ paths to url opening executable
   , _configIgnores          :: HashSet Identifier -- ^ initial ignore list
   , _configActivityBar      :: Bool -- ^ initially visibility of the activity bar
+  , _configBellOnMention    :: Bool -- ^ notify terminal on mention
   }
   deriving Show
 
@@ -216,6 +218,8 @@ parseConfiguration _configConfigPath def = parseSections $
                     <$> sectionOptWith (parseList parseIdentifier) "ignores"
 
      _configActivityBar <- fromMaybe False <$> sectionOpt  "activity-bar"
+
+     _configBellOnMention <- fromMaybe False <$> sectionOpt  "bell-on-mention"
 
      for_ _configNickPadding (\padding ->
        when (padding < 0)

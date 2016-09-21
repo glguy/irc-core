@@ -179,6 +179,7 @@ Configuration sections:
 | `url-opener`       | text                | Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS |
 | `ignores`          | list of text        | Initial list of nicknames to ignore                                                        |
 | `activity-bar`     | yes or no           | Initial setting for visibility of activity bar (default no)                                |
+| `bell-on-mention`  | yes or no           | Sound terminal bell on transition from not mentioned to mentioned (default no)             |
 | `macros`           | list of macros      | User-configurable client commands                                                          |
 
 Server Settings

@@ -467,9 +467,21 @@ recordWindowLine ::
   WindowLine ->
   ClientState ->
   ClientState
-recordWindowLine focus wl =
-  over (clientWindows . at focus)
-       (\w -> Just $! addToWindow wl (fromMaybe emptyWindow w))
+recordWindowLine focus wl st = st2
+  where
+    st1 = over (clientWindows . at focus)
+               (\w -> Just $! addToWindow wl (fromMaybe emptyWindow w))
+               st
+
+    st2
+      | not (view clientBell st)
+      , view (clientConfig . configBellOnMention) st
+      , view wlImportance wl == WLImportant
+      , not (hasMention st) = set clientBell True st1
+
+      | otherwise = st1
+
+    hasMention = orOf (clientWindows . folded . winMention)
 
 toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine params importance msg = WindowLine
