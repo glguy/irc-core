@@ -1,4 +1,4 @@
-{-# Language RecordWildCards #-}
+{-# Language CPP, RecordWildCards #-}
 {-|
 Module      : Client.CApi.Exports
 Description : Foreign exports which expose functionality for extensions
@@ -94,7 +94,9 @@ type Glirc_send_message =
   Ptr FgnMsg {- ^ pointer to message -} ->
   IO CInt    {- ^ 0 on success       -}
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall "glirc_send_message" glirc_send_message :: Glirc_send_message
+#endif
 
 glirc_send_message :: Glirc_send_message
 glirc_send_message token msgPtr =
@@ -119,7 +121,9 @@ type Glirc_print =
   CSize   {- ^ message length    -} ->
   IO CInt {- ^ 0 on success      -}
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall glirc_print :: Glirc_print
+#endif
 
 glirc_print :: Glirc_print
 glirc_print stab code msgPtr msgLen =
@@ -147,7 +151,9 @@ type Glirc_list_networks =
   Ptr ()           {- ^ api token                                        -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall glirc_list_networks :: Glirc_list_networks
+#endif
 
 glirc_list_networks :: Glirc_list_networks
 glirc_list_networks stab =
@@ -170,7 +176,9 @@ type Glirc_identifier_cmp =
   CSize   {- ^ identifier 2 len -} ->
   IO CInt
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall glirc_identifier_cmp :: Glirc_identifier_cmp
+#endif
 
 glirc_identifier_cmp :: Glirc_identifier_cmp
 glirc_identifier_cmp p1 n1 p2 n2 =
@@ -191,7 +199,9 @@ type Glirc_list_channels =
   CSize   {- ^ network len -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall glirc_list_channels :: Glirc_list_channels
+#endif
 
 glirc_list_channels :: Glirc_list_channels
 glirc_list_channels stab networkPtr networkLen =
@@ -216,7 +226,9 @@ type Glirc_list_channel_users =
   CSize   {- ^ channel len -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall glirc_list_channel_users :: Glirc_list_channel_users
+#endif
 
 glirc_list_channel_users :: Glirc_list_channel_users
 glirc_list_channel_users stab networkPtr networkLen channelPtr channelLen =
@@ -244,7 +256,9 @@ type Glirc_my_nick =
   CSize   {- ^ network name length -} ->
   IO CString
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall glirc_my_nick :: Glirc_my_nick
+#endif
 
 glirc_my_nick :: Glirc_my_nick
 glirc_my_nick stab networkPtr networkLen =
@@ -269,7 +283,9 @@ type Glirc_mark_seen =
   CSize   {- ^ channel name length -} ->
   IO ()
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall glirc_mark_seen :: Glirc_mark_seen
+#endif
 
 glirc_mark_seen :: Glirc_mark_seen
 glirc_mark_seen stab networkPtr networkLen channelPtr channelLen =
@@ -298,7 +314,9 @@ type Glirc_clear_window =
   CSize   {- ^ channel name length -} ->
   IO ()
 
+#ifdef EXPORT_GLIRC_CAPI
 foreign export ccall glirc_clear_window :: Glirc_clear_window
+#endif
 
 glirc_clear_window :: Glirc_clear_window
 glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
