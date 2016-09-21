@@ -22,7 +22,6 @@ module Client.State
   , clientWidth
   , clientHeight
   , clientEvents
-  , clientVty
   , clientFocus
   , clientExtraFocus
   , clientConnectionContext
@@ -118,7 +117,6 @@ import           Control.DeepSeq
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
-import           Data.Default.Class
 import           Data.Foldable
 import           Data.Either
 import           Data.HashMap.Strict (HashMap)
@@ -135,7 +133,6 @@ import qualified Data.Text as Text
 import           Data.Time
 import           Foreign.Ptr
 import           Foreign.StablePtr
-import           Graphics.Vty hiding ((<|>))
 import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
@@ -163,7 +160,6 @@ data ClientState = ClientState
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
 
-  , _clientVty               :: !Vty                      -- ^ VTY handle
   , _clientTextBox           :: !Edit.EditBox             -- ^ primary text box
   , _clientWidth             :: !Int                      -- ^ current terminal width
   , _clientHeight            :: !Int                      -- ^ current terminal height
@@ -172,7 +168,7 @@ data ClientState = ClientState
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
   , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
   , _clientShowMetadata      :: !Bool                     -- ^ visible activity bar
-  , _clientRegex             :: (Maybe Regex)             -- ^ optional persistent filter
+  , _clientRegex             :: Maybe Regex               -- ^ optional persistent filter
 
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
@@ -223,11 +219,9 @@ clientLine = views (clientTextBox . Edit.line) (\(Edit.Line n t) -> (n, t))
 withClientState :: Configuration -> (ClientState -> IO a) -> IO a
 withClientState cfg k =
 
-  withVty            $ \vty ->
   withExtensionState $ \exts ->
 
-  do (width,height) <- displayBounds (outputIface vty)
-     cxt            <- initConnectionContext
+  do cxt            <- initConnectionContext
      events         <- atomically newTQueue
      k ClientState
         { _clientWindows           = _Empty # ()
@@ -235,9 +229,8 @@ withClientState cfg k =
         , _clientIgnores           = view configIgnores cfg
         , _clientConnections       = _Empty # ()
         , _clientTextBox           = Edit.defaultEditBox
-        , _clientWidth             = width
-        , _clientHeight            = height
-        , _clientVty               = vty
+        , _clientWidth             = 80
+        , _clientHeight            = 25
         , _clientEvents            = events
         , _clientPrevFocus         = Unfocused
         , _clientFocus             = Unfocused
@@ -255,11 +248,6 @@ withClientState cfg k =
         , _clientExtensions        = exts
         , _clientLogQueue          = []
         }
-
--- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
--- once the continuation finishes.
-withVty :: (Vty -> IO a) -> IO a
-withVty = bracket (mkVty def{bracketedPasteMode = Just True}) shutdown
 
 withExtensionState :: (ExtensionState -> IO a) -> IO a
 withExtensionState k =

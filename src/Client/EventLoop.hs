@@ -13,6 +13,7 @@ events to the correct module. It renders the user interface once per event.
 
 module Client.EventLoop
   ( eventLoop
+  , updateTerminalSize
   ) where
 
 import qualified Client.Authentication.Ecdsa as Ecdsa
@@ -65,8 +66,11 @@ data ClientEvent
 
 -- | Block waiting for the next 'ClientEvent'. This function will compute
 -- an appropriate timeout based on the current connections.
-getEvent :: ClientState -> IO ClientEvent
-getEvent st =
+getEvent ::
+  Vty         {- ^ vty handle   -} ->
+  ClientState {- ^ client state -} ->
+  IO ClientEvent
+getEvent vty st =
   do timer <- prepareTimer
      atomically $
        asum [ timer
@@ -74,7 +78,7 @@ getEvent st =
             , NetworkEvent <$> readTQueue (view clientEvents st)
             ]
   where
-    vtyEventChannel = _eventChannel (inputIface (view clientVty st))
+    vtyEventChannel = _eventChannel (inputIface vty)
 
     prepareTimer =
       case earliestEvent st of
@@ -95,21 +99,20 @@ earliestEvent =
     (comparing (fst . snd))
 
 -- | Apply this function to an initial 'ClientState' to launch the client.
-eventLoop :: ClientState -> IO ()
-eventLoop st =
-  do let vty = view clientVty st
-     when (view clientBell st) (beep vty)
+eventLoop :: Vty -> ClientState -> IO ()
+eventLoop vty st =
+  do when (view clientBell st) (beep vty)
      processLogEntries st
 
      let (pic, st') = clientPicture (clientTick st)
      update vty pic
 
-     event <- getEvent st'
+     event <- getEvent vty st'
      case event of
-       TimerEvent networkId action  -> eventLoop =<< doTimerEvent networkId action st'
-       VtyEvent vtyEvent -> traverse_ eventLoop =<< doVtyEvent vtyEvent st'
+       TimerEvent networkId action  -> eventLoop vty =<< doTimerEvent networkId action st'
+       VtyEvent vtyEvent -> traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
        NetworkEvent networkEvent ->
-         eventLoop =<<
+         eventLoop vty =<<
          case networkEvent of
            NetworkLine  net time line -> doNetworkLine  net time line st'
            NetworkError net time ex   -> doNetworkError net time ex st'
@@ -373,19 +376,24 @@ lookups :: Ixed m => [Index m] -> m -> [IxValue m]
 lookups ks m = mapMaybe (\k -> preview (ix k) m) ks
 
 
+-- | Update the height and width fields of the client state
+updateTerminalSize :: Vty -> ClientState -> IO ClientState
+updateTerminalSize vty st =
+  do (w,h) <- displayBounds (outputIface vty)
+     return $! set clientWidth  w
+            $  set clientHeight h st
+
 -- | Respond to a VTY event.
 doVtyEvent ::
+  Vty                    {- ^ vty handle            -} ->
   Event                  {- ^ vty event             -} ->
   ClientState            {- ^ client state          -} ->
   IO (Maybe ClientState) {- ^ nothing when finished -}
-doVtyEvent vtyEvent st =
+doVtyEvent vty vtyEvent st =
   case vtyEvent of
-    EvKey k modifier -> doKey k modifier st
-    EvResize{} -> -- ignore event parameters due to raw TChan use
-      do let vty = view clientVty st
-         (w,h) <- displayBounds (outputIface vty)
-         return $! Just $! set clientWidth  w
-                         $ set clientHeight h st
+    EvKey k modifier -> doKey vty k modifier st
+    -- ignore event parameters due to raw TChan use
+    EvResize{} -> Just <$> updateTerminalSize vty st
     EvPaste utf8 ->
        do let str = Text.unpack (Text.decodeUtf8With Text.lenientDecode utf8)
           return $! Just $! over clientTextBox (Edit.insertPaste str) st
@@ -394,11 +402,12 @@ doVtyEvent vtyEvent st =
 
 -- | Map keyboard inputs to actions in the client
 doKey ::
+  Vty         {- ^ vty handle     -} ->
   Key         {- ^ key pressed    -} ->
   [Modifier]  {- ^ modifiers held -} ->
   ClientState {- ^ client state   -} ->
   IO (Maybe ClientState)
-doKey key modifier st =
+doKey vty key modifier st =
   let continue !out   = return (Just out)
       changeEditor  f = continue (over clientTextBox f st)
       changeContent f = changeEditor
@@ -430,7 +439,7 @@ doKey key modifier st =
         KChar 'p' -> continue (retreatFocus st)
         KChar 'n' -> continue (advanceFocus st)
         KChar 'x' -> continue (advanceNetworkFocus st)
-        KChar 'l' -> do refresh (view clientVty st)
+        KChar 'l' -> do refresh vty
                         continue st
         _         -> continue st
 
