@@ -129,7 +129,6 @@ fullVersionTxt =
   :("alex        : " ++ TOOL_VERSION_alex)
   :("happy       : " ++ TOOL_VERSION_happy)
   :("hsc2hs      : " ++ TOOL_VERSION_hsc2hs)
-  :("cpphs       : " ++ TOOL_VERSION_cpphs)
   :""
   :"Transitive dependencies:"
   : [ name ++ "-" ++ intercalate "." (map show ver) | (name,ver) <- sort deps ]
