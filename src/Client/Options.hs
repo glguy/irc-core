@@ -25,6 +25,7 @@ module Client.Options
 
 import           Control.Lens
 import           Data.Foldable
+import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Version
@@ -34,6 +35,7 @@ import           System.Environment
 import           System.Exit
 import           System.IO
 import           Paths_glirc (version)
+import           Build_glirc (deps)
 
 -- | Command-line options
 data Options = Options
@@ -42,6 +44,7 @@ data Options = Options
   , _optNoConnect       :: Bool           -- ^ disable autoconnect
   , _optShowHelp        :: Bool           -- ^ show help message
   , _optShowVersion     :: Bool           -- ^ show version message
+  , _optShowFullVersion :: Bool           -- ^ show version of ALL transitive dependencies
   }
 
 makeLenses ''Options
@@ -53,6 +56,7 @@ defaultOptions = Options
   , _optInitialNetworks = []
   , _optShowHelp        = False
   , _optShowVersion     = False
+  , _optShowFullVersion = False
   , _optNoConnect       = False
   }
 
@@ -67,6 +71,8 @@ options =
     "Show help"
   , Option "v" ["version"] (NoArg (set optShowVersion True))
     "Show version"
+  , Option "" ["full-version"] (NoArg (set optShowFullVersion True))
+    "Show version and versions of all linked Haskell libraries"
   ]
 
 optOrder :: ArgOrder (Options -> Options)
@@ -88,6 +94,7 @@ getOptions =
               hPutStrLn stderr tryHelpTxt
 
      if | view optShowHelp    opts -> putStr helpTxt    >> exitSuccess
+        | view optShowFullVersion opts -> putStr fullVersionTxt >> exitSuccess
         | view optShowVersion opts -> putStr versionTxt >> exitSuccess
         | null errors              -> return opts
         | otherwise                -> reportErrors      >> exitFailure
@@ -99,11 +106,22 @@ tryHelpTxt :: String
 tryHelpTxt =
   "Run 'glirc2 --help' to see a list of available command line options."
 
+-- version information ---------------------------------------------
+
 versionTxt :: String
 versionTxt = unlines
   [ "glirc-" ++ showVersion version ++ gitHashTxt ++ gitDirtyTxt
   , "Copyright 2016 Eric Mertens"
   ]
+
+fullVersionTxt :: String
+fullVersionTxt =
+  versionTxt ++
+  unlines
+  (""
+  :"Full dependency list:"
+  : [ name ++ "-" ++ intercalate "." (map show ver) | (name,ver) <- sort deps ]
+  )
 
 -- git version information ---------------------------------------------
 

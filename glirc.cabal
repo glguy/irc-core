@@ -24,6 +24,7 @@ tested-with:         GHC==8.0.1
 
 custom-setup
   setup-depends: base  >=4.9  && <4.10,
+                 filepath >1.4 && <1.5,
                  Cabal >=1.24 && <1.25
 
 source-repository head
@@ -115,6 +116,7 @@ library
                        StrictUnit
                        Digraphs
                        Paths_glirc
+                       Build_glirc
 
   build-depends:       base                 >=4.9    && <4.10,
                        async                >=2.1    && <2.2,
