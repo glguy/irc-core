@@ -142,7 +142,6 @@ import           LensUtils
 import           Network.Connection (ConnectionContext, initConnectionContext)
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
-import           Text.Regex.TDFA.Text () -- RegexLike Regex Text orphan
 
 -- | All state information for the IRC client
 data ClientState = ClientState
@@ -554,7 +553,7 @@ clientMatcher :: ClientState -> Text -> Bool
 clientMatcher st =
   case clientActiveRegex st of
     Nothing -> const True
-    Just r  -> matchTest r
+    Just r  -> matchTest r . Text.unpack
 
 -- | Construct a text matching predicate used to filter the message window.
 clientActiveRegex :: ClientState -> Maybe Regex
@@ -593,8 +592,11 @@ Right urlPattern =
     \<https?://[^>]*>"
 
 urlMatches :: Text -> [Text]
-urlMatches = map removeBrackets . getAllTextMatches . match urlPattern
+urlMatches txt = removeBrackets . extract . (^?! ix 0)
+             <$> matchAll urlPattern (Text.unpack txt)
   where
+    extract (off,len) = Text.take len (Text.drop off txt)
+
     removeBrackets t =
       case Text.uncons t of
        Just ('<',t') | not (Text.null t') -> Text.init t'

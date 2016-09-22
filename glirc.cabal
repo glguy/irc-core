@@ -1,5 +1,5 @@
 name:                glirc
-version:             2.18
+version:             2.19
 synopsis:            Console IRC client
 description:         Console IRC client
                      .
@@ -135,7 +135,6 @@ library
                        network              >=2.6.2  && <2.7,
                        process              >=1.4.2  && <1.5,
                        regex-tdfa           >=1.2    && <1.3,
-                       regex-tdfa-text      >=1.0    && <1.1,
                        socks                >=0.5.5  && <0.6,
                        split                >=0.2    && <0.3,
                        stm                  >=2.4    && <2.5,
