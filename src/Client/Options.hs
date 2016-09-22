@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, MultiWayIf #-}
+{-# Language CPP, TemplateHaskell, MultiWayIf #-}
 {-|
 Module      : Client.Options
 Description : Processing of command-line options
@@ -34,6 +34,7 @@ import           System.Console.GetOpt
 import           System.Environment
 import           System.Exit
 import           System.IO
+import           System.Info
 import           Paths_glirc (version)
 import           Build_glirc (deps)
 
@@ -119,7 +120,18 @@ fullVersionTxt =
   versionTxt ++
   unlines
   (""
-  :"Full dependency list:"
+  :("OS          : " ++ os)
+  :("Architecture: " ++ arch)
+  :("Compiler    : " ++ compilerName ++ "-" ++ showVersion compilerVersion)
+  :""
+  :("ghc         : " ++ TOOL_VERSION_ghc)
+  :("ghc-pkg     : " ++ TOOL_VERSION_ghc_pkg)
+  :("alex        : " ++ TOOL_VERSION_alex)
+  :("happy       : " ++ TOOL_VERSION_happy)
+  :("hsc2hs      : " ++ TOOL_VERSION_hsc2hs)
+  :("cpphs       : " ++ TOOL_VERSION_cpphs)
+  :""
+  :"Transitive dependencies:"
   : [ name ++ "-" ++ intercalate "." (map show ver) | (name,ver) <- sort deps ]
   )
 
