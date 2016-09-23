@@ -789,8 +789,13 @@ cmdClear st args =
           | otherwise = setWindow Nothing
 
         focusEffect
-          | not isActive && view clientFocus st' == focus = advanceFocus
-          | otherwise                                    = id
+          | not isActive && view clientFocus st' == focus =
+                 if has (clientWindows . ix prev) st'
+                 then changeFocus prev
+                 else advanceFocus
+          | otherwise = id
+          where
+            prev = view clientPrevFocus st
 
         setWindow = set (clientWindows . at focus)
 

@@ -24,6 +24,7 @@ module Client.State
   , clientHeight
   , clientEvents
   , clientFocus
+  , clientPrevFocus
   , clientExtraFocus
   , clientConnectionContext
   , clientConfig
