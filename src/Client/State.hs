@@ -115,7 +115,6 @@ import           Client.State.Window
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
-import           Control.DeepSeq
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
@@ -485,7 +484,7 @@ toWindowLine params importance msg = WindowLine
   }
   where
     mkImage mode =
-      force (msgImage mode (view msgTime msg) params (view msgBody msg))
+      msgImage mode (view msgTime msg) params (view msgBody msg)
 
 -- | 'toWindowLine' but with mostly defaulted parameters.
 toWindowLine' :: Configuration -> WindowLineImportance -> ClientMessage -> WindowLine
