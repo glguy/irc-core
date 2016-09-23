@@ -16,7 +16,7 @@ module Main (main) where
 
 import           Control.Monad (unless)
 import           Data.Char (isAlphaNum)
-import           Data.List (delete, sort)
+import           Data.List (delete)
 import           Distribution.InstalledPackageInfo (InstalledPackageInfo, sourcePackageId, license)
 import qualified Distribution.ModuleName as ModuleName
 import           Distribution.PackageDescription hiding (license)
