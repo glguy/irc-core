@@ -35,24 +35,35 @@ import           Graphics.Vty.Image
 -- | Compute the UI image for the text input box. This computes
 -- the logical cursor position on the screen to compensate for
 -- VTY's cursor placement behavior.
-textboxImage :: ClientState -> (Int, Image) -- ^ cursor column, image
+textboxImage :: ClientState -> (Int, Int, Image) -- ^ cursor column, new offset, image
 textboxImage st
-  = (pos, croppedImage)
+  = (newPos, newOffset, croppedImage)
   where
   width = view clientWidth st
   macros = views (clientConfig . configMacros) (fmap macroSpec) st
   (txt, content) =
      views (clientTextBox . Edit.content) (renderContent macros pal) st
 
-  pos = min (width-1) leftOfCurWidth
-
   lineImage = beginning <|> content <|> ending
 
   leftOfCurWidth = myWcswidth ('^':txt)
 
-  croppedImage
-    | leftOfCurWidth < width = lineImage
-    | otherwise = cropLeft width (cropRight (leftOfCurWidth+1) lineImage)
+  croppedImage = cropLeft (imageWidth lineImage - newOffset) lineImage
+
+  cursorAnchor = width * 3 `quot` 4
+
+  -- previous offset value
+  oldOffset = view clientTextBoxOffset st
+
+  -- position based on old offset
+  oldPos = leftOfCurWidth - oldOffset
+
+  -- new offset (number of columns to trim from left side of text box)
+  newOffset
+    | 0 <= oldPos, oldPos < width = oldOffset
+    | otherwise                   = max 0 (leftOfCurWidth - cursorAnchor)
+
+  newPos = leftOfCurWidth - newOffset
 
   pal       = clientPalette st
   attr      = view palTextBox pal

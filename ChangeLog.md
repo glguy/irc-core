@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.19
+
+* Smarter text box tracks "scroll" position independently from cursor
+* Added `--full-version` flag
+
 ## 2.18
 
 * Add digraph support under `M-k` and `/digraphs`

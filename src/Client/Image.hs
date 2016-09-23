@@ -45,10 +45,11 @@ clientImage st = (pos, img, st')
     (mainHeight, splitHeight) = clientWindowHeights (imageHeight activityBar) st
     splitFocuses              = clientExtraFocuses st
     focus                     = view clientFocus st
-    (pos , tbImg )            = textboxImage st
+    (pos , nextOffset, tbImg) = textboxImage st
 
     -- update client state for scroll clamp
-    st' = over clientScroll (max 0 . subtract overscroll) st
+    !st' = set clientTextBoxOffset nextOffset
+         $ over clientScroll (max 0 . subtract overscroll) st
 
     (overscroll, msgs) = messagePane mainHeight focus (view clientSubfocus st) st
     splits = renderExtra st' <$> splitFocuses

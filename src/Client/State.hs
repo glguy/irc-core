@@ -18,6 +18,7 @@ module Client.State
   -- * Lenses
   , clientWindows
   , clientTextBox
+  , clientTextBoxOffset
   , clientConnections
   , clientWidth
   , clientHeight
@@ -160,6 +161,7 @@ data ClientState = ClientState
   , _clientConfig            :: !Configuration            -- ^ client configuration
 
   , _clientTextBox           :: !Edit.EditBox             -- ^ primary text box
+  , _clientTextBoxOffset     :: !Int                      -- ^ size to crop from left of text box
   , _clientWidth             :: !Int                      -- ^ current terminal width
   , _clientHeight            :: !Int                      -- ^ current terminal height
 
@@ -228,6 +230,7 @@ withClientState cfg k =
         , _clientIgnores           = view configIgnores cfg
         , _clientConnections       = _Empty # ()
         , _clientTextBox           = Edit.defaultEditBox
+        , _clientTextBoxOffset     = 0
         , _clientWidth             = 80
         , _clientHeight            = 25
         , _clientEvents            = events
