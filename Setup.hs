@@ -109,7 +109,7 @@ generateBuildModule verbosity pkg lbi pkgs =
        , "Module      : " ++ modname
        , "Description : Dynamically generated configuration module"
        , "-}"
-       , "module Build_" ++ modname ++ " (deps) where"
+       , "module " ++ modname ++ " (deps) where"
        , ""
        , "-- | Transitive dependencies for this package computed at configure-time"
        , "deps :: [(String,[Int])] -- ^ package name, version number"
