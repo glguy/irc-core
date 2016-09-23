@@ -1,4 +1,4 @@
-{-# Language RecordWildCards #-}
+{-# Language GeneralizedNewtypeDeriving, RankNTypes, RecordWildCards #-}
 {-|
 Module      : Client.CApi
 Description : Dynamically loaded extension API
@@ -25,8 +25,8 @@ module Client.CApi
 
 import           Client.CApi.Types
 import           Control.Monad
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Cont
+import           Control.Monad.IO.Class
+import           Control.Monad.Codensity
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Foreign as Text
@@ -96,6 +96,7 @@ deactivateExtension stab ae =
        runStopExtension f stab (aeSession ae)
      dlclose (aeDL ae)
 
+
 -- | Call all of the process message callbacks in the list of extensions.
 -- This operation marshals the IRC message once and shares that across
 -- all of the callbacks.
@@ -114,8 +115,9 @@ notifyExtensions stab network msg aes
                         s = aeSession ae
                   , f /= nullFunPtr ]
 
-    doNotifications =
-      runContT (withRawIrcMsg network msg) (go aes')
+    doNotifications = evalNestedIO $
+      do msg <- withRawIrcMsg network msg
+         liftIO (go aes' msg)
 
     -- run handlers until one of them drops the message
     go [] _ = return True
@@ -131,18 +133,18 @@ commandExtension ::
   [Text]          {- ^ parameters             -} ->
   ActiveExtension {- ^ extension to command   -} ->
   IO ()
-commandExtension stab params ae = evalContT $
+commandExtension stab params ae = evalNestedIO $
   do cmd <- withCommand params
      let f = fgnCommand (aeFgn ae)
-     lift $ unless (f == nullFunPtr)
-          $ runProcessCommand f stab (aeSession ae) cmd
+     liftIO $ unless (f == nullFunPtr)
+            $ runProcessCommand f stab (aeSession ae) cmd
 
 -- | Marshal a 'RawIrcMsg' into a 'FgnMsg' which will be valid for
 -- the remainder of the computation.
 withRawIrcMsg ::
   Text                 {- ^ network      -} ->
   RawIrcMsg            {- ^ message      -} ->
-  ContT a IO (Ptr FgnMsg)
+  NestedIO (Ptr FgnMsg)
 withRawIrcMsg network RawIrcMsg{..} =
   do net     <- withText network
      pfxN    <- withText $ maybe Text.empty (idText.userNick) _msgPrefix
@@ -152,30 +154,45 @@ withRawIrcMsg network RawIrcMsg{..} =
      prms    <- traverse withText _msgParams
      tags    <- traverse withTag  _msgTags
      let (keys,vals) = unzip tags
-     (tagN,keysPtr) <- contT2 $ withArrayLen keys
-     valsPtr        <- ContT  $ withArray vals
-     (prmN,prmPtr)  <- contT2 $ withArrayLen prms
-     ContT $ with $ FgnMsg net pfxN pfxU pfxH cmd prmPtr (fromIntegral prmN)
+     (tagN,keysPtr) <- nest2 $ withArrayLen keys
+     valsPtr        <- nest1 $ withArray vals
+     (prmN,prmPtr)  <- nest2 $ withArrayLen prms
+     nest1 $ with $ FgnMsg net pfxN pfxU pfxH cmd prmPtr (fromIntegral prmN)
                                        keysPtr valsPtr (fromIntegral tagN)
 
 withCommand ::
   [Text] {- ^ parameters -} ->
-  ContT a IO (Ptr FgnCmd)
+  NestedIO (Ptr FgnCmd)
 withCommand params =
   do prms          <- traverse withText params
-     (prmN,prmPtr) <- contT2 $ withArrayLen prms
-     ContT $ with $ FgnCmd prmPtr (fromIntegral prmN)
+     (prmN,prmPtr) <- nest2 $ withArrayLen prms
+     nest1 $ with $ FgnCmd prmPtr (fromIntegral prmN)
 
-withTag :: TagEntry -> ContT a IO (FgnStringLen, FgnStringLen)
+withTag :: TagEntry -> NestedIO (FgnStringLen, FgnStringLen)
 withTag (TagEntry k v) =
   do pk <- withText k
      pv <- withText v
      return (pk,pv)
 
-withText :: Text -> ContT a IO FgnStringLen
+withText :: Text -> NestedIO FgnStringLen
 withText txt =
-  do (ptr,len) <- ContT $ Text.withCStringLen txt
+  do (ptr,len) <- nest1 $ Text.withCStringLen txt
      return $ FgnStringLen ptr $ fromIntegral len
 
-contT2 :: ((a -> b -> m c) -> m c) -> ContT c m (a,b)
-contT2 f = ContT $ \g -> f $ curry g
+------------------------------------------------------------------------
+
+-- | Continuation-passing style bracked IO actions.
+newtype NestedIO a = NestedIO (Codensity IO a)
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+-- | Return the bracket IO action.
+evalNestedIO :: NestedIO a -> IO a
+evalNestedIO (NestedIO m) = lowerCodensity m
+
+-- | Wrap up a bracketing IO operation where the continuation takes 1 argument
+nest1 :: (forall r. (a -> IO r) -> IO r) -> NestedIO a
+nest1 f = NestedIO (Codensity f)
+
+-- | Wrap up a bracketing IO operation where the continuation takes 2 argument
+nest2 :: (forall r. (a -> b -> IO r) -> IO r) -> NestedIO (a,b)
+nest2 f = NestedIO (Codensity (f . curry))
