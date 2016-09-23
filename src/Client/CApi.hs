@@ -116,8 +116,8 @@ notifyExtensions stab network msg aes
                   , f /= nullFunPtr ]
 
     doNotifications = evalNestedIO $
-      do msg <- withRawIrcMsg network msg
-         liftIO (go aes' msg)
+      do raw <- withRawIrcMsg network msg
+         liftIO (go aes' raw)
 
     -- run handlers until one of them drops the message
     go [] _ = return True

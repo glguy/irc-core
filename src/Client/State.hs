@@ -595,10 +595,10 @@ Right urlPattern =
     \<https?://[^>]*>"
 
 urlMatches :: Text -> [Text]
-urlMatches txt = removeBrackets . extract . (^?! ix 0)
+urlMatches txt = removeBrackets . extractText . (^?! ix 0)
              <$> matchAll urlPattern (Text.unpack txt)
   where
-    extract (off,len) = Text.take len (Text.drop off txt)
+    extractText (off,len) = Text.take len (Text.drop off txt)
 
     removeBrackets t =
       case Text.uncons t of
