@@ -4,6 +4,9 @@
 
 * Smarter text box tracks "scroll" position independently from cursor
 * Added `--full-version` flag
+* Remove `regex-tdfa-text` dependency
+* Added `bell-on-mention` client setting
+* Added `ExportCApi` cabal flag to help with loading the client in GHCi
 
 ## 2.18
 
