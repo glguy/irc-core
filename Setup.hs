@@ -6,106 +6,132 @@ License     : ISC
 Maintainer  : emertens@gmail.com
 
 This is a default setup script except that it checks that all
-transitive dependencies of this package use free licenses.
+transitive dependencies of this package use free licenses and
+generates a Build module detailing the versions of build tools
+and transitive library dependencies.
 
 -}
 
 module Main (main) where
 
-import Control.Monad
-import Data.Char
-import Data.List
-import Distribution.InstalledPackageInfo (InstalledPackageInfo, sourcePackageId, license)
+import           Control.Monad (unless)
+import           Data.Char (isAlphaNum)
+import           Data.List (delete, sort)
+import           Distribution.InstalledPackageInfo (InstalledPackageInfo, sourcePackageId, license)
 import qualified Distribution.ModuleName as ModuleName
-import Distribution.PackageDescription hiding (license)
-import Distribution.Simple
-import Distribution.Simple.BuildPaths
-import Distribution.Simple.LocalBuildInfo
-import Distribution.Simple.PackageIndex
-import Distribution.Simple.Setup
-import Distribution.Simple.Utils
-import Distribution.Verbosity
-import System.FilePath
+import           Distribution.PackageDescription hiding (license)
+import           Distribution.Simple
+import           Distribution.Simple.BuildPaths (autogenModulesDir)
+import           Distribution.Simple.LocalBuildInfo (LocalBuildInfo, installedPkgs)
+import           Distribution.Simple.PackageIndex (allPackages)
+import           Distribution.Simple.Setup (configVerbosity, fromFlag)
+import           Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFile)
+import           Distribution.Verbosity (Verbosity)
+import           System.FilePath ((</>), (<.>))
 
+
+-- | Default Setup main extended to generate a Build module and to validate
+-- the licenses of transitive dependencies.
 main :: IO ()
 main = defaultMainWithHooks simpleUserHooks
+
   { postConf = \args flags pkg lbi ->
-      do myPostConf args flags pkg lbi
+      do let pkgs = allPackages (installedPkgs lbi)
+         validateLicenses pkgs
+         generateBuildModule (fromFlag (configVerbosity flags)) pkg lbi pkgs
          postConf simpleUserHooks args flags pkg lbi
-  , sDistHook = \ pkg mbLbi hooks flags ->
+
+  , sDistHook = \pkg mbLbi hooks flags ->
       do let pkg' = forgetBuildModule pkg
          sDistHook simpleUserHooks pkg' mbLbi hooks flags
   }
 
 
-forgetBuildModule :: PackageDescription -> PackageDescription
-forgetBuildModule pkg =
-  pkg { library     = forgetInLibrary    <$> library pkg
-      , executables = forgetInExecutable <$> executables pkg
-      , benchmarks  = forgetInBenchmark  <$> benchmarks pkg
-      , testSuites  = forgetInTestSuite  <$> testSuites pkg
-      }
+-- | Remove the Build module from the package description. This is needed
+-- when building a source distribution tarball because the Build module
+-- should be generated dynamically at configuration time.
+forgetBuildModule ::
+  PackageDescription {- ^ package description with Build module    -} ->
+  PackageDescription {- ^ package description without Build module -}
+forgetBuildModule pkg = pkg
+  { library     = forgetInLibrary    <$> library     pkg
+  , executables = forgetInExecutable <$> executables pkg
+  , benchmarks  = forgetInBenchmark  <$> benchmarks  pkg
+  , testSuites  = forgetInTestSuite  <$> testSuites  pkg
+  }
   where
     forget = delete (ModuleName.fromString (buildModuleName pkg))
 
-    forgetInBuildInfo bi = bi { otherModules = forget (otherModules bi) }
+    forgetInBuildInfo x = x
+      { otherModules = forget (otherModules x) }
 
-    forgetInLibrary lib = lib { exposedModules = forget (exposedModules lib)
-                              , libBuildInfo = forgetInBuildInfo (libBuildInfo lib)
-                              }
+    forgetInLibrary x = x
+      { exposedModules = forget (exposedModules x)
+      , libBuildInfo   = forgetInBuildInfo (libBuildInfo x) }
 
-    forgetInTestSuite t = t { testBuildInfo = forgetInBuildInfo (testBuildInfo t)
-                            }
+    forgetInTestSuite x = x
+      { testBuildInfo = forgetInBuildInfo (testBuildInfo x) }
 
-    forgetInBenchmark b = b { benchmarkBuildInfo = forgetInBuildInfo (benchmarkBuildInfo b)
-                            }
+    forgetInBenchmark x = x
+      { benchmarkBuildInfo = forgetInBuildInfo (benchmarkBuildInfo x) }
 
-    forgetInExecutable e = e { buildInfo = forgetInBuildInfo (buildInfo e)
-                             }
+    forgetInExecutable x = x
+      { buildInfo = forgetInBuildInfo (buildInfo x) }
 
 
-buildModuleName :: PackageDescription -> String
+-- | Compute the name of the Build module for a given package
+buildModuleName ::
+  PackageDescription {- ^ package description -} ->
+  String             {- ^ module name         -}
 buildModuleName pkg = "Build_" ++ map clean (unPackageName (pkgName (package pkg)))
   where
     clean x | isAlphaNum x = x
             | otherwise    = '_'
 
 
--- | Custom hooks to check license acceptability and to record dependencies
--- in an generated module.
-myPostConf ::
-  [String]           {- ^ arguments               -} ->
-  ConfigFlags        {- ^ configuration flags     -} ->
-  PackageDescription {- ^ package description     -} ->
-  LocalBuildInfo     {- ^ local build information -} ->
-  IO ()
-myPostConf _args flags pkg lbi =
-  do let pkgs = allPackages (installedPkgs lbi)
-     validateLicenses pkgs
-     generateDepModules (fromFlag (configVerbosity flags)) pkg lbi pkgs
-
-
-generateDepModules ::
+-- | Generate the Build_package module for the given package information.
+--
+-- This module will export `deps :: [(String,[Int])]`
+generateBuildModule ::
   Verbosity              {- ^ build verbosity                 -} ->
   PackageDescription     {- ^ package description             -} ->
   LocalBuildInfo         {- ^ local build information         -} ->
   [InstalledPackageInfo] {- ^ transitive package dependencies -} ->
   IO ()
-generateDepModules verbosity pkg lbi pkgs =
-  do let dir = autogenModulesDir lbi
+generateBuildModule verbosity pkg lbi pkgs =
+  do let modname = buildModuleName pkg
+         dir     = autogenModulesDir lbi
+         file    = dir </> modname <.> "hs"
      createDirectoryIfMissingVerbose verbosity True dir
-     rewriteFile (dir </> buildModuleName pkg ++ ".hs")
+     rewriteFile file
        $ unlines
-       [ "module Build_" ++ unPackageName (pkgName (package pkg)) ++ " (deps) where"
+       [ "{-|"
+       , "Module      : " ++ modname
+       , "Description : Dynamically generated configuration module"
+       , "-}"
+       , "module Build_" ++ modname ++ " (deps) where"
        , ""
-       , "deps :: [(String,[Int])]"
-       , "deps = " ++ show [ (unPackageName (pkgName pid), versionBranch (pkgVersion pid))
-                            | p <- pkgs
-                            , let pid = sourcePackageId p ]
+       , "-- | Transitive dependencies for this package computed at configure-time"
+       , "deps :: [(String,[Int])] -- ^ package name, version number"
+       , "deps = " ++ renderDeps pkgs
        ]
 
 
-validateLicenses :: [InstalledPackageInfo] -> IO ()
+-- | Render the transitive package dependencies as a Haskell expression
+renderDeps ::
+  [InstalledPackageInfo] {- ^ transitive package dependencies -} ->
+  String                 {- ^ haskell syntax                  -}
+renderDeps pkgs =
+  show [ (unPackageName (pkgName p), versionBranch (pkgVersion p))
+       | p <- sourcePackageId <$> pkgs
+       ]
+
+
+-- | Check that all transitive dependencies are available under an acceptable
+-- license. Raises a user-error on failure.
+validateLicenses ::
+  [InstalledPackageInfo] {- ^ transitive package dependencies -} ->
+  IO ()
 validateLicenses pkgs =
   do let p pkg   = license pkg `notElem` freeLicenses
          badPkgs = filter p pkgs
@@ -115,6 +141,7 @@ validateLicenses pkgs =
           fail "BAD LICENSE"
 
 
+-- | The set of permissive licenses that are acceptable for transitive dependencies
+-- of this package: BSD2, BSD3, ISC, MIT, PublicDomain
 freeLicenses :: [License]
-freeLicenses = [ BSD2, BSD3, ISC, MIT ]
-
+freeLicenses = [BSD2, BSD3, ISC, MIT, PublicDomain]
