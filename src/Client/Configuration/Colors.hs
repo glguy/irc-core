@@ -56,7 +56,7 @@ parseStyle v =
   case v of
     Atom "blink"         -> pure blink -- You're the boss...
     Atom "bold"          -> pure bold
-    Atom "dim"           -> pure bold
+    Atom "dim"           -> pure dim
     Atom "reverse-video" -> pure reverseVideo
     Atom "standout"      -> pure standout
     Atom "underline"     -> pure underline
