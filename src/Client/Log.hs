@@ -31,13 +31,17 @@ import           Irc.UserInfo
 import           System.Directory
 import           System.FilePath
 
+
+-- | Log entry queued in client to be written by the event loop
 data LogLine = LogLine
-  { logBaseDir :: FilePath
-  , logDay     :: Day
-  , logTarget  :: Text
-  , logLine    :: L.Text
+  { logBaseDir :: FilePath -- ^ log directory from server settings
+  , logDay     :: Day      -- ^ localtime day
+  , logTarget  :: Text     -- ^ channel or nickname
+  , logLine    :: L.Text   -- ^ formatted log message text
   }
 
+
+-- | Write the given log entry to the filesystem.
 writeLogLine ::
   LogLine  {- ^ log line -} ->
   IO ()
@@ -50,9 +54,14 @@ writeLogLine ll = ignoreProblems $
      createDirectoryIfMissing recursiveFlag dir'
      L.appendFile file (logLine ll)
 
+
+-- | Ignore all 'IOErrors'
 ignoreProblems :: IO () -> IO ()
 ignoreProblems m = () <$ (try m :: IO (Either IOError ()))
 
+
+-- | Construct a 'LogLine' for the given 'ClientMessage' when appropriate.
+-- Only chat messages result in a log line.
 renderLogLine ::
   ClientMessage {- ^ message       -} ->
   FilePath      {- ^ log directory -} ->

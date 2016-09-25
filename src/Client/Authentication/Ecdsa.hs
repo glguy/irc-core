@@ -29,16 +29,34 @@ import qualified Data.Text.Encoding as Text
 import           System.IO.Error (IOError)
 import           System.Process (readProcess)
 
+
+-- | Identifier for SASL ECDSA challenge response authentication
+-- using curve NIST256P.
+--
+-- @ECDSA-NIST256P-CHALLENGE@
 authenticationMode :: Text
 authenticationMode = "ECDSA-NIST256P-CHALLENGE"
 
-encodeUsername :: Text -> Text
+
+-- | Encode a username as specified in this authentication mode.
+encodeUsername ::
+  Text {- ^ username                 -} ->
+  Text {- ^ base-64 encoded username -}
 encodeUsername = Text.decodeUtf8 . convertToBase Base64 . Text.encodeUtf8
 
-computeResponse :: FilePath -> Text -> IO (Either String Text)
+
+-- | Compute the response for a given challenge using the @ecdsatool@
+-- executable which must be available in @PATH@.
+computeResponse ::
+  FilePath                {- ^ private key file                 -} ->
+  Text                    {- ^ challenge string                 -} ->
+  IO (Either String Text) {- ^ error message or response string -}
 computeResponse privateKeyFile challenge =
   do path <- resolveConfigurationPath privateKeyFile
-     res  <- try (readProcess "ecdsatool" ["sign", path, Text.unpack challenge] "")
+     res  <- try $ readProcess
+                     "ecdsatool"
+                     ["sign", path, Text.unpack challenge]
+                     "" -- stdin
      return $! case words <$> res of
                  Right [resp] -> Right $! Text.pack resp
                  Right _      -> Left "bad sasl ecdsa response message"

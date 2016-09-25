@@ -149,11 +149,11 @@ data ClientState = ClientState
   { _clientWindows           :: !(Map Focus Window) -- ^ client message buffers
   , _clientPrevFocus         :: !Focus              -- ^ previously focused buffer
   , _clientFocus             :: !Focus              -- ^ currently focused buffer
-  , _clientSubfocus          :: !Subfocus           -- ^ sec
+  , _clientSubfocus          :: !Subfocus           -- ^ current view mode
   , _clientExtraFocus        :: ![Focus]            -- ^ extra messages windows to view
 
   , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
-  , _clientNextConnectionId  :: !Int
+  , _clientNextConnectionId  :: !NetworkId              -- ^ next available 'NetworkId'
   , _clientConnectionContext :: !ConnectionContext        -- ^ network connection context
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
@@ -179,16 +179,24 @@ data ClientState = ClientState
   , _clientLogQueue          :: ![LogLine]                -- ^ log lines ready to write
   }
 
+
+-- | State of the extension API including loaded extensions and the mechanism used
+-- to support reentry into the Haskell runtime from the C API.
 data ExtensionState = ExtensionState
-  { _esActive    :: [ActiveExtension]
-  , _esMVar      :: MVar ClientState
-  , _esStablePtr :: StablePtr (MVar ClientState)
+  { _esActive    :: [ActiveExtension]            -- ^ active extensions
+  , _esMVar      :: MVar ClientState             -- ^ 'MVar' used to with 'clientPark'
+  , _esStablePtr :: StablePtr (MVar ClientState) -- ^ 'StablePtr' used with 'clientPark'
   }
 
 makeLenses ''ClientState
 makeLenses ''ExtensionState
 
-clientPark :: ClientState -> (Ptr () -> IO a) -> IO (ClientState, a)
+
+-- | Prepare the client to support reentry from the extension API.
+clientPark ::
+  ClientState      {- ^ client state                                        -} ->
+  (Ptr () -> IO a) {- ^ continuation using the stable pointer to the client -} ->
+  IO (ClientState, a)
 clientPark st k =
   do let mvar = view (clientExtensions . esMVar) st
      putMVar mvar st
@@ -386,7 +394,13 @@ ircIgnorable msg !st =
       | identIgnored (userNick who) st = Just (userNick who)
       | otherwise                      = Nothing
 
-identIgnored :: Identifier -> ClientState -> Bool
+
+
+-- | Predicate for nicknames to determine if messages should be ignored.
+identIgnored ::
+  Identifier  {- ^ nickname     -} ->
+  ClientState {- ^ client state -} ->
+  Bool        {- ^ is ignored   -}
 identIgnored who st = HashSet.member who (view clientIgnores st)
 
 
@@ -552,7 +566,12 @@ channelUserList ::
 channelUserList network channel =
   views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys
 
-clientMatcher :: ClientState -> Text -> Bool
+
+-- | Returns the current filtering predicate.
+clientMatcher ::
+  ClientState {- ^ client state  -} ->
+  Text        {- ^ text to match -} ->
+  Bool        {- ^ is match      -}
 clientMatcher st =
   case clientActiveRegex st of
     Nothing -> const True
@@ -586,6 +605,7 @@ clientActiveCommand st =
     _                -> Nothing
 
 
+-- | Regular expression for matching HTTP/HTTPS URLs in chat text.
 urlPattern :: Regex
 Right urlPattern =
   compile
@@ -594,6 +614,9 @@ Right urlPattern =
     "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[^[:cntrl:][:space:]]*)|\
     \<https?://[^>]*>"
 
+
+-- | Find all the URL matches using 'urlPattern' in a given 'Text' suitable
+-- for being opened. Surrounding @<@ and @>@ are removed.
 urlMatches :: Text -> [Text]
 urlMatches txt = removeBrackets . extractText . (^?! ix 0)
              <$> matchAll urlPattern (Text.unpack txt)
@@ -697,10 +720,14 @@ applyWindowRenames network (Nick old new) st
 
 applyWindowRenames _ _ st = st
 
+
+-- | Actions to be run when exiting the client.
 clientShutdown :: ClientState -> IO ()
 clientShutdown st = () <$ clientStopExtensions st
  -- other shutdown stuff might be added here later
 
+
+-- | Unload all active extensions.
 clientStopExtensions :: ClientState -> IO ClientState
 clientStopExtensions st =
   do let (aes,st1) = (clientExtensions . esActive <<.~ []) st

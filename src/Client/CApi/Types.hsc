@@ -76,7 +76,7 @@ type StopExtension =
   Ptr () {- ^ extension state -} ->
   IO ()
 
--- | Type of @typedef enum process_result process_message(void *glirc, void *S, const struct glirc_message *);@
+-- | @typedef enum process_result process_message(void *glirc, void *S, const struct glirc_message *);@
 type ProcessMessage =
   Ptr ()     {- ^ api token       -} ->
   Ptr ()     {- ^ extention state -} ->

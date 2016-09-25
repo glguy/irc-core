@@ -50,6 +50,9 @@ statusLineImage st = content <|> charFill defAttr '─' fillSize 1
       , latencyImage st
       ]
 
+
+-- | The minor status line is used when rendering the @/splits@ and
+-- @/mentions@ views to show the associated window name.
 minorStatusLineImage :: Focus -> ClientState -> Image
 minorStatusLineImage focus st =
   content <|> charFill defAttr '─' fillSize 1
@@ -58,6 +61,7 @@ minorStatusLineImage focus st =
     fillSize = max 0 (view clientWidth st - imageWidth content)
 
 
+-- | Indicate when the client is scrolling and old messages are being shown.
 scrollImage :: ClientState -> Image
 scrollImage st
   | 0 == view clientScroll st = emptyImage
@@ -66,6 +70,9 @@ scrollImage st
     pal  = clientPalette st
     attr = view palLabel pal
 
+
+-- | Indicate when the client is potentially showing a subset of the
+-- available chat messages.
 filterImage :: ClientState -> Image
 filterImage st =
   case clientActiveRegex st of
@@ -75,6 +82,10 @@ filterImage st =
     pal  = clientPalette st
     attr = view palLabel pal
 
+
+-- | Indicate the current connection health. This will either indicate
+-- that the connection is being established or that a ping has been
+-- sent or long the previous ping round-trip was.
 latencyImage :: ClientState -> Image
 latencyImage st
   | Just network <- views clientFocus focusNetwork st
@@ -95,9 +106,14 @@ latencyImage st
   where
     pal = clientPalette st
 
+
+-- | Wrap some text in parentheses to make it suitable for inclusion in the
+-- status line.
 infoBubble :: Image -> Image
 infoBubble img = string defAttr "─(" <|> img <|> string defAttr ")"
 
+
+-- | Indicate that the client is in the /detailed/ view.
 detailImage :: ClientState -> Image
 detailImage st
   | view clientDetailView st = infoBubble (string attr "detail")
@@ -106,6 +122,9 @@ detailImage st
     pal  = clientPalette st
     attr = view palLabel pal
 
+
+-- | Indicate that the client isn't showing the metadata lines in /normal/
+-- view.
 nometaImage :: ClientState -> Image
 nometaImage st
   | view clientShowMetadata st = emptyImage

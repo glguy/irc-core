@@ -276,6 +276,8 @@ expandAliases xs =
 commands :: Recognizer Command
 commands = fromCommands (expandAliases commandsList)
 
+
+-- | Raw list of commands in the order used for @/help@
 commandsList :: [Command]
 commandsList =
   --

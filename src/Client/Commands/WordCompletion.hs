@@ -35,12 +35,18 @@ data WordCompletionMode = WordCompletionMode
   { wcmStartPrefix, wcmStartSuffix, wcmMiddlePrefix, wcmMiddleSuffix :: String }
   deriving Show
 
+
+-- | Word completion without adding any prefix or suffix
 plainWordCompleteMode :: WordCompletionMode
 plainWordCompleteMode = WordCompletionMode "" "" "" ""
 
+
+-- | Word completion adding a ": " suffix at the beginning of lines
 defaultNickWordCompleteMode :: WordCompletionMode
 defaultNickWordCompleteMode = WordCompletionMode "" ": " "" ""
 
+
+-- | Word completion using a "@" prefix intended
 slackNickWordCompleteMode :: WordCompletionMode
 slackNickWordCompleteMode = WordCompletionMode "@" " " "@" ""
 
@@ -87,6 +93,10 @@ replaceWith (WordCompletionMode spfx ssfx mpfx msfx) str box =
              | otherwise               = mpfx ++ str ++ msfx
     in over Edit.content (Edit.insertString str1) box1
 
+
+-- | Find the word preceeding the cursor skipping over any
+-- characters that can be found in the prefix and suffix for
+-- the current completion mode.
 currentWord :: WordCompletionMode -> Edit.EditBox -> String
 currentWord (WordCompletionMode spfx ssfx mpfx msfx) box
   = dropWhile (`elem`pfx)
@@ -124,6 +134,8 @@ instance Prefix Text where
   toString = Text.unpack
 
 
+-- | Find the next entry in a list of possible choices using an alphabetical
+-- ordering.
 tabSearch ::
   Prefix a =>
   Bool {- ^ reversed        -} ->
