@@ -20,6 +20,7 @@ import Data.Text (Text)
 import System.Exit
 import System.IO
 import Graphics.Vty
+import Hookup
 
 import Client.Configuration
 import Client.EventLoop
@@ -29,7 +30,7 @@ import Client.State.Focus
 
 -- | Main action for IRC client
 main :: IO ()
-main =
+main = withHookupDo $
   do opts <- getOptions
      cfg  <- loadConfiguration' (view optConfigFile opts)
      runInUnboundThread $

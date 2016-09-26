@@ -26,7 +26,6 @@ module Client.State
   , clientFocus
   , clientPrevFocus
   , clientExtraFocus
-  , clientConnectionContext
   , clientConfig
   , clientScroll
   , clientDetailView
@@ -140,7 +139,6 @@ import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
-import           Network.Connection (ConnectionContext, initConnectionContext)
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
 
@@ -154,7 +152,6 @@ data ClientState = ClientState
 
   , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
   , _clientNextConnectionId  :: !NetworkId              -- ^ next available 'NetworkId'
-  , _clientConnectionContext :: !ConnectionContext        -- ^ network connection context
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
 
@@ -230,8 +227,7 @@ withClientState cfg k =
 
   withExtensionState $ \exts ->
 
-  do cxt            <- initConnectionContext
-     events         <- atomically newTQueue
+  do events         <- atomically newTQueue
      k ClientState
         { _clientWindows           = _Empty # ()
         , _clientNetworkMap        = _Empty # ()
@@ -246,7 +242,6 @@ withClientState cfg k =
         , _clientFocus             = Unfocused
         , _clientSubfocus          = FocusMessages
         , _clientExtraFocus        = []
-        , _clientConnectionContext = cxt
         , _clientConfig            = cfg
         , _clientScroll            = 0
         , _clientDetailView        = False
@@ -666,7 +661,6 @@ addConnection attempts lastTime network st =
      c <- createConnection
             delay
             i
-            (view clientConnectionContext st')
             settings
             (view clientEvents st')
 

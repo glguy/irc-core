@@ -1,0 +1,581 @@
+2015-01-06  PHO  <pho@cielonegro.org>
+
+	* HsOpenSSL.cabal (Version): Bump version to 0.11.1.1
+
+	* OpenSSL/SSL/Option.hsc: Guard SSL_OP_SAFARI_ECDHE_ECDSA_BUG with
+	#if defined(),  Reported by Leon Mergen (#37).
+
+2014-12-31  PHO  <pho@cielonegro.org>
+
+	* tests/DSA.hs: Rename to Test/OpenSSL/DSA.hs and make it a cabal
+	test-case.
+
+	* tests/Cipher.hs: Rename to Test/OpenSSL/Cipher.hs and make it a
+	cabal test-case.
+
+	* tests/Base64.hs: Rename to Test/OpenSSL/EVP/Base64.hs and make
+	it a cabal test-case.
+
+	* HsOpenSSL.cabal (Install-Includes): Removed. HsOpenSSL.h needs
+	not be installed.
+
+	* HsOpenSSL.cabal (Extensions): Removed. Use {-# LANGUAGE #-}
+	pragma instead.
+
+	* OpenSSL/EVP/Internal.hsc (VaguePKey, PKey): Turn documentation
+	comments into Haddock ones.
+
+	* OpenSSL/EVP/PKey.hsc (module): Do not re-export PKey. It was
+	only accidentally re-exported.
+
+	* HsOpenSSL.cabal (Build-Depends): Narrow version ranges that were
+	unnecessarily wide.
+
+	* HsOpenSSL.cabal (Build-Depends): ghc-prim is only required when
+	fast-bignum is enabled and the compiler is ghc < 6.11.
+
+	* HsOpenSSL.cabal (Build-Depends) [fast-bignum]: Declare that
+	integer-gmp >= 1 is not supported yet.  Reported by Herbert
+	Valerio Riedel (#36).
+
+2014-12-23  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/ASN1.hsc (peekASN1Time): Support time-1.5,
+	Patch by Herbert Valerio Riedel (#35).
+
+	* OpenSSL/Session.hsc (context, connection'): Replace
+	addMVarFinalizer with mkWeakMVar to suppress deprecation warnings,
+	Patch by Ryan Desfosses (#33).
+
+	* OpenSSL/Session.hsc (tryShutdown): "shutdown Bidirectional"
+	always resulted in an exception "thread blocked indefinitely in an
+	MVar operation" because of the way we were using withMVar in
+	OpenSSL.Session.tryShutdown.  Reported by Andreas Voellmy (#32).
+
+	* OpenSSL/Session.hsc (contextAddOption, contextRemoveOption)
+	(addOption, removeOption, SSLOption): New functions and a data
+	type to disable SSLv3 vulnerable to the POODLE attack.
+	Suggested by Maxim Dikun (#34).
+
+	* HsOpenSSL.cabal (Version): Bump version to 0.11.1
+
+2014-07-13  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/EVP/Base64.hsc (encodeBase64, decodeBase64): Mark as
+	deprecated.
+
+	* OpenSSL/EVP/Cipher.hsc (cipherInit): Removed. Use
+	OpenSSL.EVP.Internal.cipherInitBS instead. This is a
+	backward-incompatible change.
+
+	* OpenSSL/EVP/Cipher.hsc (cipher): Mark as deprecated.
+
+	* OpenSSL/EVP/Digest.hsc (digest): Mark as deprecated.
+
+	* OpenSSL/EVP/Digest.hsc (digestBS): Changed the return type from
+	String to strict ByteString. This is a backward-incompatible
+	change.
+
+	* OpenSSL/EVP/Digest.hsc (digestBS'): Removed. Use digestBS
+	instead. This is a backward-incompatible change.
+
+	* OpenSSL/EVP/Digest.hsc (digestLBS): Change the return type from
+	String to strict ByteString. This is a backward-incompatible
+	change.
+
+	* OpenSSL/EVP/Open.hsc (open): Mark as deprecated.
+
+	* OpenSSL/EVP/Open.hsc (openBS, openLBS): Take key and IV as a
+	strict ByteString intead of String. This is a
+	backward-incompatible change.
+
+	* OpenSSL/EVP/Seal.hsc (seal): Mark as deprecated.
+
+	* OpenSSL/EVP/Seal.hsc (sealBS, sealLBS): Return key and IV as a
+	strict ByteString intead of String. This is a
+	backward-incompatible change.
+
+	* OpenSSL/EVP/Sign.hsc (sign): Mark as deprecated.
+
+	* OpenSSL/EVP/Verify.hsc (verify): Mark as deprecated.
+
+	* OpenSSL/EVP/Verify.hsc (verifyBS, verifyLBS): Take signature as
+	a strict ByteString instead of String. This is a
+	backward-incompatible change.
+
+	* HsOpenSSL.cabal (Version): Bump version to 0.11
+
+2014-07-13  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/EVP/Cipher.hsc: Expose cipherInit,  Patch by rnons (#31).
+
+	* HsOpenSSL.cabal (Exposed-Modules): Expose OpenSSL.EVP.Internal,
+	Patch by rnons (#31).
+
+	* HsOpenSSL.cabal (Version): Bump version to 0.10.5
+
+2013-12-25  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc (contextSetCertificateChainFile): Add
+	function to support for setting a certificate chain file,
+	Patch by Jacob Stanley.
+
+	* HsOpenSSL.cabal (Extra-Source-Files): Add Server-example files,
+	Patch by Jacob Stanley.
+
+	* HsOpenSSL.cabal (Version): Bump version to 0.10.4
+
+2013-12-11  PHO  <pho@cielonegro.org>
+
+	* OpenSSL.hsc [base < 4.6] (modifyMVar_): Fix compilation,
+	Patch by Gregory Collins.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.3.6
+
+2013-11-07  PHO  <pho@cielonegro.org>
+
+	* OpenSSL.hsc (withOpenSSL): OpenSSL.withOpenSSL is now safe to be
+	applied redundantly,  Suggested by Andrew Cowie (#26).
+
+	* COPYING: Update the license to CC0: copyright waiver with a
+	public license fallback. See
+	http://creativecommons.org/publicdomain/zero/1.0/
+
+	* HsOpenSSL.cabal: Bump version to 0.10.3.5
+
+2013-09-05  PHO  <pho@cielonegro.org>
+
+	* cbits/HsOpenSSL.c, cbits/HsOpenSSL.h: Fix a compilation issue
+	that occurs when using a different builddir with "cabal build
+	--builddir=DIR",  Reported by Bit Connor (#23), Gregory Collins
+	(#24) and Bas van Dijk (#25).
+
+	* HsOpenSSL.cabal: Bump version to 0.10.3.4
+
+2012-08-28  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc: Merged #17 "Use MVar instead of QSem in
+	OpenSSL.Session",  Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.3.3
+
+2012-07-21  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/PEM.hsc, OpenSSL/Session.hsc: Merged #15 "Fixed build
+	with base-4.6",  Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Added a configuration flag 'fast-bignum' (#16).
+
+	* HsOpenSSL.cabal: Bump version to 0.10.3.2
+
+2012-04-24  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/X509/Store.hsc: Merged #14 "Fixed X509_STORE_CTX
+	bindings vs OpenSSL 0.9.x",  Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.3.1
+
+2012-04-17  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/X509/Store.hsc (getStoreCtxCert, getStoreCtxIssuer)
+	(getStoreCtxCRL, getStoreCtxChain): Merged #12 "Bindings to some
+	of the X509_STORE_CTX functions",  Patch by Mikhail Vorozhtsov.
+
+	* OpenSSL/Session.hsc: Merged #13 "Fixed early verification
+	callback deallocation crash",  Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.3
+
+2012-04-16  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/PEM.hsc: Merged #10 "Fix X509 PEM reading/writing",
+	Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.2.1
+
+2012-04-06  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc (readPtr, tryReadPtr, writePtr)
+	(tryWritePtr): Merged #9 "Add raw pointer read/write operations",
+	Patch by Iavor S. Diatchki.
+
+	* cbits/HsOpenSSL.h: Fixed #8 "HsOpenSSL 0.10.1.4 won't build",
+	Reported by vcxp.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.2
+
+2012-03-08  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/EVP/Internal.hsc, OpenSSL/X509.hsc: Fixed #7 "Haskell
+	Platform 2011.4 Support",  Reported by stepcut.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.1.4
+
+2012-03-04  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc (SSL, SSLContext, SSLResult, ShutdownType)
+	(VerificationMode): Make these types instances of Typeable.
+
+	* OpenSSL/Utils.hs: Add Num to constraints with Bits,
+	Patch by Ben Gamari.
+
+	* OpenSSL/DSA.hsc, OpenSSL/EVP/Base64.hsc, OpenSSL/EVP/Digest.hsc,
+	OpenSSL/EVP/Open.hsc, OpenSSL/RSA.hsc: Use unsafePerformIO from
+	System.IO.Unsafe,  Patch by Ben Gamari.
+
+	* OpenSSL/EVP/Internal.hsc, OpenSSL/X509.hsc:
+	Use unsafeForeignPtrToPtr from Foreign.ForeignPtr.Unsafe,
+	Patch by Ben Gamari.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.1.3
+
+2011-11-16  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc: SSL_get_error() must be called within the
+	OS thread which caused the failed operation as it inspects the
+	thread-local storage.
+
+	* OpenSSL/Session.hsc: write/tryWrite should throw EPIPE for
+	cleanly-closed connections rather than EOF.
+
+	* OpenSSL/Session.hsc: shutdown/tryShutdown shouldn't throw an
+	exception when a remote peer sends us a "close notify" alert and
+	closes the connection without waiting for our reply.
+
+	* OpenSSL/Session.hsc: ProtocolError should contain an error
+	message string.
+
+	* OpenSSL/EVP/*: Moved all EVP-related private functions to
+	OpenSSL.EVP.Internal,  Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.1.2
+
+2011-09-22  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc: GHC 6.12.3 friendliness: don't use
+	Control.Monad.void,  Patch by Peter Gammie.
+
+	* OpenSSL/BN.hsc, OpenSSL/Cipher.hsc: Placate LLVM in GHC 7.3.x
+	HEAD: give memcpy the right type.  Patch by Peter Gammie and David
+	Terei.
+
+	* OpenSSL/Session.hsc: Use throwIO instead of throw to raise SSL
+	exceptions,  Patch by Mikhail Vorozhtsov.
+
+	* cbits/HsOpenSSL.c, cbits/HsOpenSSL.h: DHparams_dup() is a
+	function in OpenSSL 1.0.0 but is a macro in 0.9.8.
+
+	* OpenSSL/X509/Revocation.hsc: OpenSSL 0.9.8 doesn't provide
+	X509_CRL_get0_by_serial().
+
+	* HsOpenSSL.cabal: Bump version to 0.10.1.1
+
+2011-08-27  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/DH.hsc: Added bindings to Diffie-Hellman functions,
+	Patch by Mikhail Vorozhtsov.
+
+	* OpenSSL/X509/Revocation.hsc: Added revocation lookup function,
+	Patch by Mikhail Vorozhtsov.
+
+	* OpenSSL/Session.hsc: Added optional verification callback to
+	VerifyPeer,  Patch by Mikhail Vorozhtsov.
+
+	* OpenSSL/Session.hsc: Expose low-level asynchronous versions of
+	accept, connect, read, write and shutdown,
+	Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Bump version to 0.10.1
+
+2011-07-26  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc (fdConnection, sslSocket): Support wrapping
+	plain file descriptors in SSL connections,
+	Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Bump version to 0.10
+
+2011-06-21  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/BN.hsc: Added missing BangPatterns pragma,
+	Patch by Mikhail Vorozhtsov.
+
+	* HsOpenSSL.cabal: Bump version to 0.9.0.1
+
+2010-11-13  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc: Operations in OpenSSL.Session now throw
+	exceptions of individual exception types instead of plain strings,
+	Suggested by Arthur Chan.
+
+	* HsOpenSSL.cabal: Bump version to 0.9
+
+2010-09-19  PHO  <pho@cielonegro.org>
+
+	* HsOpenSSL.cabal: Fix Windows support as suggested in
+	<http://hackage.haskell.org/trac/ghc/wiki/Builder>,
+	Reported by Edward Z. Yang.
+
+	* HsOpenSSL.cabal: Bump version to 0.8.0.2
+
+2010-02-09  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/PEM.hsc: Add PEM-functionality with a new PwBS that
+	works like PwStr except there are no superfluous extra copies
+	retained in the memory,  Patch by Taru Karttunen.
+
+	* OpenSSL/PEM.hsc: Make PEM callbacks use bracket which makes
+	cleanup work even if there are exceptions,
+	Patch by Taru Karttunen.
+
+	* OpenSSL/EVP/Sign.hsc: Export OpenSSL.EVP.Sign.signFinal,
+	Patch by Taru Karttunen.
+
+	* OpenSSL/EVP/Sign.hsc: Make OpenSSL.EVP.Sign.signFinal use
+	ByteStrings internally,  Patch by Taru Karttunen.
+
+	* OpenSSL/EVP/Digest.hsc: Document pkcs5_pbkdf2_hmac_sha1 in
+	OpenSSL.EVP.Digest,  Patch by Taru Karttunen.
+
+	* OpenSSL/RSA.hsc: Add rsaCopyPublic and rsaKeyPairFinalize to
+	OpenSSL.RSA,  Patch by Taru Karttunen.
+
+	* OpenSSL/EVP/Cipher.hsc: Add cipherStrictLBS - Encrypt a lazy
+	bytestring in a strict manner. Does not leak the keys,
+	Patch by Taru Karttunen.
+
+	* HsOpenSSL.cabal: Bump version to 0.8
+
+2010-01-24  PHO  <pho@cielonegro.org>
+
+	* HsOpenSSL.cabal, OpenSSL/BN.hsc: Make HsOpenSSL compatible with
+	GHC 6.12.1,  Patch by Taru Karttunen.
+
+	* HsOpenSSL.cabal: Bump version to 0.7
+
+2009-08-03  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Cipher.hsc: OpenSSL.Cipher now exports the type AESCtx,
+	Suggested by Carl Mackey.
+
+	* HsOpenSSL.cabal: Bump version to 0.6.5
+
+2009-07-14  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/BIO.hsc: Unbreak BIO ForeignPtrs for GHC 6.10,
+	Patch by Taru Karttunen.
+
+	* HsOpenSSL.cabal: Bump version to 0.6.4
+
+2009-07-13  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/EVP/Sign.hsc (signBS, signLBS): These functions should
+	return Strict.Bytestring and Lazy.Bytestring respectively,
+	Suggested by Grant Monroe.
+
+	* HsOpenSSL.cabal: Bump version to 0.6.3
+
+2009-06-28  PHO  <pho@cielonegro.org>
+
+	* HsOpenSSL.cabal: Moved away from the Configure build type to the
+	Simple build type,  Patch by John Van Enk and his friend.
+
+	* cbits/mutex-*: Removed the direct dependency on pthreads. This
+	involved an indirection layer using the preprocessor. In
+	linux/bsd, we use pthreads. In windows, we call out to the OS
+	mutexing functions. This allows us to "cabal install" the
+	HsOpenSSL library from the cmd.exe terminal in windows *without*
+	having to use cygwin,  Patch by John Van Enk and his friend.
+
+	* HsOpenSSL.cabal: Bump version to 0.6.2
+
+2009-06-02  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc (lazyRead, lazyWrite, contextGetCAStore)
+	(contextSetPrivateKey, contextSetCertificate): New functions.
+
+	* HsOpenSSL.cabal: Bump version to 0.6.1
+
+2009-03-27  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/DSA.hsc: The data type "DSA" is now broken into two
+	separate types "DSAPubKey" and "DSAKeyPair" to distinguish between
+	public keys and keypairs at type-level. These two data types are
+	instances of class "DSAKey".
+
+	* OpenSSL/DSA.hsc (generateDSAParameters, generateDSAKey)
+	(generateDSAParametersAndKey, signDigestedDataWithDSA)
+	(verifyDigestedDataWithDSA): Rename functions to avoid name
+	collision with OpenSSL.RSA.
+
+	* OpenSSL/DSA.hsc (dsaToTuple, tupleToDSA): Break into separate
+	functions.
+
+	* OpenSSL/RSA.hsc: The data type "RSA" is now broken into two
+	separate types "RSAPubKey" and "RSAKeyPair" to distinguish between
+	public keys and keypairs at type-level. These two data types are
+	instances of class "RSAKey".
+
+	* OpenSSL/EVP/PKey.hsc: The data type "PKey" is now broken into
+	two separate classes, not data types, "PublicKey" and "KeyPair" to
+	distinguish between public keys and keypairs at type-level. You
+	can pass "RSAPubKey" and such like directly to cryptographic
+	functions instead of the prior polymorphic type "PKey", for the
+	sake of type classes.
+
+	* OpenSSL/EVP/Open.hsc (open, openBS, openLBS): Take "KeyPair k"
+	instead of "PKey".
+
+	* OpenSSL/EVP/Seal.hsc (seal, sealBS, sealLBS): Take
+	"SomePublicKey" instead of "PKey".
+
+	* OpenSSL/EVP/Sign.hsc (sign, signBS, signLBS): Take "KeyPair k"
+	instead of "PKey".
+
+	* OpenSSL/EVP/Verify.hsc (verify, verifyBS, verifyLBS): Take
+	"PublicKey k" instead of "PKey".
+
+	* OpenSSL/PEM.hsc (writePKCS8PrivateKey, readPrivateKey)
+	(writePublicKey, readPublicKey): Take/return "KeyPair k",
+	"SomKeyPair", "PublicKey k", or "SomePublicKey" instead of "PKey".
+
+	* OpenSSL/PKCS7.hsc (pkcs7Sign, pkcs7Decrypt): Take "KeyPair k"
+	instead of "PKey".
+
+	* OpenSSL/X509.hsc (signX509, verifyX509, getPublicKey)
+	(setPublicKey): Take/return "KeyPair k", "PublicKey k", or
+	"SomePublicKey" instead of "PKey".
+
+	* OpenSSL/X509/Request.hsc (signX509Req, verifyX509Req)
+	(getPublicKey, setPublicKey): Take/return "KeyPair k", "PublicKey
+	k", or "SomePublicKey" instead of "PKey".
+
+	* OpenSSL/X509/Revocation.hsc (signCRL, verifyCRL): Take "KeyPair
+	k" or "PublicKey k" instead of "PKey".
+
+	* OpenSSL/RSA.hsc (RSAPubKey, RSAKeyPair): Let these types be
+	instances of Eq, Ord and Show.
+
+	* OpenSSL/RSA.hsc (generateRSAKey'): New function.
+
+	* OpenSSL/DSA.hsc (DSAPubKey, DSAKeyPair): Let these types be
+	instances of Eq, Ord and Show.
+
+	* HsOpenSSL.cabal: Bump version to 0.6
+
+2009-02-20  PHO  <pho@cielonegro.org>
+
+	* HsOpenSSL.cabal: Fix incorrect dependency declaration in
+	HsOpenSSL.cabal. No semantical changes to the code.
+
+	* HsOpenSSL.cabal: Bump version to 0.5.2
+
+2009-02-02  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/**/*.hsc: Fix breakage on 64-bit architectures,
+	Reported by Neumark Péter.
+
+	* HsOpenSSL.cabal: Bump version to 0.5.1
+
+2009-01-14  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/BN.hsc, OpenSSL/PEM.hsc: Fix breakage on GHC 6.10.1, and
+	now requires 6.10.1...
+
+	* OpenSSL/EVP/Digest.hsc (pkcs5_pbkdf2_hmac_sha1): New function,
+	Patch by Taru Karttunen.
+
+	* HsOpenSSL.cabal: Bump version to 0.5
+
+2008-06-11  PHO  <pho@cielonegro.org>
+
+	* HsOpenSSL.cabal: No .hs files which are generated from .hsc
+	files should be in the tarball. If any .hs files are outdated,
+	Cabal seems to compile the outdated files instead of newer .hsc
+	files.
+
+	* HsOpenSSL.cabal: Bump version to 0.4.2
+
+2008-03-19  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc: Turn the Session IO inside out,
+	Patch by Adam Langley.
+
+	* OpenSSL/EVP/Digest.hsc: 64-bit fix for HMAC,
+	Patch by Adam Langley.
+
+	* OpenSSL/EVP/Cipher.hsc: Fix the foreign types of the cipher
+	functions to use CInt, not Int,  Patch by Adam Langley.
+
+	* OpenSSL/EVP/Digest.hsc: Add ByteString version of digestBS,
+	Patch by Adam Langley.
+
+	* OpenSSL/BN.hsc: Fix BN<->Integer conversions on 64-bit systems,
+	Patch by Adam Langley.
+
+	* OpenSSL/ASN1.hsc (peekASN1String): Another 64-bit fix,
+	Patch by Adam Langley.
+
+	* HsOpenSSL.cabal: Bump version to 0.4.1
+
+2008-02-14  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Session.hsc: Add the beginnings of session support,
+	Patch by Adam Langley.
+
+	* HsOpenSSL.cabal: Bump version to 0.4
+
+2007-11-05  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/EVP/Base64.hsc (decodeBlock): decodeBase64* weren't
+	dropping the padding NUL.
+
+	* HsOpenSSL.cabal: Updates for 6.8.1 (also *requires* 6.8.1 now),
+	Patch by Adam Langley
+
+	* HsOpenSSL.cabal: Bump version to 0.3.1
+
+2007-10-29  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/Cipher.hsc: Add non-EVP cipher support,
+	Patch by Adam Langley.
+
+	* OpenSSL/EVP/Digest.hsc: Add HMAC support in EVP,
+	Patch by Adam Langley.
+
+	* OpenSSL/Random.hsc: Add OpenSSL.Random,
+	Patch by Adam Langley.
+
+	* OpenSSL/BN.hsc: Additional utility functions in BN and exposing
+	BN,  Patch by Adam Langley.
+
+	* OpenSSL/BN.hsc: Bug fix for fast Integer<->BN functions,
+	Patch by Adam Langley.
+
+	* HsOpenSSL.cabal: Bump version to 0.3
+
+2007-10-14  PHO  <pho@cielonegro.org>
+
+	* OpenSSL/BN.hsc: Add support for fast Integer<->BN conversions,
+	Patch by Adam Langley.
+
+	* OpenSSL/DSA.hsc: Add DSA support,  Patch by Adam Langley.
+
+	* OpenSSL/BN.hsc (newBN): New BN utility function,
+	Patch by Adam Langley.
+
+	* OpenSSL/BN.hsc: FIX: set the BN ptr to NULL before calling
+	BN_dec2bn, otherwise that function thinks that there's a valid BN
+	there,  Patch by Adam Langley.
+
+	* OpenSSL/Utils.hsc: Add utility functions to print and read hex
+	numbers,  Patch by Adam Langley.
+
+	* HsOpenSSL.cabal: Bump version to 0.2
+
+2007-08-25  PHO  <pho@cielonegro.org>
+
+	* HsOpenSSL.hsc: Move hidden modules from Exposed-Modules to
+	Other-Modules.
+
+	* HsOpenSSL.cabal: Bump version to 0.1.1

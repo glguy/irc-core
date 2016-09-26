@@ -54,7 +54,7 @@ import           Irc.Commands
 import           Irc.Message
 import           Irc.RawIrcMsg
 import           LensUtils
-import           Network.Connection
+import           Hookup
 
 
 -- | Sum of the three possible event types the event loop handles
@@ -203,8 +203,8 @@ reconnectLogic ex cs st
     shouldReconnect =
       case view csPingStatus cs of
         PingConnecting n _ | n == 0 || n > reconnectAttempts          -> False
-        _ | Just HostNotResolved{}   <-              fromException ex -> True
-          | Just HostCannotConnect{} <-              fromException ex -> True
+        _ | Just ConnectionFailure{}  <-             fromException ex -> True
+          | Just HostnameResolutionFailure{} <-      fromException ex -> True
           | Just PingTimeout         <-              fromException ex -> True
           | Just ResourceVanished    <- ioe_type <$> fromException ex -> True
           | Just NoSuchThing         <- ioe_type <$> fromException ex -> True

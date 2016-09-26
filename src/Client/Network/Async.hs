@@ -27,7 +27,7 @@ module Client.Network.Async
   , NetworkId
   , NetworkEvent(..)
   , createConnection
-  , send
+  , Client.Network.Async.send
 
   -- * Abort connections
   , abortConnection
@@ -46,7 +46,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.Time
 import           Irc.RateLimit
-import           Network.Connection
+import           Hookup
 
 
 -- | Identifier used to match connection events to connections.
@@ -102,16 +102,15 @@ abortConnection reason c = cancelWith (connAsync c) reason
 createConnection ::
   Int {- ^ delay in seconds -} ->
   NetworkId {- ^ Identifier to be used on incoming events -} ->
-  ConnectionContext ->
   ServerSettings ->
   TQueue NetworkEvent {- Queue for incoming events -} ->
   IO NetworkConnection
-createConnection delay network cxt settings inQueue =
+createConnection delay network settings inQueue =
    do outQueue <- atomically newTQueue
 
       supervisor <- async $
                       threadDelay (delay * 1000000) >>
-                      startConnection network cxt settings inQueue outQueue
+                      startConnection network settings inQueue outQueue
 
       -- Having this reporting thread separate from the supervisor ensures
       -- that canceling the supervisor with abortConnection doesn't interfere
@@ -139,16 +138,15 @@ createConnection delay network cxt settings inQueue =
 
 startConnection ::
   NetworkId ->
-  ConnectionContext ->
   ServerSettings ->
   TQueue NetworkEvent ->
   TQueue ByteString ->
   IO ()
-startConnection network cxt settings inQueue outQueue =
+startConnection network settings inQueue outQueue =
   do rate <- newRateLimit
                (view ssFloodPenalty settings)
                (view ssFloodThreshold settings)
-     withConnection cxt settings $ \h ->
+     withConnection settings $ \h ->
        do reportNetworkOpen network inQueue
           withAsync (sendLoop h outQueue rate) $ \sender ->
             withAsync (receiveLoop network h inQueue) $ \receiver ->
@@ -169,14 +167,14 @@ sendLoop h outQueue rate =
   forever $
     do msg <- atomically (readTQueue outQueue)
        tickRateLimit rate
-       connectionPut h msg
+       Hookup.send h msg
 
 ircMaxMessageLength :: Int
 ircMaxMessageLength = 512
 
 receiveLoop :: NetworkId -> Connection -> TQueue NetworkEvent -> IO ()
 receiveLoop network h inQueue =
-  do msg <- connectionGetLine ircMaxMessageLength h
+  do msg <- recvLine h (2*ircMaxMessageLength)
      unless (B.null msg) $
        do now <- getZonedTime
           atomically (writeTQueue inQueue (NetworkLine network now (B.init msg)))
