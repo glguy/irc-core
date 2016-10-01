@@ -71,8 +71,6 @@ data ConnectionFailure
   = HostnameResolutionFailure IOError
   -- | Failure during 'connect' to remote host
   | ConnectionFailure [IOError]
-  -- | Failure during 'connect' via SOCKS server
-  | SocksError SocksError
   -- | Failure during 'recvLine'
   | LineTooLong
   -- | Incomplete line during 'recvLine'
@@ -102,12 +100,9 @@ openSocket params =
 
 openSocks :: SocksParams -> HostName -> PortNumber -> IO Socket
 openSocks sp h p =
-  do res <- try $ socksConnectTo'
-              (spHost sp) (PortNumber (spPort sp))
-              h           (PortNumber p)
-     case res of
-       Left e -> throwIO (SocksError e)
-       Right s -> return s
+  do socksConnectTo'
+       (spHost sp) (PortNumber (spPort sp))
+       h           (PortNumber p)
 
 
 openSocket' :: HostName -> PortNumber -> IO Socket

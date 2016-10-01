@@ -20,6 +20,7 @@ module Client.Network.Connect
 
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
+import           Control.Applicative
 import           Control.Exception  (bracket)
 import           Control.Lens
 import           Control.Monad
@@ -28,29 +29,35 @@ import           Data.Monoid        ((<>))
 import           Network.Socket     (PortNumber)
 import           Hookup
 
-buildConnectionParams :: ServerSettings -> ConnectionParams
+buildConnectionParams :: ServerSettings -> IO ConnectionParams
 buildConnectionParams args =
-  do let tlsParams = TlsParams (view ssTlsClientCert args)
-                               (view ssTlsClientKey  args)
-                               (view ssTlsServerCert args)
-                               (view ssTlsCiphers    args)
-         useSecure =
+  do let resPath = traverse resolveConfigurationPath
+
+     tlsParams <- TlsParams
+        <$> resPath (view ssTlsClientCert args)
+        <*> resPath (view ssTlsClientKey  args <|>
+                     view ssTlsClientCert args)
+        <*> resPath (view ssTlsServerCert args)
+        <*> pure    (view ssTlsCiphers    args)
+
+     let useSecure =
            case view ssTls args of
              UseInsecure    -> Nothing
              UseInsecureTls -> Just (tlsParams True)
              UseTls         -> Just (tlsParams False)
 
-     let proxySettings = view ssSocksHost args <&> \host ->
+         proxySettings = view ssSocksHost args <&> \host ->
                            SocksParams
                              host
                              (view ssSocksPort args)
 
-     ConnectionParams
+     return ConnectionParams
        { cpHost  = view ssHostName args
        , cpPort  = ircPort args
        , cpTls   = useSecure
        , cpSocks = proxySettings
        }
+
 
 ircPort :: ServerSettings -> PortNumber
 ircPort args =
@@ -62,8 +69,9 @@ ircPort args =
         _           -> 6697
 
 
--- | Create a new 'Connection' which will be closed when the continuation finishes.
+-- | Create a new 'Connection' which will be closed when the continuation
+-- finishes.
 withConnection :: ServerSettings -> (Connection -> IO a) -> IO a
 withConnection settings k =
-  do let params = buildConnectionParams settings
+  do params <- buildConnectionParams settings
      bracket (connect params) close k

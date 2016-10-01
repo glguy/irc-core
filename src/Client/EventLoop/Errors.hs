@@ -17,6 +17,7 @@ module Client.EventLoop.Errors
 import           Control.Exception
 import           Data.List.NonEmpty (NonEmpty(..))
 import           Network.Socks5
+import           OpenSSL.Session
 import           Hookup
 
 -- | Compute the message message text to be used for a connection error
@@ -36,11 +37,13 @@ exceptionToLines' ::
 exceptionToLines' ex
 
   -- connection package errors
-  | Just (HostnameResolutionFailure ioe) <- fromException ex =
-      ("Host not resolved: " ++ displayException ioe) :| []
+  | Just err  <- fromException ex = explainHookupError err
 
-  | Just (ConnectionFailure exs) <- fromException ex =
-      "Connect failed" :| map explainIOError exs
+  -- HsOpenSSL errors
+  | Just err <- fromException ex :: Maybe ConnectionAbruptlyTerminated =
+     "Connection abruptly terminated" :| []
+  | Just (ProtocolError e) <- fromException ex =
+     ("TLS protocol error: " ++ e) :| []
 
   -- socks package errors
   | Just err <- fromException ex = explainSocksError err :| []
@@ -54,6 +57,21 @@ exceptionToLines' ex
 
 explainIOError :: IOError -> String
 explainIOError ioe = "IO error: " ++ displayException ioe
+
+explainHookupError :: ConnectionFailure -> NonEmpty String
+explainHookupError e =
+  case e of
+    HostnameResolutionFailure ioe ->
+      ("Host not resolved: " ++ displayException ioe) :| []
+
+    ConnectionFailure exs ->
+      "Connect failed" :| map explainIOError exs
+
+    LineTooLong ->
+      "IRC message too long" :| []
+
+    LineTruncated ->
+      "IRC message incomplete" :| []
 
 
 explainSocksError :: SocksError -> String
