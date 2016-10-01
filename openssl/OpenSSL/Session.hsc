@@ -709,21 +709,26 @@ instance Exception ProtocolError where
     toException   = sslExceptionToException
     fromException = sslExceptionFromException
 
+data SSLParam_
+
 -- X509_VERIFY_PARAM *SSL_CTX_get0_param(SSL_CTX *ctx);
-foreign import ccall unsafe "SSL_CTX_get0_param" sslGet0Param :: Ptr SSLContext_ -> IO (Ptr ())
+foreign import ccall unsafe "SSL_CTX_get0_param"
+  sslGet0Param :: Ptr SSLContext_ -> IO (Ptr SSLParam_)
 
 -- void X509_VERIFY_PARAM_set_hostflags(X509_VERIFY_PARAM *param, unsigned int flags);
-foreign import ccall unsafe "X509_VERIFY_PARAM_set_hostflags" x509VerifyParamSetHostflags ::
-  Ptr () -> CUInt -> IO ()
+foreign import ccall unsafe "X509_VERIFY_PARAM_set_hostflags"
+  x509VerifyParamSetHostflags :: Ptr SSLParam_ -> CUInt -> IO ()
 
 -- int X509_VERIFY_PARAM_set1_host(X509_VERIFY_PARAM *param, const char *name, size_t namelen);
-foreign import ccall unsafe "X509_VERIFY_PARAM_set1_host" x509VerifyParamSet1Host ::
-  Ptr () -> CString -> CSize -> IO CInt
+foreign import ccall unsafe "X509_VERIFY_PARAM_set1_host"
+  x509VerifyParamSet1Host :: Ptr SSLParam_ -> CString -> CSize -> IO CInt
 
 installVerification :: SSLContext -> String {- ^ hostname -} -> IO ()
 installVerification ctx host =
   withContext ctx $ \ctxPtr ->
     do param <- sslGet0Param ctxPtr
-       x509VerifyParamSetHostflags param (#const X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS)
-       withCStringLen host $ \(ptr,len) -> x509VerifyParamSet1Host param ptr (fromIntegral len)
-       return ()
+       x509VerifyParamSetHostflags param
+         (#const X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS)
+       withCStringLen host $ \(ptr,len) ->
+         x509VerifyParamSet1Host param ptr (fromIntegral len)
+         >>= failIf_ (/= 1)
