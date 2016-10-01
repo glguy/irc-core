@@ -75,6 +75,8 @@ data ConnectionFailure
   | SocksError SocksError
   -- | Failure during 'recvLine'
   | LineTooLong
+  -- | Incomplete line during 'recvLine'
+  | LineTruncated
   deriving Show
 
 instance Exception ConnectionFailure
@@ -185,20 +187,30 @@ close :: Connection -> IO ()
 close (Connection _ h) = closeNetworkHandle h
 
 
-recvLine :: Connection -> Int -> IO ByteString
+recvLine :: Connection -> Int -> IO (Maybe ByteString)
 recvLine (Connection buf h) n =
   modifyMVar buf $ \bs ->
     go (B.length bs) bs []
   where
     go bsn bs bss =
       case B.elemIndex 10 bs of
-        Just i -> return (B.tail b, B.concat (reverse (a:bss)))
+        Just i -> return (B.tail b,
+                          Just (cleanEnd (B.concat (reverse (a:bss)))))
           where
             (a,b) = B.splitAt i bs
         Nothing ->
           do when (bsn >= n) (throwIO LineTooLong)
              more <- networkRecv h n
-             go (bsn + B.length more) more (bs:bss)
+             if B.null more
+               then if B.null bs then return ("", Nothing)
+                                 else throwIO LineTruncated
+               else go (bsn + B.length more) more (bs:bss)
+
+
+cleanEnd :: ByteString -> ByteString
+cleanEnd bs
+  | B.null bs || B.last bs /= 13 = bs
+  | otherwise                    = B.init bs
 
 
 send :: Connection -> ByteString -> IO ()

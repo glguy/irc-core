@@ -44,6 +44,7 @@ import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import           Data.Foldable
 import           Data.Time
 import           Irc.RateLimit
 import           Hookup
@@ -174,8 +175,9 @@ ircMaxMessageLength = 512
 
 receiveLoop :: NetworkId -> Connection -> TQueue NetworkEvent -> IO ()
 receiveLoop network h inQueue =
-  do msg <- recvLine h (2*ircMaxMessageLength)
-     unless (B.null msg) $
+  do mb <- recvLine h (2*ircMaxMessageLength)
+     for_ mb $ \msg ->
        do now <- getZonedTime
-          atomically (writeTQueue inQueue (NetworkLine network now (B.init msg)))
+          atomically $ writeTQueue inQueue
+                     $ NetworkLine network now msg
           receiveLoop network h inQueue
