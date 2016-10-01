@@ -30,10 +30,15 @@ import           Hookup
 
 buildConnectionParams :: ServerSettings -> ConnectionParams
 buildConnectionParams args =
-  do let useSecure = case view ssTls args of
-                       UseInsecure    -> Nothing
-                       UseInsecureTls -> Just (TlsParams Nothing [] True)
-                       UseTls         -> Just (TlsParams Nothing [] False)
+  do let tlsParams = TlsParams (view ssTlsClientCert args)
+                               (view ssTlsClientKey  args)
+                               (view ssTlsServerCert args)
+                               (view ssTlsCiphers    args)
+         useSecure =
+           case view ssTls args of
+             UseInsecure    -> Nothing
+             UseInsecureTls -> Just (tlsParams True)
+             UseTls         -> Just (tlsParams False)
 
      let proxySettings = view ssSocksHost args <&> \host ->
                            SocksParams

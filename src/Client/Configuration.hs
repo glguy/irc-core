@@ -270,7 +270,8 @@ parseServerSetting ss k v =
     "tls"                 -> setFieldWith   ssTls           parseUseTls
     "tls-client-cert"     -> setFieldWithMb ssTlsClientCert parseString
     "tls-client-key"      -> setFieldWithMb ssTlsClientKey  parseString
-    "server-certificates" -> setFieldWith   ssServerCerts   (parseList parseString)
+    "tls-server-cert"     -> setFieldWithMb ssTlsServerCert parseString
+    "tls-ciphers"         -> setFieldWith   ssTlsCiphers    parseString
     "connect-cmds"        -> setFieldWith   ssConnectCmds   (parseList parseMacroCommand)
     "socks-host"          -> setFieldWithMb ssSocksHost     parseString
     "socks-port"          -> setFieldWith   ssSocksPort     parseNum
@@ -293,8 +294,10 @@ parseServerSetting ss k v =
          return $! set l x ss
 
     setFieldWithMb l p =
-      do x <- p v
-         return $! set l (Just x) ss
+      do x <- case v of
+                Atom "clear" -> return Nothing
+                _            -> Just <$> p v
+         return $! set l x ss
 
 parseNicks :: Value -> ConfigParser (NonEmpty Text)
 parseNicks (Text nick) = return (nick NonEmpty.:| [])

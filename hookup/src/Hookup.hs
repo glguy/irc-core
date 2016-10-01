@@ -1,52 +1,96 @@
 {-# Language OverloadedStrings #-}
-module Hookup where
+module Hookup
+  (
+  -- * Library initialization
+  withHookupDo,
 
-import Control.Exception
-import Data.ByteString (ByteString)
+  -- * Configuration
+  ConnectionParams(..),
+  SocksParams(..),
+  TlsParams(..),
+
+  -- * Connections
+  Connection,
+  connect,
+  recvLine,
+  send,
+  close,
+
+  -- * Errors
+  ConnectionFailure(..),
+  ) where
+
+--import OpenSSL.X509.SystemStore
+import           Control.Concurrent
+import           Control.Exception
+import           Control.Monad
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
-import Control.Concurrent
-import Network.Socks5
-import Network.Socket (Socket, AddrInfo, PortNumber, HostName)
-import Network (PortID(..))
+import           Data.Foldable
+import           Network (PortID(..))
+import           Network.Socket (Socket, AddrInfo, PortNumber, HostName)
 import qualified Network.Socket as Socket
 import qualified Network.Socket.ByteString as SocketB
-import OpenSSL.Session (SSL)
+import           Network.Socks5
+import           OpenSSL.Session (SSL, SSLContext)
 import qualified OpenSSL as SSL
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509 as SSL
-import OpenSSL.X509.SystemStore
-import Control.Monad
+import qualified OpenSSL.PEM as PEM
 
+
+-- | Parameters for 'connect'.
 data ConnectionParams = ConnectionParams
-  { cpHost  :: HostName
-  , cpPort  :: PortNumber
-  , cpSocks :: Maybe SocksParams
-  , cpTls   :: Maybe TlsParams
+  { cpHost  :: HostName          -- ^ Destination host
+  , cpPort  :: PortNumber        -- ^ Destination TCP port
+  , cpSocks :: Maybe SocksParams -- ^ Optional SOCKS5 parameters
+  , cpTls   :: Maybe TlsParams   -- ^ Optional TLS parameters
   }
 
+
+-- | SOCKS5 connection parameters
 data SocksParams = SocksParams
-  { spHost :: HostName
-  , spPort :: PortNumber
+  { spHost :: HostName   -- ^ SOCKS server host
+  , spPort :: PortNumber -- ^ SOCKS server port
   }
 
+
+-- | TLS connection parameters
 data TlsParams = TlsParams
-  { tpClientCertificate :: Maybe FilePath
-  , tpServerCertificates :: [FilePath]
-  , tpInsecure :: Bool
+  { tpClientCertificate  :: Maybe FilePath
+  , tpClientPrivateKey   :: Maybe FilePath
+  , tpServerCertificate  :: Maybe FilePath
+  , tpCipherSuite        :: String
+  , tpInsecure           :: Bool
   }
 
 
+-- | Type for errors that can be thrown by this package.
 data ConnectionFailure
+  -- | Failure during 'getAddrInfo' resolving remote host
   = HostnameResolutionFailure IOError
+  -- | Failure during 'connect' to remote host
   | ConnectionFailure [IOError]
+  -- | Failure during 'connect' via SOCKS server
+  | SocksError SocksError
+  -- | Failure during 'recvLine'
+  | LineTooLong
   deriving Show
+
 instance Exception ConnectionFailure
 
 
+-- | Perform an action within an initialized context. This initializes
+-- the OpenSSL library.
 withHookupDo :: IO a -> IO a
 withHookupDo = SSL.withOpenSSL
 
+------------------------------------------------------------------------
+-- Opening sockets
+------------------------------------------------------------------------
 
+-- | Open a socket using the given parameters either directly or
+-- via a SOCKS server.
 openSocket :: ConnectionParams -> IO Socket
 openSocket params =
   case cpSocks params of
@@ -56,16 +100,20 @@ openSocket params =
 
 openSocks :: SocksParams -> HostName -> PortNumber -> IO Socket
 openSocks sp h p =
-  socksConnectTo' -- EX
-    (spHost sp) (PortNumber (spPort sp))
-    h           (PortNumber p)
+  do res <- try $ socksConnectTo'
+              (spHost sp) (PortNumber (spPort sp))
+              h           (PortNumber p)
+     case res of
+       Left e -> throwIO (SocksError e)
+       Right s -> return s
 
 
 openSocket' :: HostName -> PortNumber -> IO Socket
 openSocket' h p =
   do let hints = Socket.defaultHints
            { Socket.addrSocketType = Socket.Stream
-           , Socket.addrFlags      = [Socket.AI_ADDRCONFIG]
+           , Socket.addrFlags      = [Socket.AI_ADDRCONFIG
+                                     ,Socket.AI_NUMERICSERV]
            }
      res <- try (Socket.getAddrInfo (Just hints) (Just h) (Just (show p)))
      case res of
@@ -93,7 +141,8 @@ socket' ai =
 
 
 ------------------------------------------------------------------------
-
+-- Generalization of Socket
+------------------------------------------------------------------------
 
 data NetworkHandle = SSL SSL | Socket Socket
 
@@ -120,7 +169,8 @@ networkRecv (SSL    s) = SSL.read     s
 
 
 ------------------------------------------------------------------------
-
+-- Sockets with a receive buffer
+------------------------------------------------------------------------
 
 data Connection = Connection (MVar ByteString) NetworkHandle
 
@@ -136,18 +186,19 @@ close (Connection _ h) = closeNetworkHandle h
 
 
 recvLine :: Connection -> Int -> IO ByteString
-recvLine (Connection buf h) n = modifyMVar buf $ \bs -> go (B.length bs) bs []
+recvLine (Connection buf h) n =
+  modifyMVar buf $ \bs ->
+    go (B.length bs) bs []
   where
     go bsn bs bss =
       case B.elemIndex 10 bs of
         Just i -> return (B.tail b, B.concat (reverse (a:bss)))
           where
             (a,b) = B.splitAt i bs
-        Nothing
-          | bsn >= n -> fail ("Line too long: " ++ show (bsn,n,bs,bss))
-          | otherwise ->
-              do more <- networkRecv h n
-                 go (bsn + B.length more) more (bs:bss)
+        Nothing ->
+          do when (bsn >= n) (throwIO LineTooLong)
+             more <- networkRecv h n
+             go (bsn + B.length more) more (bs:bss)
 
 
 send :: Connection -> ByteString -> IO ()
@@ -160,51 +211,75 @@ send (Connection _ h) = networkSend h
 startTls :: HostName -> TlsParams -> Socket -> IO SSL
 startTls host tp s =
   do cxt <- SSL.context
-     contextLoadSystemCerts cxt
-     SSL.contextSetCiphers cxt "HIGH"
-     SSL.installVerification cxt host
-     SSL.contextSetVerificationMode cxt (verificationMode (tpInsecure tp))
-     SSL.contextAddOption cxt SSL.SSL_OP_ALL
-     ssl <- SSL.connection cxt s
-     SSL.connect ssl
 
-     unless (tpInsecure tp) $
-       do verified <- SSL.getVerifyResult ssl
-          unless verified $
-            fail "verification failed"
+     -- configure context
+     SSL.contextSetCiphers          cxt (tpCipherSuite tp)
+     SSL.installVerification        cxt host
+     SSL.contextSetVerificationMode cxt (verificationMode (tpInsecure tp))
+     SSL.contextAddOption           cxt SSL.SSL_OP_ALL
+
+     -- configure certificates
+     setupCaCertificates cxt          (tpServerCertificate tp)
+     traverse_ (setupCertificate cxt) (tpClientCertificate tp)
+     traverse_ (setupPrivateKey  cxt) (tpClientPrivateKey  tp)
+
+     -- add socket to context
+     ssl <- SSL.connection cxt s
+
+     SSL.connect ssl
 
      return ssl
 
 
+setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
+setupCaCertificates cxt mbPath =
+  case mbPath of
+    Nothing   -> return () -- contextLoadSystemCerts cxt
+    Just path -> SSL.contextSetCAFile cxt path
+
+
+setupCertificate :: SSLContext -> FilePath -> IO ()
+setupCertificate cxt path
+  =   SSL.contextSetCertificate cxt
+  =<< PEM.readX509 -- EX
+  =<< readFile path
+
+
+setupPrivateKey :: SSLContext -> FilePath -> IO ()
+setupPrivateKey cxt path =
+  do str <- readFile path -- EX
+     key <- PEM.readPrivateKey str PEM.PwNone -- add password support
+     SSL.contextSetPrivateKey cxt key
+
+
 verificationMode :: Bool {- ^ insecure -} -> SSL.VerificationMode
-verificationMode True  = SSL.VerifyNone
-verificationMode False = SSL.VerifyPeer
-  { SSL.vpFailIfNoPeerCert = True
-  , SSL.vpClientOnce       = True
-  , SSL.vpCallback         = Nothing
-  }
+verificationMode insecure
+  | insecure  = SSL.VerifyNone
+  | otherwise = SSL.VerifyPeer
+                  { SSL.vpFailIfNoPeerCert = True
+                  , SSL.vpClientOnce       = True
+                  , SSL.vpCallback         = Nothing
+                  }
 
 
 ------------------------------------------------------------------------
 
-{-
-main = SSL.withOpenSSL $
+
+main = withHookupDo $
   do c <- connect ConnectionParams
-            { cpHost = "glguy.net"
-            , cpPort = 7000
+            { cpHost = "localhost"
+            , cpPort = 4433
             , cpSocks = Nothing
             , cpTls = Just TlsParams
-                { tpClientCertificate = Nothing
-                , tpServerCertificates = []
-                , tpInsecure = False
+                { tpClientCertificate = Just "/Users/emertens/Certificates/freenode.crt"
+                , tpClientPrivateKey = Just "/Users/emertens/Certificates/freenode.crt"
+                , tpServerCertificate = Just "/Users/emertens/Certificates/freenode.crt"
+                , tpCipherSuite = "HIGH"
+                , tpInsecure = True
                 }
             }
-     print "a"
      send c "PASS\r\n"
      send c "NICK glguy\r\n"
      send c "USER glguy 8 * glguy\r\n"
-     print "b"
-     print =<< recv c 1024
-     print "c"
+     print =<< recvLine c 1024
      close c
--}

@@ -31,10 +31,11 @@ module Client.Configuration.ServerSettings
   , ssTls
   , ssTlsClientCert
   , ssTlsClientKey
+  , ssTlsServerCert
+  , ssTlsCiphers
   , ssConnectCmds
   , ssSocksHost
   , ssSocksPort
-  , ssServerCerts
   , ssChanservChannels
   , ssFloodPenalty
   , ssFloodThreshold
@@ -80,10 +81,11 @@ data ServerSettings = ServerSettings
   , _ssTls              :: !UseTls -- ^ use TLS to connect
   , _ssTlsClientCert    :: !(Maybe FilePath) -- ^ path to client TLS certificate
   , _ssTlsClientKey     :: !(Maybe FilePath) -- ^ path to client TLS key
+  , _ssTlsServerCert    :: !(Maybe FilePath) -- ^ additional CA certificates for validating server
+  , _ssTlsCiphers       :: String            -- ^ OpenSSL cipher suite
   , _ssConnectCmds      :: ![[ExpansionChunk]] -- ^ commands to execute upon successful connection
   , _ssSocksHost        :: !(Maybe HostName) -- ^ hostname of SOCKS proxy
   , _ssSocksPort        :: !PortNumber -- ^ port of SOCKS proxy
-  , _ssServerCerts      :: ![FilePath] -- ^ additional CA certificates for validating server
   , _ssChanservChannels :: ![Identifier] -- ^ Channels with chanserv permissions
   , _ssFloodPenalty     :: !Rational -- ^ Flood limiter penalty (seconds)
   , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
@@ -126,10 +128,11 @@ loadDefaultServerSettings =
        , _ssTls           = UseInsecure
        , _ssTlsClientCert = Nothing
        , _ssTlsClientKey  = Nothing
+       , _ssTlsServerCert = Nothing
+       , _ssTlsCiphers    = "HIGH"
        , _ssConnectCmds   = []
        , _ssSocksHost     = Nothing
        , _ssSocksPort     = 1080
-       , _ssServerCerts   = []
        , _ssChanservChannels = []
        , _ssFloodPenalty     = 2 -- RFC 1459 defaults
        , _ssFloodThreshold   = 10
