@@ -1,4 +1,13 @@
-{-# Language OverloadedStrings #-}
+{-|
+Module      : Hookup
+Description : Network connections generalized over TLS and SOCKS
+Copyright   : (c) Eric Mertens, 2016
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+This module provides a uniform interface to network connections
+with optional support for TLS and SOCKS.
+-}
 module Hookup
   (
   -- * Library initialization
@@ -173,6 +182,10 @@ networkRecv (SSL    s) = SSL.read     s
 
 data Connection = Connection (MVar ByteString) NetworkHandle
 
+-- | Open network connection to TCP service specified by
+-- the given parameters.
+--
+-- Throws 'IOError', 'SocksError', 'SSL.ProtocolError', 'ConnectionFailure'
 connect :: ConnectionParams -> IO Connection
 connect params =
   do h <- openNetworkHandle params
@@ -180,10 +193,15 @@ connect params =
      return (Connection b h)
 
 
+-- | Close network connection.
 close :: Connection -> IO ()
 close (Connection _ h) = closeNetworkHandle h
 
 
+-- | Receive a line from the network connection. Both
+-- @"\r\n"@ and @"\n"@ are recognized.
+--
+-- Throws: 'ConnectionAbruptlyTerminated', 'ConnectionFailure', 'IOError'
 recvLine :: Connection -> Int -> IO (Maybe ByteString)
 recvLine (Connection buf h) n =
   modifyMVar buf $ \bs ->
@@ -199,17 +217,21 @@ recvLine (Connection buf h) n =
           do when (bsn >= n) (throwIO LineTooLong)
              more <- networkRecv h n
              if B.null more
-               then if B.null bs then return ("", Nothing)
+               then if B.null bs then return (B.empty, Nothing)
                                  else throwIO LineTruncated
                else go (bsn + B.length more) more (bs:bss)
 
 
+-- | Remove the trailing @'\r'@ if one is found.
 cleanEnd :: ByteString -> ByteString
 cleanEnd bs
   | B.null bs || B.last bs /= 13 = bs
   | otherwise                    = B.init bs
 
 
+-- | Send bytes on the network connection.
+--
+-- Throws: 'IOError', 'ProtocolError'
 send :: Connection -> ByteString -> IO ()
 send (Connection _ h) = networkSend h
 
@@ -217,7 +239,13 @@ send (Connection _ h) = networkSend h
 ------------------------------------------------------------------------
 
 
-startTls :: HostName -> TlsParams -> Socket -> IO SSL
+-- | Initiate a TLS session on the given socket destined for
+-- the given hostname.
+startTls ::
+  HostName  {- ^ server hostname -} ->
+  TlsParams {- ^ parameters      -} ->
+  Socket    {- ^ open socket     -} ->
+  IO SSL
 startTls host tp s =
   do cxt <- SSL.context
 
@@ -269,26 +297,3 @@ verificationMode insecure
                   , SSL.vpClientOnce       = True
                   , SSL.vpCallback         = Nothing
                   }
-
-
-------------------------------------------------------------------------
-
-
-main = withHookupDo $
-  do c <- connect ConnectionParams
-            { cpHost = "localhost"
-            , cpPort = 4433
-            , cpSocks = Nothing
-            , cpTls = Just TlsParams
-                { tpClientCertificate = Just "/Users/emertens/Certificates/freenode.crt"
-                , tpClientPrivateKey = Just "/Users/emertens/Certificates/freenode.crt"
-                , tpServerCertificate = Just "/Users/emertens/Certificates/freenode.crt"
-                , tpCipherSuite = "HIGH"
-                , tpInsecure = True
-                }
-            }
-     send c "PASS\r\n"
-     send c "NICK glguy\r\n"
-     send c "USER glguy 8 * glguy\r\n"
-     print =<< recvLine c 1024
-     close c
