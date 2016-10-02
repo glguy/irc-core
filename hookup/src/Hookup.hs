@@ -20,7 +20,6 @@ module Hookup
   ConnectionFailure(..),
   ) where
 
---import OpenSSL.X509.SystemStore
 import           Control.Concurrent
 import           Control.Exception
 import           Control.Monad
@@ -36,6 +35,7 @@ import           OpenSSL.Session (SSL, SSLContext)
 import qualified OpenSSL as SSL
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509 as SSL
+import           OpenSSL.X509.SystemStore
 import qualified OpenSSL.PEM as PEM
 
 
@@ -241,7 +241,7 @@ startTls host tp s =
 setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
 setupCaCertificates cxt mbPath =
   case mbPath of
-    Nothing   -> return () -- contextLoadSystemCerts cxt
+    Nothing   -> contextLoadSystemCerts cxt
     Just path -> SSL.contextSetCAFile cxt path
 
 

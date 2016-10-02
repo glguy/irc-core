@@ -12,7 +12,7 @@ Description:
     <http://hackage.haskell.org/package/tls>, which is a pure Haskell
     implementation of SSL.
     .
-Version:       0.12
+Version:       0.11.2
 x-revision: 1
 License:       PublicDomain
 License-File:  COPYING
