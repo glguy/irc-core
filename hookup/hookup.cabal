@@ -18,11 +18,14 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Hookup
+  other-modules:       Hookup.OpenSSL
+  extra-libraries:     ssl
   build-depends:       base                  >=4.9  && <4.10,
                        socks                 >=0.5  && <0.6,
                        network               >=2.6  && <2.7,
                        bytestring            >=0.10 && <0.11,
-                       HsOpenSSL             >=0.11.2 && <0.12,
-                       HsOpenSSL-x509-system >=0.1  && <0.2
+                       HsOpenSSL             >=0.11 && <0.12,
+                       HsOpenSSL-x509-system >=0.1  && <0.2,
+                       template-haskell      >=2.11 && <2.12
   hs-source-dirs:      src
   default-language:    Haskell2010

@@ -1,6 +1,5 @@
 packages:
   lib/irc-core.cabal
   bot/irc-core-bot.cabal
-  openssl/HsOpenSSL.cabal
   hookup/hookup.cabal
   glirc.cabal

@@ -38,6 +38,8 @@ import qualified OpenSSL.X509 as SSL
 import           OpenSSL.X509.SystemStore
 import qualified OpenSSL.PEM as PEM
 
+import           Hookup.OpenSSL (installVerification)
+
 
 -- | Parameters for 'connect'.
 data ConnectionParams = ConnectionParams
@@ -221,7 +223,7 @@ startTls host tp s =
 
      -- configure context
      SSL.contextSetCiphers          cxt (tpCipherSuite tp)
-     SSL.installVerification        cxt host
+     installVerification            cxt host
      SSL.contextSetVerificationMode cxt (verificationMode (tpInsecure tp))
      SSL.contextAddOption           cxt SSL.SSL_OP_ALL
 
