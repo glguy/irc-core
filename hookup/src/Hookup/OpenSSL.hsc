@@ -13,20 +13,19 @@ Maintainer  : emertens@gmail.com
 
 module Hookup.OpenSSL where
 
-import OpenSSL.Session
-import Foreign.Ptr
 import Control.Concurrent.MVar
+import Control.Monad
 import Foreign.C
+import Foreign.Ptr
 import Language.Haskell.TH
+import OpenSSL.Session
 
 ------------------------------------------------------------------------
 -- Unfortunately hidden definitions from HsOpenSSL
 ------------------------------------------------------------------------
 
 failIf_ :: (a -> Bool) -> a -> IO ()
-failIf_ f a
-  | f a       = raiseOpenSSLError
-  | otherwise = return ()
+failIf_ f a = when (f a) raiseOpenSSLError
 
 raiseOpenSSLError :: IO a
 raiseOpenSSLError = fail =<< errorString =<< err_get_error
@@ -46,16 +45,13 @@ errorString code = peekCString =<< err_error_string code nullPtr
 
 withContext :: SSLContext -> (forall a. Ptr a -> IO b) -> IO b
 withContext ctx f =
-  $(
-  do info <- reify ''SSLContext
-     m    <- newName "m"
-     case info of
-       TyConI (DataD _ _ _ _ [RecC cn _] _) ->
-         letE [valD (conP cn [varP m,wildP]) (normalB [|ctx|]) []]
-              [| withMVar $(varE m) f |]
-       _ -> fail "hookup: PANIC: SSLContext not matched"
-     
-  )
+  $(do info <- reify ''SSLContext
+       m    <- newName "m"
+       case info of
+         TyConI (DataD _ _ _ _ [RecC cn [_,_]] _) ->
+           [| let $(conP cn [varP m,wildP]) = ctx in withMVar $(varE m) f |]
+         _ -> fail "hookup: PANIC: SSLContext not matched"
+   )
 
 ------------------------------------------------------------------------
 -- Bindings to hostname verification interface
