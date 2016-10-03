@@ -135,7 +135,8 @@ attemptConnections exs (ai:ais) =
   do s <- socket' ai
      res <- try (Socket.connect s (Socket.addrAddress ai))
      case res of
-       Left ex -> attemptConnections (ex:exs) ais
+       Left ex -> do Socket.close s
+                     attemptConnections (ex:exs) ais
        Right{} -> return s
 
 
@@ -180,6 +181,9 @@ networkRecv (SSL    s) = SSL.read     s
 -- Sockets with a receive buffer
 ------------------------------------------------------------------------
 
+-- | A connection to a network service along with its read buffer
+-- used for line-oriented protocols. The connection could be a plain
+-- network connection, SOCKS connected, or TLS.
 data Connection = Connection (MVar ByteString) NetworkHandle
 
 -- | Open network connection to TCP service specified by
@@ -229,7 +233,8 @@ cleanEnd bs
   | otherwise                    = B.init bs
 
 
--- | Send bytes on the network connection.
+-- | Send bytes on the network connection. Ensures that the whole message
+-- is sent.
 --
 -- Throws: 'IOError', 'ProtocolError'
 send :: Connection -> ByteString -> IO ()
@@ -240,28 +245,31 @@ send (Connection _ h) = networkSend h
 
 
 -- | Initiate a TLS session on the given socket destined for
--- the given hostname.
+-- the given hostname. When successful an active TLS connection
+-- is returned with certificate verification successful when
+-- requested.
 startTls ::
-  HostName  {- ^ server hostname -} ->
-  TlsParams {- ^ parameters      -} ->
-  Socket    {- ^ open socket     -} ->
-  IO SSL
+  HostName  {- ^ server hostname  -} ->
+  TlsParams {- ^ parameters       -} ->
+  Socket    {- ^ connected socket -} ->
+  IO SSL    {- ^ connected TLS    -}
 startTls host tp s =
-  do cxt <- SSL.context
+  do ctx <- SSL.context
 
      -- configure context
-     SSL.contextSetCiphers          cxt (tpCipherSuite tp)
-     installVerification            cxt host
-     SSL.contextSetVerificationMode cxt (verificationMode (tpInsecure tp))
-     SSL.contextAddOption           cxt SSL.SSL_OP_ALL
+     SSL.contextSetCiphers          ctx (tpCipherSuite tp)
+     installVerification            ctx host
+     SSL.contextSetVerificationMode ctx (verificationMode (tpInsecure tp))
+     SSL.contextAddOption           ctx SSL.SSL_OP_ALL
+     SSL.contextRemoveOption        ctx SSL.SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
 
      -- configure certificates
-     setupCaCertificates cxt          (tpServerCertificate tp)
-     traverse_ (setupCertificate cxt) (tpClientCertificate tp)
-     traverse_ (setupPrivateKey  cxt) (tpClientPrivateKey  tp)
+     setupCaCertificates ctx          (tpServerCertificate tp)
+     traverse_ (setupCertificate ctx) (tpClientCertificate tp)
+     traverse_ (setupPrivateKey  ctx) (tpClientPrivateKey  tp)
 
      -- add socket to context
-     ssl <- SSL.connection cxt s
+     ssl <- SSL.connection ctx s
 
      SSL.connect ssl
 
@@ -269,24 +277,24 @@ startTls host tp s =
 
 
 setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
-setupCaCertificates cxt mbPath =
+setupCaCertificates ctx mbPath =
   case mbPath of
-    Nothing   -> contextLoadSystemCerts cxt
-    Just path -> SSL.contextSetCAFile cxt path
+    Nothing   -> contextLoadSystemCerts ctx
+    Just path -> SSL.contextSetCAFile ctx path
 
 
 setupCertificate :: SSLContext -> FilePath -> IO ()
-setupCertificate cxt path
-  =   SSL.contextSetCertificate cxt
+setupCertificate ctx path
+  =   SSL.contextSetCertificate ctx
   =<< PEM.readX509 -- EX
   =<< readFile path
 
 
 setupPrivateKey :: SSLContext -> FilePath -> IO ()
-setupPrivateKey cxt path =
+setupPrivateKey ctx path =
   do str <- readFile path -- EX
      key <- PEM.readPrivateKey str PEM.PwNone -- add password support
-     SSL.contextSetPrivateKey cxt key
+     SSL.contextSetPrivateKey ctx key
 
 
 verificationMode :: Bool {- ^ insecure -} -> SSL.VerificationMode
