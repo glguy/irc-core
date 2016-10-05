@@ -10,9 +10,6 @@ with optional support for TLS and SOCKS.
 -}
 module Hookup
   (
-  -- * Library initialization
-  withHookupDo,
-
   -- * Configuration
   ConnectionParams(..),
   SocksParams(..),
@@ -89,12 +86,6 @@ data ConnectionFailure
   deriving Show
 
 instance Exception ConnectionFailure
-
-
--- | Perform an action within an initialized context. This initializes
--- the OpenSSL library.
-withHookupDo :: IO a -> IO a
-withHookupDo = SSL.withOpenSSL
 
 ------------------------------------------------------------------------
 -- Opening sockets
@@ -253,7 +244,7 @@ startTls ::
   TlsParams {- ^ parameters       -} ->
   Socket    {- ^ connected socket -} ->
   IO SSL    {- ^ connected TLS    -}
-startTls host tp s =
+startTls host tp s = SSL.withOpenSSL $
   do ctx <- SSL.context
 
      -- configure context

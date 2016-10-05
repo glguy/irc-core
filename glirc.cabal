@@ -51,7 +51,7 @@ executable glirc2
       ld-options: -Wl,-exported_symbols_list,exec/macos_exported_symbols.txt
 
   -- Constraints can be found on the library itself
-  build-depends:       base, glirc, hookup, data-default-class, lens, text, vty
+  build-depends:       base, glirc, data-default-class, lens, text, vty
 
 library
   hs-source-dirs:      src
