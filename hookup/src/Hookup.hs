@@ -261,7 +261,7 @@ startTls host tp s = SSL.withOpenSSL $
 
      -- add socket to context
      ssl <- SSL.connection ctx s
-
+     SSL.setTlsextHostName ssl host
      SSL.connect ssl
 
      return ssl
