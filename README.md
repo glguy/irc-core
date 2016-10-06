@@ -62,13 +62,6 @@ Client Features
 * Split-screen view
 * Configurable color palette
 
-TLS
-===
-
-`glirc` has TLS support via the Haskell `tls` package. Note that Freenode (and other networks) will allow you to authenticate to NickServ via a client certificate.
-
-I use the `x509-store` for decoding certificates and private key files. This library seems to support PEM formatted files and does not seem to support encrypted private key files. If the key and certificate are both contained in the certificate file the private key command line argument is unnecessary.
-
 Startup
 =======
 
@@ -200,10 +193,11 @@ Server Settings
 | `tls`                 | yes/yes-insecure/no  | use TLS to connect (insecure mode disables certificate checks) |
 | `tls-client-cert`     | text                 | path to TLS client certificate                                 |
 | `tls-client-key`      | text                 | path to TLS client key                                         |
+| `tls-server-cert`     | text                 | CA certificate to use when validating certificates             |
+| `tls-ciphers`         | text                 | OpenSSL cipher suite description string                        |
 | `connect-cmds`        | list of text         | client commands to send upon connection                        |
 | `socks-host`          | text                 | hostname of SOCKS proxy to connect through                     |
 | `socks-port`          | number               | port number of SOCKS proxy to connect through                  |
-| `server-certificates` | list of text         | list of CA certificates to use when validating certificates    |
 | `chanserv-channels`   | list of text         | list of channels with chanserv op permission                   |
 | `flood-penalty`       | number               | cost in seconds per message                                    |
 | `flood-threshold`     | number               | threshold in seconds for burst                                 |
