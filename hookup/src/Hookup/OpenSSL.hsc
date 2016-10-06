@@ -1,4 +1,3 @@
-{-# Language RankNTypes, TemplateHaskell #-}
 {-|
 Module      : Hookup.OpenSSL
 Description : Hack into the internals of OpenSSL to add missing functionality
@@ -13,30 +12,10 @@ Maintainer  : emertens@gmail.com
 
 module Hookup.OpenSSL (installVerification) where
 
-import           Control.Concurrent.MVar (MVar, withMVar)
 import           Control.Monad (unless)
 import           Foreign.C (CString(..), CSize(..), CUInt(..), CInt(..), withCStringLen)
 import           Foreign.Ptr (Ptr)
-import           Language.Haskell.TH (Info(..), Dec(..), Type(..), Con(..), varE, reify)
-import           OpenSSL.Session (SSLContext)
-
-------------------------------------------------------------------------
--- HsOpenSSL doesn't provide access to the underlying OpenSSL context
-------------------------------------------------------------------------
-
-do TyConI (DataD _ _ _ _ [RecC cn [(field,_,AppT _ (AppT _ sslcontext_)),_]] _) <- reify ''SSLContext
-
-   [d| type SSLContext_ = $(pure sslcontext_)
-
-       sslCtx :: SSLContext -> MVar (Ptr SSLContext_)
-       sslCtx = $(varE field)
-     |]
-
--- | Execute the action returned from applying a continuation to the SSL_CONTEXT pointer
--- contained within the 'SSLContext'. The 'SSLContext' will be locked during this
--- operation.
-withContext :: SSLContext -> (Ptr SSLContext_ -> IO a) -> IO a
-withContext = withMVar . sslCtx
+import           OpenSSL.Session (SSLContext, SSLContext_, withContext)
 
 ------------------------------------------------------------------------
 -- Bindings to hostname verification interface
