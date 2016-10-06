@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.20
+
+* Move from `tls` to `HsOpenSSL` support via the new `hookup` package
+
 ## 2.19
 
 * Smarter text box tracks "scroll" position independently from cursor

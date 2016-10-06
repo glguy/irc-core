@@ -12,7 +12,15 @@ copyright:           2016 Eric Mertens
 category:            Network
 build-type:          Simple
 extra-source-files:  ChangeLog.md
+homepage:            https://github.com/glguy/irc-core
+bug-reports:         https://github.com/glguy/irc-core/issues
+tested-with:         GHC==8.0.1
 cabal-version:       >=1.10
+
+source-repository head
+  type: git
+  location: git://github.com/glguy/irc-core.git
+  branch: v2
 
 library
   exposed-modules:     Hookup
