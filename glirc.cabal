@@ -1,5 +1,5 @@
 name:                glirc
-version:             2.20
+version:             2.20.1
 synopsis:            Console IRC client
 description:         Console IRC client
                      .
@@ -146,7 +146,7 @@ library
                        unix                 >=2.7    && <2.8,
                        unordered-containers >=0.2.7  && <0.3,
                        vector               >=0.11   && <0.12,
-                       vty                  >=5.10   && <5.12,
+                       vty                  >=5.11.1 && <5.12,
                        hookup               >=0.1    && <0.2
 
   if flag(ExportCApi)

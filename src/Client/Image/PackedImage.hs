@@ -1,4 +1,4 @@
-{-# Language TypeOperators, MultiParamTypeClasses, StandaloneDeriving, DeriveGeneric #-}
+{-# Language TypeOperators, MultiParamTypeClasses, DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-orphans -funfolding-creation-threshold=1500 -funfolding-use-threshold=5000 #-}
 {-|
 Module      : Client.Image.PackedImage
@@ -22,8 +22,6 @@ import           Data.List
 import           GHC.Generics
 import           Graphics.Vty.Image
 import           Graphics.Vty.Image.Internal
-
-deriving instance Generic Image
 
 
 -- | Isomorphism between packed images and normal images.

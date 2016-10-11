@@ -1,5 +1,8 @@
 # Revision history for glirc2
 
+## 2.20.1
+* Support `vty-5.11.1`
+
 ## 2.20
 
 * Move from `tls` to `HsOpenSSL` support via the new `hookup` package
