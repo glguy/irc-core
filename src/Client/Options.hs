@@ -1,4 +1,13 @@
 {-# Language CPP, TemplateHaskell, MultiWayIf #-}
+
+#ifndef TOOL_VERSION_alex
+#define TOOL_VERSION_alex "none"
+#endif
+
+#ifndef TOOL_VERSION_happy
+#define TOOL_VERSION_happy "none"
+#endif
+
 {-|
 Module      : Client.Options
 Description : Processing of command-line options
