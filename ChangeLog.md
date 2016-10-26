@@ -1,5 +1,8 @@
 # Revision history for glirc2
 
+## 2.20.1.1
+* Remove macro dependency on happy and alex being installed for version information
+
 ## 2.20.1
 * Support `vty-5.11.1`
 
