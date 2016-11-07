@@ -87,24 +87,28 @@ filterImage st =
 -- that the connection is being established or that a ping has been
 -- sent or long the previous ping round-trip was.
 latencyImage :: ClientState -> Image
-latencyImage st
-  | Just network <- views clientFocus focusNetwork st
-  , Just cs      <- preview (clientConnection network) st =
-  case view csPingStatus cs of
-    PingNever -> emptyImage
-    PingSent {} -> infoBubble (string (view palLatency pal) "sent")
-    PingLatency delta ->
-      infoBubble (string (view palLatency pal) (showFFloat (Just 2) delta "s"))
-    PingConnecting n _ ->
-      infoBubble (string (view palLabel pal) "connecting" <|> retryImage)
-      where
-        retryImage
-          | n > 0 = string defAttr ": " <|>
-                    string (view palLabel pal) ("retry " ++ show n)
-          | otherwise = emptyImage
-  | otherwise = emptyImage
+latencyImage st =
+  case views clientFocus focusNetwork st of
+    Nothing      -> emptyImage
+    Just network ->
+      case preview (clientConnection network) st of
+        Nothing -> infoBubble (string (view palError pal) "offline")
+        Just cs ->
+          case view csPingStatus cs of
+            PingNever          -> emptyImage
+            PingSent {}        -> latency "ping sent"
+            PingLatency delta  -> latency (showFFloat (Just 2) delta "s")
+            PingConnecting n _ ->
+              infoBubble (string (view palLatency pal) "connecting" <|>
+                          retryImage n)
   where
-    pal = clientPalette st
+    pal     = clientPalette st
+    latency = infoBubble . string (view palLatency pal)
+
+    retryImage n
+      | n > 0     = string defAttr ": " <|>
+                    string (view palLabel pal) ("retry " ++ show n)
+      | otherwise = emptyImage
 
 
 -- | Wrap some text in parentheses to make it suitable for inclusion in the
