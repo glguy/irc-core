@@ -121,8 +121,7 @@ servers:
 
     -- Specify additional certificates beyond the system CAs
     -- relative to home directory
-    server-certificates:
-      * "extra/certificate.pem"
+    tls-server-cert: "extra/certificate.pem"
 
 macros:
   * name: "wipe"
