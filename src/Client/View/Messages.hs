@@ -14,18 +14,21 @@ module Client.View.Messages
   ( chatMessageImages
   ) where
 
-import           Client.Image.Palette
+import           Client.Configuration
 import           Client.Image.Message
+import           Client.Image.Palette
+import           Client.Image.Utils
+import           Client.Message
 import           Client.State
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
-import           Client.Message
 import           Control.Lens
 import           Control.Monad
+import           Graphics.Vty.Image
 import           Irc.Identifier
 import           Irc.Message
-import           Graphics.Vty.Image
+
 
 chatMessageImages :: Focus -> ClientState -> [Image]
 chatMessageImages focus st = windowLineProcessor focusedMessages
@@ -55,7 +58,10 @@ detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image]
 detailedImagesWithoutMetadata st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> view wlFullImage w : detailedImagesWithoutMetadata st ws
+    ([], w:ws) -> lineWrap (view clientWidth st)
+                           (view (clientConfig . configIndentWrapped) st)
+                           (view wlFullImage w)
+                  : detailedImagesWithoutMetadata st ws
     (_:_, wls) -> detailedImagesWithoutMetadata st wls
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]

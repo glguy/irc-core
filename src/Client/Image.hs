@@ -17,6 +17,7 @@ module Client.Image
 import           Client.Image.Palette
 import           Client.Image.StatusLine
 import           Client.Image.Textbox
+import           Client.Image.Utils
 import           Client.State
 import           Client.State.Focus
 import           Client.View
@@ -25,7 +26,6 @@ import           Graphics.Vty            (Background (..), Cursor (..),
                                           Picture (..))
 import           Graphics.Vty.Image
 
-import           Client.Configuration
 
 -- | Generate a 'Picture' for the current client state. The resulting
 -- client state is updated for render specific information like scrolling.
@@ -96,37 +96,12 @@ messagePane h focus subfocus st = (overscroll, img)
 
     assemble acc _ | imageHeight acc >= vh = cropTop vh acc
     assemble acc [] = acc
-    assemble acc (x:xs) = assemble (lineWrap w (view (clientConfig . configIndentWrapped) st) x <-> acc) xs
+    assemble acc (x:xs) = assemble (lineWrap w Nothing x <-> acc) xs
 
     scroll = view clientScroll st
     vh     = h + scroll
 
     w      = view clientWidth st
-
--- | Given an image, break the image up into chunks of at most the
--- given width and stack the resulting chunks vertically top-to-bottom.
-lineWrap ::
-  Int       {- ^ maximum image width -} ->
-  Maybe Int {- ^ Indentation of wrapped lines -} ->
-  Image     {- ^ unwrapped image     -} ->
-  Image     {- ^ wrapped image       -}
-lineWrap w mi img = case mi of
-  Nothing -> lineWrapNoIndent w img
-  Just i  -> lineWrapIndent w i img
-
-lineWrapNoIndent :: Int -> Image -> Image
-lineWrapNoIndent w img
-  | imageWidth img > w = cropRight w img <->
-                         lineWrapNoIndent w (cropLeft (imageWidth img - w) img)
-  | otherwise = img <|> char defAttr ' '
-        -- trailing space with default attributes deals with bug in VTY
-        -- where the formatting will continue past the end of chat messages
-
-lineWrapIndent :: Int -> Int -> Image -> Image
-lineWrapIndent w i img
-      | imageWidth img > w - i = pad i 0 0 0 (cropRight (w-i) img) <->
-                                lineWrapIndent w i (cropLeft (imageWidth img - w + i) img)
-      | otherwise = pad i 0 0 0 img <|> char defAttr ' '
 
 
 -- | Compute the number of lines in a page at the current window size
