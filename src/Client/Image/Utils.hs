@@ -19,9 +19,11 @@ lineWrap ::
   Maybe Int {- ^ Indentation of wrapped lines -} ->
   Image     {- ^ unwrapped image     -} ->
   Image     {- ^ wrapped image       -}
-lineWrap w mi img = cropRight w img <->
-  maybe (lineWrapNoIndent w) (lineWrapIndent w) mi
-        (cropLeft (imageWidth img - w) img)
+lineWrap w mi img
+  |imageWidth img > w = cropRight w img <->
+                        maybe (lineWrapNoIndent w) (lineWrapIndent w) mi
+                              (cropLeft (imageWidth img - w) img)
+  | otherwise = img <|> char defAttr ' '
 
 
 lineWrapNoIndent :: Int -> Image -> Image
