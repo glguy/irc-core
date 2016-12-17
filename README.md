@@ -166,7 +166,7 @@ Configuration sections:
 | `palette`              | palette             | Client color overrides                                                                     |
 | `window-names`         | text                | Names of windows (typically overridden on non QWERTY layouts)                              |
 | `nick-padding`         | nonnegative integer | Nicks are padded until they have the specified length                                      |
-| `indent-wrapped-lines` | nonnegative integer | How far to indent lines when they are weapped                                              |
+| `indent-wrapped-lines` | nonnegative integer | How far to indent lines when they are wrapped                                              |
 | `extra-highlights`     | list of text        | Extra words/nicks to highlight                                                             |
 | `extensions`           | list of text        | Filenames of extension to load                                                             |
 | `url-opener`           | text                | Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS |
