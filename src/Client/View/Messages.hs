@@ -58,17 +58,17 @@ detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image]
 detailedImagesWithoutMetadata st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> lineWrap (view clientWidth st)
-                           (view (clientConfig . configIndentWrapped) st)
-                           (view wlFullImage w)
-                  : detailedImagesWithoutMetadata st ws
+    ([], w:ws) -> view wlFullImage w : detailedImagesWithoutMetadata st ws
     (_:_, wls) -> detailedImagesWithoutMetadata st wls
 
 windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
 windowLinesToImages st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> view wlImage w : windowLinesToImages st ws
+    ([], w:ws) -> lineWrap (view clientWidth st)
+                           (view (clientConfig . configIndentWrapped) st)
+                           (view wlImage w)
+                 : windowLinesToImages st ws
     ((img,who,mbnext):mds, wls)
 
       | view clientShowMetadata st ->
