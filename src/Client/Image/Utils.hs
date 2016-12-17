@@ -36,7 +36,7 @@ lineWrapNoIndent w img
 
 lineWrapIndent :: Int -> Int -> Image -> Image
 lineWrapIndent w i img
-      | i >= w-10              = lineWrapNoIndent w img --
+      | i >= w || w - i < 20   = lineWrapNoIndent w img -- ensure we stop wrapping when it doesn't make sense
       | imageWidth img > w - i = pad i 0 0 0 (cropRight (w-i) img) <->
                                 lineWrapIndent w i (cropLeft (imageWidth img - w + i) img)
       | otherwise = pad i 0 0 0 img <|> char defAttr ' '
