@@ -87,6 +87,7 @@ library
                        Client.Image.Palette
                        Client.Image.StatusLine
                        Client.Image.Textbox
+                       Client.Image.Utils
                        Client.Log
                        Client.Message
                        Client.Network.Async

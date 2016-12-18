@@ -159,20 +159,21 @@ palette:
 Configuration sections:
 --------
 
-| setting            | type                | description                                                                                |
-|--------------------|---------------------|--------------------------------------------------------------------------------------------|
-| `defaults`         | server              | These settings are used for all connections                                                |
-| `servers`          | list of servers     | These settings are used to override defaults when the hostname matches                     |
-| `palette`          | palette             | Client color overrides                                                                     |
-| `window-names`     | text                | Names of windows (typically overridden on non QWERTY layouts)                              |
-| `nick-padding`     | nonnegative integer | Nicks are padded until they have the specified length                                      |
-| `extra-highlights` | list of text        | Extra words/nicks to highlight                                                             |
-| `extensions`       | list of text        | Filenames of extension to load                                                             |
-| `url-opener`       | text                | Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS |
-| `ignores`          | list of text        | Initial list of nicknames to ignore                                                        |
-| `activity-bar`     | yes or no           | Initial setting for visibility of activity bar (default no)                                |
-| `bell-on-mention`  | yes or no           | Sound terminal bell on transition from not mentioned to mentioned (default no)             |
-| `macros`           | list of macros      | User-configurable client commands                                                          |
+| setting                | type                | description                                                                                |
+|------------------------|---------------------|--------------------------------------------------------------------------------------------|
+| `defaults`             | server              | These settings are used for all connections                                                |
+| `servers`              | list of servers     | These settings are used to override defaults when the hostname matches                     |
+| `palette`              | palette             | Client color overrides                                                                     |
+| `window-names`         | text                | Names of windows (typically overridden on non QWERTY layouts)                              |
+| `nick-padding`         | nonnegative integer | Nicks are padded until they have the specified length                                      |
+| `indent-wrapped-lines` | nonnegative integer | How far to indent lines when they are wrapped                                              |
+| `extra-highlights`     | list of text        | Extra words/nicks to highlight                                                             |
+| `extensions`           | list of text        | Filenames of extension to load                                                             |
+| `url-opener`           | text                | Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS |
+| `ignores`              | list of text        | Initial list of nicknames to ignore                                                        |
+| `activity-bar`         | yes or no           | Initial setting for visibility of activity bar (default no)                                |
+| `bell-on-mention`      | yes or no           | Sound terminal bell on transition from not mentioned to mentioned (default no)             |
+| `macros`               | list of macros      | User-configurable client commands                                                          |
 
 Server Settings
 ---------------

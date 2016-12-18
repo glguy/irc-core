@@ -1,7 +1,7 @@
-{-# Language OverloadedStrings #-}
-{-# Language TemplateHaskell #-}
-{-# Language BangPatterns #-}
-{-# Language RecordWildCards #-}
+{-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 {-|
 Module      : Client.Configuration
@@ -25,6 +25,7 @@ module Client.Configuration
   , configPalette
   , configWindowNames
   , configNickPadding
+  , configIndentWrapped
   , configConfigPath
   , configMacros
   , configExtensions
@@ -41,30 +42,30 @@ module Client.Configuration
   , resolveConfigurationPath
   ) where
 
-import           Client.Image.Palette
-import           Client.Configuration.Colors
-import           Client.Configuration.ServerSettings
 import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
 import           Client.Commands.WordCompletion
-import           Control.Exception
-import           Control.Monad
+import           Client.Configuration.Colors
+import           Client.Configuration.ServerSettings
+import           Client.Image.Palette
 import           Config
 import           Config.FromConfig
-import           Control.Lens hiding (List)
-import           Data.Foldable (for_)
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
-import           Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
+import           Control.Exception
+import           Control.Lens                        hiding (List)
+import           Control.Monad
+import           Data.Foldable                       (for_)
+import           Data.HashMap.Strict                 (HashMap)
+import qualified Data.HashMap.Strict                 as HashMap
+import           Data.HashSet                        (HashSet)
+import qualified Data.HashSet                        as HashSet
+import           Data.List.NonEmpty                  (NonEmpty)
+import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Maybe
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import qualified Data.Vector as Vector
-import           Irc.Identifier (Identifier, mkId)
+import           Data.Text                           (Text)
+import qualified Data.Text                           as Text
+import qualified Data.Text.IO                        as Text
+import qualified Data.Vector                         as Vector
+import           Irc.Identifier                      (Identifier, mkId)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Error
@@ -73,20 +74,21 @@ import           System.IO.Error
 -- server configuration from '_configServers' is used where possible,
 -- otherwise '_configDefaults' is used.
 data Configuration = Configuration
-  { _configDefaults         :: ServerSettings -- ^ Default connection settings
-  , _configServers          :: (HashMap Text ServerSettings) -- ^ Host-specific settings
-  , _configPalette          :: Palette
-  , _configWindowNames      :: Text -- ^ Names of windows, used when alt-jumping)
-  , _configExtraHighlights  :: HashSet Identifier -- ^ Extra highlight nicks/terms
-  , _configNickPadding      :: Maybe Integer -- ^ Padding of nicks
-  , _configConfigPath       :: Maybe FilePath
+  { _configDefaults        :: ServerSettings -- ^ Default connection settings
+  , _configServers         :: (HashMap Text ServerSettings) -- ^ Host-specific settings
+  , _configPalette         :: Palette
+  , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
+  , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
+  , _configNickPadding     :: Maybe Integer -- ^ Padding of nicks
+  , _configIndentWrapped   :: Maybe Int -- ^ How far to indent wrapped lines
+  , _configConfigPath      :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
-  , _configMacros           :: Recognizer Macro -- ^ command macros
-  , _configExtensions       :: [FilePath] -- ^ paths to shared library
-  , _configUrlOpener        :: Maybe FilePath -- ^ paths to url opening executable
-  , _configIgnores          :: HashSet Identifier -- ^ initial ignore list
-  , _configActivityBar      :: Bool -- ^ initially visibility of the activity bar
-  , _configBellOnMention    :: Bool -- ^ notify terminal on mention
+  , _configMacros          :: Recognizer Macro -- ^ command macros
+  , _configExtensions      :: [FilePath] -- ^ paths to shared library
+  , _configUrlOpener       :: Maybe FilePath -- ^ paths to url opening executable
+  , _configIgnores         :: HashSet Identifier -- ^ initial ignore list
+  , _configActivityBar     :: Bool -- ^ initially visibility of the activity bar
+  , _configBellOnMention   :: Bool -- ^ notify terminal on mention
   }
   deriving Show
 
@@ -214,6 +216,8 @@ parseConfiguration _configConfigPath def = parseSections $
 
      _configNickPadding <- sectionOpt "nick-padding"
 
+     _configIndentWrapped <- sectionOpt "indent-wrapped-lines"
+
      _configIgnores <- maybe HashSet.empty HashSet.fromList
                     <$> sectionOptWith (parseList parseIdentifier) "ignores"
 
@@ -225,6 +229,11 @@ parseConfiguration _configConfigPath def = parseSections $
        when (padding < 0)
             (liftConfigParser $
                failure "nick-padding has to be a non negative number"))
+
+     for_ _configIndentWrapped (\indent ->
+       when (indent < 0)
+            (liftConfigParser $
+               failure "indent-wrapped-lines has to be a non negative number"))
 
      return Configuration{..}
 
