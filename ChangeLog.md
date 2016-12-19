@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.20.1.2
+
+* Remove `memory` dependency
+
 ## 2.20.1.1
 * Remove macro dependency on happy and alex being installed for version information
 

@@ -22,7 +22,7 @@ module Client.Authentication.Ecdsa
 
 import           Client.Configuration (resolveConfigurationPath)
 import           Control.Exception (displayException, try)
-import           Data.ByteArray.Encoding
+import           Data.ByteString.Base64 as Enc
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -42,7 +42,7 @@ authenticationMode = "ECDSA-NIST256P-CHALLENGE"
 encodeUsername ::
   Text {- ^ username                 -} ->
   Text {- ^ base-64 encoded username -}
-encodeUsername = Text.decodeUtf8 . convertToBase Base64 . Text.encodeUtf8
+encodeUsername = Text.decodeUtf8 . Enc.encode . Text.encodeUtf8
 
 
 -- | Compute the response for a given challenge using the @ecdsatool@

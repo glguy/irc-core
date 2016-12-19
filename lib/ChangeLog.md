@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.2.0.1  -- 2016-12-18
+
+* Exchange `memory` dependency for `base64-bytestring`
+
 ## 2.2.0.0  -- 2016-09-15
 
 * `ircIson` packs all the nicks into a single argument

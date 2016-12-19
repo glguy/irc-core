@@ -51,7 +51,7 @@ import           Irc.Identifier
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Data.ByteArray.Encoding as Enc
+import qualified Data.ByteString.Base64 as Enc
 
 -- | PRIVMSG command
 ircPrivmsg ::
@@ -261,6 +261,6 @@ encodePlainAuthentication ::
   Text
 encodePlainAuthentication user pass
   = Text.decodeUtf8
-  $ Enc.convertToBase Enc.Base64
+  $ Enc.encode
   $ Text.encodeUtf8
   $ Text.intercalate "\0" [user,user,pass]
