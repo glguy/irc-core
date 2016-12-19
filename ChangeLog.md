@@ -1,8 +1,9 @@
 # Revision history for glirc2
 
-## 2.20.1.2
+## 2.20.2
 
 * Remove `memory` dependency
+* Add `indent-wrapped-lines` setting
 
 ## 2.20.1.1
 * Remove macro dependency on happy and alex being installed for version information
