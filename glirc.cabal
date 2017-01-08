@@ -146,7 +146,7 @@ library
                        transformers         >=0.5.2  && <0.6,
                        unix                 >=2.7    && <2.8,
                        unordered-containers >=0.2.7  && <0.3,
-                       vector               >=0.11   && <0.12,
+                       vector               >=0.11   && <0.13,
                        vty                  >=5.11.1 && <5.15,
                        hookup               >=0.1    && <0.2
 
