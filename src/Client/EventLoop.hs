@@ -367,7 +367,8 @@ computeEffectiveTime time tags = fromMaybe time zncTime
 
 -- | Parses the time format used by ZNC for buffer playback
 parseZncTime :: String -> Maybe UTCTime
-parseZncTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%Z"
+parseZncTime = parseTimeM True defaultTimeLocale
+             $ iso8601DateFormat (Just "%T%Q%Z")
 
 
 -- | Returns the list of values that were stored at the given indexes, if
