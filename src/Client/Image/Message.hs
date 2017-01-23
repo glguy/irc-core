@@ -38,6 +38,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
 import qualified Data.Vector as Vector
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Irc.Codes
 import           Irc.Identifier

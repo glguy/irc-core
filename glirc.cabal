@@ -51,7 +51,7 @@ executable glirc2
       ld-options: -Wl,-exported_symbols_list,exec/macos_exported_symbols.txt
 
   -- Constraints can be found on the library itself
-  build-depends:       base, glirc, data-default-class, lens, text, vty
+  build-depends:       base, glirc, lens, text, vty
 
 library
   hs-source-dirs:      src
@@ -126,7 +126,6 @@ library
                        base64-bytestring    >=1.0.0.1 && <1.1,
                        config-value         >=0.5    && <0.6,
                        containers           >=0.5.7  && <0.6,
-                       data-default-class   >=0.1.2  && <0.2,
                        directory            >=1.2.6  && <1.4,
                        filepath             >=1.4.1  && <1.5,
                        gitrev               >=1.2    && <1.3,
@@ -147,7 +146,7 @@ library
                        unix                 >=2.7    && <2.8,
                        unordered-containers >=0.2.7  && <0.3,
                        vector               >=0.11   && <0.13,
-                       vty                  >=5.11.1 && <5.15,
+                       vty                  >=5.11.1 && <5.16,
                        hookup               >=0.1    && <0.2
 
   if flag(ExportCApi)

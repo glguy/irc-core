@@ -14,7 +14,6 @@ import Control.Concurrent
 import Control.Exception
 import Control.Lens
 import Control.Monad
-import Data.Default.Class (def)
 import Data.List (nub)
 import Data.Text (Text)
 import System.Exit
@@ -79,4 +78,4 @@ addInitialNetworks (n:ns) st =
 -- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
 -- once the continuation finishes.
 withVty :: (Vty -> IO a) -> IO a
-withVty = bracket (mkVty def{bracketedPasteMode = Just True}) shutdown
+withVty = bracket (mkVty mempty{bracketedPasteMode = Just True}) shutdown

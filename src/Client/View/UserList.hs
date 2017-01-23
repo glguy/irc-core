@@ -25,6 +25,7 @@ import           Data.List
 import           Data.Ord
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Irc.Identifier
 import           Irc.UserInfo

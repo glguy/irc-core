@@ -20,6 +20,7 @@ import           Client.State.Network
 import           Control.Lens
 import           Data.List
 import qualified Data.Map as Map
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Irc.Identifier
 

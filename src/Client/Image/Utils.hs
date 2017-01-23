@@ -11,6 +11,7 @@ Provides utilities for formatting Vty Images.
 module Client.Image.Utils (lineWrap) where
 
 import           Graphics.Vty.Image
+import           Graphics.Vty.Attributes
 
 -- | Given an image, break the image up into chunks of at most the
 -- given width and stack the resulting chunks vertically top-to-bottom.

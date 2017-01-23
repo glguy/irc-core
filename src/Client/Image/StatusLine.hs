@@ -28,6 +28,7 @@ import qualified Data.Map.Strict as Map
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier, idText)
 import           Numeric

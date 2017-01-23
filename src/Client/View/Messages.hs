@@ -25,6 +25,7 @@ import           Client.State.Network
 import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Irc.Identifier
 import           Irc.Message

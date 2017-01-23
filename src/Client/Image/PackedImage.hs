@@ -20,6 +20,7 @@ import qualified Data.Text as S
 import qualified Data.Text.Lazy as L
 import           Data.List
 import           GHC.Generics
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Graphics.Vty.Image.Internal
 

@@ -18,6 +18,7 @@ import           Data.List
 import           Data.List.Split
 import qualified Data.Text as Text
 import           Digraphs
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 
 -- | Render the lines of a table showing all of the available digraph entries

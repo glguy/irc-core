@@ -26,6 +26,7 @@ import           Control.Lens
 import           Data.HashSet (HashSet)
 import           Data.Text (Text)
 import           Data.Time
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Irc.Identifier
 

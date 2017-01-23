@@ -24,7 +24,6 @@ import           Control.Applicative
 import           Control.Exception  (bracket)
 import           Control.Lens
 import           Control.Monad
-import           Data.Default.Class (def)
 import           Data.Monoid        ((<>))
 import           Network.Socket     (PortNumber)
 import           Hookup

@@ -25,6 +25,7 @@ import           Control.Lens
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.Text (Text)
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Irc.Identifier
 import           Text.Read (readMaybe)

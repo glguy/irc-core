@@ -27,6 +27,7 @@ import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 
 -- | Generate either the list of all commands and their arguments,

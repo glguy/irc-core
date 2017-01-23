@@ -24,6 +24,7 @@ import           Data.List
 import           Data.Ord
 import           Data.Text (Text)
 import           Data.Time
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 import           Irc.Identifier
 

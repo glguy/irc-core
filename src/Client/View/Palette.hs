@@ -17,6 +17,7 @@ module Client.View.Palette
 import           Client.Image.Palette
 import           Control.Lens
 import           Data.List
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 
 digits :: String

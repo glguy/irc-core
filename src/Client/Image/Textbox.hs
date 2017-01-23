@@ -30,6 +30,7 @@ import           Data.Char
 import           Data.List
 import           Data.Monoid
 import qualified Data.Text as Text
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 
 -- | Compute the UI image for the text input box. This computes

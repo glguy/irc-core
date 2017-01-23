@@ -24,6 +24,7 @@ import           Data.Bits
 import           Data.Char
 import           Data.Maybe
 import           Data.Text (Text)
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image hiding ((<|>))
 import qualified Graphics.Vty as Vty
 

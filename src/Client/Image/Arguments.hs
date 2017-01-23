@@ -21,6 +21,7 @@ import           Client.Image.MircFormatting
 import           Client.Image.Palette
 import           Control.Lens
 import qualified Data.Text as Text
+import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
 
 -- | Parse command arguments against a given 'ArgumentSpec'.
