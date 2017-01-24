@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.20.2.1
+
+* Support `vty-5.15`
+
 ## 2.20.2
 
 * Remove `memory` dependency
