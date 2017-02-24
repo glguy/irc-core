@@ -118,13 +118,12 @@ clientWindowHeights ::
   Int         {- ^ status bar height         -} ->
   ClientState {- ^ client state              -} ->
   (Int,Int)   {- ^ main height, extra height -}
-clientWindowHeights statusBar st =
-  (max 0 (h - overhead - extras*d), max 0 (d-overhead))
+clientWindowHeights statusBar st = (mainH, splitH)
   where
-    d        = h `quot` (1 + extras)
-
-    h        = max 0 (view clientHeight st - statusBar) -- lines available
+    h        = max 0 (view clientHeight st - overhead)
+    splitH   = h `quot` (1+extras)
+    mainH    = h - splitH*extras
 
     extras   = length (clientExtraFocuses st)
-
-    overhead = 1 -- textbox/divider
+    textbox  = 1
+    overhead = textbox + statusBar + 2*extras
