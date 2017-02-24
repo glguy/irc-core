@@ -14,7 +14,6 @@ window.
 module Client.Image.StatusLine
   ( statusLineImage
   , minorStatusLineImage
-  , activityBarImage
   ) where
 
 import           Client.Image.Palette
@@ -35,21 +34,25 @@ import           Numeric
 
 -- | Renders the status line between messages and the textbox.
 statusLineImage ::
-  ClientState {- ^ client state             -} ->
-  Image       {- ^ activity bar, status bar -}
+  ClientState {- ^ client state -} ->
+  Image       {- ^ status bar   -}
 statusLineImage st = content <|> charFill defAttr '─' fillSize 1
   where
     fillSize = max 0 (view clientWidth st - imageWidth content)
-    content = horizCat
+    contentSansActivity = horizCat
       [ myNickImage st
       , focusImage st
-      , activitySummary st
       , detailImage st
       , nometaImage st
       , scrollImage st
       , filterImage st
       , latencyImage st
       ]
+
+    content
+      | view clientActivityBar st =
+          makeLines (view clientWidth st) (contentSansActivity : activityBarImages st)
+      | otherwise = contentSansActivity <|> activitySummary st
 
 
 -- | The minor status line is used when rendering the @/splits@ and
@@ -162,16 +165,14 @@ activitySummary st
              | otherwise         = view palActivity pal
 
 -- | Multi-line activity information enabled by F3
-activityBarImage :: ClientState -> Image
-activityBarImage st
-  | view clientActivityBar st = activityBar'
-  | otherwise                 = emptyImage
+activityBarImages :: ClientState -> [Image]
+activityBarImages st
+  = catMaybes
+  $ zipWith baraux winNames
+  $ Map.toList
+  $ view clientWindows st
+
   where
-    activityBar' = makeLines (view clientWidth st)
-                 $ catMaybes
-                 $ zipWith baraux winNames
-                 $ Map.toList
-                 $ view clientWindows st
 
     winNames = clientWindowNames st ++ repeat '?'
 
@@ -197,7 +198,11 @@ activityBarImage st
             ChannelFocus _ chan -> idText chan
 
 
-
+-- | Pack a list of images into a single image spanning possibly many lines.
+-- The images will stack upward with the first element of the list being in
+-- the bottom left corner of the image. Each line will have at least one
+-- of the component images in it, which might truncate that image in extreme
+-- cases.
 makeLines ::
   Int     {- ^ window width       -} ->
   [Image] {- ^ components to pack -} ->

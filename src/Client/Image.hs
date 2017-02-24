@@ -45,7 +45,7 @@ clientImage ::
   (Int, Image, ClientState) {- ^ text box cursor position, image, updated state -}
 clientImage st = (pos, img, st')
   where
-    (mainHeight, splitHeight) = clientWindowHeights (imageHeight activityBar) st
+    (mainHeight, splitHeight) = clientWindowHeights (imageHeight statusLine) st
     splitFocuses              = clientExtraFocuses st
     focus                     = view clientFocus st
     (pos , nextOffset, tbImg) = textboxImage st
@@ -60,13 +60,10 @@ clientImage st = (pos, img, st')
 
     img = vertCat splits      <->
           msgs                <->
-          activityBar         <->
-          statusLineImage st' <->
+          statusLine          <->
           tbImg
 
-    activityBar = activityBarImage st
-        -- must be st, not st', needed to compute window heights
-        -- before rendering the message panes
+    statusLine = statusLineImage st
 
     renderExtra stIn focus1 = outImg
       where
@@ -111,23 +108,23 @@ scrollAmount ::
 scrollAmount st = max 1 (snd (clientWindowHeights actSize st))
                -- extra will be equal to main or 1 smaller
   where
-    actSize = imageHeight (activityBarImage st)
+    actSize = imageHeight (statusLineImage st)
 
 
 -- | Number of lines to allocate for the focused window and the
 -- main window. This doesn't include the textbox, activity bar,
 -- or status line.
 clientWindowHeights ::
-  Int         {- ^ activity bar height       -} ->
+  Int         {- ^ status bar height         -} ->
   ClientState {- ^ client state              -} ->
   (Int,Int)   {- ^ main height, extra height -}
-clientWindowHeights activityBar st =
+clientWindowHeights statusBar st =
   (max 0 (h - overhead - extras*d), max 0 (d-overhead))
   where
     d        = h `quot` (1 + extras)
 
-    h        = max 0 (view clientHeight st - activityBar) -- lines available
+    h        = max 0 (view clientHeight st - statusBar) -- lines available
 
     extras   = length (clientExtraFocuses st)
 
-    overhead = 2 -- status line and textbox/divider
+    overhead = 1 -- textbox/divider
