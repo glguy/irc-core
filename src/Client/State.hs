@@ -146,6 +146,7 @@ import           Text.Regex.TDFA.String (compile)
 data ClientState = ClientState
   { _clientWindows           :: !(Map Focus Window) -- ^ client message buffers
   , _clientPrevFocus         :: !Focus              -- ^ previously focused buffer
+  , _clientActivityReturn    :: !Focus              -- ^ focus prior to jumping to activity
   , _clientFocus             :: !Focus              -- ^ currently focused buffer
   , _clientSubfocus          :: !Subfocus           -- ^ current view mode
   , _clientExtraFocus        :: ![Focus]            -- ^ extra messages windows to view
@@ -239,6 +240,7 @@ withClientState cfg k =
         , _clientHeight            = 25
         , _clientEvents            = events
         , _clientPrevFocus         = Unfocused
+        , _clientActivityReturn    = Unfocused
         , _clientFocus             = Unfocused
         , _clientSubfocus          = FocusMessages
         , _clientExtraFocus        = []
@@ -779,14 +781,15 @@ clientExtraFocuses st =
 -- Some events like errors or chat messages mentioning keywords are
 -- considered important and will be jumped to first.
 jumpToActivity :: ClientState -> ClientState
-jumpToActivity st =
-  case mplus highPriority lowPriority of
-    Just (focus,_) -> changeFocus focus st
-    Nothing        -> st
+jumpToActivity st = changeFocusReason ActivityJump newFocus st
   where
     windowList   = views clientWindows Map.toAscList st
     highPriority = find (view winMention . snd) windowList
     lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
+    newFocus =
+      case mplus highPriority lowPriority of
+        Just (focus,_) -> focus
+        Nothing        -> view clientActivityReturn st
 
 -- | Jump the focus directly to a window based on its zero-based index.
 jumpFocus ::
@@ -799,24 +802,42 @@ jumpFocus i st
     windows   = view clientWindows st
     (focus,_) = Map.elemAt i windows
 
+data FocusChange = ActivityJump | ManualJump
+
+-- | Simple interface to 'changeFocusReason' that defaults to the 'ManualFocus'
+-- reason.
+changeFocus ::
+  Focus       {- ^ new focus             -} ->
+  ClientState {- ^ client state          -} ->
+  ClientState
+changeFocus = changeFocusReason ManualJump
+
 -- | Change the window focus to the given value, reset the subfocus
 -- to message view, reset the scroll, remember the previous focus
 -- if it changed.
-changeFocus ::
-  Focus       {- ^ new focus    -} ->
-  ClientState {- ^ client state -} ->
+changeFocusReason ::
+  FocusChange {- ^ cause of focus change -} ->
+  Focus       {- ^ new focus             -} ->
+  ClientState {- ^ client state          -} ->
   ClientState
-changeFocus focus st
+changeFocusReason reason focus st
   = set clientScroll 0
   . updatePrevious
+  . updateActivity
   . set clientFocus focus
   . set clientSubfocus FocusMessages
   $ st
   where
     oldFocus = view clientFocus st
+
     updatePrevious
       | focus == oldFocus = id
       | otherwise         = set clientPrevFocus oldFocus
+
+    updateActivity =
+      case reason of
+        ActivityJump -> id
+        ManualJump   -> set clientActivityReturn focus
 
 -- | Change the subfocus to the given value, preserve the focus, reset
 -- the scroll.
