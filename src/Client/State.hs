@@ -40,6 +40,7 @@ module Client.State
   , clientExtensions
   , clientRegex
   , clientLogQueue
+  , clientActivityReturn
 
   -- * Client operations
   , withClientState
@@ -781,7 +782,7 @@ clientExtraFocuses st =
 -- Some events like errors or chat messages mentioning keywords are
 -- considered important and will be jumped to first.
 jumpToActivity :: ClientState -> ClientState
-jumpToActivity st = changeFocusReason ActivityJump newFocus st
+jumpToActivity st = changeFocus newFocus st
   where
     windowList   = views clientWindows Map.toAscList st
     highPriority = find (view winMention . snd) windowList
@@ -802,28 +803,17 @@ jumpFocus i st
     windows   = view clientWindows st
     (focus,_) = Map.elemAt i windows
 
-data FocusChange = ActivityJump | ManualJump
-
--- | Simple interface to 'changeFocusReason' that defaults to the 'ManualFocus'
--- reason.
-changeFocus ::
-  Focus       {- ^ new focus             -} ->
-  ClientState {- ^ client state          -} ->
-  ClientState
-changeFocus = changeFocusReason ManualJump
 
 -- | Change the window focus to the given value, reset the subfocus
 -- to message view, reset the scroll, remember the previous focus
 -- if it changed.
-changeFocusReason ::
-  FocusChange {- ^ cause of focus change -} ->
+changeFocus ::
   Focus       {- ^ new focus             -} ->
   ClientState {- ^ client state          -} ->
   ClientState
-changeFocusReason reason focus st
+changeFocus focus st
   = set clientScroll 0
   . updatePrevious
-  . updateActivity
   . set clientFocus focus
   . set clientSubfocus FocusMessages
   $ st
@@ -833,11 +823,6 @@ changeFocusReason reason focus st
     updatePrevious
       | focus == oldFocus = id
       | otherwise         = set clientPrevFocus oldFocus
-
-    updateActivity =
-      case reason of
-        ActivityJump -> id
-        ManualJump   -> set clientActivityReturn focus
 
 -- | Change the subfocus to the given value, preserve the focus, reset
 -- the scroll.

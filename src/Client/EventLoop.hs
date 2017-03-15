@@ -409,7 +409,11 @@ doKey ::
   ClientState {- ^ client state   -} ->
   IO (Maybe ClientState)
 doKey vty key modifier st =
-  let continue !out   = return (Just out)
+
+  let continue !out -- detect when chains of M-a are broken
+        | modifier == [MMeta] && key == KChar 'a' = return (Just out)
+        | otherwise = return $! Just $! set clientActivityReturn (view clientFocus out) out
+
       changeEditor  f = continue (over clientTextBox f st)
       changeContent f = changeEditor
                       $ over Edit.content f
