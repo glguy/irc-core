@@ -18,6 +18,7 @@ module Client.Commands
   , commandExpansion
   , tabCompletion
   -- * Commands
+  , CommandSection(..)
   , Command(..)
   , CommandImpl(..)
   , commands
@@ -111,6 +112,13 @@ data Command = forall a. Command
   , cmdDocumentation  :: Text
   -- | Implementation of the command for both execution and tab completion
   , cmdImplementation :: CommandImpl a
+  }
+
+-- | A command section is a logical grouping of commands. This allows for
+-- showing more structure in the help menu system.
+data CommandSection = CommandSection
+  { cmdSectionName :: Text
+  , cmdSectionCmds :: [Command]
   }
 
 -- | Consider the text entry successful and resume the client
@@ -274,65 +282,22 @@ expandAliases xs =
 -- | Map of built-in client commands to their implementations, tab completion
 -- logic, and argument structures.
 commands :: Recognizer Command
-commands = fromCommands (expandAliases commandsList)
+commands = fromCommands (expandAliases (concatMap cmdSectionCmds commandsList))
 
 
 -- | Raw list of commands in the order used for @/help@
-commandsList :: [Command]
+commandsList :: [CommandSection]
 commandsList =
-  --
-  -- Client commands
-  --
-  [ Command
-      (pure "connect")
-      (ReqTokenArg "network" NoArg)
-      "Connect to \^Bnetwork\^B by name.\n\
-      \\n\
-      \If no name is configured the hostname is the 'name'.\n"
-    $ ClientCommand cmdConnect tabConnect
 
-  , Command
+  ------------------------------------------------------------------------
+  [ CommandSection "Client commands"
+  ------------------------------------------------------------------------
+
+  [ Command
       (pure "exit")
       NoArg
       "Exit the client immediately.\n"
     $ ClientCommand cmdExit noClientTab
-
-  , Command
-      (pure "focus")
-      (ReqTokenArg "network" (OptTokenArg "channel" NoArg))
-      "Change the focused window.\n\
-      \\n\
-      \When only \^Bnetwork\^B is specified this switches to the network status window.\n\
-      \When \^Bnetwork\^B and \^Bchannel\^B are specified this switches to that chat window.\n\
-      \\n\
-      \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
-      \See also: /channel (aliased /c) to switch to a channel on the current network.\n"
-    $ ClientCommand cmdFocus tabFocus
-
-  , Command
-      (pure "clear")
-      (OptTokenArg "network" (OptTokenArg "channel" NoArg))
-      "Clear a window.\n\
-      \\n\
-      \If no arguments are provided the current window is cleared.\n\
-      \If \^Bnetwork\^B is provided the that network window is cleared.\n\
-      \If \^Bnetwork\^B and \^Bchannel\^B are provided that chat window is cleared.\n\
-      \If \^Bnetwork\^B is provided and \^Bchannel\^B is \^B*\^O all windows for that network are cleared.\n\
-      \\n\
-      \If a window is cleared and no longer active that window will be removed from the client.\n"
-    $ ClientCommand cmdClear tabFocus
-
-  , Command
-      (pure "reconnect")
-      NoArg
-      "Reconnect to the current network.\n"
-    $ ClientCommand cmdReconnect noClientTab
-
-  , Command
-      (pure "ignore")
-      (RemainingArg "nicks")
-      "Toggle the soft-ignore on each of the space-delimited given nicknames.\n"
-    $ ClientCommand cmdIgnore simpleClientTab
 
   , Command
       (pure "reload")
@@ -350,21 +315,6 @@ commandsList =
       \\n\
       \\^Bextension\^B should be the name of the loaded extension.\n"
     $ ClientCommand cmdExtension simpleClientTab
-
-  , Command
-      (pure "windows")
-      (OptTokenArg "kind" NoArg)
-      "Show a list of all windows with an optional argument to limit the kinds of windows listed.\n\
-      \\n\
-      \\^Bkind\^O: one of \^Bnetworks\^O, \^Bchannels\^O, \^Busers\^O\n\
-      \\n"
-    $ ClientCommand cmdWindows tabWindows
-
-  , Command
-      (pure "mentions")
-      NoArg
-      "Show a list of all message that were highlighted as important.\n"
-    $ ClientCommand cmdMentions noClientTab
 
   , Command
       (pure "palette")
@@ -421,6 +371,92 @@ commandsList =
       \When \^Bcommand\^B is specified detailed help for that command is shown.\n"
     $ ClientCommand cmdHelp tabHelp
 
+  ------------------------------------------------------------------------
+  ] , CommandSection "Connection commands"
+  ------------------------------------------------------------------------
+
+  [ Command
+      (pure "connect")
+      (ReqTokenArg "network" NoArg)
+      "Connect to \^Bnetwork\^B by name.\n\
+      \\n\
+      \If no name is configured the hostname is the 'name'.\n"
+    $ ClientCommand cmdConnect tabConnect
+
+  , Command
+      (pure "reconnect")
+      NoArg
+      "Reconnect to the current network.\n"
+    $ ClientCommand cmdReconnect noClientTab
+
+  , Command
+      (pure "disconnect")
+      NoArg
+      "Immediately terminate the current network connection.\n\
+      \\n\
+      \See also: /quit /exit\n"
+    $ NetworkCommand cmdDisconnect noNetworkTab
+
+  , Command
+      (pure "quit")
+      (RemainingArg "reason")
+      "Gracefully disconnect the current network connection.\n\
+      \\n\
+      \\^Breason\^B: optional quit reason\n\
+      \\n\
+      \See also: /disconnect /exit\n"
+    $ NetworkCommand cmdQuit   simpleNetworkTab
+
+  ------------------------------------------------------------------------
+  ] , CommandSection "Window management"
+  ------------------------------------------------------------------------
+
+  [ Command
+      (pure "focus")
+      (ReqTokenArg "network" (OptTokenArg "channel" NoArg))
+      "Change the focused window.\n\
+      \\n\
+      \When only \^Bnetwork\^B is specified this switches to the network status window.\n\
+      \When \^Bnetwork\^B and \^Bchannel\^B are specified this switches to that chat window.\n\
+      \\n\
+      \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
+      \See also: /channel (aliased /c) to switch to a channel on the current network.\n"
+    $ ClientCommand cmdFocus tabFocus
+
+  , Command
+      ("channel" :| ["c"])
+      (ReqTokenArg "channel" NoArg)
+      "Change the focused window.\n\
+      \\n\
+      \Changes the focus to the \^Bchannel\^B chat window on the current network.\n\
+      \\n\
+      \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
+      \See also: /focus to switch to a channel on a different network.\n\
+      \See also: /focus to switch to a channel on a different network.\n"
+    $ NetworkCommand cmdChannel tabChannel
+
+  , Command
+      (pure "clear")
+      (OptTokenArg "network" (OptTokenArg "channel" NoArg))
+      "Clear a window.\n\
+      \\n\
+      \If no arguments are provided the current window is cleared.\n\
+      \If \^Bnetwork\^B is provided the that network window is cleared.\n\
+      \If \^Bnetwork\^B and \^Bchannel\^B are provided that chat window is cleared.\n\
+      \If \^Bnetwork\^B is provided and \^Bchannel\^B is \^B*\^O all windows for that network are cleared.\n\
+      \\n\
+      \If a window is cleared and no longer active that window will be removed from the client.\n"
+    $ ClientCommand cmdClear tabFocus
+
+  , Command
+      (pure "windows")
+      (OptTokenArg "kind" NoArg)
+      "Show a list of all windows with an optional argument to limit the kinds of windows listed.\n\
+      \\n\
+      \\^Bkind\^O: one of \^Bnetworks\^O, \^Bchannels\^O, \^Busers\^O\n\
+      \\n"
+    $ ClientCommand cmdWindows tabWindows
+
   , Command
       (pure "splits")
       (RemainingArg "focuses")
@@ -463,6 +499,12 @@ commandsList =
     $ ClientCommand cmdSplitsDel tabActiveSplits
 
   , Command
+      (pure "ignore")
+      (RemainingArg "nicks")
+      "Toggle the soft-ignore on each of the space-delimited given nicknames.\n"
+    $ ClientCommand cmdIgnore simpleClientTab
+
+  , Command
       (pure "grep")
       (RemainingArg "regular-expression")
       "Set the persistent regular expression.\n\
@@ -484,17 +526,17 @@ commandsList =
       \\^B/grepi\^O is case-insensitive.\n"
     $ ClientCommand (cmdGrep False) simpleClientTab
 
-
-  --
-  -- Network commands
-  --
   , Command
-      (pure "quote")
-      (RemainingArg "raw IRC command")
-      "Send a raw IRC command.\n"
-    $ NetworkCommand cmdQuote  simpleNetworkTab
+      (pure "mentions")
+      NoArg
+      "Show a list of all message that were highlighted as important.\n"
+    $ ClientCommand cmdMentions noClientTab
 
-  , Command
+  ------------------------------------------------------------------------
+  ] , CommandSection "IRC commands"
+  ------------------------------------------------------------------------
+
+  [ Command
       ("join" :| ["j"])
       (ReqTokenArg "channels" (OptTokenArg "keys" NoArg))
       "Join a chat channel.\n\
@@ -504,33 +546,10 @@ commandsList =
     $ NetworkCommand cmdJoin   simpleNetworkTab
 
   , Command
-      ("channel" :| ["c"])
-      (ReqTokenArg "channel" NoArg)
-      "Change the focused window.\n\
-      \\n\
-      \Changes the focus to the \^Bchannel\^B chat window on the current network.\n\
-      \\n\
-      \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
-      \See also: /focus to switch to a channel on a different network.\n\
-      \See also: /focus to switch to a channel on a different network.\n"
-    $ NetworkCommand cmdChannel tabChannel
-
-  , Command
-      (pure "mode")
-      (RemainingArg "modes and parameters")
-      "Sets IRC modes.\n\
-      \\n\
-      \Examples:\n\
-      \Setting a ban:           /mode +b *!*@hostname\n\
-      \Removing a quiet:        /mode -q *!*@hostname\n\
-      \Voicing two users:       /mode +vv user1 user2\n\
-      \Demoting an op to voice: /mode +v-o user1 user1\n\
-      \\n\
-      \When executed in a network window, mode changes are applied to your user.\n\
-      \When executed in a channel window, mode changes are applied to the channel.\n\
-      \\n\
-      \This command has parameter sensitive tab-completion.\n"
-    $ NetworkCommand cmdMode   tabMode
+      (pure "part")
+      (RemainingArg "reason")
+      "Part from the current channel.\n"
+    $ ChannelCommand cmdPart simpleChannelTab
 
   , Command
       (pure "msg")
@@ -539,6 +558,20 @@ commandsList =
       \\n\
       \\^Btarget\^B can be a channel or nickname.\n"
     $ NetworkCommand cmdMsg    simpleNetworkTab
+
+  , Command
+      (pure "me")
+      (RemainingArg "message")
+      "Send an 'action' to the current chat window.\n"
+    $ ChatCommand cmdMe simpleChannelTab
+
+  , Command
+      (pure "say")
+      (RemainingArg "message")
+      "Send a message to the current chat window.\n\
+      \\n\
+      \This can be useful for sending a chat message with a leading '/'.\n"
+    $ ChatCommand cmdSay simpleChannelTab
 
   , Command
       (pure "notice")
@@ -569,24 +602,39 @@ commandsList =
     $ NetworkCommand cmdNick   simpleNetworkTab
 
   , Command
-      (pure "quit")
-      (RemainingArg "reason")
-      "Gracefully disconnect the current network connection.\n\
+      (pure "away")
+      (RemainingArg "message")
+      "Set away status.\n\
       \\n\
-      \\^Breason\^B: optional quit reason\n\
-      \\n\
-      \See also: /disconnect /exit\n"
-    $ NetworkCommand cmdQuit   simpleNetworkTab
+      \When \^Bmessage\^B is omitted away status is cleared.\n"
+    $ NetworkCommand cmdAway simpleNetworkTab
 
   , Command
-      (pure "disconnect")
+      (pure "users")
       NoArg
-      "Immediately terminate the current network connection.\n\
+      "Show the user list for the current channel.\n\
       \\n\
-      \See also: /quit /exit\n"
-    $ NetworkCommand cmdDisconnect noNetworkTab
+      \Detailed view (F2) shows full hostmask.\n\
+      \Hostmasks can be populated with /who #channel.\n"
+    $ ChannelCommand cmdUsers  noChannelTab
 
   , Command
+      (pure "channelinfo")
+      NoArg
+      "Show information about the current channel.\n"
+    $ ChannelCommand cmdChannelInfo noChannelTab
+
+  , Command
+      (pure "quote")
+      (RemainingArg "raw IRC command")
+      "Send a raw IRC command.\n"
+    $ NetworkCommand cmdQuote  simpleNetworkTab
+
+  ------------------------------------------------------------------------
+  ] , CommandSection "IRC queries"
+  ------------------------------------------------------------------------
+
+  [ Command
       (pure "who")
       (RemainingArg "arguments")
       "Send WHO query to server with given arguments.\n"
@@ -617,14 +665,6 @@ commandsList =
     $ NetworkCommand cmdUserhost simpleNetworkTab
 
   , Command
-      (pure "away")
-      (RemainingArg "message")
-      "Set away status.\n\
-      \\n\
-      \When \^Bmessage\^B is omitted away status is cleared.\n"
-    $ NetworkCommand cmdAway simpleNetworkTab
-
-  , Command
       (pure "links")
       (RemainingArg "arguments")
       "Send LINKS query to server with given arguments.\n"
@@ -642,30 +682,40 @@ commandsList =
       "Send STATS query to server with given arguments.\n"
     $ NetworkCommand cmdStats simpleNetworkTab
 
-  , Command
-      (pure "znc")
-      (RemainingArg "arguments")
-      "Send command directly to ZNC.\n\
+  ------------------------------------------------------------------------
+  ] , CommandSection "IRC channel management"
+  ------------------------------------------------------------------------
+
+  [ Command
+      (pure "mode")
+      (RemainingArg "modes and parameters")
+      "Sets IRC modes.\n\
       \\n\
-      \The advantage of this over /msg is that responses are not broadcast to call clients.\n"
-    $ NetworkCommand cmdZnc simpleNetworkTab
+      \Examples:\n\
+      \Setting a ban:           /mode +b *!*@hostname\n\
+      \Removing a quiet:        /mode -q *!*@hostname\n\
+      \Voicing two users:       /mode +vv user1 user2\n\
+      \Demoting an op to voice: /mode +v-o user1 user1\n\
+      \\n\
+      \When executed in a network window, mode changes are applied to your user.\n\
+      \When executed in a channel window, mode changes are applied to the channel.\n\
+      \\n\
+      \This command has parameter sensitive tab-completion.\n"
+    $ NetworkCommand cmdMode   tabMode
 
   , Command
-      (pure "znc-playback")
-      (OptTokenArg "time" (OptTokenArg "date" NoArg))
-      "Request playback from the ZNC 'playback' module.\n\
+      (pure "masks")
+      (ReqTokenArg "mode" NoArg)
+      "Show mask lists for current channel.\n\
       \\n\
-      \\^Btime\^B determines the time to playback since.\n\
-      \\^Bdate\^B determines the date to playback since.\n\
+      \Common \^Bmode\^B values:\n\
+      \\^Bb\^B: bans\n\
+      \\^Bq\^B: quiets\n\
+      \\^BI\^B: invite exemptions (op view only)\n\
+      \\^Be\^B: ban exemption (op view only)s\n\
       \\n\
-      \When both \^Btime\^B and \^Bdate\^B are omitted, all playback is requested.\n\
-      \When both \^Bdate\^B is omitted it is defaulted the most recent date in the past that makes sense.\n\
-      \\n\
-      \Time format: HOURS:MINUTES (example: 7:00)\n\
-      \Date format: YEAR-MONTH-DAY (example: 2016-06-16)\n\
-      \\n\
-      \Note that the playback module is not installed in ZNC by default!\n"
-    $ NetworkCommand cmdZncPlayback noNetworkTab
+      \To populate the mask lists for the first time use: /mode \^Bmode\^B\n"
+    $ ChannelCommand cmdMasks noChannelTab
 
   , Command
       (pure "invite")
@@ -707,55 +757,36 @@ commandsList =
       \See also: /kick /kickban\n"
     $ ChannelCommand cmdRemove simpleChannelTab
 
-  , Command
-      (pure "part")
-      (RemainingArg "reason")
-      "Part from the current channel.\n"
-    $ ChannelCommand cmdPart simpleChannelTab
+  ------------------------------------------------------------------------
+  ] , CommandSection "ZNC Support"
+  ------------------------------------------------------------------------
 
-  , Command
-      (pure "users")
-      NoArg
-      "Show the user list for the current channel.\n\
+  [ Command
+      (pure "znc")
+      (RemainingArg "arguments")
+      "Send command directly to ZNC.\n\
       \\n\
-      \Detailed view (F2) shows full hostmask.\n\
-      \Hostmasks can be populated with /who #channel.\n"
-    $ ChannelCommand cmdUsers  noChannelTab
+      \The advantage of this over /msg is that responses are not broadcast to call clients.\n"
+    $ NetworkCommand cmdZnc simpleNetworkTab
 
   , Command
-      (pure "channelinfo")
-      NoArg
-      "Show information about the current channel.\n"
-    $ ChannelCommand cmdChannelInfo noChannelTab
-
-  , Command
-      (pure "masks")
-      (ReqTokenArg "mode" NoArg)
-      "Show mask lists for current channel.\n\
+      (pure "znc-playback")
+      (OptTokenArg "time" (OptTokenArg "date" NoArg))
+      "Request playback from the ZNC 'playback' module.\n\
       \\n\
-      \Common \^Bmode\^B values:\n\
-      \\^Bb\^B: bans\n\
-      \\^Bq\^B: quiets\n\
-      \\^BI\^B: invite exemptions (op view only)\n\
-      \\^Be\^B: ban exemption (op view only)s\n\
+      \\^Btime\^B determines the time to playback since.\n\
+      \\^Bdate\^B determines the date to playback since.\n\
       \\n\
-      \To populate the mask lists for the first time use: /mode \^Bmode\^B\n"
-    $ ChannelCommand cmdMasks noChannelTab
-
-  , Command
-      (pure "me")
-      (RemainingArg "message")
-      "Send an 'action' to the current chat window.\n"
-    $ ChatCommand cmdMe simpleChannelTab
-
-  , Command
-      (pure "say")
-      (RemainingArg "message")
-      "Send a message to the current chat window.\n\
+      \When both \^Btime\^B and \^Bdate\^B are omitted, all playback is requested.\n\
+      \When both \^Bdate\^B is omitted it is defaulted the most recent date in the past that makes sense.\n\
       \\n\
-      \This can be useful for sending a chat message with a leading '/'.\n"
-    $ ChatCommand cmdSay simpleChannelTab
-  ]
+      \Time format: HOURS:MINUTES (example: 7:00)\n\
+      \Date format: YEAR-MONTH-DAY (example: 2016-06-16)\n\
+      \\n\
+      \Note that the playback module is not installed in ZNC by default!\n"
+    $ NetworkCommand cmdZncPlayback noNetworkTab
+
+  ]]
 
 -- | Provides no tab completion for client commands
 noClientTab :: Bool -> ClientCommand String
@@ -1068,7 +1099,7 @@ tabHelp :: Bool -> ClientCommand String
 tabHelp isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] commandNames isReversed st
   where
-    commandNames = fst <$> expandAliases commandsList
+    commandNames = fst <$> expandAliases (concatMap cmdSectionCmds commandsList)
 
 simpleTabCompletion ::
   Prefix a =>

@@ -22,7 +22,7 @@ import           Client.Image.Palette
 import           Client.Commands.Recognizer
 import           Control.Lens
 import           Data.Foldable (toList)
-import           Data.List (delete)
+import           Data.List (delete, intercalate)
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.Monoid ((<>))
 import           Data.Text (Text)
@@ -37,7 +37,7 @@ helpImageLines ::
   Maybe Text {- ^ optional command name -} ->
   Palette    {- ^ palette               -} ->
   [Image]    {- ^ help lines            -}
-helpImageLines mbCmd pal =
+helpImageLines mbCmd pal = reverse $
   case mbCmd of
     Nothing  -> listAllCommands pal
     Just cmd -> commandHelpLines cmd pal
@@ -56,18 +56,18 @@ commandHelpLines cmdName pal =
       suggestions = Text.unpack $ Text.intercalate " " ((cmdName <>) <$> sfxs)
     Exact Command{cmdNames = names, cmdImplementation = impl,
                   cmdArgumentSpec = spec, cmdDocumentation = doc} ->
-      reverse $ commandSummary pal (pure cmdName) spec
-              : emptyImage
+                commandSummary pal (pure cmdName) spec
+              : emptyLine
               : aliasLines
              ++ explainContext impl
-              : emptyImage
+              : emptyLine
               : map parseIrcText (Text.lines doc)
       where
         aliasLines =
           case delete cmdName (toList names) of
             [] -> []
             ns -> [ text' defAttr (Text.unwords ("Aliases:":ns))
-                  , emptyImage ]
+                  , emptyLine ]
 
 -- | Generate an explanation of the context where the given command
 -- implementation will be valid.
@@ -89,9 +89,20 @@ listAllCommands ::
   Palette {- ^ palette    -} ->
   [Image] {- ^ help lines -}
 listAllCommands pal =
-  reverse
-    [ commandSummary pal names spec
-    | Command{ cmdNames = names, cmdArgumentSpec = spec } <- commandsList ]
+  intercalate [emptyLine] (listCommandSection pal <$> commandsList)
+
+listCommandSection ::
+  Palette        {- ^ palette         -} ->
+  CommandSection {- ^ command section -} ->
+  [Image]        {- ^ help lines      -}
+listCommandSection pal sec
+  = text' (withStyle defAttr bold) (cmdSectionName sec)
+  : [ commandSummary pal names spec
+    | -- pattern needed due to existential quantification
+      Command { cmdNames        = names
+              , cmdArgumentSpec = spec
+              } <- cmdSectionCmds sec
+    ]
 
 -- | Generate the help line for the given command and its
 -- specification for use in the list of commands.
@@ -107,3 +118,7 @@ commandSummary pal (cmd :| _) args  =
 
   where
     pal' = set palCommandPlaceholder defAttr pal
+
+-- Empty line used as a separator
+emptyLine :: Image
+emptyLine = text' defAttr " "
