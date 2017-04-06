@@ -156,8 +156,10 @@ openNetworkHandle params =
 
 
 closeNetworkHandle :: NetworkHandle -> IO ()
-closeNetworkHandle (SSL s) = SSL.shutdown s SSL.Unidirectional
 closeNetworkHandle (Socket s) = Socket.close s
+closeNetworkHandle (SSL s) =
+  do SSL.shutdown s SSL.Unidirectional
+     traverse_ Socket.close (SSL.sslSocket s)
 
 networkSend :: NetworkHandle -> ByteString -> IO ()
 networkSend (Socket s) = SocketB.sendAll s

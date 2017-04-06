@@ -44,7 +44,7 @@ import           Control.Lens
 import           Control.Monad
 import           Data.Foldable
 import           Data.HashSet (HashSet)
-import           Data.List (nub)
+import           Data.List (nub, (\\))
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
@@ -435,6 +435,32 @@ commandsList =
       \\n\
       \Not providing an argument unsplits the current windows.\n"
     $ ClientCommand cmdSplits tabSplits
+
+  , Command
+      (pure "splits+")
+      (RemainingArg "focuses")
+      "Add windows to the splits list.\n\
+      \\n\
+      \\^Bfocuses\^B: space delimited list of focus names.\n\
+      \\n\
+      \Client:  *\n\
+      \Network: \^BNETWORK\^B\n\
+      \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
+      \User:    \^BNETWORK\^B:\^BNICK\^B\n"
+    $ ClientCommand cmdSplitsAdd tabSplits
+
+  , Command
+      (pure "splits-")
+      (RemainingArg "focuses")
+      "Remove windows from the splits list.\n\
+      \\n\
+      \\^Bfocuses\^B: space delimited list of focus names.\n\
+      \\n\
+      \Client:  *\n\
+      \Network: \^BNETWORK\^B\n\
+      \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
+      \User:    \^BNETWORK\^B:\^BNICK\^B\n"
+    $ ClientCommand cmdSplitsDel tabActiveSplits
 
   , Command
       (pure "grep")
@@ -970,11 +996,13 @@ cmdHelp st mb = commandSuccess (changeSubfocus focus st)
   where
     focus = FocusHelp (fmap (Text.pack . fst) mb)
 
--- | Tab completion for @/splits@
+-- | Tab completion for @/splits[+]@. When given no arguments this
+-- populates the current list of splits, otherwise it tab completes
+-- all of the currently available windows.
 tabSplits :: Bool -> ClientCommand String
 tabSplits isReversed st rest
   | all (' '==) rest =
-     do let cmd = "/splits " ++ unwords (Text.unpack . render <$> currentExtras)
+     do let cmd = unwords ("/splits" : map (Text.unpack . renderFocus) currentExtras)
             newline = Edit.endLine cmd
         commandSuccess (set (clientTextBox . Edit.line) newline st)
 
@@ -983,25 +1011,58 @@ tabSplits isReversed st rest
   where
     currentExtras = view clientExtraFocus st
 
-    completions = map render
+    completions = map renderFocus
                 $ Map.keys
                 $ view clientWindows st
 
-    render Unfocused          = "*"
-    render (NetworkFocus x)   = x
-    render (ChannelFocus x y) = x <> ":" <> idText y
+-- | Tab completion for @/splits-@. This completes only from the list of active
+-- entries in the splits list.
+tabActiveSplits :: Bool -> ClientCommand String
+tabActiveSplits isReversed st rest =
+  simpleTabCompletion plainWordCompleteMode [] completions isReversed st
+  where
+    completions = renderFocus <$> view clientExtraFocus st
+
+
+-- | Parses a list of entries in the format used by @/splits[+-]@ to specify windows.
+parseFocuses :: String -> [Focus]
+parseFocuses = map parseFocus . words
+
+-- | Parses a single entry in the format used by @/splits[+-]@ to specify windows.
+parseFocus :: String -> Focus
+parseFocus x =
+  case break (==':') x of
+    ("*","")     -> Unfocused
+    (net,"")     -> NetworkFocus (Text.pack net)
+    (net,_:chan) -> ChannelFocus (Text.pack net) (mkId (Text.pack chan))
+
+-- | Render a entry from splits back to the textual format.
+renderFocus :: Focus -> Text
+renderFocus Unfocused          = "*"
+renderFocus (NetworkFocus x)   = x
+renderFocus (ChannelFocus x y) = x <> ":" <> idText y
+
+
 
 -- | Implementation of @/splits@
 cmdSplits :: ClientCommand String
 cmdSplits st str = commandSuccess (set clientExtraFocus extras st)
   where
-    extras = nub (map toFocus (words str))
+    extras = nub (parseFocuses str)
 
-    toFocus x =
-      case break (==':') x of
-        ("*","")     -> Unfocused
-        (net,"")     -> NetworkFocus (Text.pack net)
-        (net,_:chan) -> ChannelFocus (Text.pack net) (mkId (Text.pack chan))
+
+-- | Implementation of @/splits+@
+cmdSplitsAdd :: ClientCommand String
+cmdSplitsAdd st str = commandSuccess (over clientExtraFocus extras st)
+  where
+    extras prev = nub (parseFocuses str ++ prev)
+
+-- | Implementation of @/splits-@
+cmdSplitsDel :: ClientCommand String
+cmdSplitsDel st str = commandSuccess (over clientExtraFocus extras st)
+  where
+    extras prev = prev \\ parseFocuses str
+
 
 tabHelp :: Bool -> ClientCommand String
 tabHelp isReversed st _ =
