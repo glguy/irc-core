@@ -37,7 +37,7 @@ helpImageLines ::
   Maybe Text {- ^ optional command name -} ->
   Palette    {- ^ palette               -} ->
   [Image]    {- ^ help lines            -}
-helpImageLines mbCmd pal = reverse $
+helpImageLines mbCmd pal =
   case mbCmd of
     Nothing  -> listAllCommands pal
     Just cmd -> commandHelpLines cmd pal
@@ -56,7 +56,7 @@ commandHelpLines cmdName pal =
       suggestions = Text.unpack $ Text.intercalate " " ((cmdName <>) <$> sfxs)
     Exact Command{cmdNames = names, cmdImplementation = impl,
                   cmdArgumentSpec = spec, cmdDocumentation = doc} ->
-                commandSummary pal (pure cmdName) spec
+      reverse $ commandSummary pal (pure cmdName) spec
               : emptyLine
               : aliasLines
              ++ explainContext impl
@@ -88,8 +88,10 @@ explainContext impl =
 listAllCommands ::
   Palette {- ^ palette    -} ->
   [Image] {- ^ help lines -}
-listAllCommands pal =
-  intercalate [emptyLine] (listCommandSection pal <$> commandsList)
+listAllCommands pal
+  = intercalate [emptyLine]
+  $ map reverse
+  $ listCommandSection pal <$> commandsList
 
 listCommandSection ::
   Palette        {- ^ palette         -} ->
