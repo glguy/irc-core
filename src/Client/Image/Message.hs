@@ -45,6 +45,7 @@ import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
+import           Text.Read
 
 -- | Parameters used when rendering messages
 data MessageRendererParams = MessageRendererParams
@@ -288,13 +289,7 @@ ircLineImage rm !rp body =
       parseIrcText reason
 
     Reply code params ->
-      renderReplyCode rm rp code <|>
-      char defAttr ' ' <|>
-      separatedParams (dropFst params)
-      where
-        dropFst = case rm of
-                    DetailedRender -> id
-                    NormalRender   -> drop 1
+      renderReplyCode rm rp code params
 
     UnknownMsg irc ->
       maybe emptyImage (\ui -> coloredUserInfo pal rm myNicks ui <|> char defAttr ' ')
@@ -343,15 +338,27 @@ separatedParams = horizCat . intersperse separatorImage . map parseIrcText
 ircWords :: [Text] -> Image
 ircWords = horizCat . intersperse (char defAttr ' ') . map parseIrcText
 
-renderReplyCode :: RenderMode -> MessageRendererParams -> ReplyCode -> Image
-renderReplyCode rm rp code@(ReplyCode w) =
+renderReplyCode :: RenderMode -> MessageRendererParams -> ReplyCode -> [Text] -> Image
+renderReplyCode rm rp code@(ReplyCode w) params =
   case rm of
-    DetailedRender -> string attr (show w)
+    DetailedRender -> string attr (show w) <|> rawParamsImage
     NormalRender   ->
       rightPad rm (rendNickPadding rp)
         (text' attr (Text.toLower (replyCodeText info))) <|>
-      char defAttr ':'
+      char defAttr ':' <|>
+
+      case code of
+        RPL_WHOISIDLE -> whoisIdleParamsImage
+        _             -> rawParamsImage
   where
+    rawParamsImage =
+      char defAttr ' ' <|>
+      separatedParams params'
+
+    params' = case rm of
+                DetailedRender -> params
+                NormalRender   -> drop 1 params
+
     info = replyCodeInfo code
 
     color = case replyCodeType info of
@@ -361,6 +368,40 @@ renderReplyCode rm rp code@(ReplyCode w) =
               UnknownReply      -> yellow
 
     attr = withForeColor defAttr color
+
+    whoisIdleParamsImage =
+      case params' of
+        [name, idle, signon, _txt] ->
+          char defAttr ' ' <|>
+          text' defAttr name <|>
+          text' defAttr " idle: " <|>
+          string defAttr (prettySeconds (Text.unpack idle)) <|>
+          text' defAttr " sign-on: " <|>
+          string defAttr (prettyUnixTime (Text.unpack signon))
+
+        _ -> rawParamsImage
+
+-- | Transform string representing seconds in POSIX time to pretty format.
+prettyUnixTime :: String -> String
+prettyUnixTime str =
+  case parseTimeM False defaultTimeLocale "%s" str of
+    Nothing -> str
+    Just t  -> formatTime defaultTimeLocale "%A %B %e, %Y %H:%M:%S %Z" (t :: UTCTime)
+
+-- | Render string representing seconds into days, hours, minutes, and seconds.
+prettySeconds :: String -> String
+prettySeconds str =
+  case readMaybe str of
+    Nothing -> str
+    Just n  -> intercalate " "
+             $ map (\(u,i) -> show i ++ [u])
+             $ dropWhile (\x -> snd x == 0)
+             $ zip "dhms" [d,h,m,s]
+      where
+        (n1,s) = quotRem n  60
+        (n2,m) = quotRem n1 60
+        (d ,h) = quotRem n2 24
+
 
 data IdentifierColorMode
   = PrivmsgIdentifier -- ^ An identifier in a PRIVMSG
