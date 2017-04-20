@@ -1,5 +1,13 @@
 # Revision history for glirc2
 
+## 2.20.3
+
+* Nicer `/help` system, commands are grouped
+* Added `/splits+` and `/splits-` for incremental updates to splits
+* Jump-to-activity returns to original window after activity is visited
+* Extended activity view makes use of empty space above text input
+* Parse the timestamp and duration from `/whois` response
+
 ## 2.20.2.1
 
 * Support `vty-5.15`
