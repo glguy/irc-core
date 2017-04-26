@@ -1,3 +1,4 @@
+{-# Language CPP #-}
 {-|
 Module      : Main
 Description : Custom setup script
@@ -21,13 +22,18 @@ import           Distribution.InstalledPackageInfo (InstalledPackageInfo, source
 import qualified Distribution.ModuleName as ModuleName
 import           Distribution.PackageDescription hiding (license)
 import           Distribution.Simple
-import           Distribution.Simple.BuildPaths (autogenModulesDir)
-import           Distribution.Simple.LocalBuildInfo (LocalBuildInfo, installedPkgs)
+import           Distribution.Simple.LocalBuildInfo (LocalBuildInfo, installedPkgs, withLibLBI)
 import           Distribution.Simple.PackageIndex (allPackages)
 import           Distribution.Simple.Setup (configVerbosity, fromFlag)
 import           Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFile)
 import           Distribution.Verbosity (Verbosity)
 import           System.FilePath ((</>), (<.>))
+
+#if MIN_VERSION_Cabal(2,0,0)
+import           Distribution.Simple.BuildPaths (autogenComponentModulesDir)
+#else
+import           Distribution.Simple.BuildPaths (autogenModulesDir)
+#endif
 
 
 -- | Default Setup main extended to generate a Build module and to validate
@@ -99,8 +105,13 @@ generateBuildModule ::
   [InstalledPackageInfo] {- ^ transitive package dependencies -} ->
   IO ()
 generateBuildModule verbosity pkg lbi pkgs =
-  do let modname = buildModuleName pkg
-         dir     = autogenModulesDir lbi
+#if MIN_VERSION_Cabal(2,0,0)
+  withLibLBI pkg lbi $ \_lib clbi ->
+  do let dir = autogenComponentModulesDir lbi clbi
+#else
+  do let dir = autogenModulesDir lbi
+#endif
+         modname = buildModuleName pkg
          file    = dir </> modname <.> "hs"
      createDirectoryIfMissingVerbose verbosity True dir
      rewriteFile file
@@ -126,6 +137,10 @@ renderDeps pkgs =
        | p <- sourcePackageId <$> pkgs
        ]
 
+#if MIN_VERSION_Cabal(2,0,0)
+versionBranch :: Version -> [Int]
+versionBranch = versionNumbers
+#endif
 
 -- | Check that all transitive dependencies are available under an acceptable
 -- license. Raises a user-error on failure.
