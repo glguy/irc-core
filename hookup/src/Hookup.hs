@@ -68,8 +68,8 @@ data TlsParams = TlsParams
   { tpClientCertificate  :: Maybe FilePath
   , tpClientPrivateKey   :: Maybe FilePath
   , tpServerCertificate  :: Maybe FilePath
-  , tpCipherSuite        :: String
-  , tpInsecure           :: Bool
+  , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. "HIGH")
+  , tpInsecure           :: Bool -- ^ Disables certificate checking
   }
 
 
@@ -196,7 +196,7 @@ close (Connection _ h) = closeNetworkHandle h
 
 
 -- | Receive a line from the network connection. Both
--- @"\r\n"@ and @"\n"@ are recognized.
+-- @"\\r\\n"@ and @"\\n"@ are recognized.
 --
 -- Throws: 'ConnectionAbruptlyTerminated', 'ConnectionFailure', 'IOError'
 recvLine :: Connection -> Int -> IO (Maybe ByteString)
@@ -219,7 +219,7 @@ recvLine (Connection buf h) n =
                else go (bsn + B.length more) more (bs:bss)
 
 
--- | Remove the trailing @'\r'@ if one is found.
+-- | Remove the trailing @'\\r'@ if one is found.
 cleanEnd :: ByteString -> ByteString
 cleanEnd bs
   | B.null bs || B.last bs /= 13 = bs

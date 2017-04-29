@@ -13,6 +13,7 @@ module Main (main) where
 import           Control.Exception
 import qualified Data.ByteString as B
 import           Data.Foldable (for_)
+import           Data.Traversable (for)
 import qualified Data.Text as Text
 import           Irc.Codes
 import           Irc.Commands   (ircUser, ircNick, ircPong, ircNotice, ircQuit)
@@ -21,7 +22,7 @@ import           Irc.Message    (IrcMsg(Ping, Privmsg, Reply), cookIrcMsg)
 import           Irc.RateLimit  (RateLimit, newRateLimit, tickRateLimit)
 import           Irc.RawIrcMsg  (RawIrcMsg, parseRawIrcMsg, renderRawIrcMsg, asUtf8)
 import           Irc.UserInfo   (userNick)
-import           Network.Connection
+import           Hookup
 import           System.Environment
 import           System.Random
 
@@ -50,53 +51,44 @@ getConfig =
 -- | Construct the connection parameters needed for the connection package
 mkParams :: Config -> ConnectionParams
 mkParams config = ConnectionParams
-  { connectionHostname  = configHost config
-  , connectionPort      = 6697 -- IRC over TLS
-  , connectionUseSecure = Just TLSSettingsSimple
-      { settingDisableCertificateValidation = False
-      , settingDisableSession               = False
-      , settingUseServerName                = False
-      }
-  , connectionUseSocks = Nothing
+  { cpHost = configHost config
+  , cpPort = 6697 -- IRC over TLS
+  , cpTls = Just TlsParams
+               { tpClientCertificate = Nothing
+               , tpClientPrivateKey  = Nothing
+               , tpServerCertificate = Nothing
+               , tpCipherSuite       = "HIGH"
+               , tpInsecure          = False }
+  , cpSocks = Nothing
   }
 
 -- | Open a connection which will stay open for duration of executing
 -- the action returned by the continuation.
 withConnection :: Config -> (Connection -> IO a) -> IO a
 withConnection config k =
-  do ctx <- initConnectionContext
-     bracket (connectTo ctx (mkParams config)) connectionClose k
+  do bracket (connect (mkParams config)) close k
 
 -- | IRC specifies that messages will bit up to 512 bytes including the newline
 maxIrcMessage :: Int
 maxIrcMessage = 512
 
--- | Get a line from the connection. IRC terminates lines with @\r\n@
--- but connectionGetLine only checks for @\n@, so strip the @\r@
-connectionGetLine' :: Connection -> IO B.ByteString
-connectionGetLine' h =
-  do xs <- connectionGetLine maxIrcMessage h
-     return $! if B.null xs
-                 then xs
-                 else B.init xs -- drop '\r'
 
 -- | Read the next high-level IRC message off the connection. An empty message
 -- is indicated by returning 'Nothing' and indicates that the connection is
 -- finished.
 readIrcLine :: Connection -> IO (Maybe IrcMsg)
 readIrcLine h =
-  do xs <- connectionGetLine' h
-     if B.null xs
-       then return Nothing -- connection closed
-       else case parseRawIrcMsg (asUtf8 xs) of
-              Just msg -> return $! Just $! cookIrcMsg msg
-              Nothing  -> fail "Server sent invalid message!"
+  do mb <- recvLine h maxIrcMessage
+     for mb $ \xs ->
+       case parseRawIrcMsg (asUtf8 xs) of
+         Just msg -> return $! cookIrcMsg msg
+         Nothing  -> fail "Server sent invalid message!"
 
 -- | Write an encoded IRC message to the connection
 sendMsg :: Config -> Connection -> RawIrcMsg -> IO ()
 sendMsg c h msg =
   do tickRateLimit (configRate c)
-     connectionPut h (renderRawIrcMsg msg)
+     send h (renderRawIrcMsg msg)
 
 -- | Send initial @USER@ and @NICK@ messages
 sendHello :: Config -> Connection -> IO ()
