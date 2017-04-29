@@ -413,27 +413,26 @@ commandsList =
 
   [ Command
       (pure "focus")
-      (ReqTokenArg "network" (OptTokenArg "channel" NoArg))
+      (ReqTokenArg "network" (OptTokenArg "target" NoArg))
       "Change the focused window.\n\
       \\n\
       \When only \^Bnetwork\^B is specified this switches to the network status window.\n\
-      \When \^Bnetwork\^B and \^Bchannel\^B are specified this switches to that chat window.\n\
+      \When \^Bnetwork\^B and \^Btarget\^B are specified this switches to that chat window.\n\
       \\n\
-      \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
-      \See also: /channel (aliased /c) to switch to a channel on the current network.\n"
+      \Nickname and channels can be specified in the \^Btarget\^B parameter.\n\
+      \See also: /query (aliased /c /channel) to switch to a target on the current network.\n"
     $ ClientCommand cmdFocus tabFocus
 
   , Command
-      ("channel" :| ["c"])
-      (ReqTokenArg "channel" NoArg)
+      ("query" :| ["c", "channel"])
+      (ReqTokenArg "target" NoArg)
       "Change the focused window.\n\
       \\n\
-      \Changes the focus to the \^Bchannel\^B chat window on the current network.\n\
+      \Changes the focus to the \^Btarget\^B chat window on the current network.\n\
       \\n\
-      \Nicknames can be specified in the \^Bchannel\^B parameter to switch to private chat.\n\
-      \See also: /focus to switch to a channel on a different network.\n\
-      \See also: /focus to switch to a channel on a different network.\n"
-    $ NetworkCommand cmdChannel tabChannel
+      \Nicknames and channels can be specified in the \^Btarget\^B parameter.\n\
+      \See also: /focus to switch to a target on a different network.\n"
+    $ NetworkCommand cmdQuery tabQuery
 
   , Command
       (pure "clear")
@@ -610,7 +609,7 @@ commandsList =
     $ NetworkCommand cmdAway simpleNetworkTab
 
   , Command
-      (pure "users")
+      ("users" :| ["names"])
       NoArg
       "Show the user list for the current channel.\n\
       \\n\
@@ -1349,18 +1348,18 @@ cmdJoin cs st (channels, mbKeys) =
         $ changeFocus (ChannelFocus network channelId) st
 
 
--- | @/channel@ command. Takes the name of a channel and switches
--- focus to that channel on the current network.
-cmdChannel :: NetworkCommand (String, ())
-cmdChannel cs st (channel, _) =
+-- | @/query@ command. Takes a channel or nickname and switches
+-- focus to that target on the current network.
+cmdQuery :: NetworkCommand (String, ())
+cmdQuery cs st (channel, _) =
   commandSuccess
     $ changeFocus (ChannelFocus (view csNetwork cs) (mkId (Text.pack channel))) st
 
--- | Tab completion for @/channel@
-tabChannel ::
+-- | Tab completion for @/query@
+tabQuery ::
   Bool {- ^ reversed order -} ->
   NetworkCommand String
-tabChannel isReversed cs st _ =
+tabQuery isReversed cs st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
     completions = channelWindowsOnNetwork (view csNetwork cs) st

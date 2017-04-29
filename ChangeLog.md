@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.20.4
+
+* Add `/query` alias for `/channel`
+* Add `/names` alias for `/users`
+
 ## 2.20.3
 
 * Nicer `/help` system, commands are grouped
