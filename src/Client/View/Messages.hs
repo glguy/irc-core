@@ -32,17 +32,27 @@ import           Irc.Message
 
 
 chatMessageImages :: Focus -> ClientState -> [Image]
-chatMessageImages focus st = windowLineProcessor focusedMessages
+chatMessageImages focus st =
+  case preview (clientWindows . ix focus) st of
+    Nothing  -> []
+    Just win ->
+      let msgs = toListOf each (view winMessages win) in
+      case clientMatcher st of
+        Just matcher -> windowLineProcessor (filter (views wlText matcher) msgs)
+        Nothing ->
+          case view winMarker win of
+            Nothing -> windowLineProcessor msgs
+            Just n  ->
+              windowLineProcessor l ++
+              [marker] ++
+              windowLineProcessor r
+              where
+                (l,r) = splitAt n msgs
+
   where
-    matcher = clientMatcher st
-
-    focusedMessages
-        = toListOf ( clientWindows . ix focus
-                   . winMessages . each
-                   . filtered (views wlText matcher)) st
-
+    palette = clientPalette st
+    marker = string (view palLineMarker palette) (replicate (view clientWidth st) '-')
     windowLineProcessor
-
       | view clientDetailView st =
           if view clientShowMetadata st
             then map (view wlFullImage)

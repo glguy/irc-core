@@ -29,12 +29,12 @@ digraphLines st
   = map (horizCat . intersperse sep)
   $ chunksOf entriesPerLine
   $ map (text' defAttr)
-  $ filter matcher
+  $ matcher
   $ map (Text.pack . drawEntry)
   $ digraphListToList digraphs
   where
     w              = view clientWidth st
-    matcher        = clientMatcher st
+    matcher        = maybe id filter (clientMatcher st)
     entriesPerLine = max 1 -- just in case?
                    $ (w + sepWidth) `quot` (entryWidth + sepWidth)
 

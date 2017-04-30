@@ -95,6 +95,7 @@ renderedWindowInfo pal win =
   char defAttr '/' <|>
   string (view palActivity pal) (views winTotal show win)
   where
-    newMsgAttrLens
-      | view winMention win = palMention
-      | otherwise           = palActivity
+    newMsgAttrLens =
+      case view winMention win of
+        WLImportant -> palMention
+        _           -> palActivity

@@ -483,7 +483,7 @@ recordWindowLine focus wl st = st2
 
       | otherwise = st1
 
-    hasMention = orOf (clientWindows . folded . winMention)
+    hasMention = elemOf (clientWindows . folded . winMention) WLImportant
 
 toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine params importance msg = WindowLine
@@ -565,15 +565,14 @@ channelUserList network channel =
   views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys
 
 
--- | Returns the current filtering predicate.
+-- | Returns the current filtering predicate if one is active.
 clientMatcher ::
-  ClientState {- ^ client state  -} ->
-  Text        {- ^ text to match -} ->
-  Bool        {- ^ is match      -}
+  ClientState          {- ^ client state       -} ->
+  Maybe (Text -> Bool) {- ^ optional predicate -}
 clientMatcher st =
-  case clientActiveRegex st of
-    Nothing -> const True
-    Just r  -> matchTest r . Text.unpack
+  do r <- clientActiveRegex st
+     return (matchTest r . Text.unpack)
+
 
 -- | Construct a text matching predicate used to filter the message window.
 clientActiveRegex :: ClientState -> Maybe Regex
@@ -785,7 +784,7 @@ jumpToActivity :: ClientState -> ClientState
 jumpToActivity st = changeFocus newFocus st
   where
     windowList   = views clientWindows Map.toAscList st
-    highPriority = find (view winMention . snd) windowList
+    highPriority = find (\x -> WLImportant == view winMention (snd x)) windowList
     lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
     newFocus =
       case mplus highPriority lowPriority of
@@ -808,11 +807,13 @@ jumpFocus i st
 -- to message view, reset the scroll, remember the previous focus
 -- if it changed.
 changeFocus ::
-  Focus       {- ^ new focus             -} ->
-  ClientState {- ^ client state          -} ->
+  Focus       {- ^ new focus    -} ->
+  ClientState {- ^ client state -} ->
   ClientState
 changeFocus focus st
   = set clientScroll 0
+  . activateCurrent
+  . deactivatePrevious
   . updatePrevious
   . set clientFocus focus
   . set clientSubfocus FocusMessages
@@ -823,6 +824,15 @@ changeFocus focus st
     updatePrevious
       | focus == oldFocus = id
       | otherwise         = set clientPrevFocus oldFocus
+
+    -- always activate the new window. If it was already active this
+    -- will clear the marker.
+    activateCurrent = over (clientWindows . ix focus) windowActivate
+
+    -- Don't deactivate a window if it's going to stay active
+    deactivatePrevious
+      | oldFocus `elem` focus : view clientExtraFocus st = id
+      | otherwise = over (clientWindows . ix oldFocus) windowDeactivate
 
 -- | Change the subfocus to the given value, preserve the focus, reset
 -- the scroll.

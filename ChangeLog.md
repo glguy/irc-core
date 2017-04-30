@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.20.5
+
+* Add line indicating message since previous time window was focused.
+  The palette for this is configurable as `line-marker`
+
 ## 2.20.4
 
 * Add `/query` alias for `/channel`

@@ -229,6 +229,7 @@ Palette
 | `command-ready`       | attr         | recognized command with arguments filled |
 | `command-placeholder` | attr         | command argument placeholder             |
 | `window-divider`      | attr         | the dividing line between split windows  |
+| `line-marker`         | attr         | the dividing line for new messages       |
 
 Text Attributes
 ---------------

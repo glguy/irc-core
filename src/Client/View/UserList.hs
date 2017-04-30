@@ -22,6 +22,7 @@ import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
 import           Data.List
+import           Data.Maybe
 import           Data.Ord
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -52,7 +53,7 @@ userListImages' cs channel st =
     countImage = text' (view palLabel pal) "Users:" <|>
                  sigilCountImage
 
-    matcher = clientMatcher st
+    matcher = fromMaybe (const True) (clientMatcher st)
 
     myNicks = clientHighlights cs st
 
@@ -100,7 +101,7 @@ userInfoImages network channel st =
 userInfoImages' :: NetworkState -> Identifier -> ClientState -> [Image]
 userInfoImages' cs channel st = renderEntry <$> usersList
   where
-    matcher = clientMatcher st
+    matcher = fromMaybe (const True) (clientMatcher st)
 
     myNicks = clientHighlights cs st
 

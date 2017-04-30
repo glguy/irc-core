@@ -33,6 +33,7 @@ module Client.Image.Palette
   , palCommandPrefix
   , palCommandError
   , palWindowDivider
+  , palLineMarker
 
   , paletteMap
 
@@ -66,6 +67,7 @@ data Palette = Palette
   , _palCommandError  :: Attr -- ^ unknown command
   , _palCommandPlaceholder :: Attr -- ^ command argument placeholder
   , _palWindowDivider :: Attr -- ^ Divider between split windows
+  , _palLineMarker    :: Attr -- ^ Divider between new and old messages
   }
   deriving Show
 
@@ -93,6 +95,7 @@ defaultPalette = Palette
   , _palCommandError            = withForeColor defAttr red
   , _palCommandPlaceholder      = withStyle defAttr reverseVideo
   , _palWindowDivider           = withStyle defAttr reverseVideo
+  , _palLineMarker              = defAttr
   }
 
 -- | Default nick highlighting colors that look nice in my dark solarized
@@ -103,6 +106,8 @@ defaultNickColorPalette =
     [cyan, magenta, green, yellow, blue,
      brightCyan, brightMagenta, brightGreen, brightBlue]
 
+-- | List of palette entry names and lenses for accessing that component
+-- of the palette.
 paletteMap :: [(Text, ReifiedLens' Palette Attr)]
 paletteMap =
   [ ("self"             , Lens palSelf)
@@ -123,4 +128,5 @@ paletteMap =
   , ("command-prefix"   , Lens palCommandPrefix)
   , ("command-error"    , Lens palCommandError)
   , ("window-divider"   , Lens palWindowDivider)
+  , ("line-marker"      , Lens palLineMarker)
   ]

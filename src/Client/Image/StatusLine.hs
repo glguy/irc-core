@@ -156,13 +156,13 @@ activitySummary st
     indicators = foldr aux [] (zip winNames windows)
     windows    = views clientWindows Map.elems st
 
-    aux (i,w) rest
-      | view winUnread w == 0 = rest
-      | otherwise = char attr i : rest
+    aux (i,w) rest =
+      case view winMention w of
+        WLImportant -> char (view palMention  pal) i : rest
+        WLNormal    -> char (view palActivity pal) i : rest
+        WLBoring    -> rest
       where
         pal = clientPalette st
-        attr | view winMention w = view palMention pal
-             | otherwise         = view palActivity pal
 
 -- | Multi-line activity information enabled by F3
 activityBarImages :: ClientState -> [Image]
@@ -189,8 +189,9 @@ activityBarImages st
       where
         n   = view winUnread w
         pal = clientPalette st
-        attr | view winMention w = view palMention pal
-             | otherwise         = view palActivity pal
+        attr = case view winMention w of
+                 WLImportant -> view palMention pal
+                 _           -> view palActivity pal
         focusText =
           case focus of
             Unfocused           -> Text.pack "*"
