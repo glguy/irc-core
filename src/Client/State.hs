@@ -83,6 +83,7 @@ module Client.State
   , retreatFocus
   , jumpToActivity
   , jumpFocus
+  , setExtraFocus
 
   -- * Scrolling
   , scrollClient
@@ -626,7 +627,7 @@ urlMatches txt = removeBrackets . extractText . (^?! ix 0)
        _                                  -> t
 
 -- | Remove a network connection and unlink it from the network map.
--- This operation assumes that the networkconnection exists and should
+-- This operation assumes that the network connection exists and should
 -- only be applied once per connection.
 removeNetwork :: NetworkId -> ClientState -> (NetworkState, ClientState)
 removeNetwork networkId st =
@@ -674,7 +675,7 @@ addConnection attempts lastTime network st =
 
 applyMessageToClientState ::
   ZonedTime                  {- ^ timestamp                -} ->
-  IrcMsg                     {- ^ message recieved         -} ->
+  IrcMsg                     {- ^ message received         -} ->
   NetworkId                  {- ^ message network          -} ->
   NetworkState               {- ^ network connection state -} ->
   ClientState                {- ^ client state             -} ->
@@ -833,6 +834,23 @@ changeFocus focus st
     deactivatePrevious
       | oldFocus `elem` focus : view clientExtraFocus st = id
       | otherwise = over (clientWindows . ix oldFocus) windowDeactivate
+
+
+-- | Unified logic for assigning to the extra focuses field that activates
+-- and deactivates windows as needed.
+setExtraFocus :: [Focus] -> ClientState -> ClientState
+setExtraFocus newFocuses st
+  = aux windowDeactivate newlyInactive
+  $ aux windowActivate   newlyActive
+  $ set clientExtraFocus newFocuses st
+  where
+    newlyActive = newFocuses \\ (view clientFocus st : view clientExtraFocus st)
+
+    newlyInactive = view clientExtraFocus st \\ (view clientFocus st : newFocuses)
+
+    aux f xs st1 =
+      foldl' (\acc w -> overStrict (clientWindows . ix w) f acc) st1 xs
+
 
 -- | Change the subfocus to the given value, preserve the focus, reset
 -- the scroll.

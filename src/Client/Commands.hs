@@ -1073,25 +1073,24 @@ renderFocus (NetworkFocus x)   = x
 renderFocus (ChannelFocus x y) = x <> ":" <> idText y
 
 
-
 -- | Implementation of @/splits@
 cmdSplits :: ClientCommand String
-cmdSplits st str = commandSuccess (set clientExtraFocus extras st)
+cmdSplits st str = commandSuccess (setExtraFocus extras st)
   where
     extras = nub (parseFocuses str)
 
 
 -- | Implementation of @/splits+@
 cmdSplitsAdd :: ClientCommand String
-cmdSplitsAdd st str = commandSuccess (over clientExtraFocus extras st)
+cmdSplitsAdd st str = commandSuccess (setExtraFocus extras st)
   where
-    extras prev = nub (parseFocuses str ++ prev)
+    extras = nub (parseFocuses str ++ view clientExtraFocus st)
 
 -- | Implementation of @/splits-@
 cmdSplitsDel :: ClientCommand String
-cmdSplitsDel st str = commandSuccess (over clientExtraFocus extras st)
+cmdSplitsDel st str = commandSuccess (setExtraFocus extras st)
   where
-    extras prev = prev \\ parseFocuses str
+    extras = view clientExtraFocus st \\ parseFocuses str
 
 
 tabHelp :: Bool -> ClientCommand String
