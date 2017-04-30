@@ -4,6 +4,7 @@
 
 * Add `/query` alias for `/channel`
 * Add `/names` alias for `/users`
+* Update to build on GHC 8.2.1-rc1 with Cabal-2.0.0.0
 
 ## 2.20.3
 
