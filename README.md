@@ -33,10 +33,10 @@ $ cabal install --dep
 $ cabal build
 ```
 
-Building with stack using ghc-8 resolver (lts-7 resolvers can work using --solver)
+Building with stack
 
 ```
-$ stack init --resolver=ghc-8
+$ stack init --resolver=lts-8 --solver
 $ stack build
 ```
 
