@@ -180,7 +180,7 @@ loadConfiguration mbPath = try $
          Left parseError -> throwIO (ConfigurationParseFailed parseError)
          Right rawcfg -> return rawcfg
 
-     case loadSections (configurationSpec mbPath def) rawcfg of
+     case loadValue (configurationSpec mbPath def) rawcfg of
        Left loadError -> throwIO (ConfigurationMalformed (show loadError)) -- XXX show
        Right cfg -> return cfg
 
@@ -188,14 +188,14 @@ loadConfiguration mbPath = try $
 configurationSpec ::
   Maybe FilePath {- ^ optionally specified path to config -} ->
   ServerSettings {- ^ prepopulated default server settings -} ->
-  SectionsSpec Configuration
-configurationSpec _configConfigPath def =
+  ValueSpecs Configuration
+configurationSpec _configConfigPath def = sectionsSpec "" $
 
   do ssDefUpdate <- fromMaybe id <$> optSection' "defaults" "" serverSpec
      ssUpdates   <- fromMaybe [] <$> optSection' "servers" "" (listSpec serverSpec)
 
      _configPalette <- fromMaybe defaultPalette
-                    <$> optSection' "palette" "" (sectionsSpec paletteSpec)
+                    <$> optSection' "palette" "" paletteSpec
 
      _configWindowNames <- fromMaybe defaultWindowNames
                     <$> optSection "window-names" ""
@@ -227,21 +227,21 @@ configurationSpec _configConfigPath def =
              in Configuration{..})
 
 
-nonnegativeSpec :: (Ord a, Num a) => ValuesSpec a
+nonnegativeSpec :: (Ord a, Num a) => ValueSpecs a
 nonnegativeSpec = customSpec "non-negative" numSpec $ \x -> find (0 <=) [x]
 
-filePathSpec :: ValuesSpec FilePath
+filePathSpec :: ValueSpecs FilePath
 filePathSpec = stringSpec
 
 
 -- | Matches the 'yes' and 'no' atoms
-yesOrNo :: ValuesSpec Bool
+yesOrNo :: ValueSpecs Bool
 yesOrNo = True  <$ atomSpec "yes" <|>
           False <$ atomSpec "no"
 
 
-paletteSpec :: SectionsSpec Palette
-paletteSpec =
+paletteSpec :: ValueSpecs Palette
+paletteSpec = sectionsSpec "palette" $
   do updates <- catMaybes <$> sequenceA
        [ fmap (set l) <$> optSection' lbl "" attrSpec | (lbl, Lens l) <- paletteMap ]
      nickColors <- optSection' "nick-colors" "" (nonemptyList attrSpec)
@@ -250,7 +250,7 @@ paletteSpec =
                   Nothing -> pal1
                   Just xs -> set palNicks (Vector.fromList (NonEmpty.toList xs)) pal1)
 
-nonemptyList :: ValuesSpec a -> ValuesSpec (NonEmpty a)
+nonemptyList :: ValueSpecs a -> ValueSpecs (NonEmpty a)
 nonemptyList s = customSpec "non-empty" (listSpec s) NonEmpty.nonEmpty
 
 
@@ -262,8 +262,8 @@ buildServerMap def ups =
       fromMaybe (views ssHostName Text.pack ss)
                 (view ssName ss)
 
-serverSpec :: ValuesSpec (ServerSettings -> ServerSettings)
-serverSpec = sectionsSpec $
+serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
+serverSpec = sectionsSpec "server-settings" $
   do updates <- catMaybes <$> sequenceA settings
      return (foldr (.) id updates)
   where
@@ -303,17 +303,17 @@ serverSpec = sectionsSpec $
       ]
 
 
-nicksSpec :: ValuesSpec (NonEmpty Text)
+nicksSpec :: ValueSpecs (NonEmpty Text)
 nicksSpec = pure <$> valuesSpec <|> nonemptyList valuesSpec
 
 
-useTlsSpec :: ValuesSpec UseTls
+useTlsSpec :: ValueSpecs UseTls
 useTlsSpec =
   UseTls         <$ atomSpec "yes" <|>
   UseInsecureTls <$ atomSpec "yes-insecure" <|>
   UseInsecure    <$ atomSpec "no"
 
-identifierSpec :: ValuesSpec Identifier
+identifierSpec :: ValueSpecs Identifier
 identifierSpec = mkId <$> valuesSpec
 
 -- | Resolve relative paths starting at the home directory rather than
@@ -324,24 +324,24 @@ resolveConfigurationPath path
   | otherwise = do home <- getHomeDirectory
                    return (home </> path)
 
-macroMapSpec :: ValuesSpec (Recognizer Macro)
-macroMapSpec = fromCommands <$> listSpec macroValuesSpec
+macroMapSpec :: ValueSpecs (Recognizer Macro)
+macroMapSpec = fromCommands <$> listSpec macroValueSpecs
 
-macroValuesSpec :: ValuesSpec (Text, Macro)
-macroValuesSpec = sectionsSpec $
+macroValueSpecs :: ValueSpecs (Text, Macro)
+macroValueSpecs = sectionsSpec "macro" $
   do name     <- reqSection "name" ""
      spec     <- fromMaybe noMacroArguments
              <$> optSection' "arguments" "" macroArgumentsSpec
      commands <- reqSection' "commands" "" (listSpec macroCommandSpec)
      return (name, Macro spec commands)
 
-macroArgumentsSpec :: ValuesSpec MacroSpec
+macroArgumentsSpec :: ValueSpecs MacroSpec
 macroArgumentsSpec = customSpec "macro arguments" valuesSpec parseMacroSpecs
 
-macroCommandSpec :: ValuesSpec [ExpansionChunk]
+macroCommandSpec :: ValueSpecs [ExpansionChunk]
 macroCommandSpec = customSpec "macro command" valuesSpec parseExpansion
 
-nickCompletionSpec :: ValuesSpec WordCompletionMode
+nickCompletionSpec :: ValueSpecs WordCompletionMode
 nickCompletionSpec =
   defaultNickWordCompleteMode <$ atomSpec "default" <|>
   slackNickWordCompleteMode   <$ atomSpec "slack"
