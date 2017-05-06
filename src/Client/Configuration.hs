@@ -180,16 +180,13 @@ loadConfiguration mbPath = try $
          Left parseError -> throwIO (ConfigurationParseFailed parseError)
          Right rawcfg -> return rawcfg
 
-     case loadValue (configurationSpec mbPath def) rawcfg of
+     case loadValue configurationSpec rawcfg of
        Left loadError -> throwIO (ConfigurationMalformed (show loadError)) -- XXX show
-       Right cfg -> return cfg
+       Right cfg -> return (cfg mbPath def)
 
 
-configurationSpec ::
-  Maybe FilePath {- ^ optionally specified path to config -} ->
-  ServerSettings {- ^ prepopulated default server settings -} ->
-  ValueSpecs Configuration
-configurationSpec _configConfigPath def = sectionsSpec "" $
+configurationSpec :: ValueSpecs (Maybe FilePath -> ServerSettings -> Configuration)
+configurationSpec = sectionsSpec "" $
 
   do ssDefUpdate <- fromMaybe id <$> optSection' "defaults" "" serverSpec
      ssUpdates   <- fromMaybe [] <$> optSection' "servers" "" (listSpec serverSpec)
@@ -222,7 +219,8 @@ configurationSpec _configConfigPath def = sectionsSpec "" $
 
      _configBellOnMention <- fromMaybe False <$> optSection' "bell-on-mention" "" yesOrNo
 
-     return (let _configDefaults = ssDefUpdate def
+     return (\_configConfigPath def ->
+             let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
              in Configuration{..})
 

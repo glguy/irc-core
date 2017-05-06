@@ -62,7 +62,7 @@ styleSpec =
 -- * Name of color
 -- * RGB values of color as a list
 colorSpec :: ValueSpecs Color
-colorSpec =
+colorSpec = namedSpec "color" $
       colorNumberSpec
   <|> colorNameSpec
   <|> rgbSpec
