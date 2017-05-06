@@ -20,6 +20,7 @@ import           Config.Schema
 import           Control.Applicative
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import           Data.Functor.Alt ((<!>))
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 
@@ -28,7 +29,7 @@ import           Graphics.Vty.Attributes
 -- for the foreground color. An empty sections value will result in 'defAttr'
 attrSpec :: ValueSpecs Attr
 attrSpec = withForeColor defAttr <$> colorSpec
-       <|> fullAttrSpec
+       <!> fullAttrSpec
 
 fullAttrSpec :: ValueSpecs Attr
 fullAttrSpec = sectionsSpec "text-attr" $
@@ -49,11 +50,11 @@ stylesSpec = oneOrList styleSpec
 styleSpec :: ValueSpecs Style
 styleSpec =
       blink        <$ atomSpec "blink"
-  <|> bold         <$ atomSpec "bold"
-  <|> dim          <$ atomSpec "dim"
-  <|> reverseVideo <$ atomSpec "reverse-video"
-  <|> standout     <$ atomSpec "standout"
-  <|> underline    <$ atomSpec "underline"
+  <!> bold         <$ atomSpec "bold"
+  <!> dim          <$ atomSpec "dim"
+  <!> reverseVideo <$ atomSpec "reverse-video"
+  <!> standout     <$ atomSpec "standout"
+  <!> underline    <$ atomSpec "underline"
 
 
 -- | Parse a color. Support formats are:
@@ -62,10 +63,7 @@ styleSpec =
 -- * Name of color
 -- * RGB values of color as a list
 colorSpec :: ValueSpecs Color
-colorSpec = namedSpec "color" $
-      colorNumberSpec
-  <|> colorNameSpec
-  <|> rgbSpec
+colorSpec = namedSpec "color" (colorNumberSpec <!> colorNameSpec <!> rgbSpec)
 
 colorNameSpec :: ValueSpecs Color
 colorNameSpec = customSpec "color name" anyAtomSpec (`HashMap.lookup` namedColors)

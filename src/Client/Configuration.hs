@@ -55,6 +55,7 @@ import           Control.Applicative
 import           Control.Exception
 import           Control.Lens                        hiding (List)
 import           Data.Foldable                       (find, foldl')
+import           Data.Functor.Alt                    ((<!>))
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
 import           Data.HashSet                        (HashSet)
@@ -234,8 +235,8 @@ filePathSpec = stringSpec
 
 -- | Matches the 'yes' and 'no' atoms
 yesOrNo :: ValueSpecs Bool
-yesOrNo = True  <$ atomSpec "yes" <|>
-          False <$ atomSpec "no"
+yesOrNo = True  <$ atomSpec "yes"
+      <!> False <$ atomSpec "no"
 
 
 paletteSpec :: ValueSpecs Palette
@@ -265,10 +266,10 @@ serverSpec = sectionsSpec "server-settings" $
   do updates <- catMaybes <$> sequenceA settings
      return (foldr (.) id updates)
   where
-    req l s = set l         <$> s
+    req l s = set l <$> s
 
-    opt l s = set l Nothing <$  atomSpec "clear"
-          <|> set l . Just  <$> s
+    opt l s = set l . Just <$> s
+          <!> set l Nothing <$ atomSpec "clear"
 
     settings =
       [ optSection' "name"               "" $ opt ssName              valuesSpec
@@ -302,14 +303,15 @@ serverSpec = sectionsSpec "server-settings" $
 
 
 nicksSpec :: ValueSpecs (NonEmpty Text)
-nicksSpec = pure <$> valuesSpec <|> nonemptyList valuesSpec
+nicksSpec = pure <$> valuesSpec
+        <!> nonemptyList valuesSpec
 
 
 useTlsSpec :: ValueSpecs UseTls
 useTlsSpec =
-  UseTls         <$ atomSpec "yes" <|>
-  UseInsecureTls <$ atomSpec "yes-insecure" <|>
-  UseInsecure    <$ atomSpec "no"
+      UseTls         <$ atomSpec "yes"
+  <!> UseInsecureTls <$ atomSpec "yes-insecure"
+  <!> UseInsecure    <$ atomSpec "no"
 
 identifierSpec :: ValueSpecs Identifier
 identifierSpec = mkId <$> valuesSpec
@@ -341,5 +343,5 @@ macroCommandSpec = customSpec "macro command" valuesSpec parseExpansion
 
 nickCompletionSpec :: ValueSpecs WordCompletionMode
 nickCompletionSpec =
-  defaultNickWordCompleteMode <$ atomSpec "default" <|>
-  slackNickWordCompleteMode   <$ atomSpec "slack"
+      defaultNickWordCompleteMode <$ atomSpec "default"
+  <!> slackNickWordCompleteMode   <$ atomSpec "slack"
