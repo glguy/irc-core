@@ -1,0 +1,3 @@
+[submodule "config-schema"]
+	path = config-schema
+	url = git@github.com:glguy/config-schema

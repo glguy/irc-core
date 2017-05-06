@@ -1,4 +1,5 @@
 packages:
+  config-schema/config-schema.cabal
   lib/irc-core.cabal
   bot/irc-core-bot.cabal
   hookup/hookup.cabal
