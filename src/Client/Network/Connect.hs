@@ -23,8 +23,6 @@ import           Client.Configuration.ServerSettings
 import           Control.Applicative
 import           Control.Exception  (bracket)
 import           Control.Lens
-import           Control.Monad
-import           Data.Monoid        ((<>))
 import           Network.Socket     (PortNumber)
 import           Hookup
 

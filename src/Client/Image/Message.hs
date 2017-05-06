@@ -396,7 +396,7 @@ prettySeconds str =
     Just n  -> intercalate " "
              $ map (\(u,i) -> show i ++ [u])
              $ dropWhile (\x -> snd x == 0)
-             $ zip "dhms" [d,h,m,s]
+             $ zip "dhms" [d,h,m,s :: Int]
       where
         (n1,s) = quotRem n  60
         (n2,m) = quotRem n1 60

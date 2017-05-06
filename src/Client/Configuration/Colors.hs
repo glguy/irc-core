@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings #-}
+{-# Language ApplicativeDo #-}
 
 {-|
 Module      : Client.Configuration
@@ -11,56 +12,48 @@ This module defines the top-level configuration information for the client.
 -}
 
 module Client.Configuration.Colors
-  ( parseColor
-  , parseAttr
+  ( colorSpec
+  , attrSpec
   ) where
 
-import           Config
-import           Config.FromConfig
+import           Config.Schema
+import           Control.Applicative
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import           Data.Foldable
-import           Data.Ratio
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 
 -- | Parse a text attribute. This value should be a sections with the @fg@ and/or
 -- @bg@ attributes. Otherwise it should be a color entry that will be used
 -- for the foreground color. An empty sections value will result in 'defAttr'
-parseAttr :: Value -> ConfigParser Attr
-parseAttr (Sections xs) = parseSectionsWith parseAttrEntry defAttr (Sections xs)
-parseAttr v             = withForeColor defAttr <$> parseColor v
+attrSpec :: ValuesSpec Attr
+attrSpec = withForeColor defAttr <$> colorSpec
+       <|> sectionsSpec fullAttrSpec
 
-parseAttrEntry :: Attr -> Text -> Value -> ConfigParser Attr
-parseAttrEntry acc k v =
-    case k of
-        "fg" -> parseColor' withForeColor
-        "bg" -> parseColor' withBackColor
-        "style" -> parseStyle'
-        _    -> failure "Unknown attribute entry"
+fullAttrSpec :: SectionsSpec Attr
+fullAttrSpec =
+  do mbFg <- optSection' "fg"    "" colorSpec
+     mbBg <- optSection' "bg"    "" colorSpec
+     mbSt <- optSection' "style" "" stylesSpec
+     return ( aux withForeColor mbFg
+            $ aux withBackColor mbBg
+            $ aux (foldl withStyle) mbSt
+            $ defAttr)
   where
-    parseStyle' =
-      do xs <- parseStyles v
-         return $! foldl' withStyle acc xs
+    aux f xs z = foldl f z xs
 
-    parseColor' f =
-      do c <- parseColor v
-         return $! f acc c
 
-parseStyles :: Value -> ConfigParser [Style]
-parseStyles (List xs) = parseList parseStyle (List xs)
-parseStyles v         = pure <$> parseStyle v
+stylesSpec :: ValuesSpec [Style]
+stylesSpec = oneOrList styleSpec
 
-parseStyle :: Value -> ConfigParser Style
-parseStyle v =
-  case v of
-    Atom "blink"         -> pure blink -- You're the boss...
-    Atom "bold"          -> pure bold
-    Atom "dim"           -> pure dim
-    Atom "reverse-video" -> pure reverseVideo
-    Atom "standout"      -> pure standout
-    Atom "underline"     -> pure underline
-    _ -> failure "expected blink, bold, dim, reverse-video, standout, underline"
+styleSpec :: ValuesSpec Style
+styleSpec =
+      blink        <$ atomSpec "blink"
+  <|> bold         <$ atomSpec "bold"
+  <|> dim          <$ atomSpec "dim"
+  <|> reverseVideo <$ atomSpec "reverse-video"
+  <|> standout     <$ atomSpec "standout"
+  <|> underline    <$ atomSpec "underline"
 
 
 -- | Parse a color. Support formats are:
@@ -68,44 +61,37 @@ parseStyle v =
 -- * Number between 0-255
 -- * Name of color
 -- * RGB values of color as a list
-parseColor :: Value -> ConfigParser Color
-parseColor v =
-  case v of
-    _ | Just i <- parseInteger v -> parseColorNumber i
+colorSpec :: ValuesSpec Color
+colorSpec =
+      colorNumberSpec
+  <|> colorNameSpec
+  <|> rgbSpec
 
-    Atom a | Just c <- HashMap.lookup (atomName a) namedColors -> return c
+colorNameSpec :: ValuesSpec Color
+colorNameSpec = customSpec "color name" anyAtomSpec (`HashMap.lookup` namedColors)
 
-    List [r,g,b]
-      | Just r' <- parseInteger r
-      , Just g' <- parseInteger g
-      , Just b' <- parseInteger b ->
-         parseRgb r' g' b'
-
-    _ -> failure "Expected a color number, name, or RBG list"
+-- | Specification that matches lists of exactly three elements
+three :: Spec a => ValuesSpec (a,a,a)
+three = customSpec "three" valuesSpec $ \xs ->
+          case xs of
+            [x,y,z] -> Just (x,y,z)
+            _       -> Nothing
 
 -- | Match integers between 0 and 255 as Terminal colors.
-parseColorNumber :: Integer -> ConfigParser Color
-parseColorNumber i
-  | i < 0 = failure "Negative color not supported"
-  | i < 16 = return (ISOColor (fromInteger i))
-  | i < 256 = return (Color240 (fromInteger (i - 16)))
-  | otherwise = failure "Color value too high"
+colorNumberSpec :: ValuesSpec Color
+colorNumberSpec = customSpec "terminal color" valuesSpec $ \i ->
+  if      i <   0 then Nothing
+  else if i <  16 then Just (ISOColor (fromInteger i))
+  else if i < 256 then Just (Color240 (fromInteger (i - 16)))
+  else Nothing
 
--- | Accepts any integer literal or floating literal which can
--- be losslessly converted to an integer.
-parseInteger :: Value -> Maybe Integer
-parseInteger v =
-  case v of
-    Number _ i -> Just i
-    Floating c e
-      | denominator r == 1 -> Just (numerator r)
-      where r = fromInteger c * 10^^e
-    _ -> Nothing
-
-parseRgb :: Integer -> Integer -> Integer -> ConfigParser Color
-parseRgb r g b
-  | valid r, valid g, valid b = return (rgbColor r g b)
-  | otherwise = failure "RGB values must be in range 0-255"
+-- | Configuration section that matches 3 integers in the range 0-255
+-- representing red, green, and blue values.
+rgbSpec :: ValuesSpec Color
+rgbSpec = customSpec "RGB" three $ \(r,g,b) ->
+  if valid r && valid g && valid b
+    then Just (rgbColor r g (b :: Integer))
+    else Nothing
   where
     valid x = 0 <= x && x < 256
 

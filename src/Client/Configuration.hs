@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE ApplicativeDo     #-}
 
 {-|
 Module      : Client.Configuration
@@ -49,11 +50,11 @@ import           Client.Configuration.Colors
 import           Client.Configuration.ServerSettings
 import           Client.Image.Palette
 import           Config
-import           Config.FromConfig
+import           Config.Schema
+import           Control.Applicative
 import           Control.Exception
 import           Control.Lens                        hiding (List)
-import           Control.Monad
-import           Data.Foldable                       (for_)
+import           Data.Foldable                       (find, foldl')
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
 import           Data.HashSet                        (HashSet)
@@ -179,158 +180,137 @@ loadConfiguration mbPath = try $
          Left parseError -> throwIO (ConfigurationParseFailed parseError)
          Right rawcfg -> return rawcfg
 
-     case runConfigParser (parseConfiguration mbPath def rawcfg) of
-       Left loadError -> throwIO (ConfigurationMalformed (Text.unpack loadError))
+     case loadSections (configurationSpec mbPath def) rawcfg of
+       Left loadError -> throwIO (ConfigurationMalformed (show loadError)) -- XXX show
        Right cfg -> return cfg
 
 
-parseConfiguration ::
+configurationSpec ::
   Maybe FilePath {- ^ optionally specified path to config -} ->
   ServerSettings {- ^ prepopulated default server settings -} ->
-  Value ->
-  ConfigParser Configuration
-parseConfiguration _configConfigPath def = parseSections $
+  SectionsSpec Configuration
+configurationSpec _configConfigPath def =
 
-  do _configDefaults <- fromMaybe def
-                    <$> sectionOptWith (parseServerSettings def) "defaults"
-
-     _configServers  <- fromMaybe HashMap.empty
-                    <$> sectionOptWith (parseServers _configDefaults) "servers"
+  do ssDefUpdate <- fromMaybe id <$> optSection' "defaults" "" serverSpec
+     ssUpdates   <- fromMaybe [] <$> optSection' "servers" "" (listSpec serverSpec)
 
      _configPalette <- fromMaybe defaultPalette
-                    <$> sectionOptWith parsePalette "palette"
+                    <$> optSection' "palette" "" (sectionsSpec paletteSpec)
 
      _configWindowNames <- fromMaybe defaultWindowNames
-                    <$> sectionOpt "window-names"
+                    <$> optSection "window-names" ""
 
      _configMacros <- fromMaybe mempty
-                    <$> sectionOptWith parseMacroMap "macros"
+                    <$> optSection' "macros" "" macroMapSpec
 
-     _configExtensions <- fromMaybe []
-                    <$> sectionOptWith (parseList parseString) "extensions"
+     _configExtensions <- fromMaybe [] <$> optSection' "extensions" "" (listSpec filePathSpec)
 
-     _configUrlOpener <- sectionOptWith parseString "url-opener"
+     _configUrlOpener <- optSection' "url-opener" "" stringSpec
 
-     _configExtraHighlights <- maybe HashSet.empty HashSet.fromList
-                    <$> sectionOptWith (parseList parseIdentifier) "extra-highlights"
+     _configExtraHighlights <- maybe HashSet.empty (HashSet.fromList . map mkId)
+                    <$> optSection "extra-highlights" ""
 
-     _configNickPadding <- sectionOpt "nick-padding"
+     _configNickPadding <- optSection' "nick-padding" "" nonnegativeSpec
 
-     _configIndentWrapped <- sectionOpt "indent-wrapped-lines"
+     _configIndentWrapped <- optSection' "indent-wrapped-lines" "" nonnegativeSpec
 
-     _configIgnores <- maybe HashSet.empty HashSet.fromList
-                    <$> sectionOptWith (parseList parseIdentifier) "ignores"
+     _configIgnores <- maybe HashSet.empty (HashSet.fromList . map mkId)
+                    <$> optSection "ignores" ""
 
-     _configActivityBar <- fromMaybe False <$> sectionOpt  "activity-bar"
+     _configActivityBar <- fromMaybe False
+                    <$> optSection' "activity-bar" "" yesOrNo
 
-     _configBellOnMention <- fromMaybe False <$> sectionOpt  "bell-on-mention"
+     _configBellOnMention <- fromMaybe False <$> optSection' "bell-on-mention" "" yesOrNo
 
-     for_ _configNickPadding (\padding ->
-       when (padding < 0)
-            (liftConfigParser $
-               failure "nick-padding has to be a non negative number"))
+     return (let _configDefaults = ssDefUpdate def
+                 _configServers  = buildServerMap _configDefaults ssUpdates
+             in Configuration{..})
 
-     for_ _configIndentWrapped (\indent ->
-       when (indent < 0)
-            (liftConfigParser $
-               failure "indent-wrapped-lines has to be a non negative number"))
 
-     return Configuration{..}
+nonnegativeSpec :: (Ord a, Num a) => ValuesSpec a
+nonnegativeSpec = customSpec "non-negative" numSpec $ \x -> find (0 <=) [x]
 
-parsePalette :: Value -> ConfigParser Palette
-parsePalette = parseSectionsWith paletteHelper defaultPalette
+filePathSpec :: ValuesSpec FilePath
+filePathSpec = stringSpec
 
-paletteHelper :: Palette -> Text -> Value -> ConfigParser Palette
-paletteHelper p k v =
-  case k of
-    "nick-colors" -> do xs <- Vector.fromList <$> parseList parseAttr v
-                        when (null xs) (failure "Empty palette")
-                        return $! set palNicks xs p
-    _ | Just (Lens l) <- lookup k paletteMap ->
-          do !attr <- parseAttr v
-             return $! set l attr p
-    _ -> failure "Unknown palette entry"
 
-parseServers :: ServerSettings -> Value -> ConfigParser (HashMap Text ServerSettings)
-parseServers def v =
-  do sss <- parseList (parseServerSettings def) v
-     return (HashMap.fromList [(serverSettingName ss, ss) | ss <- sss])
+-- | Matches the 'yes' and 'no' atoms
+yesOrNo :: ValuesSpec Bool
+yesOrNo = True  <$ atomSpec "yes" <|>
+          False <$ atomSpec "no"
+
+
+paletteSpec :: SectionsSpec Palette
+paletteSpec =
+  do updates <- catMaybes <$> sequenceA
+       [ fmap (set l) <$> optSection' lbl "" attrSpec | (lbl, Lens l) <- paletteMap ]
+     nickColors <- optSection' "nick-colors" "" (nonemptyList attrSpec)
+     return (let pal1 = foldl' (\acc f -> f acc) defaultPalette updates
+             in case nickColors of
+                  Nothing -> pal1
+                  Just xs -> set palNicks (Vector.fromList (NonEmpty.toList xs)) pal1)
+
+nonemptyList :: ValuesSpec a -> ValuesSpec (NonEmpty a)
+nonemptyList s = customSpec "non-empty" (listSpec s) NonEmpty.nonEmpty
+
+
+buildServerMap :: ServerSettings -> [ServerSettings -> ServerSettings] -> HashMap Text ServerSettings
+buildServerMap def ups =
+  HashMap.fromList
+    [ (serverSettingName ss, ss) | up <- ups, let ss = up def ]
   where
     serverSettingName ss =
       fromMaybe (views ssHostName Text.pack ss)
                 (view ssName ss)
 
-parseServerSettings :: ServerSettings -> Value -> ConfigParser ServerSettings
-parseServerSettings = parseSectionsWith parseServerSetting
-
-parseServerSetting :: ServerSettings -> Text -> Value -> ConfigParser ServerSettings
-parseServerSetting ss k v =
-  case k of
-    "nick"                -> setFieldWith   ssNicks parseNicks
-    "username"            -> setField       ssUser
-    "realname"            -> setField       ssReal
-    "userinfo"            -> setField       ssUserInfo
-    "password"            -> setFieldMb     ssPassword
-    "sasl-username"       -> setFieldMb     ssSaslUsername
-    "sasl-password"       -> setFieldMb     ssSaslPassword
-    "sasl-ecdsa-key"      -> setFieldWithMb ssSaslEcdsaFile parseString
-    "hostname"            -> setFieldWith   ssHostName      parseString
-    "port"                -> setFieldWithMb ssPort          parseNum
-    "tls"                 -> setFieldWith   ssTls           parseUseTls
-    "tls-client-cert"     -> setFieldWithMb ssTlsClientCert parseString
-    "tls-client-key"      -> setFieldWithMb ssTlsClientKey  parseString
-    "tls-server-cert"     -> setFieldWithMb ssTlsServerCert parseString
-    "tls-ciphers"         -> setFieldWith   ssTlsCiphers    parseString
-    "connect-cmds"        -> setFieldWith   ssConnectCmds   (parseList parseMacroCommand)
-    "socks-host"          -> setFieldWithMb ssSocksHost     parseString
-    "socks-port"          -> setFieldWith   ssSocksPort     parseNum
-    "chanserv-channels"   -> setFieldWith   ssChanservChannels (parseList parseIdentifier)
-    "flood-penalty"       -> setField       ssFloodPenalty
-    "flood-threshold"     -> setField       ssFloodThreshold
-    "message-hooks"       -> setField       ssMessageHooks
-    "name"                -> setFieldMb     ssName
-    "reconnect-attempts"  -> setField       ssReconnectAttempts
-    "autoconnect"         -> setField       ssAutoconnect
-    "nick-completion"     -> setFieldWith   ssNickCompletion parseNickCompletion
-    "log-dir"             -> setFieldWithMb ssLogDir parseString
-    _                     -> failure "Unknown setting"
+serverSpec :: ValuesSpec (ServerSettings -> ServerSettings)
+serverSpec = sectionsSpec $
+  do updates <- catMaybes <$> sequenceA settings
+     return (foldr (.) id updates)
   where
-    setField   l = setFieldWith   l parseConfig
-    setFieldMb l = setFieldWithMb l parseConfig
+    settings =
+      [ optSection' "name"               "" $ (?~) ssName              <$> valuesSpec
+      , optSection' "nick"               "" $ set  ssNicks             <$> nicksSpec
+      , optSection' "username"           "" $ set  ssUser              <$> valuesSpec
+      , optSection' "realname"           "" $ set  ssReal              <$> valuesSpec
+      , optSection' "userinfo"           "" $ set  ssUserInfo          <$> valuesSpec
+      , optSection' "password"           "" $ (?~) ssPassword          <$> valuesSpec
+      , optSection' "sasl-username"      "" $ (?~) ssSaslUsername      <$> valuesSpec
+      , optSection' "sasl-password"      "" $ (?~) ssSaslPassword      <$> valuesSpec
+      , optSection' "sasl-ecdsa-key"     "" $ (?~) ssSaslEcdsaFile     <$> filePathSpec
+      , optSection' "hostname"           "" $ set  ssHostName          <$> filePathSpec
+      , optSection' "port"               "" $ (?~) ssPort              <$> numSpec
+      , optSection' "tls"                "" $ set  ssTls               <$> useTlsSpec
+      , optSection' "tls-client-cert"    "" $ (?~) ssTlsClientCert     <$> filePathSpec
+      , optSection' "tls-client-key"     "" $ (?~) ssTlsClientKey      <$> filePathSpec
+      , optSection' "tls-server-cert"    "" $ (?~) ssTlsServerCert     <$> filePathSpec
+      , optSection' "tls-ciphers"        "" $ set  ssTlsCiphers        <$> filePathSpec
+      , optSection' "connect-cmds"       "" $ set  ssConnectCmds       <$> listSpec macroCommandSpec
+      , optSection' "socks-host"         "" $ (?~) ssSocksHost         <$> stringSpec
+      , optSection' "socks-port"         "" $ set  ssSocksPort         <$> numSpec
+      , optSection' "chanserv-channels"  "" $ set  ssChanservChannels  <$> listSpec identifierSpec
+      , optSection' "flood-penalty"      "" $ set  ssFloodPenalty      <$> valuesSpec
+      , optSection' "flood-threshold"    "" $ set  ssFloodThreshold    <$> valuesSpec
+      , optSection' "message-hooks"      "" $ set  ssMessageHooks      <$> valuesSpec
+      , optSection' "reconnect-attempts" "" $ set  ssReconnectAttempts <$> valuesSpec
+      , optSection' "autoconnect"        "" $ set  ssAutoconnect       <$> yesOrNo
+      , optSection' "nick-completion"    "" $ set  ssNickCompletion    <$> nickCompletionSpec
+      , optSection' "log-dir"            "" $ (?~) ssLogDir            <$> filePathSpec
+      ]
 
-    setFieldWith l p =
-      do x <- p v
-         return $! set l x ss
 
-    setFieldWithMb l p =
-      do x <- case v of
-                Atom "clear" -> return Nothing
-                _            -> Just <$> p v
-         return $! set l x ss
+nicksSpec :: ValuesSpec (NonEmpty Text)
+nicksSpec = (NonEmpty.:| []) <$> valuesSpec
+        <|> NonEmpty.fromList <$> valuesSpec -- XXX nonempty
 
-parseNicks :: Value -> ConfigParser (NonEmpty Text)
-parseNicks (Text nick) = return (nick NonEmpty.:| [])
-parseNicks (List xs) =
-  do xs' <- parseList parseConfig (List xs)
-     case xs' of
-       [] -> failure "empty list"
-       y:ys -> return (y NonEmpty.:| ys)
-parseNicks _ = failure "expected text or list of text"
+useTlsSpec :: ValuesSpec UseTls
+useTlsSpec =
+  UseTls         <$ atomSpec "yes" <|>
+  UseInsecureTls <$ atomSpec "yes-insecure" <|>
+  UseInsecure    <$ atomSpec "no"
 
-parseUseTls :: Value -> ConfigParser UseTls
-parseUseTls (Atom "yes")          = return UseTls
-parseUseTls (Atom "yes-insecure") = return UseInsecureTls
-parseUseTls (Atom "no")           = return UseInsecure
-parseUseTls _                     = failure "expected yes, yes-insecure, or no"
-
-parseNum :: Num a => Value -> ConfigParser a
-parseNum v = fromInteger <$> parseConfig v
-
-parseIdentifier :: Value -> ConfigParser Identifier
-parseIdentifier v = mkId <$> parseConfig v
-
-parseString :: Value -> ConfigParser String
-parseString v = Text.unpack <$> parseConfig v
+identifierSpec :: ValuesSpec Identifier
+identifierSpec = mkId <$> valuesSpec
 
 -- | Resolve relative paths starting at the home directory rather than
 -- the current directory of the client.
@@ -340,34 +320,24 @@ resolveConfigurationPath path
   | otherwise = do home <- getHomeDirectory
                    return (home </> path)
 
-parseMacroMap :: Value -> ConfigParser (Recognizer Macro)
-parseMacroMap v = fromCommands <$> parseList parseMacro v
+macroMapSpec :: ValuesSpec (Recognizer Macro)
+macroMapSpec = fromCommands <$> listSpec macroValuesSpec
 
-parseMacro :: Value -> ConfigParser (Text, Macro)
-parseMacro = parseSections $
-  do name     <- sectionReq "name"
+macroValuesSpec :: ValuesSpec (Text, Macro)
+macroValuesSpec = sectionsSpec $
+  do name     <- reqSection "name" ""
      spec     <- fromMaybe noMacroArguments
-             <$> sectionOptWith parseMacroArguments "arguments"
-     commands <- sectionReqWith (parseList parseMacroCommand) "commands"
+             <$> optSection' "arguments" "" macroArgumentsSpec
+     commands <- reqSection' "commands" "" (listSpec macroCommandSpec)
      return (name, Macro spec commands)
 
-parseMacroArguments :: Value -> ConfigParser MacroSpec
-parseMacroArguments v =
-  do txt <- parseConfig v
-     case parseMacroSpecs txt of
-       Nothing -> failure "bad macro argument specs"
-       Just ex -> return ex
+macroArgumentsSpec :: ValuesSpec MacroSpec
+macroArgumentsSpec = customSpec "macro arguments" valuesSpec parseMacroSpecs
 
-parseMacroCommand :: Value -> ConfigParser [ExpansionChunk]
-parseMacroCommand v =
-  do txt <- parseConfig v
-     case parseExpansion txt of
-       Nothing -> failure "bad macro line"
-       Just ex -> return ex
+macroCommandSpec :: ValuesSpec [ExpansionChunk]
+macroCommandSpec = customSpec "macro command" valuesSpec parseExpansion
 
-parseNickCompletion :: Value -> ConfigParser WordCompletionMode
-parseNickCompletion v =
-  case v of
-    Atom "default" -> return defaultNickWordCompleteMode
-    Atom "slack"   -> return slackNickWordCompleteMode
-    _              -> failure "expected default or slack"
+nickCompletionSpec :: ValuesSpec WordCompletionMode
+nickCompletionSpec =
+  defaultNickWordCompleteMode <$ atomSpec "default" <|>
+  slackNickWordCompleteMode   <$ atomSpec "slack"

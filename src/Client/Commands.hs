@@ -1048,7 +1048,7 @@ tabSplits isReversed st rest
 -- | Tab completion for @/splits-@. This completes only from the list of active
 -- entries in the splits list.
 tabActiveSplits :: Bool -> ClientCommand String
-tabActiveSplits isReversed st rest =
+tabActiveSplits isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
     completions = renderFocus <$> view clientExtraFocus st

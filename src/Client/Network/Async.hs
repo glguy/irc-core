@@ -43,7 +43,6 @@ import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
-import qualified Data.ByteString as B
 import           Data.Foldable
 import           Data.Time
 import           Irc.RateLimit
