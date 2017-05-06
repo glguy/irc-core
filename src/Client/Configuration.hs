@@ -256,8 +256,7 @@ nonemptyList s = customSpec "non-empty" (listSpec s) NonEmpty.nonEmpty
 
 buildServerMap :: ServerSettings -> [ServerSettings -> ServerSettings] -> HashMap Text ServerSettings
 buildServerMap def ups =
-  HashMap.fromList
-    [ (serverSettingName ss, ss) | up <- ups, let ss = up def ]
+  HashMap.fromList [ (serverSettingName ss, ss) | up <- ups, let ss = up def ]
   where
     serverSettingName ss =
       fromMaybe (views ssHostName Text.pack ss)
@@ -268,40 +267,45 @@ serverSpec = sectionsSpec $
   do updates <- catMaybes <$> sequenceA settings
      return (foldr (.) id updates)
   where
+    req l s = set l         <$> s
+
+    opt l s = set l Nothing <$  atomSpec "clear"
+          <|> set l . Just  <$> s
+
     settings =
-      [ optSection' "name"               "" $ (?~) ssName              <$> valuesSpec
-      , optSection' "nick"               "" $ set  ssNicks             <$> nicksSpec
-      , optSection' "username"           "" $ set  ssUser              <$> valuesSpec
-      , optSection' "realname"           "" $ set  ssReal              <$> valuesSpec
-      , optSection' "userinfo"           "" $ set  ssUserInfo          <$> valuesSpec
-      , optSection' "password"           "" $ (?~) ssPassword          <$> valuesSpec
-      , optSection' "sasl-username"      "" $ (?~) ssSaslUsername      <$> valuesSpec
-      , optSection' "sasl-password"      "" $ (?~) ssSaslPassword      <$> valuesSpec
-      , optSection' "sasl-ecdsa-key"     "" $ (?~) ssSaslEcdsaFile     <$> filePathSpec
-      , optSection' "hostname"           "" $ set  ssHostName          <$> filePathSpec
-      , optSection' "port"               "" $ (?~) ssPort              <$> numSpec
-      , optSection' "tls"                "" $ set  ssTls               <$> useTlsSpec
-      , optSection' "tls-client-cert"    "" $ (?~) ssTlsClientCert     <$> filePathSpec
-      , optSection' "tls-client-key"     "" $ (?~) ssTlsClientKey      <$> filePathSpec
-      , optSection' "tls-server-cert"    "" $ (?~) ssTlsServerCert     <$> filePathSpec
-      , optSection' "tls-ciphers"        "" $ set  ssTlsCiphers        <$> filePathSpec
-      , optSection' "connect-cmds"       "" $ set  ssConnectCmds       <$> listSpec macroCommandSpec
-      , optSection' "socks-host"         "" $ (?~) ssSocksHost         <$> stringSpec
-      , optSection' "socks-port"         "" $ set  ssSocksPort         <$> numSpec
-      , optSection' "chanserv-channels"  "" $ set  ssChanservChannels  <$> listSpec identifierSpec
-      , optSection' "flood-penalty"      "" $ set  ssFloodPenalty      <$> valuesSpec
-      , optSection' "flood-threshold"    "" $ set  ssFloodThreshold    <$> valuesSpec
-      , optSection' "message-hooks"      "" $ set  ssMessageHooks      <$> valuesSpec
-      , optSection' "reconnect-attempts" "" $ set  ssReconnectAttempts <$> valuesSpec
-      , optSection' "autoconnect"        "" $ set  ssAutoconnect       <$> yesOrNo
-      , optSection' "nick-completion"    "" $ set  ssNickCompletion    <$> nickCompletionSpec
-      , optSection' "log-dir"            "" $ (?~) ssLogDir            <$> filePathSpec
+      [ optSection' "name"               "" $ opt ssName              valuesSpec
+      , optSection' "nick"               "" $ req ssNicks             nicksSpec
+      , optSection' "username"           "" $ req ssUser              valuesSpec
+      , optSection' "realname"           "" $ req ssReal              valuesSpec
+      , optSection' "userinfo"           "" $ req ssUserInfo          valuesSpec
+      , optSection' "password"           "" $ opt ssPassword          valuesSpec
+      , optSection' "sasl-username"      "" $ opt ssSaslUsername      valuesSpec
+      , optSection' "sasl-password"      "" $ opt ssSaslPassword      valuesSpec
+      , optSection' "sasl-ecdsa-key"     "" $ opt ssSaslEcdsaFile     filePathSpec
+      , optSection' "hostname"           "" $ req ssHostName          filePathSpec
+      , optSection' "port"               "" $ opt ssPort              numSpec
+      , optSection' "tls"                "" $ req ssTls               useTlsSpec
+      , optSection' "tls-client-cert"    "" $ opt ssTlsClientCert     filePathSpec
+      , optSection' "tls-client-key"     "" $ opt ssTlsClientKey      filePathSpec
+      , optSection' "tls-server-cert"    "" $ opt ssTlsServerCert     filePathSpec
+      , optSection' "tls-ciphers"        "" $ req ssTlsCiphers        filePathSpec
+      , optSection' "connect-cmds"       "" $ req ssConnectCmds       $ listSpec macroCommandSpec
+      , optSection' "socks-host"         "" $ opt ssSocksHost         stringSpec
+      , optSection' "socks-port"         "" $ req ssSocksPort         numSpec
+      , optSection' "chanserv-channels"  "" $ req ssChanservChannels  $ listSpec identifierSpec
+      , optSection' "flood-penalty"      "" $ req ssFloodPenalty      valuesSpec
+      , optSection' "flood-threshold"    "" $ req ssFloodThreshold    valuesSpec
+      , optSection' "message-hooks"      "" $ req ssMessageHooks      valuesSpec
+      , optSection' "reconnect-attempts" "" $ req ssReconnectAttempts valuesSpec
+      , optSection' "autoconnect"        "" $ req ssAutoconnect       yesOrNo
+      , optSection' "nick-completion"    "" $ req ssNickCompletion    nickCompletionSpec
+      , optSection' "log-dir"            "" $ opt ssLogDir            filePathSpec
       ]
 
 
 nicksSpec :: ValuesSpec (NonEmpty Text)
-nicksSpec = (NonEmpty.:| []) <$> valuesSpec
-        <|> NonEmpty.fromList <$> valuesSpec -- XXX nonempty
+nicksSpec = pure <$> valuesSpec <|> nonemptyList valuesSpec
+
 
 useTlsSpec :: ValuesSpec UseTls
 useTlsSpec =
