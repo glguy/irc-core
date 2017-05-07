@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.20.6
+
+* Switch to new `config-schema` package for configuration file loading.
+* Add `--config-format` flag to executable to show configuration file format.
+
 ## 2.20.5
 
 * Add line indicating message since previous time window was focused.

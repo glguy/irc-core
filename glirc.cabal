@@ -1,5 +1,5 @@
 name:                glirc
-version:             2.20.5
+version:             2.20.6
 synopsis:            Console IRC client
 description:         Console IRC client
                      .
@@ -23,9 +23,9 @@ bug-reports:         https://github.com/glguy/irc-core/issues
 tested-with:         GHC==8.0.2
 
 custom-setup
-  setup-depends: base  >=4.9  && <4.11,
-                 filepath >1.4 && <1.5,
-                 Cabal >=1.24 && <3
+  setup-depends: base     >=4.9  && <4.11,
+                 filepath >=1.4  && <1.5,
+                 Cabal    >=1.24 && <3
 
 source-repository head
   type: git
