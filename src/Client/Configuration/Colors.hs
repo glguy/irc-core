@@ -28,14 +28,15 @@ import           Graphics.Vty.Attributes
 -- @bg@ attributes. Otherwise it should be a color entry that will be used
 -- for the foreground color. An empty sections value will result in 'defAttr'
 attrSpec :: ValueSpecs Attr
-attrSpec = withForeColor defAttr <$> colorSpec
+attrSpec = namedSpec "attr" $
+           withForeColor defAttr <$> colorSpec
        <!> fullAttrSpec
 
 fullAttrSpec :: ValueSpecs Attr
-fullAttrSpec = sectionsSpec "text-attr" $
-  do mbFg <- optSection' "fg"    "" colorSpec
-     mbBg <- optSection' "bg"    "" colorSpec
-     mbSt <- optSection' "style" "" stylesSpec
+fullAttrSpec = sectionsSpec "full-attr" $
+  do mbFg <- optSection' "fg"    "Foreground color" colorSpec
+     mbBg <- optSection' "bg"    "Background color" colorSpec
+     mbSt <- optSection' "style" "Terminal font style" stylesSpec
      return ( aux withForeColor mbFg
             $ aux withBackColor mbBg
             $ aux (foldl withStyle) mbSt
@@ -48,7 +49,7 @@ stylesSpec :: ValueSpecs [Style]
 stylesSpec = oneOrList styleSpec
 
 styleSpec :: ValueSpecs Style
-styleSpec =
+styleSpec = namedSpec "style" $
       blink        <$ atomSpec "blink"
   <!> bold         <$ atomSpec "bold"
   <!> dim          <$ atomSpec "dim"
@@ -68,13 +69,6 @@ colorSpec = namedSpec "color" (colorNumberSpec <!> colorNameSpec <!> rgbSpec)
 colorNameSpec :: ValueSpecs Color
 colorNameSpec = customSpec "color name" anyAtomSpec (`HashMap.lookup` namedColors)
 
--- | Specification that matches lists of exactly three elements
-three :: Spec a => ValueSpecs (a,a,a)
-three = customSpec "three" valuesSpec $ \xs ->
-          case xs of
-            [x,y,z] -> Just (x,y,z)
-            _       -> Nothing
-
 -- | Match integers between 0 and 255 as Terminal colors.
 colorNumberSpec :: ValueSpecs Color
 colorNumberSpec = customSpec "terminal color" valuesSpec $ \i ->
@@ -86,12 +80,12 @@ colorNumberSpec = customSpec "terminal color" valuesSpec $ \i ->
 -- | Configuration section that matches 3 integers in the range 0-255
 -- representing red, green, and blue values.
 rgbSpec :: ValueSpecs Color
-rgbSpec = customSpec "RGB" three $ \(r,g,b) ->
-  if valid r && valid g && valid b
-    then Just (rgbColor r g (b :: Integer))
-    else Nothing
+rgbSpec = customSpec "RGB" valuesSpec $ \rgb ->
+  case rgb of
+    [r,g,b] | valid r, valid g, valid b -> Just (rgbColor r g b)
+    _                                   -> Nothing
   where
-    valid x = 0 <= x && x < 256
+    valid x = 0 <= x && x < (256 :: Integer)
 
 namedColors :: HashMap Text Color
 namedColors = HashMap.fromList

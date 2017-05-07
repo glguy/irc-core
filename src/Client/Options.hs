@@ -32,11 +32,13 @@ module Client.Options
   , getOptions
   ) where
 
+import           Config.Schema.Docs
 import           Control.Lens
 import           Data.Foldable
 import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import           Data.Version
 import           Development.GitRev (gitHash, gitDirty)
 import           System.Console.GetOpt
@@ -47,6 +49,8 @@ import           System.Info
 import           Paths_glirc (version)
 import           Build_glirc (deps)
 
+import           Client.Configuration
+
 -- | Command-line options
 data Options = Options
   { _optConfigFile      :: Maybe FilePath -- ^ configuration file path
@@ -55,6 +59,7 @@ data Options = Options
   , _optShowHelp        :: Bool           -- ^ show help message
   , _optShowVersion     :: Bool           -- ^ show version message
   , _optShowFullVersion :: Bool           -- ^ show version of ALL transitive dependencies
+  , _optShowConfigFormat:: Bool           -- ^ show configuration file format
   }
 
 makeLenses ''Options
@@ -68,6 +73,7 @@ defaultOptions = Options
   , _optShowVersion     = False
   , _optShowFullVersion = False
   , _optNoConnect       = False
+  , _optShowConfigFormat= False
   }
 
 -- | Option descriptions
@@ -79,6 +85,8 @@ options =
     "Disable autoconnecting"
   , Option "h" ["help"]    (NoArg (set optShowHelp True))
     "Show help"
+  , Option "" ["config-format"] (NoArg (set optShowConfigFormat True))
+    "Show configuration file format"
   , Option "v" ["version"] (NoArg (set optShowVersion True))
     "Show version"
   , Option "" ["full-version"] (NoArg (set optShowFullVersion True))
@@ -103,11 +111,12 @@ getOptions =
               traverse_ (hPutStr stderr) (map bullet errors)
               hPutStrLn stderr tryHelpTxt
 
-     if | view optShowHelp    opts -> putStr helpTxt    >> exitSuccess
+     if | view optShowHelp    opts -> putStr helpTxt >> exitSuccess
         | view optShowFullVersion opts -> putStr fullVersionTxt >> exitSuccess
         | view optShowVersion opts -> putStr versionTxt >> exitSuccess
+        | view optShowConfigFormat opts -> Text.putStr (generateDocs configurationSpec) >> exitSuccess
         | null errors              -> return opts
-        | otherwise                -> reportErrors      >> exitFailure
+        | otherwise                -> reportErrors >> exitFailure
 
 helpTxt :: String
 helpTxt = usageInfo "glirc2 [FLAGS] INITIAL_NETWORKS..." options
