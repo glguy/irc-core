@@ -66,6 +66,7 @@ import qualified Data.HashSet                        as HashSet
 import           Data.List.NonEmpty                  (NonEmpty)
 import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Maybe
+import           Data.Monoid                         ((<>))
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
 import qualified Data.Text.IO                        as Text
@@ -185,8 +186,20 @@ loadConfiguration mbPath = try $
          Right rawcfg -> return rawcfg
 
      case loadValue configurationSpec rawcfg of
-       Left loadError -> throwIO (ConfigurationMalformed (show loadError)) -- XXX show
+       Left es -> throwIO
+                $ ConfigurationMalformed
+                $ Text.unpack
+                $ Text.unlines $ map explainLoadError es
        Right cfg -> return (cfg mbPath def)
+
+
+explainLoadError :: LoadError -> Text
+explainLoadError (LoadError path problem) =
+  Text.intercalate "." path <> ": " <>
+  case problem of
+    UnusedSections xs -> "Unknown sections: " <> Text.intercalate ", " xs
+    MissingSection s  -> "Missing required section: " <> s
+    SpecMismatch   s  -> "Expected " <> s
 
 
 configurationSpec :: ValueSpecs (Maybe FilePath -> ServerSettings -> Configuration)
@@ -204,7 +217,7 @@ configurationSpec = sectionsSpec "" $
      _configMacros <- fromMaybe mempty
                     <$> optSection' "macros" "" macroMapSpec
 
-     _configExtensions <- fromMaybe [] <$> optSection' "extensions" "" (listSpec filePathSpec)
+     _configExtensions <- fromMaybe [] <$> optSection' "extensions" "" (listSpec stringSpec)
 
      _configUrlOpener <- optSection' "url-opener" "" stringSpec
 
@@ -219,9 +232,9 @@ configurationSpec = sectionsSpec "" $
                     <$> optSection "ignores" ""
 
      _configActivityBar <- fromMaybe False
-                    <$> optSection' "activity-bar" "" yesOrNo
+                    <$> optSection' "activity-bar" "" yesOrNoSpec
 
-     _configBellOnMention <- fromMaybe False <$> optSection' "bell-on-mention" "" yesOrNo
+     _configBellOnMention <- fromMaybe False <$> optSection' "bell-on-mention" "" yesOrNoSpec
 
      return (\_configConfigPath def ->
              let _configDefaults = ssDefUpdate def
@@ -231,15 +244,6 @@ configurationSpec = sectionsSpec "" $
 
 nonnegativeSpec :: (Ord a, Num a) => ValueSpecs a
 nonnegativeSpec = customSpec "non-negative" numSpec $ \x -> find (0 <=) [x]
-
-filePathSpec :: ValueSpecs FilePath
-filePathSpec = stringSpec
-
-
--- | Matches the 'yes' and 'no' atoms
-yesOrNo :: ValueSpecs Bool
-yesOrNo = True  <$ atomSpec "yes"
-      <!> False <$ atomSpec "no"
 
 
 paletteSpec :: ValueSpecs Palette
@@ -278,7 +282,7 @@ serverSpec = sectionsSpec "server-settings" $
       [ optSection' "name" "The name used to identify this server in the client"
       $ opt ssName valuesSpec
       , optSection' "hostname" "Hostname of server"
-      $ req ssHostName filePathSpec
+      $ req ssHostName stringSpec
       , optSection' "port" "Port number of server. Default 6667 without TLS or 6697 with TLS"
       $ opt ssPort numSpec
       , optSection' "nick" "Nicknames to connect with in order"
@@ -296,15 +300,15 @@ serverSpec = sectionsSpec "server-settings" $
       , optSection' "sasl-password" "Password for SASL authentication to NickServ"
       $ opt ssSaslPassword valuesSpec
       , optSection' "sasl-ecdsa-key" "Path to ECDSA key for non-password SASL authentication"
-      $ opt ssSaslEcdsaFile     filePathSpec
+      $ opt ssSaslEcdsaFile stringSpec
       , optSection' "tls" "Set to `yes` to enable secure connect. Set to `yes-insecure` to disable certificate checking."
       $ req ssTls useTlsSpec
       , optSection' "tls-client-cert" "Path to TLS client certificate"
-      $ opt ssTlsClientCert     filePathSpec
+      $ opt ssTlsClientCert stringSpec
       , optSection' "tls-client-key" "Path to TLS client key"
-      $ opt ssTlsClientKey      filePathSpec
+      $ opt ssTlsClientKey stringSpec
       , optSection' "tls-server-cert" "Path to CA certificate bundle"
-      $ opt ssTlsServerCert     filePathSpec
+      $ opt ssTlsServerCert stringSpec
       , optSection' "tls-ciphers" "OpenSSL cipher specification. Default to \"HIGH\""
       $ req ssTlsCiphers stringSpec
       , optSection' "socks-host" "Hostname of SOCKS5 proxy server"
@@ -324,11 +328,11 @@ serverSpec = sectionsSpec "server-settings" $
       , optSection' "reconnect-attempts" "Number of reconnection attempts on lost connection"
       $ req ssReconnectAttempts valuesSpec
       , optSection' "autoconnect" "Set to `yes` to automatically connect at client startup"
-      $ req ssAutoconnect yesOrNo
+      $ req ssAutoconnect yesOrNoSpec
       , optSection' "nick-completion" "Behavior for nickname completion with TAB"
       $ req ssNickCompletion nickCompletionSpec
       , optSection' "log-dir" "Path to log file directory for this server"
-      $ opt ssLogDir            filePathSpec
+      $ opt ssLogDir stringSpec
       ]
 
 

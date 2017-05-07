@@ -111,7 +111,6 @@ library
                        Client.View.UrlSelection
                        Client.View.UserList
                        Client.View.Windows
-                       Config.FromConfig
 
   other-modules:       LensUtils
                        StrictUnit
