@@ -57,7 +57,7 @@ loadConfiguration' path =
        Left (ConfigurationParseFailed e) ->
          report "Failed to parse configuration:" e
        Left (ConfigurationMalformed e) ->
-         report "Configuration malformed: " e
+         report "Configuration malformed (try --config-format): " e
   where
     report problem msg =
       do hPutStrLn stderr problem
