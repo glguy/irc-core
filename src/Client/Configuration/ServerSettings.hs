@@ -154,66 +154,94 @@ serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
 serverSpec = sectionsSpec "server-settings" $
   ala Endo (foldMap . foldMap) <$> sequenceA settings
   where
-    req l s = set l <$> s
+    req name l s info = optSection' name info
+                      $ set l <$> s
 
-    opt l s = set l . Just <$> s
-          <!> set l Nothing <$ atomSpec "clear"
+    opt name l s info = optSection' name info
+                      $ set l . Just <$> s
+                    <!> set l Nothing <$ atomSpec "clear"
 
     settings =
-      [ optSection' "name" "The name used to identify this server in the client"
-      $ opt ssName valuesSpec
-      , optSection' "hostname" "Hostname of server"
-      $ req ssHostName stringSpec
-      , optSection' "port" "Port number of server. Default 6667 without TLS or 6697 with TLS"
-      $ opt ssPort numSpec
-      , optSection' "nick" "Nicknames to connect with in order"
-      $ req ssNicks nicksSpec
-      , optSection' "password" "Server password"
-      $ opt ssPassword valuesSpec
-      , optSection' "username" "Second component of _!_@_ usermask"
-      $ req ssUser valuesSpec
-      , optSection' "realname" "\"GECOS\" name sent to server visible in /whois"
-      $ req ssReal valuesSpec
-      , optSection' "userinfo" "CTCP userinfo (currently unused)"
-      $ req ssUserInfo valuesSpec
-      , optSection' "sasl-username" "Username for SASL authentication to NickServ"
-      $ opt ssSaslUsername valuesSpec
-      , optSection' "sasl-password" "Password for SASL authentication to NickServ"
-      $ opt ssSaslPassword valuesSpec
-      , optSection' "sasl-ecdsa-key" "Path to ECDSA key for non-password SASL authentication"
-      $ opt ssSaslEcdsaFile stringSpec
-      , optSection' "tls" "Set to `yes` to enable secure connect. Set to `yes-insecure` to disable certificate checking."
-      $ req ssTls useTlsSpec
-      , optSection' "tls-client-cert" "Path to TLS client certificate"
-      $ opt ssTlsClientCert stringSpec
-      , optSection' "tls-client-key" "Path to TLS client key"
-      $ opt ssTlsClientKey stringSpec
-      , optSection' "tls-server-cert" "Path to CA certificate bundle"
-      $ opt ssTlsServerCert stringSpec
-      , optSection' "tls-ciphers" "OpenSSL cipher specification. Default to \"HIGH\""
-      $ req ssTlsCiphers stringSpec
-      , optSection' "socks-host" "Hostname of SOCKS5 proxy server"
-      $ opt ssSocksHost stringSpec
-      , optSection' "socks-port" "Port number of SOCKS5 proxy server"
-      $ req ssSocksPort numSpec
-      , optSection' "connect-cmds" "Command to be run upon successful connection to server"
-      $ req ssConnectCmds $ listSpec macroCommandSpec
-      , optSection' "chanserv-channels" "Channels with ChanServ permissions available"
-      $ req ssChanservChannels $ listSpec identifierSpec
-      , optSection' "flood-penalty" "RFC 1459 rate limiting, seconds of penalty per message (default 2)"
-      $ req ssFloodPenalty valuesSpec
-      , optSection' "flood-threshold" "RFC 1459 rate limiting, seconds of allowed penalty accumulation (default 10)"
-      $ req ssFloodThreshold valuesSpec
-      , optSection' "message-hooks" "Special message hooks to enable: \"buffextras\" available"
-      $ req ssMessageHooks valuesSpec
-      , optSection' "reconnect-attempts" "Number of reconnection attempts on lost connection"
-      $ req ssReconnectAttempts valuesSpec
-      , optSection' "autoconnect" "Set to `yes` to automatically connect at client startup"
-      $ req ssAutoconnect yesOrNoSpec
-      , optSection' "nick-completion" "Behavior for nickname completion with TAB"
-      $ req ssNickCompletion nickCompletionSpec
-      , optSection' "log-dir" "Path to log file directory for this server"
-      $ opt ssLogDir stringSpec
+      [ opt "name" ssName valuesSpec
+        "The name used to identify this server in the client"
+
+      , req "hostname" ssHostName stringSpec
+        "Hostname of server"
+
+      , opt "port" ssPort numSpec
+        "Port number of server. Default 6667 without TLS or 6697 with TLS"
+
+      , req "nick" ssNicks nicksSpec
+        "Nicknames to connect with in order"
+
+      , opt "password" ssPassword valuesSpec
+        "Server password"
+
+      , req "username" ssUser valuesSpec
+        "Second component of _!_@_ usermask"
+
+      , req "realname" ssReal valuesSpec
+        "\"GECOS\" name sent to server visible in /whois"
+
+      , req "userinfo" ssUserInfo valuesSpec
+        "CTCP userinfo (currently unused)"
+
+      , opt "sasl-username" ssSaslUsername valuesSpec
+        "Username for SASL authentication to NickServ"
+
+      , opt "sasl-password" ssSaslPassword valuesSpec
+        "Password for SASL authentication to NickServ"
+
+      , opt "sasl-ecdsa-key" ssSaslEcdsaFile stringSpec
+        "Path to ECDSA key for non-password SASL authentication"
+
+      , req "tls" ssTls useTlsSpec
+        "Set to `yes` to enable secure connect. Set to `yes-insecure` to disable certificate checking."
+
+      , opt "tls-client-cert" ssTlsClientCert stringSpec
+        "Path to TLS client certificate"
+
+      , opt "tls-client-key" ssTlsClientKey stringSpec
+        "Path to TLS client key"
+
+      , opt "tls-server-cert" ssTlsServerCert stringSpec
+        "Path to CA certificate bundle"
+
+      , req "tls-ciphers" ssTlsCiphers stringSpec
+        "OpenSSL cipher specification. Default to \"HIGH\""
+
+      , opt "socks-host" ssSocksHost stringSpec
+        "Hostname of SOCKS5 proxy server"
+
+      , req "socks-port" ssSocksPort numSpec
+        "Port number of SOCKS5 proxy server"
+
+      , req "connect-cmds" ssConnectCmds (listSpec macroCommandSpec)
+        "Command to be run upon successful connection to server"
+
+      , req "chanserv-channels" ssChanservChannels (listSpec identifierSpec)
+        "Channels with ChanServ permissions available"
+
+      , req "flood-penalty" ssFloodPenalty valuesSpec
+        "RFC 1459 rate limiting, seconds of penalty per message (default 2)"
+
+      , req "flood-threshold" ssFloodThreshold valuesSpec
+        "RFC 1459 rate limiting, seconds of allowed penalty accumulation (default 10)"
+
+      , req "message-hooks" ssMessageHooks valuesSpec
+        "Special message hooks to enable: \"buffextras\" available"
+
+      , req "reconnect-attempts" ssReconnectAttempts valuesSpec
+        "Number of reconnection attempts on lost connection"
+
+      , req "autoconnect" ssAutoconnect yesOrNoSpec
+        "Set to `yes` to automatically connect at client startup"
+
+      , req "nick-completion" ssNickCompletion nickCompletionSpec
+        "Behavior for nickname completion with TAB"
+
+      , opt "log-dir" ssLogDir stringSpec
+        "Path to log file directory for this server"
       ]
 
 
