@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ApplicativeDo, TemplateHaskell, OverloadedStrings #-}
 
 {-|
 Module      : Client.Configuration.ServerSettings
@@ -16,6 +16,7 @@ module Client.Configuration.ServerSettings
   (
   -- * Server settings type
     ServerSettings(..)
+  , serverSpec
 
   -- * Lenses
   , ssNicks
@@ -56,13 +57,16 @@ module Client.Configuration.ServerSettings
 
 import           Client.Commands.Interpolation
 import           Client.Commands.WordCompletion
+import           Client.Configuration.Macros (macroCommandSpec)
+import           Config.Schema.Spec
 import           Control.Lens
+import           Data.Functor.Alt                    ((<!>))
 import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (catMaybes, fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Irc.Identifier (Identifier)
+import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber)
 import           System.Environment
 
@@ -143,3 +147,91 @@ loadDefaultServerSettings =
        , _ssNickCompletion   = defaultNickWordCompleteMode
        , _ssLogDir           = Nothing
        }
+
+serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
+serverSpec = sectionsSpec "server-settings" $
+  do updates <- catMaybes <$> sequenceA settings
+     return (foldr (.) id updates)
+  where
+    req l s = set l <$> s
+
+    opt l s = set l . Just <$> s
+          <!> set l Nothing <$ atomSpec "clear"
+
+    settings =
+      [ optSection' "name" "The name used to identify this server in the client"
+      $ opt ssName valuesSpec
+      , optSection' "hostname" "Hostname of server"
+      $ req ssHostName stringSpec
+      , optSection' "port" "Port number of server. Default 6667 without TLS or 6697 with TLS"
+      $ opt ssPort numSpec
+      , optSection' "nick" "Nicknames to connect with in order"
+      $ req ssNicks nicksSpec
+      , optSection' "password" "Server password"
+      $ opt ssPassword valuesSpec
+      , optSection' "username" "Second component of _!_@_ usermask"
+      $ req ssUser valuesSpec
+      , optSection' "realname" "\"GECOS\" name sent to server visible in /whois"
+      $ req ssReal valuesSpec
+      , optSection' "userinfo" "CTCP userinfo (currently unused)"
+      $ req ssUserInfo valuesSpec
+      , optSection' "sasl-username" "Username for SASL authentication to NickServ"
+      $ opt ssSaslUsername valuesSpec
+      , optSection' "sasl-password" "Password for SASL authentication to NickServ"
+      $ opt ssSaslPassword valuesSpec
+      , optSection' "sasl-ecdsa-key" "Path to ECDSA key for non-password SASL authentication"
+      $ opt ssSaslEcdsaFile stringSpec
+      , optSection' "tls" "Set to `yes` to enable secure connect. Set to `yes-insecure` to disable certificate checking."
+      $ req ssTls useTlsSpec
+      , optSection' "tls-client-cert" "Path to TLS client certificate"
+      $ opt ssTlsClientCert stringSpec
+      , optSection' "tls-client-key" "Path to TLS client key"
+      $ opt ssTlsClientKey stringSpec
+      , optSection' "tls-server-cert" "Path to CA certificate bundle"
+      $ opt ssTlsServerCert stringSpec
+      , optSection' "tls-ciphers" "OpenSSL cipher specification. Default to \"HIGH\""
+      $ req ssTlsCiphers stringSpec
+      , optSection' "socks-host" "Hostname of SOCKS5 proxy server"
+      $ opt ssSocksHost stringSpec
+      , optSection' "socks-port" "Port number of SOCKS5 proxy server"
+      $ req ssSocksPort numSpec
+      , optSection' "connect-cmds" "Command to be run upon successful connection to server"
+      $ req ssConnectCmds $ listSpec macroCommandSpec
+      , optSection' "chanserv-channels" "Channels with ChanServ permissions available"
+      $ req ssChanservChannels $ listSpec identifierSpec
+      , optSection' "flood-penalty" "RFC 1459 rate limiting, seconds of penalty per message (default 2)"
+      $ req ssFloodPenalty valuesSpec
+      , optSection' "flood-threshold" "RFC 1459 rate limiting, seconds of allowed penalty accumulation (default 10)"
+      $ req ssFloodThreshold valuesSpec
+      , optSection' "message-hooks" "Special message hooks to enable: \"buffextras\" available"
+      $ req ssMessageHooks valuesSpec
+      , optSection' "reconnect-attempts" "Number of reconnection attempts on lost connection"
+      $ req ssReconnectAttempts valuesSpec
+      , optSection' "autoconnect" "Set to `yes` to automatically connect at client startup"
+      $ req ssAutoconnect yesOrNoSpec
+      , optSection' "nick-completion" "Behavior for nickname completion with TAB"
+      $ req ssNickCompletion nickCompletionSpec
+      , optSection' "log-dir" "Path to log file directory for this server"
+      $ opt ssLogDir stringSpec
+      ]
+
+
+nicksSpec :: ValueSpecs (NonEmpty Text)
+nicksSpec = oneOrNonemptySpec valuesSpec
+
+
+useTlsSpec :: ValueSpecs UseTls
+useTlsSpec =
+      UseTls         <$ atomSpec "yes"
+  <!> UseInsecureTls <$ atomSpec "yes-insecure"
+  <!> UseInsecure    <$ atomSpec "no"
+
+
+nickCompletionSpec :: ValueSpecs WordCompletionMode
+nickCompletionSpec =
+      defaultNickWordCompleteMode <$ atomSpec "default"
+  <!> slackNickWordCompleteMode   <$ atomSpec "slack"
+
+
+identifierSpec :: ValueSpecs Identifier
+identifierSpec = mkId <$> valuesSpec
