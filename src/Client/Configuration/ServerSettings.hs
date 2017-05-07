@@ -17,6 +17,7 @@ module Client.Configuration.ServerSettings
   -- * Server settings type
     ServerSettings(..)
   , serverSpec
+  , identifierSpec
 
   -- * Lenses
   , ssNicks
@@ -64,6 +65,7 @@ import           Data.Functor.Alt                    ((<!>))
 import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Maybe (catMaybes, fromMaybe)
+import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Irc.Identifier (Identifier, mkId)
@@ -150,8 +152,7 @@ loadDefaultServerSettings =
 
 serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
 serverSpec = sectionsSpec "server-settings" $
-  do updates <- catMaybes <$> sequenceA settings
-     return (foldr (.) id updates)
+  ala Endo (foldMap . foldMap) <$> sequenceA settings
   where
     req l s = set l <$> s
 

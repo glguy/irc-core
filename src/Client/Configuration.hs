@@ -67,7 +67,7 @@ import qualified Data.HashSet                        as HashSet
 import           Data.List.NonEmpty                  (NonEmpty)
 import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Maybe
-import           Data.Monoid                         ((<>))
+import           Data.Monoid                         (Endo(..), (<>))
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
 import qualified Data.Text.IO                        as Text
@@ -206,36 +206,22 @@ explainLoadError (LoadError path problem) =
 configurationSpec :: ValueSpecs (Maybe FilePath -> ServerSettings -> Configuration)
 configurationSpec = sectionsSpec "" $
 
-  do ssDefUpdate <- fromMaybe id <$> optSection' "defaults" "" serverSpec
-     ssUpdates   <- fromMaybe [] <$> optSection' "servers" "" (listSpec serverSpec)
+  do let sec' def name info spec = fromMaybe def <$> optSection' name info spec
+         identifierSetSpec       = HashSet.fromList <$> listSpec identifierSpec
 
-     _configPalette <- fromMaybe defaultPalette
-                    <$> optSection' "palette" "" paletteSpec
-
-     _configWindowNames <- fromMaybe defaultWindowNames
-                    <$> optSection "window-names" ""
-
-     _configMacros <- fromMaybe mempty
-                    <$> optSection' "macros" "" macroMapSpec
-
-     _configExtensions <- fromMaybe [] <$> optSection' "extensions" "" (listSpec stringSpec)
-
-     _configUrlOpener <- optSection' "url-opener" "" stringSpec
-
-     _configExtraHighlights <- maybe HashSet.empty (HashSet.fromList . map mkId)
-                    <$> optSection "extra-highlights" ""
-
-     _configNickPadding <- optSection' "nick-padding" "" nonnegativeSpec
-
-     _configIndentWrapped <- optSection' "indent-wrapped-lines" "" nonnegativeSpec
-
-     _configIgnores <- maybe HashSet.empty (HashSet.fromList . map mkId)
-                    <$> optSection "ignores" ""
-
-     _configActivityBar <- fromMaybe False
-                    <$> optSection' "activity-bar" "" yesOrNoSpec
-
-     _configBellOnMention <- fromMaybe False <$> optSection' "bell-on-mention" "" yesOrNoSpec
+     ssDefUpdate            <- sec' id     "defaults"         "" serverSpec
+     ssUpdates              <- sec' []     "servers"          "" (listSpec serverSpec)
+     _configPalette         <- sec' defaultPalette "palette"  "" paletteSpec
+     _configWindowNames     <- sec' defaultWindowNames "window-names" "" valuesSpec
+     _configMacros          <- sec' mempty "macros"           "" macroMapSpec
+     _configExtensions      <- sec' []     "extensions"       "" (listSpec stringSpec)
+     _configUrlOpener       <- optSection' "url-opener"       "" stringSpec
+     _configExtraHighlights <- sec' mempty "extra-highlights" "" identifierSetSpec
+     _configNickPadding     <- optSection' "nick-padding"     "" nonnegativeSpec
+     _configIndentWrapped   <- optSection' "indent-wrapped-lines" "" nonnegativeSpec
+     _configIgnores         <- sec' mempty "ignores"          "" identifierSetSpec
+     _configActivityBar     <- sec' False  "activity-bar"     "" yesOrNoSpec
+     _configBellOnMention   <- sec' False  "bell-on-mention"  "" yesOrNoSpec
 
      return (\_configConfigPath def ->
              let _configDefaults = ssDefUpdate def
@@ -249,13 +235,14 @@ nonnegativeSpec = customSpec "non-negative" numSpec $ \x -> find (0 <=) [x]
 
 paletteSpec :: ValueSpecs Palette
 paletteSpec = sectionsSpec "palette" $
-  do updates <- catMaybes <$> sequenceA
-       [ fmap (set l) <$> optSection' lbl "" attrSpec | (lbl, Lens l) <- paletteMap ]
-     nickColors <- optSection' "nick-colors" "" (nonemptySpec attrSpec)
-     return (let pal1 = foldl' (\acc f -> f acc) defaultPalette updates
-             in case nickColors of
-                  Nothing -> pal1
-                  Just xs -> set palNicks (Vector.fromList (NonEmpty.toList xs)) pal1)
+  (ala Endo (foldMap . foldMap) ?? defaultPalette) <$> sequenceA fields
+
+  where
+    nickColorsSpec = set palNicks . Vector.fromList . NonEmpty.toList <$> nonemptySpec attrSpec
+
+    fields :: [SectionSpecs (Maybe (Palette -> Palette))]
+    fields = optSection' "nick-colors" "" nickColorsSpec
+           : [ optSection' lbl "" (set l <$> attrSpec) | (lbl, Lens l) <- paletteMap ]
 
 
 buildServerMap :: ServerSettings -> [ServerSettings -> ServerSettings] -> HashMap Text ServerSettings
