@@ -1,3 +1,6 @@
 [submodule "config-schema"]
 	path = config-schema
 	url = https://github.com/glguy/config-schema
+[submodule "config-value"]
+	path = config-value
+	url = https://github.com/glguy/config-value.git

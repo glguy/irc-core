@@ -98,6 +98,7 @@ data ServerSettings = ServerSettings
   }
   deriving Show
 
+-- | Security setting for network connection
 data UseTls
   = UseTls         -- ^ TLS connection
   | UseInsecureTls -- ^ TLS connection without certificate checking
@@ -109,13 +110,13 @@ makeLenses ''ServerSettings
 -- | Load the defaults for server settings based on the environment
 -- variables.
 --
--- @USER@, @IRCPASSSWORD@, and @SASLPASSWORD@ are used.
+-- Environment variables @USER@, @IRCPASSSWORD@, and @SASLPASSWORD@ are used.
 loadDefaultServerSettings :: IO ServerSettings
 loadDefaultServerSettings =
   do env  <- getEnvironment
      let username = Text.pack (fromMaybe "guest" (lookup "USER" env))
      return ServerSettings
-       { _ssNicks         = username NonEmpty.:| []
+       { _ssNicks         = pure username
        , _ssUser          = username
        , _ssReal          = username
        , _ssUserInfo      = username

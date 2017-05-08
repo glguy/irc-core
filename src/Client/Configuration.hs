@@ -57,7 +57,7 @@ import           Config.Schema
 import           Control.Applicative
 import           Control.Exception
 import           Control.Lens                        hiding (List)
-import           Data.Foldable                       (find, foldl')
+import           Data.Foldable                       (toList, find, foldl')
 import           Data.Functor.Alt                    ((<!>))
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
@@ -189,7 +189,9 @@ loadConfiguration mbPath = try $
        Left es -> throwIO
                 $ ConfigurationMalformed
                 $ Text.unpack
-                $ Text.unlines $ map explainLoadError es
+                $ Text.unlines
+                $ map explainLoadError
+                $ toList es
        Right cfg -> return (cfg mbPath def)
 
 
