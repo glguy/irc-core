@@ -73,6 +73,7 @@ library
                        Client.Commands.WordCompletion
                        Client.Configuration
                        Client.Configuration.Colors
+                       Client.Configuration.Macros
                        Client.Configuration.ServerSettings
                        Client.EventLoop
                        Client.EventLoop.Errors

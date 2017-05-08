@@ -50,6 +50,7 @@ import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
 import           Client.Commands.WordCompletion
 import           Client.Configuration.Colors
+import           Client.Configuration.Macros (macroMapSpec)
 import           Client.Configuration.ServerSettings
 import           Client.Image.Palette
 import           Config
@@ -66,7 +67,7 @@ import qualified Data.HashSet                        as HashSet
 import           Data.List.NonEmpty                  (NonEmpty)
 import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Maybe
-import           Data.Monoid                         ((<>))
+import           Data.Monoid                         (Endo(..), (<>))
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
 import qualified Data.Text.IO                        as Text
@@ -207,36 +208,22 @@ explainLoadError (LoadError path problem) =
 configurationSpec :: ValueSpecs (Maybe FilePath -> ServerSettings -> Configuration)
 configurationSpec = sectionsSpec "" $
 
-  do ssDefUpdate <- fromMaybe id <$> optSection' "defaults" "" serverSpec
-     ssUpdates   <- fromMaybe [] <$> optSection' "servers" "" (listSpec serverSpec)
+  do let sec' def name info spec = fromMaybe def <$> optSection' name info spec
+         identifierSetSpec       = HashSet.fromList <$> listSpec identifierSpec
 
-     _configPalette <- fromMaybe defaultPalette
-                    <$> optSection' "palette" "" paletteSpec
-
-     _configWindowNames <- fromMaybe defaultWindowNames
-                    <$> optSection "window-names" ""
-
-     _configMacros <- fromMaybe mempty
-                    <$> optSection' "macros" "" macroMapSpec
-
-     _configExtensions <- fromMaybe [] <$> optSection' "extensions" "" (listSpec stringSpec)
-
-     _configUrlOpener <- optSection' "url-opener" "" stringSpec
-
-     _configExtraHighlights <- maybe HashSet.empty (HashSet.fromList . map mkId)
-                    <$> optSection "extra-highlights" ""
-
-     _configNickPadding <- optSection' "nick-padding" "" nonnegativeSpec
-
-     _configIndentWrapped <- optSection' "indent-wrapped-lines" "" nonnegativeSpec
-
-     _configIgnores <- maybe HashSet.empty (HashSet.fromList . map mkId)
-                    <$> optSection "ignores" ""
-
-     _configActivityBar <- fromMaybe False
-                    <$> optSection' "activity-bar" "" yesOrNoSpec
-
-     _configBellOnMention <- fromMaybe False <$> optSection' "bell-on-mention" "" yesOrNoSpec
+     ssDefUpdate            <- sec' id     "defaults"         "" serverSpec
+     ssUpdates              <- sec' []     "servers"          "" (listSpec serverSpec)
+     _configPalette         <- sec' defaultPalette "palette"  "" paletteSpec
+     _configWindowNames     <- sec' defaultWindowNames "window-names" "" valuesSpec
+     _configMacros          <- sec' mempty "macros"           "" macroMapSpec
+     _configExtensions      <- sec' []     "extensions"       "" (listSpec stringSpec)
+     _configUrlOpener       <- optSection' "url-opener"       "" stringSpec
+     _configExtraHighlights <- sec' mempty "extra-highlights" "" identifierSetSpec
+     _configNickPadding     <- optSection' "nick-padding"     "" nonnegativeSpec
+     _configIndentWrapped   <- optSection' "indent-wrapped-lines" "" nonnegativeSpec
+     _configIgnores         <- sec' mempty "ignores"          "" identifierSetSpec
+     _configActivityBar     <- sec' False  "activity-bar"     "" yesOrNoSpec
+     _configBellOnMention   <- sec' False  "bell-on-mention"  "" yesOrNoSpec
 
      return (\_configConfigPath def ->
              let _configDefaults = ssDefUpdate def
@@ -250,16 +237,14 @@ nonnegativeSpec = customSpec "non-negative" numSpec $ \x -> find (0 <=) [x]
 
 paletteSpec :: ValueSpecs Palette
 paletteSpec = sectionsSpec "palette" $
-  do updates <- catMaybes <$> sequenceA
-       [ fmap (set l) <$> optSection' lbl "" attrSpec | (lbl, Lens l) <- paletteMap ]
-     nickColors <- optSection' "nick-colors" "" (nonemptyList attrSpec)
-     return (let pal1 = foldl' (\acc f -> f acc) defaultPalette updates
-             in case nickColors of
-                  Nothing -> pal1
-                  Just xs -> set palNicks (Vector.fromList (NonEmpty.toList xs)) pal1)
+  (ala Endo (foldMap . foldMap) ?? defaultPalette) <$> sequenceA fields
 
-nonemptyList :: ValueSpecs a -> ValueSpecs (NonEmpty a)
-nonemptyList s = customSpec "non-empty" (listSpec s) NonEmpty.nonEmpty
+  where
+    nickColorsSpec = set palNicks . Vector.fromList . NonEmpty.toList <$> nonemptySpec attrSpec
+
+    fields :: [SectionSpecs (Maybe (Palette -> Palette))]
+    fields = optSection' "nick-colors" "" nickColorsSpec
+           : [ optSection' lbl "" (set l <$> attrSpec) | (lbl, Lens l) <- paletteMap ]
 
 
 buildServerMap :: ServerSettings -> [ServerSettings -> ServerSettings] -> HashMap Text ServerSettings
@@ -270,87 +255,6 @@ buildServerMap def ups =
       fromMaybe (views ssHostName Text.pack ss)
                 (view ssName ss)
 
-serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
-serverSpec = sectionsSpec "server-settings" $
-  do updates <- catMaybes <$> sequenceA settings
-     return (foldr (.) id updates)
-  where
-    req l s = set l <$> s
-
-    opt l s = set l . Just <$> s
-          <!> set l Nothing <$ atomSpec "clear"
-
-    settings =
-      [ optSection' "name" "The name used to identify this server in the client"
-      $ opt ssName valuesSpec
-      , optSection' "hostname" "Hostname of server"
-      $ req ssHostName stringSpec
-      , optSection' "port" "Port number of server. Default 6667 without TLS or 6697 with TLS"
-      $ opt ssPort numSpec
-      , optSection' "nick" "Nicknames to connect with in order"
-      $ req ssNicks nicksSpec
-      , optSection' "password" "Server password"
-      $ opt ssPassword valuesSpec
-      , optSection' "username" "Second component of _!_@_ usermask"
-      $ req ssUser valuesSpec
-      , optSection' "realname" "\"GECOS\" name sent to server visible in /whois"
-      $ req ssReal valuesSpec
-      , optSection' "userinfo" "CTCP userinfo (currently unused)"
-      $ req ssUserInfo valuesSpec
-      , optSection' "sasl-username" "Username for SASL authentication to NickServ"
-      $ opt ssSaslUsername valuesSpec
-      , optSection' "sasl-password" "Password for SASL authentication to NickServ"
-      $ opt ssSaslPassword valuesSpec
-      , optSection' "sasl-ecdsa-key" "Path to ECDSA key for non-password SASL authentication"
-      $ opt ssSaslEcdsaFile stringSpec
-      , optSection' "tls" "Set to `yes` to enable secure connect. Set to `yes-insecure` to disable certificate checking."
-      $ req ssTls useTlsSpec
-      , optSection' "tls-client-cert" "Path to TLS client certificate"
-      $ opt ssTlsClientCert stringSpec
-      , optSection' "tls-client-key" "Path to TLS client key"
-      $ opt ssTlsClientKey stringSpec
-      , optSection' "tls-server-cert" "Path to CA certificate bundle"
-      $ opt ssTlsServerCert stringSpec
-      , optSection' "tls-ciphers" "OpenSSL cipher specification. Default to \"HIGH\""
-      $ req ssTlsCiphers stringSpec
-      , optSection' "socks-host" "Hostname of SOCKS5 proxy server"
-      $ opt ssSocksHost stringSpec
-      , optSection' "socks-port" "Port number of SOCKS5 proxy server"
-      $ req ssSocksPort numSpec
-      , optSection' "connect-cmds" "Command to be run upon successful connection to server"
-      $ req ssConnectCmds $ listSpec macroCommandSpec
-      , optSection' "chanserv-channels" "Channels with ChanServ permissions available"
-      $ req ssChanservChannels  $ listSpec identifierSpec
-      , optSection' "flood-penalty" "RFC 1459 rate limiting, seconds of penalty per message (default 2)"
-      $ req ssFloodPenalty valuesSpec
-      , optSection' "flood-threshold" "RFC 1459 rate limiting, seconds of allowed penalty accumulation (default 10)"
-      $ req ssFloodThreshold valuesSpec
-      , optSection' "message-hooks" "Special message hooks to enable: \"buffextras\" available"
-      $ req ssMessageHooks valuesSpec
-      , optSection' "reconnect-attempts" "Number of reconnection attempts on lost connection"
-      $ req ssReconnectAttempts valuesSpec
-      , optSection' "autoconnect" "Set to `yes` to automatically connect at client startup"
-      $ req ssAutoconnect yesOrNoSpec
-      , optSection' "nick-completion" "Behavior for nickname completion with TAB"
-      $ req ssNickCompletion nickCompletionSpec
-      , optSection' "log-dir" "Path to log file directory for this server"
-      $ opt ssLogDir stringSpec
-      ]
-
-
-nicksSpec :: ValueSpecs (NonEmpty Text)
-nicksSpec = pure <$> valuesSpec
-        <!> nonemptyList valuesSpec
-
-
-useTlsSpec :: ValueSpecs UseTls
-useTlsSpec =
-      UseTls         <$ atomSpec "yes"
-  <!> UseInsecureTls <$ atomSpec "yes-insecure"
-  <!> UseInsecure    <$ atomSpec "no"
-
-identifierSpec :: ValueSpecs Identifier
-identifierSpec = mkId <$> valuesSpec
 
 -- | Resolve relative paths starting at the home directory rather than
 -- the current directory of the client.
@@ -359,25 +263,3 @@ resolveConfigurationPath path
   | isAbsolute path = return path
   | otherwise = do home <- getHomeDirectory
                    return (home </> path)
-
-macroMapSpec :: ValueSpecs (Recognizer Macro)
-macroMapSpec = fromCommands <$> listSpec macroValueSpecs
-
-macroValueSpecs :: ValueSpecs (Text, Macro)
-macroValueSpecs = sectionsSpec "macro" $
-  do name     <- reqSection "name" ""
-     spec     <- fromMaybe noMacroArguments
-             <$> optSection' "arguments" "" macroArgumentsSpec
-     commands <- reqSection' "commands" "" (listSpec macroCommandSpec)
-     return (name, Macro spec commands)
-
-macroArgumentsSpec :: ValueSpecs MacroSpec
-macroArgumentsSpec = customSpec "macro arguments" valuesSpec parseMacroSpecs
-
-macroCommandSpec :: ValueSpecs [ExpansionChunk]
-macroCommandSpec = customSpec "macro command" valuesSpec parseExpansion
-
-nickCompletionSpec :: ValueSpecs WordCompletionMode
-nickCompletionSpec =
-      defaultNickWordCompleteMode <$ atomSpec "default"
-  <!> slackNickWordCompleteMode   <$ atomSpec "slack"
