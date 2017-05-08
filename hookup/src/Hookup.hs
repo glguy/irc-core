@@ -198,6 +198,13 @@ close (Connection _ h) = closeNetworkHandle h
 -- | Receive a line from the network connection. Both
 -- @"\\r\\n"@ and @"\\n"@ are recognized.
 --
+-- Returning 'Nothing' means that the peer has closed its half of
+-- the connection.
+--
+-- Unterminated lines will raise a 'LineTruncated' exception. This
+-- can happen if the peer transmits some data and closes its end
+-- without transmitting a line terminator.
+--
 -- Throws: 'ConnectionAbruptlyTerminated', 'ConnectionFailure', 'IOError'
 recvLine :: Connection -> Int -> IO (Maybe ByteString)
 recvLine (Connection buf h) n =
