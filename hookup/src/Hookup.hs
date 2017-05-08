@@ -32,6 +32,7 @@ import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.Foldable
+import           Data.List (intercalate)
 import           Network (PortID(..))
 import           Network.Socket (Socket, AddrInfo, PortNumber, HostName)
 import qualified Network.Socket as Socket
@@ -63,11 +64,12 @@ data SocksParams = SocksParams
   }
 
 
--- | TLS connection parameters
+-- | TLS connection parameters. These parameters are passed to
+-- OpenSSL when making a secure connection.
 data TlsParams = TlsParams
-  { tpClientCertificate  :: Maybe FilePath
-  , tpClientPrivateKey   :: Maybe FilePath
-  , tpServerCertificate  :: Maybe FilePath
+  { tpClientCertificate  :: Maybe FilePath -- ^ Path to client certificate
+  , tpClientPrivateKey   :: Maybe FilePath -- ^ Path to client private key
+  , tpServerCertificate  :: Maybe FilePath -- ^ Path to CA certificate bundle
   , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. "HIGH")
   , tpInsecure           :: Bool -- ^ Disables certificate checking
   }
@@ -85,7 +87,15 @@ data ConnectionFailure
   | LineTruncated
   deriving Show
 
-instance Exception ConnectionFailure
+-- | 'displayException' implemented for prettier messages
+instance Exception ConnectionFailure where
+  displayException LineTruncated = "connection closed while reading line"
+  displayException LineTooLong   = "line length exceeded maximum"
+  displayException (ConnectionFailure xs) =
+    "connection attempts failed due to: " ++
+      intercalate ", " (map displayException xs)
+  displayException (HostnameResolutionFailure x) =
+    "hostname resolution failed: " ++ displayException x
 
 ------------------------------------------------------------------------
 -- Opening sockets
@@ -233,8 +243,7 @@ cleanEnd bs
   | otherwise                    = B.init bs
 
 
--- | Send bytes on the network connection. Ensures that the whole message
--- is sent.
+-- | Send bytes on the network connection.
 --
 -- Throws: 'IOError', 'ProtocolError'
 send :: Connection -> ByteString -> IO ()
