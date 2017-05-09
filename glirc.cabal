@@ -124,7 +124,7 @@ library
                        attoparsec           >=0.13   && <0.14,
                        bytestring           >=0.10.8 && <0.11,
                        base64-bytestring    >=1.0.0.1 && <1.1,
-                       config-value         >=0.5    && <0.6,
+                       config-value         >=0.6    && <0.7,
                        config-schema        >=0.3    && <0.4,
                        containers           >=0.5.7  && <0.6,
                        directory            >=1.2.6  && <1.4,

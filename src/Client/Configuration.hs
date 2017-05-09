@@ -197,12 +197,23 @@ loadConfiguration mbPath = try $
 
 
 explainLoadError :: LoadError -> Text
-explainLoadError (LoadError path problem) =
-  Text.intercalate "." path <> ": " <>
-  case problem of
-    UnusedSections xs -> "Unknown sections: " <> Text.intercalate ", " xs
-    MissingSection s  -> "Missing required section: " <> s
-    SpecMismatch   s  -> "Expected " <> s
+explainLoadError (LoadError pos path problem) =
+  Text.concat [ positionText, " at ", pathText, " - ", problemText]
+
+  where
+    positionText =
+     Text.unwords ["line"  , Text.pack (show (posLine   pos)),
+                   "column", Text.pack (show (posColumn pos))]
+
+    pathText
+      | null path = "top-level"
+      | otherwise = Text.intercalate ":" path
+
+    problemText =
+      case problem of
+        UnusedSection  s -> "unknown section `"          <> s <> "`"
+        MissingSection s -> "missing required section `" <> s <> "`"
+        SpecMismatch   t -> "expected "                  <> t
 
 
 configurationSpec :: ValueSpecs (Maybe FilePath -> ServerSettings -> Configuration)
