@@ -111,12 +111,20 @@ getOptions =
               traverse_ (hPutStr stderr) (map bullet errors)
               hPutStrLn stderr tryHelpTxt
 
-     if | view optShowHelp    opts -> putStr helpTxt >> exitSuccess
-        | view optShowFullVersion opts -> putStr fullVersionTxt >> exitSuccess
-        | view optShowVersion opts -> putStr versionTxt >> exitSuccess
-        | view optShowConfigFormat opts -> Text.putStr (generateDocs configurationSpec) >> exitSuccess
-        | null errors              -> return opts
-        | otherwise                -> reportErrors >> exitFailure
+     if | view optShowHelp         opts -> putStr helpTxt        >> exitSuccess
+        | view optShowFullVersion  opts -> putStr fullVersionTxt >> exitSuccess
+        | view optShowVersion      opts -> putStr versionTxt     >> exitSuccess
+        | view optShowConfigFormat opts -> printConfigFormat     >> exitSuccess
+        | null errors                   -> return opts
+        | otherwise                     -> reportErrors          >> exitFailure
+
+printConfigFormat :: IO ()
+printConfigFormat =
+  do path <- getNewConfigPath
+     putStrLn ""
+     putStrLn ("Default configuration file path: " ++ path)
+     putStrLn ""
+     print (generateDocs configurationSpec)
 
 helpTxt :: String
 helpTxt = usageInfo "glirc2 [FLAGS] INITIAL_NETWORKS..." options

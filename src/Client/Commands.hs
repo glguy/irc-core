@@ -1428,9 +1428,9 @@ cmdReload st mbPath =
     describeProblem err =
       Text.pack $
       case err of
-       ConfigurationReadFailed e  -> "Failed to open configuration:" ++ e
-       ConfigurationParseFailed e -> "Failed to parse configuration:" ++ e
-       ConfigurationMalformed e   -> "Configuration malformed: " ++ e
+       ConfigurationReadFailed    e -> "Failed to open configuration: "  ++ e
+       ConfigurationParseFailed _ e -> "Failed to parse configuration: " ++ e
+       ConfigurationMalformed   _ e -> "Configuration malformed: "       ++ e
 
 -- | Support file name tab completion when providing an alternative
 -- configuration file.

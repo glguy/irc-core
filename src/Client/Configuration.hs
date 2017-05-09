@@ -41,6 +41,7 @@ module Client.Configuration
 
   -- * Resolving paths
   , resolveConfigurationPath
+  , getNewConfigPath
 
   -- * Specification
   , configurationSpec
@@ -108,10 +109,10 @@ data ConfigurationFailure
   = ConfigurationReadFailed String
 
   -- | Error message from parser or lexer
-  | ConfigurationParseFailed String
+  | ConfigurationParseFailed FilePath String
 
   -- | Error message from loading parsed configuration
-  | ConfigurationMalformed String
+  | ConfigurationMalformed FilePath String
   deriving Show
 
 -- | default instance
@@ -142,14 +143,14 @@ emptyConfigFile = "{}\n"
 -- exception is throw.
 readFileCatchNotFound ::
   FilePath {- ^ file to read -} ->
-  (IOError -> IO Text) {- ^ error handler for not found case -} ->
-  IO Text
+  (IOError -> IO (FilePath, Text)) {- ^ error handler for not found case -} ->
+  IO (FilePath, Text)
 readFileCatchNotFound path onNotFound =
   do res <- try (Text.readFile path)
      case res of
        Left e | isDoesNotExistError e -> onNotFound e
               | otherwise -> throwIO (ConfigurationReadFailed (show e))
-       Right txt -> return txt
+       Right txt -> return (path, txt)
 
 -- | Either read a configuration file from one of the default
 -- locations, in which case no configuration found is equivalent
@@ -157,7 +158,7 @@ readFileCatchNotFound path onNotFound =
 -- no configuration found is an error.
 readConfigurationFile ::
   Maybe FilePath {- ^ just file or use default search paths -} ->
-  IO Text
+  IO (FilePath, Text)
 readConfigurationFile mbPath =
   case mbPath of
 
@@ -170,7 +171,7 @@ readConfigurationFile mbPath =
          readFileCatchNotFound newPath $ \_ ->
            do oldPath <- getOldConfigPath
               readFileCatchNotFound oldPath $ \_ ->
-                return emptyConfigFile
+                return ("", emptyConfigFile)
 
 
 -- | Load the configuration file defaulting to @~/.glirc/config@.
@@ -178,27 +179,26 @@ loadConfiguration ::
   Maybe FilePath {- ^ path to configuration file -} ->
   IO (Either ConfigurationFailure Configuration)
 loadConfiguration mbPath = try $
-  do file <- readConfigurationFile mbPath
+  do (path,txt) <- readConfigurationFile mbPath
      def  <- loadDefaultServerSettings
 
      rawcfg <-
-       case parse file of
-         Left parseError -> throwIO (ConfigurationParseFailed parseError)
+       case parse txt of
+         Left e -> throwIO (ConfigurationParseFailed path (displayException e))
          Right rawcfg -> return rawcfg
 
      case loadValue configurationSpec rawcfg of
        Left es -> throwIO
-                $ ConfigurationMalformed
+                $ ConfigurationMalformed path
                 $ Text.unpack
                 $ Text.unlines
-                $ map explainLoadError
-                $ toList es
+                $ map explainLoadError (toList es)
        Right cfg -> return (cfg mbPath def)
 
 
 explainLoadError :: LoadError -> Text
 explainLoadError (LoadError pos path problem) =
-  Text.concat [ positionText, " at ", pathText, " - ", problemText]
+  Text.concat [ positionText, " at ", pathText, ": ", problemText]
 
   where
     positionText =

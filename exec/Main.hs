@@ -54,10 +54,10 @@ loadConfiguration' path =
        Right cfg -> return cfg
        Left (ConfigurationReadFailed e) ->
          report "Failed to open configuration:" e
-       Left (ConfigurationParseFailed e) ->
-         report "Failed to parse configuration:" e
-       Left (ConfigurationMalformed e) ->
-         report "Configuration malformed (try --config-format): " e
+       Left (ConfigurationParseFailed path e) ->
+         report ("Failed to parse configuration file: " ++ path) e
+       Left (ConfigurationMalformed path e) ->
+         report ("Malformed configuration file: " ++ path ++ "\n(try --config-format)") e
   where
     report problem msg =
       do hPutStrLn stderr problem
