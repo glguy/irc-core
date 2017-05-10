@@ -488,7 +488,7 @@ doKey vty key modifier st =
         -- toggles
         KFun 2     -> continue (over clientDetailView  not st)
         KFun 3     -> continue (over clientActivityBar not st)
-        KFun 4     -> continue (over clientShowMetadata not st)
+        KFun 4     -> continue (clientToggleHideMeta st)
 
         _          -> continue st
 

@@ -34,9 +34,9 @@ attrSpec = namedSpec "attr" $
 
 fullAttrSpec :: ValueSpecs Attr
 fullAttrSpec = sectionsSpec "full-attr" $
-  do mbFg <- optSection' "fg"    "Foreground color" colorSpec
-     mbBg <- optSection' "bg"    "Background color" colorSpec
-     mbSt <- optSection' "style" "Terminal font style" stylesSpec
+  do mbFg <- optSection' "fg"    colorSpec "Foreground color"
+     mbBg <- optSection' "bg"    colorSpec "Background color"
+     mbSt <- optSection' "style" stylesSpec "Terminal font style"
      return ( aux withForeColor mbFg
             $ aux withBackColor mbBg
             $ aux (foldl withStyle) mbSt

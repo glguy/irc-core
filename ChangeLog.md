@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.20.7
+
+* Make metadata toggle (F4) a window-level setting instead of client level
+* Add configuration option to hide metadata by default `hide-metadata`
+
 ## 2.20.6
 
 * Switch to new `config-schema` package for configuration file loading.

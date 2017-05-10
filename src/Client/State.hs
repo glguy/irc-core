@@ -30,7 +30,6 @@ module Client.State
   , clientScroll
   , clientDetailView
   , clientActivityBar
-  , clientShowMetadata
   , clientSubfocus
   , clientNextConnectionId
   , clientNetworkMap
@@ -49,6 +48,7 @@ module Client.State
   , clientPark
   , clientMatcher
   , clientActiveRegex
+  , clientToggleHideMeta
 
   , consumeInput
   , currentCompletionList
@@ -168,7 +168,6 @@ data ClientState = ClientState
   , _clientScroll            :: !Int                      -- ^ buffer scroll lines
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
   , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
-  , _clientShowMetadata      :: !Bool                     -- ^ visible activity bar
   , _clientRegex             :: Maybe Regex               -- ^ optional persistent filter
 
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
@@ -249,7 +248,6 @@ withClientState cfg k =
         , _clientConfig            = cfg
         , _clientScroll            = 0
         , _clientDetailView        = False
-        , _clientShowMetadata      = True
         , _clientRegex             = Nothing
         , _clientActivityBar       = view configActivityBar cfg
         , _clientNextConnectionId  = 0
@@ -472,8 +470,9 @@ recordWindowLine ::
   ClientState
 recordWindowLine focus wl st = st2
   where
+    freshWindow = emptyWindow { _winHideMeta = view (clientConfig . configHideMeta) st }
     st1 = over (clientWindows . at focus)
-               (\w -> Just $! addToWindow wl (fromMaybe emptyWindow w))
+               (\w -> Just $! addToWindow wl (fromMaybe freshWindow w))
                st
 
     st2
@@ -946,3 +945,8 @@ clientAutoconnects st =
   [ network | (network, cfg) <- views (clientConfig . configServers) HashMap.toList st
             , view ssAutoconnect cfg
             ]
+
+-- | Toggle the /hide metadata/ setting for the focused window.
+clientToggleHideMeta :: ClientState -> ClientState
+clientToggleHideMeta st =
+  overStrict (clientWindows . ix (view clientFocus st) . winHideMeta) not st

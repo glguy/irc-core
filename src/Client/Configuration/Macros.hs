@@ -27,8 +27,8 @@ macroValueSpecs :: ValueSpecs (Text, Macro)
 macroValueSpecs = sectionsSpec "macro" $
   do name     <- reqSection "name" ""
      spec     <- fromMaybe noMacroArguments
-             <$> optSection' "arguments" "" macroArgumentsSpec
-     commands <- reqSection' "commands" "" (listSpec macroCommandSpec)
+             <$> optSection' "arguments" macroArgumentsSpec ""
+     commands <- reqSection' "commands" (listSpec macroCommandSpec) ""
      return (name, Macro spec commands)
 
 macroArgumentsSpec :: ValueSpecs MacroSpec

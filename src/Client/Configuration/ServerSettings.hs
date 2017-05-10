@@ -155,10 +155,10 @@ serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
 serverSpec = sectionsSpec "server-settings" $
   ala Endo (foldMap . foldMap) <$> sequenceA settings
   where
-    req name l s info = optSection' name info
+    req name l s info = optSection' name ?? info
                       $ set l <$> s
 
-    opt name l s info = optSection' name info
+    opt name l s info = optSection' name ?? info
                       $ set l . Just <$> s
                     <!> set l Nothing <$ atomSpec "clear"
 

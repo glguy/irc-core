@@ -20,6 +20,7 @@ module Client.State.Window
   , winTotal
   , winMention
   , winMarker
+  , winHideMeta
 
   -- * Window lines
   , WindowLine(..)
@@ -70,6 +71,7 @@ data Window = Window
   , _winUnread   :: !Int           -- ^ Messages added since buffer was visible
   , _winTotal    :: !Int           -- ^ Messages in buffer
   , _winMention  :: !WindowLineImportance -- ^ Indicates an important event is unread
+  , _winHideMeta :: !Bool          -- ^ Hide metadata messages
   }
 
 data ActivityLevel = NoActivity | NormalActivity | HighActivity
@@ -105,6 +107,7 @@ emptyWindow = Window
   , _winUnread   = 0
   , _winTotal    = 0
   , _winMention  = WLBoring
+  , _winHideMeta = False
   }
 
 -- | Adds a given line to a window as the newest message. Window's
@@ -118,6 +121,7 @@ addToWindow !msg !win = Window
                      then view winUnread win
                      else view winUnread win + 1
     , _winMention  = max (view winMention win) (view wlImportance msg)
+    , _winHideMeta = view winHideMeta win
     }
 
 -- | Update the window clearing the unread count and important flag.

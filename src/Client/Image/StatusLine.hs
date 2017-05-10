@@ -135,11 +135,13 @@ detailImage st
 -- view.
 nometaImage :: ClientState -> Image
 nometaImage st
-  | view clientShowMetadata st = emptyImage
-  | otherwise = infoBubble (string attr "nometa")
+  | metaHidden = infoBubble (string attr "nometa")
+  | otherwise  = emptyImage
   where
-    pal  = clientPalette st
-    attr = view palLabel pal
+    pal        = clientPalette st
+    attr       = view palLabel pal
+    focus      = view clientFocus st
+    metaHidden = orOf (clientWindows . ix focus . winHideMeta) st
 
 -- | Image for little box with active window names:
 --

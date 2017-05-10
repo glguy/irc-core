@@ -36,29 +36,30 @@ chatMessageImages focus st =
   case preview (clientWindows . ix focus) st of
     Nothing  -> []
     Just win ->
-      let msgs = toListOf each (view winMessages win) in
+      let msgs     = toListOf each (view winMessages win)
+          hideMeta = view winHideMeta win in
       case clientMatcher st of
-        Just matcher -> windowLineProcessor (filter (views wlText matcher) msgs)
+        Just matcher -> windowLineProcessor hideMeta (filter (views wlText matcher) msgs)
         Nothing ->
           case view winMarker win of
-            Nothing -> windowLineProcessor msgs
+            Nothing -> windowLineProcessor hideMeta msgs
             Just n  ->
-              windowLineProcessor l ++
+              windowLineProcessor hideMeta l ++
               [marker] ++
-              windowLineProcessor r
+              windowLineProcessor hideMeta r
               where
                 (l,r) = splitAt n msgs
 
   where
     palette = clientPalette st
     marker = string (view palLineMarker palette) (replicate (view clientWidth st) '-')
-    windowLineProcessor
+    windowLineProcessor hideMeta
       | view clientDetailView st =
-          if view clientShowMetadata st
-            then map (view wlFullImage)
-            else detailedImagesWithoutMetadata st
+          if hideMeta
+            then detailedImagesWithoutMetadata st
+            else map (view wlFullImage)
 
-      | otherwise = windowLinesToImages st . filter (not . isNoisy)
+      | otherwise = windowLinesToImages st hideMeta . filter (not . isNoisy)
 
     isNoisy msg =
       case view wlSummary msg of
@@ -72,21 +73,27 @@ detailedImagesWithoutMetadata st wwls =
     ([], w:ws) -> view wlFullImage w : detailedImagesWithoutMetadata st ws
     (_:_, wls) -> detailedImagesWithoutMetadata st wls
 
-windowLinesToImages :: ClientState -> [WindowLine] -> [Image]
-windowLinesToImages st wwls =
+
+windowLinesToImages ::
+  ClientState  {- ^ client state  -} ->
+  Bool         {- ^ hide metadata -} ->
+  [WindowLine] {- ^ window lines  -} ->
+  [Image]      {- ^ image lines   -}
+windowLinesToImages st hideMeta wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
     ([], w:ws) -> lineWrap (view clientWidth st)
                            (view (clientConfig . configIndentWrapped) st)
                            (view wlImage w)
-                 : windowLinesToImages st ws
+                 : windowLinesToImages st hideMeta ws
     ((img,who,mbnext):mds, wls)
 
-      | view clientShowMetadata st ->
-         startMetadata img mbnext who mds palette
-       : windowLinesToImages st wls
+      | hideMeta -> windowLinesToImages st hideMeta wls
 
-      | otherwise -> windowLinesToImages st wls
+      | otherwise ->
+         startMetadata img mbnext who mds palette
+       : windowLinesToImages st hideMeta wls
+
   where
     palette = clientPalette st
 

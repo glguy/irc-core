@@ -35,6 +35,7 @@ module Client.Configuration
   , configIgnores
   , configActivityBar
   , configBellOnMention
+  , configHideMeta
 
   -- * Loading configuration
   , loadConfiguration
@@ -97,6 +98,7 @@ data Configuration = Configuration
   , _configIgnores         :: HashSet Identifier -- ^ initial ignore list
   , _configActivityBar     :: Bool -- ^ initially visibility of the activity bar
   , _configBellOnMention   :: Bool -- ^ notify terminal on mention
+  , _configHideMeta        :: Bool -- ^ default setting for hidemeta on new windows
   }
   deriving Show
 
@@ -219,22 +221,38 @@ explainLoadError (LoadError pos path problem) =
 configurationSpec :: ValueSpecs (Maybe FilePath -> ServerSettings -> Configuration)
 configurationSpec = sectionsSpec "" $
 
-  do let sec' def name info spec = fromMaybe def <$> optSection' name info spec
+  do let sec' def name spec info = fromMaybe def <$> optSection' name spec info
          identifierSetSpec       = HashSet.fromList <$> listSpec identifierSpec
 
-     ssDefUpdate            <- sec' id     "defaults"         "" serverSpec
-     ssUpdates              <- sec' []     "servers"          "" (listSpec serverSpec)
-     _configPalette         <- sec' defaultPalette "palette"  "" paletteSpec
-     _configWindowNames     <- sec' defaultWindowNames "window-names" "" valuesSpec
-     _configMacros          <- sec' mempty "macros"           "" macroMapSpec
-     _configExtensions      <- sec' []     "extensions"       "" (listSpec stringSpec)
-     _configUrlOpener       <- optSection' "url-opener"       "" stringSpec
-     _configExtraHighlights <- sec' mempty "extra-highlights" "" identifierSetSpec
-     _configNickPadding     <- optSection' "nick-padding"     "" nonnegativeSpec
-     _configIndentWrapped   <- optSection' "indent-wrapped-lines" "" nonnegativeSpec
-     _configIgnores         <- sec' mempty "ignores"          "" identifierSetSpec
-     _configActivityBar     <- sec' False  "activity-bar"     "" yesOrNoSpec
-     _configBellOnMention   <- sec' False  "bell-on-mention"  "" yesOrNoSpec
+     ssDefUpdate            <- sec' id "defaults" serverSpec
+                               "Default values for use across all server configurations"
+     ssUpdates              <- sec' [] "servers" (listSpec serverSpec)
+                               "Configuration parameters for IRC servers"
+     _configPalette         <- sec' defaultPalette "palette" paletteSpec
+                               "Customize the client color choices"
+     _configWindowNames     <- sec' defaultWindowNames "window-names" valuesSpec
+                               "Window names to use for quick jumping with ALT key"
+     _configMacros          <- sec' mempty "macros" macroMapSpec
+                               "Programmable macro commands"
+     _configExtensions      <- sec' [] "extensions" (listSpec stringSpec)
+                               "Filenames of extension libraries to load at startup"
+     _configUrlOpener       <- optSection' "url-opener" stringSpec
+                               "External command used by /url command"
+     _configExtraHighlights <- sec' mempty "extra-highlights" identifierSetSpec
+                               "Extra words to highlight in chat messages"
+     _configNickPadding     <- optSection' "nick-padding" nonnegativeSpec
+                               "Amount of space to reserve for nicknames in chat messages"
+     _configIndentWrapped   <- optSection' "indent-wrapped-lines" nonnegativeSpec
+                               "Amount of indentation for wrapped message lines"
+     _configIgnores         <- sec' mempty "ignores" identifierSetSpec
+                               "Set of nicknames to ignore on startup"
+     _configActivityBar     <- sec' False  "activity-bar" yesOrNoSpec
+                               "Show channel names and message counts for activity on\
+                               \ unfocused channels."
+     _configBellOnMention   <- sec' False  "bell-on-mention" yesOrNoSpec
+                               "Emit bell character to terminal on mention"
+     _configHideMeta        <- sec' False  "hide-metadata" yesOrNoSpec
+                               "Initial setting for hiding metadata on new windows"
 
      return (\_configConfigPath def ->
              let _configDefaults = ssDefUpdate def
@@ -254,8 +272,9 @@ paletteSpec = sectionsSpec "palette" $
     nickColorsSpec = set palNicks . Vector.fromList . NonEmpty.toList <$> nonemptySpec attrSpec
 
     fields :: [SectionSpecs (Maybe (Palette -> Palette))]
-    fields = optSection' "nick-colors" "" nickColorsSpec
-           : [ optSection' lbl "" (set l <$> attrSpec) | (lbl, Lens l) <- paletteMap ]
+    fields = optSection' "nick-colors" nickColorsSpec
+             "Colors used to highlight nicknames"
+           : [ optSection' lbl (set l <$> attrSpec) "" | (lbl, Lens l) <- paletteMap ]
 
 
 buildServerMap :: ServerSettings -> [ServerSettings -> ServerSettings] -> HashMap Text ServerSettings
