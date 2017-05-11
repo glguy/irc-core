@@ -36,14 +36,12 @@ import           Numeric
 statusLineImage ::
   ClientState {- ^ client state -} ->
   Image       {- ^ status bar   -}
-statusLineImage st =
-  views (clientErrorMsg . folded) (lineExtend w . transientErrorImage) st <->
-  lineExtend w content
+statusLineImage st = makeLines (view clientWidth st)
+                   $ common : activity ++ errorImgs
   where
-    w        = view clientWidth st
-    fillSize = max 0 (w - imageWidth content)
+    w = view clientWidth st
 
-    contentSansActivity = horizCat
+    common = horizCat
       [ myNickImage st
       , focusImage st
       , detailImage st
@@ -53,23 +51,26 @@ statusLineImage st =
       , latencyImage st
       ]
 
-    content
-      | view clientActivityBar st =
-          makeLines (view clientWidth st) (contentSansActivity : activityBarImages st)
-      | otherwise = contentSansActivity <|> activitySummary st
+    activity
+      | view clientActivityBar st = activityBarImages st
+      | otherwise                 = [activitySummary st]
+
+    errorImgs =
+      transientErrorImage <$> maybeToList (view clientErrorMsg st)
+
 
 lineExtend :: Int -> Image -> Image
 lineExtend w img = img <|> charFill defAttr '─' fillSize 1
   where fillSize = max 0 (w - imageWidth img)
 
 
--- ──[ error: some-message ]─(esc to clear)
+-- ──[error: some-message]
 transientErrorImage :: Text -> Image
 transientErrorImage txt =
-  text' defAttr "─[ " <|>
+  text' defAttr "─[" <|>
   text' (withForeColor defAttr red) "error: " <|>
   text' defAttr txt <|>
-  text' defAttr " ]─(press esc)"
+  text' defAttr "]"
 
 
 -- | The minor status line is used when rendering the @/splits@ and
