@@ -21,6 +21,7 @@ import           Client.CApi
 import           Client.Commands
 import           Client.Commands.Interpolation
 import           Client.Configuration.ServerSettings
+import           Client.EventLoop.Actions
 import           Client.EventLoop.Errors (exceptionToLines)
 import           Client.Hook
 import           Client.Hooks
@@ -392,7 +393,9 @@ doVtyEvent ::
   IO (Maybe ClientState) {- ^ nothing when finished -}
 doVtyEvent vty vtyEvent st =
   case vtyEvent of
-    EvKey k modifier -> doKey vty k modifier st
+    EvKey k modifier ->
+      let action = keyToAction (clientWindowNames st) modifier k
+      in doAction vty action st
     -- ignore event parameters due to raw TChan use
     EvResize{} -> Just <$> updateTerminalSize vty st
     EvPaste utf8 ->
@@ -402,16 +405,15 @@ doVtyEvent vty vtyEvent st =
 
 
 -- | Map keyboard inputs to actions in the client
-doKey ::
+doAction ::
   Vty         {- ^ vty handle     -} ->
-  Key         {- ^ key pressed    -} ->
-  [Modifier]  {- ^ modifiers held -} ->
+  Action      {- ^ action         -} ->
   ClientState {- ^ client state   -} ->
   IO (Maybe ClientState)
-doKey vty key modifier st =
+doAction vty action st =
 
   let continue !out -- detect when chains of M-a are broken
-        | modifier == [MMeta] && key == KChar 'a' = return (Just out)
+        | action == ActJumpToActivity = return (Just out)
         | otherwise = return $! Just $! set clientActivityReturn (view clientFocus out) out
 
       changeEditor  f = continue (over clientTextBox f st)
@@ -424,75 +426,61 @@ doKey vty key modifier st =
           Nothing -> continue $! set clientBell True st
           Just st' -> continue st'
   in
-  case modifier of
-    [MCtrl] ->
-      case key of
-        KChar 'd' -> changeContent Edit.delete
-        KChar 'a' -> changeEditor Edit.home
-        KChar 'e' -> changeEditor Edit.end
-        KChar 'u' -> changeEditor Edit.killHome
-        KChar 'k' -> changeEditor Edit.killEnd
-        KChar 'y' -> changeEditor Edit.yank
-        KChar 't' -> changeContent Edit.toggle
-        KChar 'w' -> changeEditor (Edit.killWordBackward True)
-        KChar 'b' -> changeEditor (Edit.insert '\^B')
-        KChar 'c' -> changeEditor (Edit.insert '\^C')
-        KChar ']' -> changeEditor (Edit.insert '\^]')
-        KChar '_' -> changeEditor (Edit.insert '\^_')
-        KChar 'o' -> changeEditor (Edit.insert '\^O')
-        KChar 'v' -> changeEditor (Edit.insert '\^V')
-        KChar 'p' -> continue (retreatFocus st)
-        KChar 'n' -> continue (advanceFocus st)
-        KChar 'x' -> continue (advanceNetworkFocus st)
-        KChar 'l' -> do refresh vty
-                        continue st
-        _         -> continue st
+  case action of
+    -- movements
+    ActHome              -> changeEditor Edit.home
+    ActEnd               -> changeEditor Edit.end
+    ActLeft              -> changeContent Edit.left
+    ActRight             -> changeContent Edit.right
+    ActBackWord          -> changeContent Edit.leftWord
+    ActForwardWord       -> changeContent Edit.rightWord
 
-    [MMeta] ->
-      case key of
-        KChar c   | let names = clientWindowNames st
-                  , Just i <- elemIndex c names ->
-                            continue (jumpFocus i st)
-        KEnter    -> changeEditor (Edit.insert '\^J')
-        KBS       -> changeEditor (Edit.killWordBackward True)
-        KChar 'd' -> changeEditor (Edit.killWordForward True)
-        KChar 'b' -> changeContent Edit.leftWord
-        KChar 'f' -> changeContent Edit.rightWord
-        KLeft     -> changeContent Edit.leftWord
-        KRight    -> changeContent Edit.rightWord
-        KChar 'a' -> continue (jumpToActivity st)
-        KChar 's' -> continue (returnFocus st)
-        KChar 'k' -> mbChangeEditor Edit.insertDigraph
-        _ -> continue st
+    -- edits
+    ActKillHome          -> changeEditor Edit.killHome
+    ActKillEnd           -> changeEditor Edit.killEnd
+    ActKillWordBack      -> changeEditor (Edit.killWordBackward True)
+    ActKillWordForward   -> changeEditor (Edit.killWordForward True)
+    ActYank              -> changeEditor Edit.yank
+    ActToggle            -> changeContent Edit.toggle
+    ActDelete            -> changeContent Edit.delete
+    ActBackspace         -> changeContent Edit.backspace
 
-    [] -> -- no modifier
-      case key of
-        KEsc       -> continue (changeSubfocus FocusMessages st)
-        KBS        -> changeContent Edit.backspace
-        KDel       -> changeContent Edit.delete
-        KLeft      -> changeContent Edit.left
-        KRight     -> changeContent Edit.right
-        KHome      -> changeEditor Edit.home
-        KEnd       -> changeEditor Edit.end
-        KUp        -> changeEditor $ \ed -> fromMaybe ed $ Edit.earlier ed
-        KDown      -> changeEditor $ \ed -> fromMaybe ed $ Edit.later ed
-        KPageUp    -> continue (scrollClient ( scrollAmount st) st)
-        KPageDown  -> continue (scrollClient (-scrollAmount st) st)
+    -- special inserts
+    ActBold              -> changeEditor (Edit.insert '\^B')
+    ActColor             -> changeEditor (Edit.insert '\^C')
+    ActItalic            -> changeEditor (Edit.insert '\^]')
+    ActUnderline         -> changeEditor (Edit.insert '\^_')
+    ActClearFormat       -> changeEditor (Edit.insert '\^O')
+    ActReverseVideo      -> changeEditor (Edit.insert '\^V')
+    ActDigraph           -> mbChangeEditor Edit.insertDigraph
+    ActInsertEnter       -> changeEditor (Edit.insert '\^J')
 
-        KEnter     -> doCommandResult True  =<< executeInput st
-        KBackTab   -> doCommandResult False =<< tabCompletion True  st
-        KChar '\t' -> doCommandResult False =<< tabCompletion False st
+    -- focus jumps
+    ActJumpToActivity    -> continue (jumpToActivity st)
+    ActJumpPrevious      -> continue (returnFocus st)
+    ActJump i            -> continue (jumpFocus i st)
+    ActRetreatFocus      -> continue (retreatFocus st)
+    ActAdvanceFocus      -> continue (advanceFocus st)
+    ActAdvenceNetwork    -> continue (advanceNetworkFocus st)
 
-        KChar c    -> changeEditor (Edit.insert c)
+    ActReset             -> continue (changeSubfocus FocusMessages st)
+    ActOlderLine         -> changeEditor $ \ed      -> fromMaybe ed $ Edit.earlier ed
+    ActNewerLine         -> changeEditor $ \ed      -> fromMaybe ed $ Edit.later ed
+    ActScrollUp          -> continue (scrollClient ( scrollAmount st) st)
+    ActScrollDown        -> continue (scrollClient (-scrollAmount st) st)
 
-        -- toggles
-        KFun 2     -> continue (over clientDetailView  not st)
-        KFun 3     -> continue (over clientActivityBar not st)
-        KFun 4     -> continue (clientToggleHideMeta st)
+    ActTabCompleteBack   -> doCommandResult False =<< tabCompletion True  st
+    ActTabComplete       -> doCommandResult False =<< tabCompletion False st
 
-        _          -> continue st
+    ActToggleDetail      -> continue (over clientDetailView  not st)
+    ActToggleActivityBar -> continue (over clientActivityBar not st)
+    ActToggleHideMeta    -> continue (clientToggleHideMeta st)
 
-    _ -> continue st -- unsupported modifier
+    ActInsert c          -> changeEditor (Edit.insert c)
+    ActEnter             -> doCommandResult True  =<< executeInput st
+    ActRefresh           -> refresh vty >> continue st
+
+    ActIgnored           -> continue st
 
 
 -- | Process 'CommandResult' and update the 'ClientState' textbox

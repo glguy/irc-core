@@ -1,5 +1,5 @@
 name:                glirc
-version:             2.20.6
+version:             2.20.7
 synopsis:            Console IRC client
 description:         Console IRC client
                      .
@@ -76,6 +76,7 @@ library
                        Client.Configuration.Macros
                        Client.Configuration.ServerSettings
                        Client.EventLoop
+                       Client.EventLoop.Actions
                        Client.EventLoop.Errors
                        Client.Hook
                        Client.Hook.Znc.Buffextras
