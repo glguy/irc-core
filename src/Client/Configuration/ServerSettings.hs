@@ -153,8 +153,11 @@ loadDefaultServerSettings =
 
 serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
 serverSpec = sectionsSpec "server-settings" $
-  ala Endo (foldMap . foldMap) <$> sequenceA settings
+  composeMaybe <$> sequenceA settings
   where
+    composeMaybe :: [Maybe (a -> a)] -> a -> a
+    composeMaybe = ala Endo (foldMap . foldMap)
+
     req name l s info = optSection' name ?? info
                       $ set l <$> s
 

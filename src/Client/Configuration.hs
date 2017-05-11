@@ -36,6 +36,7 @@ module Client.Configuration
   , configActivityBar
   , configBellOnMention
   , configHideMeta
+  , configKeyMap
 
   -- * Loading configuration
   , loadConfiguration
@@ -54,6 +55,7 @@ import           Client.Commands.WordCompletion
 import           Client.Configuration.Colors
 import           Client.Configuration.Macros (macroMapSpec)
 import           Client.Configuration.ServerSettings
+import           Client.EventLoop.Actions
 import           Client.Image.Palette
 import           Config
 import           Config.Schema
@@ -99,6 +101,7 @@ data Configuration = Configuration
   , _configActivityBar     :: Bool -- ^ initially visibility of the activity bar
   , _configBellOnMention   :: Bool -- ^ notify terminal on mention
   , _configHideMeta        :: Bool -- ^ default setting for hidemeta on new windows
+  , _configKeyMap          :: ActionMap -- ^ keyboard bindings
   }
   deriving Show
 
@@ -253,10 +256,10 @@ configurationSpec = sectionsSpec "" $
                                "Emit bell character to terminal on mention"
      _configHideMeta        <- sec' False  "hide-metadata" yesOrNoSpec
                                "Initial setting for hiding metadata on new windows"
-
      return (\_configConfigPath def ->
              let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
+                 _configKeyMap   = initialKeyMap
              in Configuration{..})
 
 
