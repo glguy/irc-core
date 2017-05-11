@@ -106,6 +106,7 @@ library
                        Client.View.ChannelInfo
                        Client.View.Digraphs
                        Client.View.Help
+                       Client.View.KeyMap
                        Client.View.MaskList
                        Client.View.Mentions
                        Client.View.Messages

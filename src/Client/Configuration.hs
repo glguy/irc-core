@@ -76,6 +76,7 @@ import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
 import qualified Data.Text.IO                        as Text
 import qualified Data.Vector                         as Vector
+import           Graphics.Vty.Input.Events (Modifier(..), Key(..))
 import           Irc.Identifier                      (Identifier, mkId)
 import           System.Directory
 import           System.FilePath
@@ -101,7 +102,7 @@ data Configuration = Configuration
   , _configActivityBar     :: Bool -- ^ initially visibility of the activity bar
   , _configBellOnMention   :: Bool -- ^ notify terminal on mention
   , _configHideMeta        :: Bool -- ^ default setting for hidemeta on new windows
-  , _configKeyMap          :: ActionMap -- ^ keyboard bindings
+  , _configKeyMap          :: KeyMap -- ^ keyboard bindings
   }
   deriving Show
 
@@ -256,11 +257,26 @@ configurationSpec = sectionsSpec "" $
                                "Emit bell character to terminal on mention"
      _configHideMeta        <- sec' False  "hide-metadata" yesOrNoSpec
                                "Initial setting for hiding metadata on new windows"
+     bindings               <- sec' [] "key-bindings" (listSpec keyBindingSpec)
+                               "Extra key bindings"
      return (\_configConfigPath def ->
              let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
-                 _configKeyMap   = initialKeyMap
+                 _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
              in Configuration{..})
+
+
+keyBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
+keyBindingSpec = sectionsSpec "key-binding" $
+  do a     <- reqSection "action" ""
+     (m,k) <- reqSection' "key" keySpec
+              "Emacs-style key name, e.g. a, C-a, M-a C-M-b"
+     return (addKeyBinding m k a)
+
+
+-- | Custom configuration specification for emacs-style key descriptions
+keySpec :: ValueSpecs ([Modifier], Key)
+keySpec = customSpec "emacs-key" stringSpec parseKey
 
 
 nonnegativeSpec :: (Ord a, Num a) => ValueSpecs a

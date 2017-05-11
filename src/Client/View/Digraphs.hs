@@ -6,7 +6,7 @@ Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com
 
-This module provides an view of the built-in digraph list.
+This module provides a view of the built-in digraph list.
 
 -}
 module Client.View.Digraphs (digraphLines) where

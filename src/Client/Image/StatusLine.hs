@@ -308,6 +308,7 @@ viewSubfocusLabel pal subfocus =
     FocusMentions -> Just $ string (view palLabel pal) "mentions"
     FocusPalette  -> Just $ string (view palLabel pal) "palette"
     FocusDigraphs -> Just $ string (view palLabel pal) "digraphs"
+    FocusKeyMap   -> Just $ string (view palLabel pal) "keymap"
     FocusHelp mb  -> Just $ string (view palLabel pal) "help" <|>
                             opt mb
     FocusMasks m  -> Just $ horizCat

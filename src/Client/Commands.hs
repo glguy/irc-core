@@ -331,6 +331,14 @@ commandsList =
     $ ClientCommand cmdDigraphs noClientTab
 
   , Command
+      (pure "keymap")
+      NoArg
+      "Show the key binding map.\n\
+      \\n\
+      \Key bindings can be changed in configuration file. See `glirc2 --config-format`.\n"
+    $ ClientCommand cmdKeyMap noClientTab
+
+  , Command
       (pure "exec")
       (RemainingArg "arguments")
       "Execute a command synchnonously sending the to a configuration destination.\n\
@@ -1019,6 +1027,10 @@ cmdPalette st _ = commandSuccess (changeSubfocus FocusPalette st)
 -- | Implementation of @/digraphs@ command. Set subfocus to Digraphs.
 cmdDigraphs :: ClientCommand ()
 cmdDigraphs st _ = commandSuccess (changeSubfocus FocusDigraphs st)
+
+-- | Implementation of @/keymap@ command. Set subfocus to Keymap.
+cmdKeyMap :: ClientCommand ()
+cmdKeyMap st _ = commandSuccess (changeSubfocus FocusKeyMap st)
 
 -- | Implementation of @/help@ command. Set subfocus to Help.
 cmdHelp :: ClientCommand (Maybe (String, ()))

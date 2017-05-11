@@ -18,6 +18,7 @@ import           Client.State.Focus
 import           Client.View.ChannelInfo
 import           Client.View.Digraphs
 import           Client.View.Help
+import           Client.View.KeyMap
 import           Client.View.MaskList
 import           Client.View.Mentions
 import           Client.View.Messages
@@ -44,6 +45,7 @@ viewLines focus subfocus !st =
     (_, FocusMentions) -> mentionsViewLines st
     (_, FocusPalette) -> paletteViewLines pal
     (_, FocusDigraphs) -> digraphLines st
+    (_, FocusKeyMap) -> keyMapLines st
     (_, FocusHelp mb) -> helpImageLines mb pal
     _ -> chatMessageImages focus st
   where

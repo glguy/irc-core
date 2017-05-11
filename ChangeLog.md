@@ -4,6 +4,7 @@
 
 * Make metadata toggle (F4) a window-level setting instead of client level
 * Add configuration option to hide metadata by default `hide-metadata`
+* Make keymap configurable under `key-bindings`, add `/keymap` command
 
 ## 2.20.6
 
