@@ -36,9 +36,13 @@ import           Numeric
 statusLineImage ::
   ClientState {- ^ client state -} ->
   Image       {- ^ status bar   -}
-statusLineImage st = content <|> charFill defAttr '─' fillSize 1
+statusLineImage st =
+  views (clientErrorMsg . folded) (lineExtend w . transientErrorImage) st <->
+  lineExtend w content
   where
-    fillSize = max 0 (view clientWidth st - imageWidth content)
+    w        = view clientWidth st
+    fillSize = max 0 (w - imageWidth content)
+
     contentSansActivity = horizCat
       [ myNickImage st
       , focusImage st
@@ -53,6 +57,19 @@ statusLineImage st = content <|> charFill defAttr '─' fillSize 1
       | view clientActivityBar st =
           makeLines (view clientWidth st) (contentSansActivity : activityBarImages st)
       | otherwise = contentSansActivity <|> activitySummary st
+
+lineExtend :: Int -> Image -> Image
+lineExtend w img = img <|> charFill defAttr '─' fillSize 1
+  where fillSize = max 0 (w - imageWidth img)
+
+
+-- ──[ error: some-message ]─(esc to clear)
+transientErrorImage :: Text -> Image
+transientErrorImage txt =
+  text' defAttr "─[ " <|>
+  text' (withForeColor defAttr red) "error: " <|>
+  text' defAttr txt <|>
+  text' defAttr " ]─(press esc)"
 
 
 -- | The minor status line is used when rendering the @/splits@ and

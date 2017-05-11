@@ -277,7 +277,7 @@ keyBindingSpec = sectionsSpec "key-binding" $
 
 -- | Custom configuration specification for emacs-style key descriptions
 keySpec :: ValueSpecs ([Modifier], Key)
-keySpec = customSpec "emacs-key" anyAtomSpec (parseKey . Text.unpack)
+keySpec = customSpec "emacs-key" stringSpec parseKey
 
 
 nonnegativeSpec :: (Ord a, Num a) => ValueSpecs a

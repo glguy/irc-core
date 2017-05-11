@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.2.1
+
+* Prettier reply code text
+
 ## 2.2.0.1  -- 2016-12-18
 
 * Exchange `memory` dependency for `base64-bytestring`

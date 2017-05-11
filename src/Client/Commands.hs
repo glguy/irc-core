@@ -133,7 +133,7 @@ commandFailure = return . CommandFailure
 commandFailureMsg :: Text -> ClientState -> IO CommandResult
 commandFailureMsg e st =
   do now <- getZonedTime
-     return $! CommandFailure $! recordError now st e
+     return $! CommandFailure $! set clientErrorMsg (Just e) st
 
 -- | Interpret the given chat message or command. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message
@@ -156,9 +156,9 @@ executeUserCommand discoTime command st = do
   case views (clientConfig . configMacros) (recognize key) st of
     Exact (Macro (MacroSpec spec) cmdExs) ->
       case parseArguments spec rest *> traverse resolveMacro cmdExs of
-        Nothing   -> commandFailureMsg "Macro expansions failed" st
+        Nothing   -> commandFailureMsg "macro expansions failed" st
         Just cmds -> process cmds st
-    _ ->  executeCommand Nothing command st
+    _ -> executeCommand Nothing command st
   where
     resolveMacro = resolveMacroExpansions (commandExpansion discoTime st) expandInt
 
@@ -219,7 +219,7 @@ executeChat msg st =
              sendMsg cs ircMsg
              commandSuccess $! recordChannelMessage network channel entry st
 
-    _ -> commandFailureMsg "This command requires an active channel" st
+    _ -> commandFailureMsg "cannot send chat messages to this window" st
 
 
 -- | Parse and execute the given command. When the first argument is Nothing
@@ -239,7 +239,7 @@ executeCommand tabCompleteReversed str st =
           Just isReversed -> tab isReversed st rest
           Nothing ->
             case parseArguments spec rest of
-              Nothing -> commandFailure st
+              Nothing -> commandFailureMsg "bad command arguments" st
               Just arg -> exec st arg
   in
   case recognize cmdTxt commands of
@@ -253,24 +253,24 @@ executeCommand tabCompleteReversed str st =
           | Just network <- views clientFocus focusNetwork st
           , Just cs      <- preview (clientConnection network) st ->
               finish argSpec (exec cs) (\x -> tab x cs)
-          | otherwise -> commandFailureMsg "This command requires an active network" st
+          | otherwise -> commandFailureMsg "command requires focused network" st
 
         ChannelCommand exec tab
           | ChannelFocus network channelId <- view clientFocus st
           , Just cs <- preview (clientConnection network) st
           , isChannelIdentifier cs channelId ->
               finish argSpec (exec channelId cs) (\x -> tab x channelId cs)
-          | otherwise -> commandFailureMsg "This command requires an active channel" st
+          | otherwise -> commandFailureMsg "command requires focused channel" st
 
         ChatCommand exec tab
           | ChannelFocus network channelId <- view clientFocus st
           , Just cs <- preview (clientConnection network) st ->
               finish argSpec (exec channelId cs) (\x -> tab x channelId cs)
-          | otherwise -> commandFailureMsg "This command requires an active chat window" st
+          | otherwise -> commandFailureMsg "command requires focused chat window" st
 
     _ -> case tabCompleteReversed of
            Just isReversed -> nickTabCompletion isReversed st
-           Nothing         -> commandFailureMsg "Unknown command" st
+           Nothing         -> commandFailureMsg "unknown command" st
 
 
 -- | Expands each alias to have its own copy of the command callbacks
@@ -877,7 +877,7 @@ cmdClear st args =
 cmdQuote :: NetworkCommand String
 cmdQuote cs st rest =
   case parseRawIrcMsg (Text.pack rest) of
-    Nothing  -> commandFailureMsg "Failed to parse IRC command" st
+    Nothing  -> commandFailureMsg "failed to parse raw IRC command" st
     Just raw ->
       do sendMsg cs raw
          commandSuccess st
@@ -913,7 +913,7 @@ cmdCtcp cs st (target, (cmd, args)) =
 -- | Implementation of @/notice@
 cmdNotice :: NetworkCommand (String, String)
 cmdNotice cs st (target, rest)
-  | null rest = commandFailure st
+  | null rest = commandFailureMsg "empty message" st
   | otherwise =
       do let restTxt = Text.pack rest
              tgtTxt = Text.pack target
@@ -926,7 +926,7 @@ cmdNotice cs st (target, rest)
 -- | Implementation of @/msg@
 cmdMsg :: NetworkCommand (String, String)
 cmdMsg cs st (target, rest)
-  | null rest = commandFailure st
+  | null rest = commandFailureMsg "empty message" st
   | otherwise =
       do let restTxt = Text.pack rest
              tgtTxt = Text.pack target
@@ -1229,7 +1229,7 @@ cmdZncPlayback cs st args =
                    { localTimeOfDay = tod
                    , localDay       = day } }
 
-    _ -> commandFailureMsg "Unable to parse date/time arguments" st
+    _ -> commandFailureMsg "unable to parse date/time arguments" st
 
   where
     -- %k doesn't require a leading 0 for times before 10AM
@@ -1314,7 +1314,7 @@ cmdMasks channel cs st (rest,_) =
 
            commandSuccess (changeSubfocus (FocusMasks mode) st)
 
-    _ -> commandFailureMsg "Unknown mask mode" st
+    _ -> commandFailureMsg "unknown mask mode" st
 
 cmdKick :: ChannelCommand (String, String)
 cmdKick channelId cs st (who,reason) =
@@ -1409,12 +1409,12 @@ cmdReconnect st _
          commandSuccess
            $ changeFocus (NetworkFocus network) st'
 
-  | otherwise = commandFailureMsg "/reconnect requires focused network" st
+  | otherwise = commandFailureMsg "command requires focused network" st
 
 cmdIgnore :: ClientCommand String
 cmdIgnore st rest =
   case mkId . Text.pack <$> words rest of
-    [] -> commandFailure st
+    [] -> commandFailureMsg "bad arguments" st
     xs -> commandSuccess
             $ over clientIgnores updateIgnores st
       where
@@ -1468,7 +1468,7 @@ modeCommand modes cs st =
         [] -> success False [[]]
         flags:params ->
           case splitModes (view csModeTypes cs) flags params of
-            Nothing -> commandFailureMsg "Failed to parse modes" st
+            Nothing -> commandFailureMsg "failed to parse modes" st
             Just parsedModes ->
               success needOp (unsplitModes <$> chunksOf (view csModeCount cs) parsedModes')
               where
@@ -1601,7 +1601,7 @@ cmdExtension :: ClientCommand (String, String)
 cmdExtension st (name,params) =
   case find (\ae -> aeName ae == Text.pack name)
             (view (clientExtensions . esActive) st) of
-        Nothing -> commandFailureMsg "Unknown extension" st
+        Nothing -> commandFailureMsg "unknown extension" st
         Just ae ->
           do (st',_) <- clientPark st $ \ptr ->
                           commandExtension ptr (Text.pack <$> words params) ae
@@ -1688,14 +1688,14 @@ recordSuccess now ste m =
 cmdUrl :: ClientCommand (Maybe (String, ()))
 cmdUrl st mbArg =
   case view (clientConfig . configUrlOpener) st of
-    Nothing -> commandFailureMsg "/url requires url-opener to be configured" st
+    Nothing -> commandFailureMsg "url-opener not configured" st
     Just opener ->
       case mbArg of
         Nothing -> doUrlOpen opener 0
         Just (arg,_) ->
           case readMaybe arg of
             Just n | n > 0 -> doUrlOpen opener (n-1)
-            _ -> commandFailureMsg "/url expected positive integer argument" st
+            _ -> commandFailureMsg "bad url number" st
   where
     focus = view clientFocus st
 
@@ -1705,7 +1705,7 @@ cmdUrl st mbArg =
     doUrlOpen opener n =
       case preview (ix n) urls of
         Just url -> openUrl opener (Text.unpack url) st
-        Nothing  -> commandFailureMsg "/url couldn't find requested URL" st
+        Nothing  -> commandFailureMsg "bad url number" st
 
 openUrl :: FilePath -> String -> ClientState -> IO CommandResult
 openUrl opener url st =

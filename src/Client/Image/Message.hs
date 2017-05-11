@@ -344,7 +344,7 @@ renderReplyCode rm rp code@(ReplyCode w) params =
     DetailedRender -> string attr (show w) <|> rawParamsImage
     NormalRender   ->
       rightPad rm (rendNickPadding rp)
-        (text' attr (Text.toLower (replyCodeText info))) <|>
+        (text' attr (replyCodeText info)) <|>
       char defAttr ':' <|>
 
       case code of

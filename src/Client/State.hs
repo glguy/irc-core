@@ -40,6 +40,7 @@ module Client.State
   , clientRegex
   , clientLogQueue
   , clientActivityReturn
+  , clientErrorMsg
 
   -- * Client operations
   , withClientState
@@ -176,6 +177,7 @@ data ClientState = ClientState
 
   , _clientExtensions        :: !ExtensionState           -- ^ state of loaded extensions
   , _clientLogQueue          :: ![LogLine]                -- ^ log lines ready to write
+  , _clientErrorMsg          :: Maybe Text                -- ^ transient error box text
   }
 
 
@@ -254,6 +256,7 @@ withClientState cfg k =
         , _clientBell              = False
         , _clientExtensions        = exts
         , _clientLogQueue          = []
+        , _clientErrorMsg          = Nothing
         }
 
 withExtensionState :: (ExtensionState -> IO a) -> IO a
@@ -408,6 +411,7 @@ recordIrcMessage ::
   ClientMessage ->
   ClientState -> ClientState
 recordIrcMessage network target msg st =
+  updateTransientError msg $
   case target of
     TargetHidden      -> st
     TargetNetwork     -> recordNetworkMessage msg st
@@ -450,9 +454,28 @@ computeUserSigils network channel user =
          . csChannels . ix channel
          . chanUsers  . ix user
 
+
+-- | Detect /error/ messages and add the message text to the transient
+-- error display.
+updateTransientError :: ClientMessage -> ClientState -> ClientState
+updateTransientError msg =
+
+  let err = set clientErrorMsg . Just in
+
+  case view msgBody msg of
+    ErrorBody txt       -> err txt
+    IrcBody (Error txt) -> err txt
+    IrcBody (Reply code args)
+      | let info = replyCodeInfo code
+      , ErrorReply <- replyCodeType info ->
+          err (Text.intercalate " " (replyCodeText info : drop 1 args))
+    _ -> id
+
+
 -- | Record a message on a network window
 recordNetworkMessage :: ClientMessage -> ClientState -> ClientState
-recordNetworkMessage msg st = recordWindowLine focus wl st
+recordNetworkMessage msg st = updateTransientError msg
+                            $ recordWindowLine focus wl st
   where
     network    = view msgNetwork msg
     focus      | Text.null network = Unfocused
@@ -461,6 +484,10 @@ recordNetworkMessage msg st = recordWindowLine focus wl st
     wl         = toWindowLine' cfg importance msg
 
     cfg        = view clientConfig st
+
+    handleError = case view msgBody msg of
+                    ErrorBody txt -> set clientErrorMsg (Just txt)
+                    _             -> id
 
 -- | Record window line at the given focus creating the window if necessary
 recordWindowLine ::
@@ -858,7 +885,8 @@ changeSubfocus ::
   ClientState {- ^ client state -} ->
   ClientState
 changeSubfocus focus
-  = set clientScroll 0
+  = set clientErrorMsg Nothing
+  . set clientScroll 0
   . set clientSubfocus focus
 
 -- | Return to previously focused window.
