@@ -17,13 +17,18 @@ import           Client.State
 import           Control.Lens
 import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image
+import           Graphics.Vty.Input
 
 -- | Render the lines of a table showing all of the available digraph entries
 keyMapLines ::
   ClientState {- ^ client state -} ->
   [Image]     {- ^ output lines -}
-keyMapLines st
-  = map (string defAttr . show)
-  $ keyMapEntries keyMap
-  where
-    keyMap         = view (clientConfig . configKeyMap) st
+keyMapLines
+  = map renderEntry
+  . keyMapEntries
+  . view (clientConfig . configKeyMap)
+
+renderEntry :: ([Modifier], Key, Action) -> Image
+renderEntry (mods, key, act) =
+  resizeWidth 18 (string defAttr (prettyModifierKey mods key)) <|>
+  text' defAttr (actionName act)

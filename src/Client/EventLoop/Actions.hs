@@ -15,11 +15,16 @@ module Client.EventLoop.Actions
   , initialKeyMap
   , addKeyBinding
   , keyMapEntries
+
+  -- * Keys as text
   , parseKey
+  , prettyModifierKey
+  , actionName
   ) where
 
 import           Graphics.Vty.Input.Events
 import           Config.Schema.Spec
+import           Data.Char (showLitChar)
 import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -128,12 +133,12 @@ actionInfos =
   ,("insert-newline"    , (ActInsertEnter      , [meta KEnter]))
   ,("insert-digraph"    , (ActDigraph          , [meta (KChar 'k')]))
 
-  ,("next-window"       , (ActRetreatFocus     , [ctrl (KChar 'n')]))
-  ,("prev-window"       , (ActAdvanceFocus     , [ctrl (KChar 'p')]))
+  ,("next-window"       , (ActAdvanceFocus     , [ctrl (KChar 'n')]))
+  ,("prev-window"       , (ActRetreatFocus     , [ctrl (KChar 'p')]))
   ,("next-network"      , (ActAdvenceNetwork   , [ctrl (KChar 'x')]))
   ,("refresh"           , (ActRefresh          , [ctrl (KChar 'l')]))
   ,("jump-to-activity"  , (ActJumpToActivity   , [meta (KChar 'a')]))
-  ,("jump-previous"     , (ActJumpPrevious     , [meta (KChar 's')]))
+  ,("jump-to-previous"  , (ActJumpPrevious     , [meta (KChar 's')]))
 
   ,("reset"             , (ActReset            , [norm KEsc]))
 
@@ -141,8 +146,8 @@ actionInfos =
   ,("right-word"        , (ActForwardWord      , [meta KRight, meta (KChar 'f')]))
   ,("left"              , (ActLeft             , [norm KLeft]))
   ,("right"             , (ActRight            , [norm KRight]))
-  ,("history-up"        , (ActOlderLine        , [norm KUp]))
-  ,("history-down"      , (ActNewerLine        , [norm KDown]))
+  ,("up"                , (ActOlderLine        , [norm KUp]))
+  ,("down"              , (ActNewerLine        , [norm KDown]))
   ,("scroll-up"         , (ActScrollUp         , [norm KPageUp]))
   ,("scroll-down"       , (ActScrollDown       , [norm KPageDown]))
   ,("enter"             , (ActEnter            , [norm KEnter]))
@@ -152,6 +157,14 @@ actionInfos =
   ,("toggle-activity"   , (ActToggleActivityBar, [norm (KFun 3)]))
   ,("toggle-metadata"   , (ActToggleHideMeta   , [norm (KFun 4)]))
   ]
+
+
+actionNames :: Map Action Text
+actionNames = Map.fromList
+  [ (action, name) | (name, (action,_)) <- HashMap.toList actionInfos ]
+
+actionName :: Action -> Text
+actionName a = Map.findWithDefault (Text.pack (show a)) a actionNames
 
 
 -- | Lookup the action to perform in response to a particular key event.
@@ -192,26 +205,60 @@ initialKeyMap = KeyMap $
 
 
 parseKey :: String -> Maybe ([Modifier], Key)
-parseKey [c] = Just ([], KChar c)
-
+parseKey "Tab"       = Just ([], KChar '\t')
+parseKey "BackTab"   = Just ([], KBackTab)
+parseKey "Enter"     = Just ([], KEnter)
+parseKey "Home"      = Just ([], KHome)
+parseKey "End"       = Just ([], KEnd)
+parseKey "Esc"       = Just ([], KEsc)
+parseKey "PageUp"    = Just ([], KPageUp)
+parseKey "PageDown"  = Just ([], KPageDown)
+parseKey "Backspace" = Just ([], KBS)
+parseKey "Delete"    = Just ([], KDel)
+parseKey "Left"      = Just ([], KLeft)
+parseKey "Right"     = Just ([], KRight)
+parseKey [c]         = Just ([], KChar c)
 parseKey ('F':xs) =
   do i <- readMaybe xs
      Just ([], KFun i)
-
 parseKey ('C':'-':xs) =
   do (m,k) <- parseKey xs
      Just (MCtrl:m, k)
-
 parseKey ('M':'-':xs) =
   do (m,k) <- parseKey xs
      Just (MMeta:m, k)
-
 parseKey ('A':'-':xs) =
   do (m,k) <- parseKey xs
      Just (MAlt:m, k)
-
 parseKey ('S':'-':xs) =
   do (m,k) <- parseKey xs
      Just (MShift:m, k)
-
 parseKey _ = Nothing
+
+
+prettyModifierKey :: [Modifier] -> Key -> String
+prettyModifierKey mods k
+  = foldr prettyModifier (prettyKey k) mods
+
+prettyModifier :: Modifier -> ShowS
+prettyModifier MCtrl  = showString "C-"
+prettyModifier MMeta  = showString "M-"
+prettyModifier MShift = showString "S-"
+prettyModifier MAlt   = showString "A-"
+
+prettyKey :: Key -> String
+prettyKey (KChar '\t') = "Tab"
+prettyKey (KChar c) = showLitChar c "" -- escapes anything non-ascii
+prettyKey (KFun n)  = 'F' : show n
+prettyKey KBackTab  = "BackTab"
+prettyKey KEnter    = "Enter"
+prettyKey KEsc      = "Esc"
+prettyKey KHome     = "Home"
+prettyKey KEnd      = "End"
+prettyKey KPageUp   = "PgUp"
+prettyKey KPageDown = "PgDn"
+prettyKey KDel      = "Delete"
+prettyKey KBS       = "Backspace"
+prettyKey KLeft     = "Left"
+prettyKey KRight    = "Right"
+prettyKey k         = show k

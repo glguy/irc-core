@@ -268,7 +268,8 @@ configurationSpec = sectionsSpec "" $
 
 keyBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
 keyBindingSpec = sectionsSpec "key-binding" $
-  do a     <- reqSection "action" ""
+  do a     <- reqSection "action"
+              "See /keymap for action names"
      (m,k) <- reqSection' "key" keySpec
               "Emacs-style key name, e.g. a, C-a, M-a C-M-b"
      return (addKeyBinding m k a)
@@ -276,7 +277,7 @@ keyBindingSpec = sectionsSpec "key-binding" $
 
 -- | Custom configuration specification for emacs-style key descriptions
 keySpec :: ValueSpecs ([Modifier], Key)
-keySpec = customSpec "emacs-key" stringSpec parseKey
+keySpec = customSpec "emacs-key" anyAtomSpec (parseKey . Text.unpack)
 
 
 nonnegativeSpec :: (Ord a, Num a) => ValueSpecs a
