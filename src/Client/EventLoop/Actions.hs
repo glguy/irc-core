@@ -38,49 +38,51 @@ import           Text.Read
 -- | Actions that can be invoked using the keyboard.
 data Action
 
-  = ActDelete
-  | ActHome
-  | ActEnd
-  | ActKillHome
-  | ActKillEnd
-  | ActYank
-  | ActToggle
-  | ActKillWordBack
-  | ActBold
-  | ActColor
-  | ActItalic
-  | ActUnderline
-  | ActClearFormat
-  | ActReverseVideo
-  | ActRetreatFocus
-  | ActAdvanceFocus
-  | ActAdvanceNetwork
-  | ActRefresh
-  | ActIgnored
-
-  | ActJump Int
-  | ActInsertEnter
-  | ActKillWordForward
-  | ActBackWord
-  | ActForwardWord
-  | ActJumpToActivity
-  | ActJumpPrevious
-  | ActDigraph
-
-  | ActReset
-  | ActBackspace
+  = ActBackspace
+  | ActDelete
   | ActLeft
   | ActRight
+  | ActHome
+  | ActEnd
   | ActOlderLine
   | ActNewerLine
   | ActScrollUp
   | ActScrollDown
-  | ActEnter
-  | ActTabCompleteBack
-  | ActTabComplete
-  | ActInsert Char
+  | ActBackWord
+  | ActForwardWord
 
+  | ActYank
+  | ActKillHome
+  | ActKillEnd
+  | ActKillWordBack
+  | ActKillWordForward
+  | ActToggle
+
+  | ActBold
+  | ActColor
+  | ActItalic
+  | ActUnderline
+  | ActReverseVideo
+  | ActClearFormat
+  | ActInsertEnter
+  | ActDigraph
+
+  | ActRetreatFocus
+  | ActAdvanceFocus
+  | ActAdvanceNetwork
+  | ActJumpToActivity
+  | ActJumpPrevious
+  | ActJump Int
+
+  | ActTabComplete
+  | ActTabCompleteBack
+
+  | ActEnter
+  | ActReset
+  | ActRefresh
   | ActCommand Text
+  | ActInsert Char
+  | ActIgnored
   deriving (Eq, Ord, Read, Show)
 
 -- | Lookup table for keyboard events to actions. Use with
@@ -175,7 +177,7 @@ keyToAction ::
 keyToAction _ names [MMeta] (KChar c)
   | Just i <- Text.findIndex (c==) names = ActJump i
 keyToAction (KeyMap m) names modifier key =
-  case Map.lookup key =<< Map.lookup modifier m of
+  case Map.lookup key =<< Map.lookup (normalizeModifiers modifier) m of
     Just a -> a
     Nothing | KChar c <- key, null modifier -> ActInsert c
             | otherwise                     -> ActIgnored
@@ -189,7 +191,12 @@ addKeyBinding ::
   KeyMap     {- ^ actions   -} ->
   KeyMap
 addKeyBinding mods k a (KeyMap m) = KeyMap $
-  Map.alter (Just . maybe (Map.singleton k a) (Map.insert k a)) mods m
+  Map.alter (Just . maybe (Map.singleton k a) (Map.insert k a))
+            (normalizeModifiers mods) m
+
+
+normalizeModifiers :: [Modifier] -> [Modifier]
+normalizeModifiers = nub . sort
 
 
 -- | Default key bindings
