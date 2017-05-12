@@ -64,8 +64,10 @@ lineExtend w img = img <|> charFill defAttr '─' fillSize 1
   where fillSize = max 0 (w - imageWidth img)
 
 
--- ──[error: some-message]
-transientErrorImage :: Text -> Image
+-- Generates an error message notification image.
+transientErrorImage ::
+  Text  {- ^ @error-message@           -} ->
+  Image {- ^ @─[error: error-message]@ -}
 transientErrorImage txt =
   text' defAttr "─[" <|>
   text' (withForeColor defAttr red) "error: " <|>
