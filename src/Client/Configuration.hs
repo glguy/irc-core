@@ -268,11 +268,19 @@ configurationSpec = sectionsSpec "" $
 
 keyBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
 keyBindingSpec = sectionsSpec "key-binding" $
-  do a     <- reqSection "action"
-              "See /keymap for action names"
-     (m,k) <- reqSection' "key" keySpec
+  do (m,k) <- reqSection' "key" keySpec
               "Emacs-style key name, e.g. a, C-a, M-a C-M-b"
+     a     <- reqSection "action"
+              "See /keymap for action names"
      return (addKeyBinding m k a)
+
+cmdBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
+cmdBindingSpec = sectionsSpec "command-binding" $
+  do (m,k) <- reqSection' "key" keySpec
+              "Emacs-style key name, e.g. a, C-a, M-a C-M-b"
+     cmd   <- reqSection "command"
+              "Client command to execute (exclude leading `/`)"
+     return (addKeyBinding m k (ActCommand cmd))
 
 
 -- | Custom configuration specification for emacs-style key descriptions

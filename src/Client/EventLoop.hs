@@ -459,12 +459,12 @@ doAction vty action st =
     ActInsertEnter       -> changeEditor (Edit.insert '\^J')
 
     -- focus jumps
+    ActJump i            -> continue (jumpFocus i st)
     ActJumpToActivity    -> continue (jumpToActivity st)
     ActJumpPrevious      -> continue (returnFocus st)
-    ActJump i            -> continue (jumpFocus i st)
     ActRetreatFocus      -> continue (retreatFocus st)
     ActAdvanceFocus      -> continue (advanceFocus st)
-    ActAdvenceNetwork    -> continue (advanceNetworkFocus st)
+    ActAdvanceNetwork    -> continue (advanceNetworkFocus st)
 
     ActReset             -> continue (changeSubfocus FocusMessages st)
     ActOlderLine         -> changeEditor $ \ed      -> fromMaybe ed $ Edit.earlier ed
@@ -475,13 +475,14 @@ doAction vty action st =
     ActTabCompleteBack   -> doCommandResult False =<< tabCompletion True  st
     ActTabComplete       -> doCommandResult False =<< tabCompletion False st
 
-    ActToggleDetail      -> continue (over clientDetailView  not st)
-    ActToggleActivityBar -> continue (over clientActivityBar not st)
-    ActToggleHideMeta    -> continue (clientToggleHideMeta st)
-
     ActInsert c          -> changeEditor (Edit.insert c)
-    ActEnter             -> doCommandResult True  =<< executeInput st
+    ActEnter             -> doCommandResult True =<< executeInput st
     ActRefresh           -> refresh vty >> continue st
+    ActCommand cmd       -> do resp <- executeUserCommand Nothing (Text.unpack cmd) st
+                               case resp of
+                                 CommandSuccess st1 -> continue st1
+                                 CommandFailure st1 -> continue st1
+                                 CommandQuit    st1 -> return Nothing
 
     ActIgnored           -> continue st
 

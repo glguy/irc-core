@@ -380,6 +380,28 @@ commandsList =
     $ ClientCommand cmdHelp tabHelp
 
   ------------------------------------------------------------------------
+  ] , CommandSection "View toggles"
+  ------------------------------------------------------------------------
+
+  [ Command
+      (pure "toggle-detail")
+      NoArg
+      "Toggle detailed message view.\n"
+    $ ClientCommand cmdToggleDetail noClientTab
+
+  , Command
+      (pure "toggle-activity-bar")
+      NoArg
+      "Toggle detailed detailed activity information in status bar.\n"
+    $ ClientCommand cmdToggleActivityBar noClientTab
+
+  , Command
+      (pure "toggle-metadata")
+      NoArg
+      "Toggle visibility of metadata in chat windows.\n"
+    $ ClientCommand cmdToggleMetadata noClientTab
+
+  ------------------------------------------------------------------------
   ] , CommandSection "Connection commands"
   ------------------------------------------------------------------------
 
@@ -825,6 +847,17 @@ simpleChannelTab isReversed _ _ st _ =
 -- | Implementation of @/exit@ command.
 cmdExit :: ClientCommand ()
 cmdExit st _ = return (CommandQuit st)
+
+
+cmdToggleDetail :: ClientCommand ()
+cmdToggleDetail st _ = commandSuccess (over clientDetailView not st)
+
+cmdToggleActivityBar :: ClientCommand ()
+cmdToggleActivityBar st _ = commandSuccess (over clientActivityBar not st)
+
+cmdToggleMetadata :: ClientCommand ()
+cmdToggleMetadata st _ = commandSuccess (clientToggleHideMeta st)
+
 
 -- | When used on a channel that the user is currently
 -- joined to this command will clear the messages but

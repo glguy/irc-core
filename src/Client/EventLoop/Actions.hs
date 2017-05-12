@@ -30,6 +30,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
+import           Data.Semigroup ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Text.Read
@@ -53,7 +54,7 @@ data Action
   | ActReverseVideo
   | ActRetreatFocus
   | ActAdvanceFocus
-  | ActAdvenceNetwork
+  | ActAdvanceNetwork
   | ActRefresh
   | ActIgnored
 
@@ -78,9 +79,8 @@ data Action
   | ActTabCompleteBack
   | ActTabComplete
   | ActInsert Char
-  | ActToggleDetail
-  | ActToggleActivityBar
-  | ActToggleHideMeta
+
+  | ActCommand Text
   deriving (Eq, Ord, Read, Show)
 
 -- | Lookup table for keyboard events to actions. Use with
@@ -135,7 +135,7 @@ actionInfos =
 
   ,("next-window"       , (ActAdvanceFocus     , [ctrl (KChar 'n')]))
   ,("prev-window"       , (ActRetreatFocus     , [ctrl (KChar 'p')]))
-  ,("next-network"      , (ActAdvenceNetwork   , [ctrl (KChar 'x')]))
+  ,("next-network"      , (ActAdvanceNetwork   , [ctrl (KChar 'x')]))
   ,("refresh"           , (ActRefresh          , [ctrl (KChar 'l')]))
   ,("jump-to-activity"  , (ActJumpToActivity   , [meta (KChar 'a')]))
   ,("jump-to-previous"  , (ActJumpPrevious     , [meta (KChar 's')]))
@@ -153,9 +153,6 @@ actionInfos =
   ,("enter"             , (ActEnter            , [norm KEnter]))
   ,("word-complete-back", (ActTabCompleteBack  , [norm KBackTab]))
   ,("word-complete"     , (ActTabComplete      , [norm (KChar '\t')]))
-  ,("toggle-detail"     , (ActToggleDetail     , [norm (KFun 2)]))
-  ,("toggle-activity"   , (ActToggleActivityBar, [norm (KFun 3)]))
-  ,("toggle-metadata"   , (ActToggleHideMeta   , [norm (KFun 4)]))
   ]
 
 
@@ -164,6 +161,7 @@ actionNames = Map.fromList
   [ (action, name) | (name, (action,_)) <- HashMap.toList actionInfos ]
 
 actionName :: Action -> Text
+actionName (ActCommand txt) = "command: " <> txt
 actionName a = Map.findWithDefault (Text.pack (show a)) a actionNames
 
 
@@ -197,7 +195,15 @@ addKeyBinding mods k a (KeyMap m) = KeyMap $
 -- | Default key bindings
 initialKeyMap :: KeyMap
 initialKeyMap = KeyMap $
-  Map.fromListWith Map.union
+  Map.fromListWith Map.union $
+
+   ([], Map.fromList
+          [ (KFun 2, ActCommand "toggle-detail")
+          , (KFun 3, ActCommand "toggle-activity-bar")
+          , (KFun 4, ActCommand "toggle-metadata")
+          ])
+    :
+
     [ (mods, Map.singleton k act)
       | (act, mks) <- HashMap.elems actionInfos
       , (mods, k)  <- mks
