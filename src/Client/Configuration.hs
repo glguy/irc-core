@@ -265,22 +265,30 @@ configurationSpec = sectionsSpec "" $
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
              in Configuration{..})
 
-
 keyBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
-keyBindingSpec = sectionsSpec "key-binding" $
-  do (m,k) <- reqSection' "key" keySpec
-              "Emacs-style key name, e.g. a, C-a, M-a C-M-b"
+keyBindingSpec = actBindingSpec <!> cmdBindingSpec <!> unbindingSpec
+
+actBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
+actBindingSpec = sectionsSpec "action-binding" $
+  do (m,k) <- reqSection' "bind" keySpec
+              "Key to be bound (e.g. a, C-b, M-c C-M-d)"
      a     <- reqSection "action"
-              "See /keymap for action names"
+              "Action name (see `/keymap`)"
      return (addKeyBinding m k a)
 
 cmdBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
 cmdBindingSpec = sectionsSpec "command-binding" $
-  do (m,k) <- reqSection' "key" keySpec
-              "Emacs-style key name, e.g. a, C-a, M-a C-M-b"
+  do (m,k) <- reqSection' "bind" keySpec
+              "Key to be bound (e.g. a, C-b, M-c C-M-d)"
      cmd   <- reqSection "command"
               "Client command to execute (exclude leading `/`)"
      return (addKeyBinding m k (ActCommand cmd))
+
+unbindingSpec :: ValueSpecs (KeyMap -> KeyMap)
+unbindingSpec = sectionsSpec "remove-binding" $
+  do (m,k) <- reqSection' "unbind" keySpec
+              "Key to be unbound (e.g. a, C-b, M-c C-M-d)"
+     return (removeKeyBinding m k)
 
 
 -- | Custom configuration specification for emacs-style key descriptions

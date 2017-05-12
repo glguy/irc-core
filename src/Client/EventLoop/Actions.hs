@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language RankNTypes, OverloadedStrings #-}
 {-|
 Module      : Client.EventLoop.Actions
 Description : Programmable keyboard actions
@@ -14,6 +14,7 @@ module Client.EventLoop.Actions
   , keyToAction
   , initialKeyMap
   , addKeyBinding
+  , removeKeyBinding
   , keyMapEntries
 
   -- * Keys as text
@@ -24,6 +25,7 @@ module Client.EventLoop.Actions
 
 import           Graphics.Vty.Input.Events
 import           Config.Schema.Spec
+import           Control.Lens
 import           Data.Char (showLitChar)
 import           Data.List
 import           Data.Map (Map)
@@ -162,9 +164,16 @@ actionNames :: Map Action Text
 actionNames = Map.fromList
   [ (action, name) | (name, (action,_)) <- HashMap.toList actionInfos ]
 
+
+-- | Render action as human-readable text.
 actionName :: Action -> Text
 actionName (ActCommand txt) = "command: " <> txt
 actionName a = Map.findWithDefault (Text.pack (show a)) a actionNames
+
+
+keyMapLens :: [Modifier] -> Key -> Lens' KeyMap (Maybe Action)
+keyMapLens mods key f (KeyMap m) =
+  KeyMap <$> (at (normalizeModifiers mods) . non' _Empty . at key) f m
 
 
 -- | Lookup the action to perform in response to a particular key event.
@@ -176,8 +185,8 @@ keyToAction ::
   Action     {- ^ action       -}
 keyToAction _ names [MMeta] (KChar c)
   | Just i <- Text.findIndex (c==) names = ActJump i
-keyToAction (KeyMap m) names modifier key =
-  case Map.lookup key =<< Map.lookup (normalizeModifiers modifier) m of
+keyToAction m names modifier key =
+  case m ^. keyMapLens modifier key of
     Just a -> a
     Nothing | KChar c <- key, null modifier -> ActInsert c
             | otherwise                     -> ActIgnored
@@ -190,9 +199,15 @@ addKeyBinding ::
   Action     {- ^ action    -} ->
   KeyMap     {- ^ actions   -} ->
   KeyMap
-addKeyBinding mods k a (KeyMap m) = KeyMap $
-  Map.alter (Just . maybe (Map.singleton k a) (Map.insert k a))
-            (normalizeModifiers mods) m
+addKeyBinding mods k a = keyMapLens mods k ?~ a
+
+-- | Unbind the action associated with a key.
+removeKeyBinding ::
+  [Modifier] {- ^ modifiers -} ->
+  Key        {- ^ key       -} ->
+  KeyMap     {- ^ actions   -} ->
+  KeyMap
+removeKeyBinding mods k = set (keyMapLens mods k) Nothing
 
 
 normalizeModifiers :: [Modifier] -> [Modifier]
