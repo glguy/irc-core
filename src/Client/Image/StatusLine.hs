@@ -16,6 +16,7 @@ module Client.Image.StatusLine
   , minorStatusLineImage
   ) where
 
+import           Client.Image.Message (cleanText)
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
@@ -71,7 +72,7 @@ transientErrorImage ::
 transientErrorImage txt =
   text' defAttr "─[" <|>
   text' (withForeColor defAttr red) "error: " <|>
-  text' defAttr txt <|>
+  text' defAttr (cleanText txt) <|>
   text' defAttr "]"
 
 
