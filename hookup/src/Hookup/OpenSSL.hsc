@@ -10,6 +10,10 @@ Maintainer  : emertens@gmail.com
 #include "openssl/x509_vfy.h"
 #include "openssl/x509v3.h"
 
+#ifndef X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS
+#error "OpenSSL 1.0.2 or later is required. This version was released in Jan 2015 and adds hostname verification"
+#endif
+
 module Hookup.OpenSSL (installVerification) where
 
 import           Control.Monad (unless)
