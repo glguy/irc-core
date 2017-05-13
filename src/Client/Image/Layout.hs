@@ -68,7 +68,7 @@ drawLayoutTwo ::
 drawLayoutTwo st h focus subfocus extrafocus = (overscroll, output)
   where
     [wl,wr] = divisions (view clientWidth st - 1) 2
-    hs      = divisions (h - 2 * length extraLines) (length extraLines)
+    hs      = divisions (h - length extraLines) (length extraLines)
     scroll = view clientScroll st
     (overscroll, main) = messagePane wl h scroll mainLines
 
@@ -95,10 +95,8 @@ drawExtra ::
   [Image]     {- ^ image lines     -} ->
   Image       {- ^ rendered window -}
 drawExtra st w h scroll focus lineImages =
-    msgImg <-> minorStatusLineImage focus st <-> charFill divider ' ' w 1
+    msgImg <-> minorStatusLineImage focus st
   where
-    pal         = clientPalette st
-    divider     = view palWindowDivider pal
     (_, msgImg) = messagePane w h scroll lineImages
 
 
@@ -130,7 +128,7 @@ splitHeights ::
   Int   {- ^ screen rows to fill               -} ->
   Int   {- ^ number of extra windows           -} ->
   [Int] {- ^ list of heights for each division -}
-splitHeights h ex = divisions (h - 2 * ex) (1 + ex)
+splitHeights h ex = divisions (h - ex) (1 + ex)
 
 
 -- | Constructs a list of numbers with the length of the divisor
