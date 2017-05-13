@@ -40,11 +40,11 @@ viewLines focus subfocus w !st =
       | view clientDetailView st -> userInfoImages network channel st
       | otherwise                -> userListImages network channel st
     (ChannelFocus network channel, FocusMasks mode) ->
-      maskListImages mode network channel st
+      maskListImages mode network channel w st
     (_, FocusWindows filt) -> windowsImages filt st
     (_, FocusMentions) -> mentionsViewLines st
     (_, FocusPalette) -> paletteViewLines pal
-    (_, FocusDigraphs) -> digraphLines st
+    (_, FocusDigraphs) -> digraphLines w st
     (_, FocusKeyMap) -> keyMapLines st
     (_, FocusHelp mb) -> helpImageLines mb pal
     _ -> chatMessageImages focus w st

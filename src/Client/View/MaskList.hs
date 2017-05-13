@@ -31,14 +31,15 @@ import           Irc.Identifier
 
 -- | Render the lines used in a channel mask list
 maskListImages ::
-  Char        {- ^ Mask mode -} ->
-  Text        {- ^ network   -} ->
-  Identifier  {- ^ channel   -} ->
+  Char        {- ^ Mask mode  -} ->
+  Text        {- ^ network    -} ->
+  Identifier  {- ^ channel    -} ->
+  Int         {- ^ draw width -} ->
   ClientState -> [Image]
-maskListImages mode network channel st =
+maskListImages mode network channel w st =
   case mbEntries of
     Nothing      -> [text' (view palError pal) "Mask list not loaded"]
-    Just entries -> maskListImages' entries st
+    Just entries -> maskListImages' entries w st
 
   where
     pal = clientPalette st
@@ -48,8 +49,8 @@ maskListImages mode network channel st =
                 . chanLists . ix mode
                 ) st
 
-maskListImages' :: HashMap Text MaskListEntry -> ClientState -> [Image]
-maskListImages' entries st = countImage : images
+maskListImages' :: HashMap Text MaskListEntry -> Int -> ClientState -> [Image]
+maskListImages' entries w st = countImage : images
   where
     pal = clientPalette st
 
@@ -72,7 +73,7 @@ maskListImages' entries st = countImage : images
     maskImages       = text' defAttr <$> masks
     maskColumnWidth  = maximum (imageWidth <$> maskImages) + 1
     paddedMaskImages = resizeWidth maskColumnWidth <$> maskImages
-    width            = max 1 (view clientWidth st)
+    width            = max 1 w
 
     images = [ cropLine $ mask <|>
                           text' defAttr who <|>

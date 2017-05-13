@@ -23,9 +23,10 @@ import           Graphics.Vty.Image
 
 -- | Render the lines of a table showing all of the available digraph entries
 digraphLines ::
+  Int         {- ^ draw width   -} ->
   ClientState {- ^ client state -} ->
   [Image]     {- ^ output lines -}
-digraphLines st
+digraphLines w st
   = map (horizCat . intersperse sep)
   $ chunksOf entriesPerLine
   $ map (text' defAttr)
@@ -33,7 +34,6 @@ digraphLines st
   $ map (Text.pack . drawEntry)
   $ digraphListToList digraphs
   where
-    w              = view clientWidth st
     matcher        = maybe id filter (clientMatcher st)
     entriesPerLine = max 1 -- just in case?
                    $ (w + sepWidth) `quot` (entryWidth + sepWidth)
