@@ -83,6 +83,7 @@ library
                        Client.Hooks
                        Client.Image
                        Client.Image.Arguments
+                       Client.Image.Layout
                        Client.Image.Message
                        Client.Image.MircFormatting
                        Client.Image.PackedImage
