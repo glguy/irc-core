@@ -29,8 +29,8 @@ import           Client.View.Windows
 import           Control.Lens
 import           Graphics.Vty.Image
 
-viewLines :: Focus -> Subfocus -> ClientState -> [Image]
-viewLines focus subfocus !st =
+viewLines :: Focus -> Subfocus -> Int -> ClientState -> [Image]
+viewLines focus subfocus w !st =
   case (focus, subfocus) of
     _ | Just ("url",arg) <- clientActiveCommand st ->
       urlSelectionView focus arg st
@@ -47,6 +47,6 @@ viewLines focus subfocus !st =
     (_, FocusDigraphs) -> digraphLines st
     (_, FocusKeyMap) -> keyMapLines st
     (_, FocusHelp mb) -> helpImageLines mb pal
-    _ -> chatMessageImages focus st
+    _ -> chatMessageImages focus w st
   where
     pal = clientPalette st

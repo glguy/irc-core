@@ -15,6 +15,7 @@ import Client.Configuration (LayoutMode(..))
 import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
 import Client.Image.Utils (lineWrap)
 import Client.Image.Palette
+import Client.View
 import Graphics.Vty.Image
 import Graphics.Vty.Attributes (defAttr)
 
@@ -22,22 +23,25 @@ import Graphics.Vty.Attributes (defAttr)
 drawLayout ::
   ClientState        {- ^ client state                 -} ->
   Int                {- ^ rows available               -} ->
-  [Image]            {- ^ main window lines            -} ->
-  [(Focus, [Image])] {- ^ extra window names and lines -} ->
   (Int, Image)       {- ^ overscroll and final image   -}
-drawLayout st rows mainLines extraLines =
+drawLayout st rows =
   case view clientLayout st of
-    TwoColumn | not (null extraLines) -> drawLayoutTwo st rows mainLines extraLines
-    _                                 -> drawLayoutOne st rows mainLines extraLines
+    TwoColumn | not (null extrafocus) -> drawLayoutTwo st rows focus subfocus extrafocus
+    _                                 -> drawLayoutOne st rows focus subfocus extrafocus
+  where
+    focus = view clientFocus st
+    subfocus = view clientSubfocus st
+    extrafocus = clientExtraFocuses st
 
 -- | Layout algorithm for all windows in a single column.
 drawLayoutOne ::
   ClientState        {- ^ client state                 -} ->
   Int                {- ^ rows available               -} ->
-  [Image]            {- ^ main window lines            -} ->
-  [(Focus, [Image])] {- ^ extra window names and lines -} ->
+  Focus ->
+  Subfocus ->
+  [Focus] {- ^ extra window names -} ->
   (Int, Image)       {- ^ overscroll and final image   -}
-drawLayoutOne st rows mainLines extraLines = (overscroll, output)
+drawLayoutOne st rows focus subfocus extrafocus = (overscroll, output)
   where
     w      = view clientWidth st
     h:hs   = splitHeights rows (length extraLines)
@@ -46,17 +50,22 @@ drawLayoutOne st rows mainLines extraLines = (overscroll, output)
 
     output = vertCat $ reverse
            $ main
-           : [ drawExtra st h' scroll foc imgs
+           : [ drawExtra st w h' scroll foc imgs
                  | (h', (foc, imgs)) <- zip hs extraLines]
+
+    mainLines = viewLines focus subfocus w st
+    extraLines = [ (focus', viewLines focus' FocusMessages w st)
+                   | focus' <- extrafocus ]
 
 -- | Layout algorithm for all windows in a single column.
 drawLayoutTwo ::
   ClientState        {- ^ client state                 -} ->
   Int                {- ^ rows available               -} ->
-  [Image]            {- ^ main window lines            -} ->
-  [(Focus, [Image])] {- ^ extra window names and lines -} ->
+  Focus ->
+  Subfocus ->
+  [Focus] {- ^ extra window names -} ->
   (Int, Image)       {- ^ overscroll and final image   -}
-drawLayoutTwo st h mainLines extraLines = (overscroll, output)
+drawLayoutTwo st h focus subfocus extrafocus = (overscroll, output)
   where
     [wl,wr] = divisions (view clientWidth st - 1) 2
     hs      = divisions (h - 2 * length extraLines) (length extraLines)
@@ -65,25 +74,29 @@ drawLayoutTwo st h mainLines extraLines = (overscroll, output)
 
     output = main <|> divider <|> extraImgs
     extraImgs = vertCat $ reverse
-             [ drawExtra st h' scroll foc imgs
+             [ drawExtra st wr h' scroll foc imgs
                  | (h', (foc, imgs)) <- zip hs extraLines]
 
     pal     = clientPalette st
     divider = charFill (view palWindowDivider pal) ' ' 1 h
 
+    mainLines = viewLines focus subfocus wl st
+    extraLines = [ (focus', viewLines focus' FocusMessages wr st)
+                   | focus' <- extrafocus ]
+
 
 -- | Draw one of the extra windows from @/splits@
 drawExtra ::
   ClientState {- ^ client state    -} ->
+  Int         {- ^ draw width      -} ->
   Int         {- ^ draw height     -} ->
   Int         {- ^ scroll amount   -} ->
   Focus       {- ^ focus           -} ->
   [Image]     {- ^ image lines     -} ->
   Image       {- ^ rendered window -}
-drawExtra st h scroll focus lineImages =
+drawExtra st w h scroll focus lineImages =
     msgImg <-> minorStatusLineImage focus st <-> charFill divider ' ' w 1
   where
-    w           = view clientWidth st
     pal         = clientPalette st
     divider     = view palWindowDivider pal
     (_, msgImg) = messagePane w h scroll lineImages

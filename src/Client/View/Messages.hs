@@ -31,8 +31,8 @@ import           Irc.Identifier
 import           Irc.Message
 
 
-chatMessageImages :: Focus -> ClientState -> [Image]
-chatMessageImages focus st =
+chatMessageImages :: Focus -> Int -> ClientState -> [Image]
+chatMessageImages focus w st =
   case preview (clientWindows . ix focus) st of
     Nothing  -> []
     Just win ->
@@ -52,14 +52,14 @@ chatMessageImages focus st =
 
   where
     palette = clientPalette st
-    marker = string (view palLineMarker palette) (replicate (view clientWidth st) '-')
+    marker = string (view palLineMarker palette) (replicate w '-')
     windowLineProcessor hideMeta
       | view clientDetailView st =
           if hideMeta
             then detailedImagesWithoutMetadata st
             else map (view wlFullImage)
 
-      | otherwise = windowLinesToImages st hideMeta . filter (not . isNoisy)
+      | otherwise = windowLinesToImages st w hideMeta . filter (not . isNoisy)
 
     isNoisy msg =
       case view wlSummary msg of
@@ -76,23 +76,24 @@ detailedImagesWithoutMetadata st wwls =
 
 windowLinesToImages ::
   ClientState  {- ^ client state  -} ->
+  Int          {- ^ draw width    -} ->
   Bool         {- ^ hide metadata -} ->
   [WindowLine] {- ^ window lines  -} ->
   [Image]      {- ^ image lines   -}
-windowLinesToImages st hideMeta wwls =
+windowLinesToImages st w hideMeta wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> lineWrap (view clientWidth st)
+    ([], wl:wls) -> lineWrap w
                            (view (clientConfig . configIndentWrapped) st)
-                           (view wlImage w)
-                 : windowLinesToImages st hideMeta ws
+                           (view wlImage wl)
+                 : windowLinesToImages st w hideMeta wls
     ((img,who,mbnext):mds, wls)
 
-      | hideMeta -> windowLinesToImages st hideMeta wls
+      | hideMeta -> windowLinesToImages st w hideMeta wls
 
       | otherwise ->
          startMetadata img mbnext who mds palette
-       : windowLinesToImages st hideMeta wls
+       : windowLinesToImages st w hideMeta wls
 
   where
     palette = clientPalette st

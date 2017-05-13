@@ -42,20 +42,15 @@ clientImage ::
   (Int, Image, ClientState) {- ^ text box cursor position, image, updated state -}
 clientImage st = (pos, img, st')
   where
-    focus                     = view clientFocus st
     (pos , nextOffset, tbImg) = textboxImage st
 
     -- update client state for scroll clamp
     !st' = set clientTextBoxOffset nextOffset
          $ over clientScroll (max 0 . subtract overscroll) st
 
-    (overscroll, msgs) = drawLayout st msgHeight mainLines extraLines
+    (overscroll, msgs) = drawLayout st msgHeight
 
     msgHeight = max 0 (view clientHeight st - imageHeight bottomImg)
 
     img       = msgs <-> bottomImg
     bottomImg = statusLineImage st <-> tbImg
-
-    mainLines  = viewLines focus (view clientSubfocus st) st
-    extraLines = [ (x, viewLines x FocusMessages st)
-                 | x <- clientExtraFocuses st ]
