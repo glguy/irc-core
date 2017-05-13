@@ -35,13 +35,12 @@ import           Numeric
 
 -- | Renders the status line between messages and the textbox.
 statusLineImage ::
+  Int         {- ^ draw width   -} ->
   ClientState {- ^ client state -} ->
   Image       {- ^ status bar   -}
-statusLineImage st = makeLines (view clientWidth st)
-                   $ common : activity ++ errorImgs
+statusLineImage w st =
+  makeLines w (common : activity ++ errorImgs)
   where
-    w = view clientWidth st
-
     common = horizCat
       [ myNickImage st
       , focusImage st
@@ -78,12 +77,15 @@ transientErrorImage txt =
 
 -- | The minor status line is used when rendering the @/splits@ and
 -- @/mentions@ views to show the associated window name.
-minorStatusLineImage :: Focus -> ClientState -> Image
-minorStatusLineImage focus st =
+minorStatusLineImage ::
+  Focus {- ^ window name -} ->
+  Int   {- ^ draw width  -} ->
+  ClientState -> Image
+minorStatusLineImage focus w st =
   content <|> charFill defAttr '─' fillSize 1
   where
     content = infoBubble (focusImageMajor focus st)
-    fillSize = max 0 (view clientWidth st - imageWidth content)
+    fillSize = max 0 (w - imageWidth content)
 
 
 -- | Indicate when the client is scrolling and old messages are being shown.

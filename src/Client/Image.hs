@@ -13,8 +13,6 @@ module Client.Image (clientPicture) where
 
 import           Client.Configuration (LayoutMode(..))
 import           Client.Image.Layout
-import           Client.Image.StatusLine
-import           Client.Image.Textbox
 import           Client.State
 import           Client.State.Focus
 import           Client.View
@@ -42,15 +40,8 @@ clientImage ::
   (Int, Image, ClientState) {- ^ text box cursor position, image, updated state -}
 clientImage st = (pos, img, st')
   where
-    (pos , nextOffset, tbImg) = textboxImage st
-
     -- update client state for scroll clamp
     !st' = set clientTextBoxOffset nextOffset
          $ over clientScroll (max 0 . subtract overscroll) st
 
-    (overscroll, msgs) = drawLayout st msgHeight
-
-    msgHeight = max 0 (view clientHeight st - imageHeight bottomImg)
-
-    img       = msgs <-> bottomImg
-    bottomImg = statusLineImage st <-> tbImg
+    (overscroll, pos, nextOffset, img) = drawLayout st

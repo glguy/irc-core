@@ -26,8 +26,8 @@ import           Graphics.Vty.Image
 -- | Generate the list of message lines marked important ordered by
 -- time. Each run of lines from the same channel will be grouped
 -- together. Messages are headed by their window, network, and channel.
-mentionsViewLines :: ClientState -> [Image]
-mentionsViewLines st = addMarkers st entries
+mentionsViewLines :: Int -> ClientState -> [Image]
+mentionsViewLines w st = addMarkers w st entries
 
   where
     names = clientWindowNames st ++ repeat '?'
@@ -47,14 +47,15 @@ data MentionLine = MentionLine
   }
 
 addMarkers ::
+  Int           {- ^ draw width                        -} ->
   ClientState   {- ^ client state                      -} ->
   [MentionLine] {- ^ list of mentions in time order    -} ->
   [Image]       {- ^ mention images and channel labels -}
-addMarkers _ [] = []
-addMarkers !st (!ml : xs)
+addMarkers _ _ [] = []
+addMarkers w !st (!ml : xs)
   = map mlImage (ml:same)
- ++ minorStatusLineImage (mlFocus ml) st
-  : addMarkers st rest
+ ++ minorStatusLineImage (mlFocus ml) w st
+  : addMarkers w st rest
   where
     isSame ml' = mlFocus ml == mlFocus ml'
 

@@ -36,11 +36,10 @@ import           Graphics.Vty.Image
 -- | Compute the UI image for the text input box. This computes
 -- the logical cursor position on the screen to compensate for
 -- VTY's cursor placement behavior.
-textboxImage :: ClientState -> (Int, Int, Image) -- ^ cursor column, new offset, image
-textboxImage st
+textboxImage :: Int -> ClientState -> (Int, Int, Image) -- ^ cursor column, new offset, image
+textboxImage width st
   = (newPos, newOffset, croppedImage)
   where
-  width = view clientWidth st
   macros = views (clientConfig . configMacros) (fmap macroSpec) st
   (txt, content) =
      views (clientTextBox . Edit.content) (renderContent macros pal) st
