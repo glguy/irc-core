@@ -16,6 +16,7 @@ import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
 import Client.Image.Utils (lineWrap)
 import Client.Image.Palette
 import Graphics.Vty.Image
+import Graphics.Vty.Attributes (defAttr)
 
 -- | Compute the combined image for all the visible message windows.
 drawLayout ::
@@ -101,7 +102,8 @@ messagePane w h scroll images = (overscroll, img)
   where
     vimg   = assemble emptyImage images
     vimg1  = cropBottom h vimg
-    img    = pad 0 (h - imageHeight vimg1) 0 0 vimg1
+    img    = charFill defAttr ' ' w (h - imageHeight vimg1)
+             <-> vimg1
 
     overscroll = vh - imageHeight vimg
     vh         = h + scroll
