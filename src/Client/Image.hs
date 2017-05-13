@@ -9,11 +9,9 @@ Maintainer  : emertens@gmail.com
 This module provides the renderer for the client's UI.
 
 -}
-module Client.Image
-  ( clientPicture
-  , scrollAmount
-  ) where
+module Client.Image (clientPicture) where
 
+import           Client.Configuration (LayoutMode(..))
 import           Client.Image.Layout
 import           Client.Image.StatusLine
 import           Client.Image.Textbox
@@ -61,16 +59,3 @@ clientImage st = (pos, img, st')
     mainLines  = viewLines focus (view clientSubfocus st) st
     extraLines = [ (x, viewLines x FocusMessages st)
                  | x <- clientExtraFocuses st ]
-
-
--- | Compute the number of lines in a page at the current window size
-scrollAmount ::
-  ClientState {- ^ client state              -} ->
-  Int         {- ^ scroll amount             -}
-scrollAmount st = head (splitHeights h ex)
-               -- extra will be equal to main or 1 smaller
-  where
-    h = view clientHeight st - bottomSize
-    ex = length (clientExtraFocuses st)
-    bottomSize = 1 -- textbox
-               + imageHeight (statusLineImage st)

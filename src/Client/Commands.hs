@@ -401,6 +401,12 @@ commandsList =
       "Toggle visibility of metadata in chat windows.\n"
     $ ClientCommand cmdToggleMetadata noClientTab
 
+  , Command
+      (pure "toggle-layout")
+      NoArg
+      "Toggle multi-window layout mode.\n"
+    $ ClientCommand cmdToggleLayout noClientTab
+
   ------------------------------------------------------------------------
   ] , CommandSection "Connection commands"
   ------------------------------------------------------------------------
@@ -858,6 +864,11 @@ cmdToggleActivityBar st _ = commandSuccess (over clientActivityBar not st)
 cmdToggleMetadata :: ClientCommand ()
 cmdToggleMetadata st _ = commandSuccess (clientToggleHideMeta st)
 
+cmdToggleLayout :: ClientCommand ()
+cmdToggleLayout st _ = commandSuccess (set clientScroll 0 (over clientLayout aux st))
+  where
+    aux OneColumn = TwoColumn
+    aux TwoColumn = OneColumn
 
 -- | When used on a channel that the user is currently
 -- joined to this command will clear the messages but

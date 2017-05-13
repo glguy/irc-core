@@ -41,6 +41,7 @@ module Client.State
   , clientLogQueue
   , clientActivityReturn
   , clientErrorMsg
+  , clientLayout
 
   -- * Client operations
   , withClientState
@@ -170,6 +171,7 @@ data ClientState = ClientState
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
   , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
   , _clientRegex             :: Maybe Regex               -- ^ optional persistent filter
+  , _clientLayout            :: !LayoutMode               -- ^ layout mode for split screen
 
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
@@ -251,6 +253,7 @@ withClientState cfg k =
         , _clientScroll            = 0
         , _clientDetailView        = False
         , _clientRegex             = Nothing
+        , _clientLayout            = view configLayout cfg
         , _clientActivityBar       = view configActivityBar cfg
         , _clientNextConnectionId  = 0
         , _clientBell              = False

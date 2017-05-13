@@ -6,16 +6,16 @@ License     : ISC
 Maintainer  : emertens@gmail.com
 
 -}
-module Client.Image.Layout (splitHeights, drawLayout) where
+module Client.Image.Layout (scrollAmount, drawLayout) where
 
 import Control.Lens
 import Client.State
 import Client.State.Focus
-import Client.Image.StatusLine (minorStatusLineImage)
+import Client.Configuration (LayoutMode(..))
+import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
 import Client.Image.Utils (lineWrap)
 import Client.Image.Palette
 import Graphics.Vty.Image
-
 
 -- | Compute the combined image for all the visible message windows.
 drawLayout ::
@@ -24,7 +24,19 @@ drawLayout ::
   [Image]            {- ^ main window lines            -} ->
   [(Focus, [Image])] {- ^ extra window names and lines -} ->
   (Int, Image)       {- ^ overscroll and final image   -}
-drawLayout st rows mainLines extraLines = (overscroll, output)
+drawLayout st rows mainLines extraLines =
+  case view clientLayout st of
+    TwoColumn | not (null extraLines) -> drawLayoutTwo st rows mainLines extraLines
+    _                                 -> drawLayoutOne st rows mainLines extraLines
+
+-- | Layout algorithm for all windows in a single column.
+drawLayoutOne ::
+  ClientState        {- ^ client state                 -} ->
+  Int                {- ^ rows available               -} ->
+  [Image]            {- ^ main window lines            -} ->
+  [(Focus, [Image])] {- ^ extra window names and lines -} ->
+  (Int, Image)       {- ^ overscroll and final image   -}
+drawLayoutOne st rows mainLines extraLines = (overscroll, output)
   where
     w      = view clientWidth st
     h:hs   = splitHeights rows (length extraLines)
@@ -35,6 +47,28 @@ drawLayout st rows mainLines extraLines = (overscroll, output)
            $ main
            : [ drawExtra st h' scroll foc imgs
                  | (h', (foc, imgs)) <- zip hs extraLines]
+
+-- | Layout algorithm for all windows in a single column.
+drawLayoutTwo ::
+  ClientState        {- ^ client state                 -} ->
+  Int                {- ^ rows available               -} ->
+  [Image]            {- ^ main window lines            -} ->
+  [(Focus, [Image])] {- ^ extra window names and lines -} ->
+  (Int, Image)       {- ^ overscroll and final image   -}
+drawLayoutTwo st h mainLines extraLines = (overscroll, output)
+  where
+    [wl,wr] = divisions (view clientWidth st - 1) 2
+    hs      = divisions (h - 2 * length extraLines) (length extraLines)
+    scroll = view clientScroll st
+    (overscroll, main) = messagePane wl h scroll mainLines
+
+    output = main <|> divider <|> extraImgs
+    extraImgs = vertCat $ reverse
+             [ drawExtra st h' scroll foc imgs
+                 | (h', (foc, imgs)) <- zip hs extraLines]
+
+    pal     = clientPalette st
+    divider = charFill (view palWindowDivider pal) ' ' 1 h
 
 
 -- | Draw one of the extra windows from @/splits@
@@ -81,7 +115,7 @@ splitHeights ::
   Int   {- ^ screen rows to fill               -} ->
   Int   {- ^ number of extra windows           -} ->
   [Int] {- ^ list of heights for each division -}
-splitHeights h ex = divisions (max 0 (h - 2 * ex)) (1 + ex)
+splitHeights h ex = divisions (h - 2 * ex) (1 + ex)
 
 
 -- | Constructs a list of numbers with the length of the divisor
@@ -95,4 +129,20 @@ divisions x y
   | y <= 0    = []
   | otherwise = replicate r (q+1) ++ replicate (y-r) q
   where
-    (q,r) = quotRem x y
+    (q,r) = quotRem (max 0 x) y
+
+
+
+-- | Compute the number of lines in a page at the current window size
+scrollAmount ::
+  ClientState {- ^ client state  -} ->
+  Int         {- ^ scroll amount -}
+scrollAmount st =
+  case view clientLayout st of
+    TwoColumn -> h
+    OneColumn -> head (splitHeights h ex) -- extra will be equal to main or 1 smaller
+  where
+    h = view clientHeight st - bottomSize
+    ex = length (clientExtraFocuses st)
+    bottomSize = 1 -- textbox
+               + imageHeight (statusLineImage st)

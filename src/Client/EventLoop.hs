@@ -27,6 +27,7 @@ import           Client.EventLoop.Errors (exceptionToLines)
 import           Client.Hook
 import           Client.Hooks
 import           Client.Image
+import           Client.Image.Layout (scrollAmount)
 import           Client.Log
 import           Client.Message
 import           Client.Network.Async

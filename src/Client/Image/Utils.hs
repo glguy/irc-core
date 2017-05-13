@@ -64,4 +64,6 @@ lineWrapIndent w i img
     iw = imageWidth img
 
 leftPad :: Int -> Image -> Image
-leftPad i = pad i 0 0 0
+leftPad w img = charFill defAttr ' ' w 1 <|> img
+-- this needed to be charFill and not pad because pad seems to
+-- use currentAttr instead of defAttr

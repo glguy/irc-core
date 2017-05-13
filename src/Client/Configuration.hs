@@ -19,6 +19,7 @@ module Client.Configuration
   -- * Configuration type
     Configuration(..)
   , ConfigurationFailure(..)
+  , LayoutMode(..)
 
   -- * Lenses
   , configDefaults
@@ -37,6 +38,7 @@ module Client.Configuration
   , configBellOnMention
   , configHideMeta
   , configKeyMap
+  , configLayout
 
   -- * Loading configuration
   , loadConfiguration
@@ -103,7 +105,15 @@ data Configuration = Configuration
   , _configBellOnMention   :: Bool -- ^ notify terminal on mention
   , _configHideMeta        :: Bool -- ^ default setting for hidemeta on new windows
   , _configKeyMap          :: KeyMap -- ^ keyboard bindings
+  , _configLayout          :: LayoutMode -- ^ Default layout on startup
   }
+  deriving Show
+
+data LayoutMode
+  -- | Vertically stack all windows in a single column
+  = OneColumn
+  -- | Vertically stack extra windows in a second column
+  | TwoColumn
   deriving Show
 
 makeLenses ''Configuration
@@ -259,11 +269,17 @@ configurationSpec = sectionsSpec "" $
                                "Initial setting for hiding metadata on new windows"
      bindings               <- sec' [] "key-bindings" (listSpec keyBindingSpec)
                                "Extra key bindings"
+     _configLayout          <- sec' OneColumn "layout" layoutSpec
+                               "Initial setting for window layout"
      return (\_configConfigPath def ->
              let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
              in Configuration{..})
+
+layoutSpec :: ValueSpecs LayoutMode
+layoutSpec = OneColumn <$ atomSpec "one-column"
+         <!> TwoColumn <$ atomSpec "two-column"
 
 keyBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
 keyBindingSpec = actBindingSpec <!> cmdBindingSpec <!> unbindingSpec
