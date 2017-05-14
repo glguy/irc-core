@@ -20,7 +20,7 @@ import qualified Client.Authentication.Ecdsa as Ecdsa
 import           Client.CApi
 import           Client.Commands
 import           Client.Commands.Interpolation
-import           Client.Configuration (configKeyMap, configWindowNames)
+import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames)
 import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Actions
 import           Client.EventLoop.Errors (exceptionToLines)
@@ -396,9 +396,11 @@ doVtyEvent ::
 doVtyEvent vty vtyEvent st =
   case vtyEvent of
     EvKey k modifier ->
-      let keymap   = view (clientConfig . configKeyMap     ) st
-          winnames = view (clientConfig . configWindowNames) st
-          action = keyToAction keymap winnames modifier k
+      let cfg      = view clientConfig st
+          keymap   = view configKeyMap       cfg
+          winnames = view configWindowNames  cfg
+          winmods  = view configJumpModifier cfg
+          action = keyToAction keymap winmods winnames modifier k
       in doAction vty action st
     -- ignore event parameters due to raw TChan use
     EvResize{} -> Just <$> updateTerminalSize vty st

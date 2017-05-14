@@ -180,14 +180,16 @@ keyMapLens mods key f (KeyMap m) =
 
 -- | Lookup the action to perform in response to a particular key event.
 keyToAction ::
-  KeyMap     {- ^ actions      -} ->
-  Text       {- ^ window names -} ->
-  [Modifier] {- ^ key modifier -} ->
-  Key        {- ^ key          -} ->
-  Action     {- ^ action       -}
-keyToAction _ names [MMeta] (KChar c)
-  | Just i <- Text.findIndex (c==) names = ActJump i
-keyToAction m names modifier key =
+  KeyMap     {- ^ actions         -} ->
+  [Modifier] {- ^ jump modifier   -} ->
+  Text       {- ^ window names    -} ->
+  [Modifier] {- ^ actual modifier -} ->
+  Key        {- ^ key             -} ->
+  Action     {- ^ action          -}
+keyToAction _ jumpMods names mods (KChar c)
+  | normalizeModifiers jumpMods == normalizeModifiers mods
+  , Just i <- Text.findIndex (c==) names = ActJump i
+keyToAction m _ _ modifier key =
   case m ^. keyMapLens modifier key of
     Just a -> a
     Nothing | KChar c <- key, null modifier -> ActInsert c

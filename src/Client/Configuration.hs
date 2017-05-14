@@ -39,6 +39,7 @@ module Client.Configuration
   , configHideMeta
   , configKeyMap
   , configLayout
+  , configJumpModifier
 
   -- * Loading configuration
   , loadConfiguration
@@ -106,6 +107,7 @@ data Configuration = Configuration
   , _configHideMeta        :: Bool -- ^ default setting for hidemeta on new windows
   , _configKeyMap          :: KeyMap -- ^ keyboard bindings
   , _configLayout          :: LayoutMode -- ^ Default layout on startup
+  , _configJumpModifier    :: [Modifier] -- ^ Modifier used for jumping windows
   }
   deriving Show
 
@@ -245,7 +247,9 @@ configurationSpec = sectionsSpec "" $
      _configPalette         <- sec' defaultPalette "palette" paletteSpec
                                "Customize the client color choices"
      _configWindowNames     <- sec' defaultWindowNames "window-names" valuesSpec
-                               "Window names to use for quick jumping with ALT key"
+                               "Window names to use for quick jumping with jump-modifier key"
+     _configJumpModifier    <- sec' [MMeta] "jump-modifier" modifierSpec
+                               "Modifier used to jump to a window by name. Defaults to `meta`."
      _configMacros          <- sec' mempty "macros" macroMapSpec
                                "Programmable macro commands"
      _configExtensions      <- sec' [] "extensions" (listSpec stringSpec)
@@ -276,6 +280,14 @@ configurationSpec = sectionsSpec "" $
                  _configServers  = buildServerMap _configDefaults ssUpdates
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
              in Configuration{..})
+
+modifierSpec :: ValueSpecs [Modifier]
+modifierSpec = toList <$> oneOrNonemptySpec modifier1Spec
+  where
+    modifier1Spec = namedSpec "modifier"
+                  $ MMeta <$ atomSpec "meta"
+                <!> MAlt  <$ atomSpec "alt"
+                <!> MCtrl <$ atomSpec "ctrl"
 
 layoutSpec :: ValueSpecs LayoutMode
 layoutSpec = OneColumn <$ atomSpec "one-column"
