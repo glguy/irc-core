@@ -25,8 +25,10 @@ module Client.EventLoop.Actions
 
 import           Graphics.Vty.Input.Events
 import           Config.Schema.Spec
+import           Control.Applicative
 import           Control.Lens
 import           Data.Char (showLitChar)
+import           Data.Functor.Compose
 import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -234,35 +236,31 @@ initialKeyMap = KeyMap $
 
 
 parseKey :: String -> Maybe ([Modifier], Key)
-parseKey "Tab"       = Just ([], KChar '\t')
-parseKey "BackTab"   = Just ([], KBackTab)
-parseKey "Enter"     = Just ([], KEnter)
-parseKey "Home"      = Just ([], KHome)
-parseKey "End"       = Just ([], KEnd)
-parseKey "Esc"       = Just ([], KEsc)
-parseKey "PageUp"    = Just ([], KPageUp)
-parseKey "PageDown"  = Just ([], KPageDown)
-parseKey "Backspace" = Just ([], KBS)
-parseKey "Delete"    = Just ([], KDel)
-parseKey "Left"      = Just ([], KLeft)
-parseKey "Right"     = Just ([], KRight)
-parseKey [c]         = Just ([], KChar c)
-parseKey ('F':xs) =
-  do i <- readMaybe xs
-     Just ([], KFun i)
-parseKey ('C':'-':xs) =
-  do (m,k) <- parseKey xs
-     Just (MCtrl:m, k)
-parseKey ('M':'-':xs) =
-  do (m,k) <- parseKey xs
-     Just (MMeta:m, k)
-parseKey ('A':'-':xs) =
-  do (m,k) <- parseKey xs
-     Just (MAlt:m, k)
-parseKey ('S':'-':xs) =
-  do (m,k) <- parseKey xs
-     Just (MShift:m, k)
-parseKey _ = Nothing
+parseKey = getCompose . go
+  where
+    modifier x   = Compose (Just ([x], ()))
+    liftMaybe mb = Compose ((,)[] <$> mb)
+    go str =
+      case str of
+        "Tab"       -> pure (KChar '\t')
+        "BackTab"   -> pure KBackTab
+        "Enter"     -> pure KEnter
+        "Home"      -> pure KHome
+        "End"       -> pure KEnd
+        "Esc"       -> pure KEsc
+        "PageUp"    -> pure KPageUp
+        "PageDown"  -> pure KPageDown
+        "Backspace" -> pure KBS
+        "Delete"    -> pure KDel
+        "Left"      -> pure KLeft
+        "Right"     -> pure KRight
+        [c]         -> pure (KChar c)
+        'F':xs      -> KFun <$> liftMaybe (readMaybe xs)
+        'C':'-':xs  -> modifier MCtrl  *> go xs
+        'M':'-':xs  -> modifier MMeta  *> go xs
+        'S':'-':xs  -> modifier MShift *> go xs
+        'A':'-':xs  -> modifier MAlt   *> go xs
+        _           -> empty
 
 
 prettyModifierKey :: [Modifier] -> Key -> String
