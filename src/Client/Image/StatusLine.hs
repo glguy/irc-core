@@ -48,7 +48,7 @@ statusLineImage w st =
       [ myNickImage st
       , focusImage st
       , detailImage st
-      , nometaImage st
+      , nometaImage (view clientFocus st) st
       , scrollImage st
       , filterImage st
       , latencyImage st
@@ -81,13 +81,16 @@ transientErrorImage txt =
 -- | The minor status line is used when rendering the @/splits@ and
 -- @/mentions@ views to show the associated window name.
 minorStatusLineImage ::
-  Focus {- ^ window name -} ->
-  Int   {- ^ draw width  -} ->
+  Focus {- ^ window name          -} ->
+  Int   {- ^ draw width           -} ->
+  Bool  {- ^ show hidemeta status -} ->
   ClientState -> Image
-minorStatusLineImage focus w st =
+minorStatusLineImage focus w showHideMeta st =
   content <|> charFill defAttr bar fillSize 1
   where
-    content = infoBubble (focusImageMajor focus st)
+    content = infoBubble (focusImageMajor focus st) <|>
+              if showHideMeta then nometaImage focus st else mempty
+
     fillSize = max 0 (w - imageWidth content)
 
 
@@ -159,14 +162,13 @@ detailImage st
 
 -- | Indicate that the client isn't showing the metadata lines in /normal/
 -- view.
-nometaImage :: ClientState -> Image
-nometaImage st
+nometaImage :: Focus -> ClientState -> Image
+nometaImage focus st
   | metaHidden = infoBubble (string attr "nometa")
   | otherwise  = emptyImage
   where
     pal        = clientPalette st
     attr       = view palLabel pal
-    focus      = view clientFocus st
     metaHidden = orOf (clientWindows . ix focus . winHideMeta) st
 
 -- | Image for little box with active window names:

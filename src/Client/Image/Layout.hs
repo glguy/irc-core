@@ -118,7 +118,7 @@ drawExtra ::
   [Image]     {- ^ image lines     -} ->
   Image       {- ^ rendered window -}
 drawExtra st w h scroll focus lineImages =
-    msgImg <-> minorStatusLineImage focus w st
+    msgImg <-> minorStatusLineImage focus w True st
   where
     (_, msgImg) = messagePane w h scroll lineImages
 

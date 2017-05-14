@@ -54,7 +54,7 @@ addMarkers ::
 addMarkers _ _ [] = []
 addMarkers w !st (!ml : xs)
   = map mlImage (ml:same)
- ++ minorStatusLineImage (mlFocus ml) w st
+ ++ minorStatusLineImage (mlFocus ml) w False st
   : addMarkers w st rest
   where
     isSame ml' = mlFocus ml == mlFocus ml'
