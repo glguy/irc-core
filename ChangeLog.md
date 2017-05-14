@@ -6,6 +6,7 @@
 * Add configuration option to hide metadata by default `hide-metadata`
 * Make keymap configurable under `key-bindings`, add `/keymap` command
 * Add transient error message view
+* Implement two-column split window mode: `/toggle-layout` and F5
 
 ## 2.20.6
 

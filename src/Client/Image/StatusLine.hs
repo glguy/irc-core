@@ -33,6 +33,9 @@ import           Graphics.Vty.Image
 import           Irc.Identifier (Identifier, idText)
 import           Numeric
 
+bar :: Char
+bar = '━'
+
 -- | Renders the status line between messages and the textbox.
 statusLineImage ::
   Int         {- ^ draw width   -} ->
@@ -60,7 +63,7 @@ statusLineImage w st =
 
 
 lineExtend :: Int -> Image -> Image
-lineExtend w img = img <|> charFill defAttr '─' fillSize 1
+lineExtend w img = img <|> charFill defAttr bar fillSize 1
   where fillSize = max 0 (w - imageWidth img)
 
 
@@ -82,7 +85,7 @@ minorStatusLineImage ::
   Int   {- ^ draw width  -} ->
   ClientState -> Image
 minorStatusLineImage focus w st =
-  content <|> charFill defAttr '─' fillSize 1
+  content <|> charFill defAttr bar fillSize 1
   where
     content = infoBubble (focusImageMajor focus st)
     fillSize = max 0 (w - imageWidth content)
@@ -141,7 +144,7 @@ latencyImage st =
 -- | Wrap some text in parentheses to make it suitable for inclusion in the
 -- status line.
 infoBubble :: Image -> Image
-infoBubble img = string defAttr "─(" <|> img <|> string defAttr ")"
+infoBubble img = string defAttr (bar:"(") <|> img <|> string defAttr ")"
 
 
 -- | Indicate that the client is in the /detailed/ view.
@@ -172,7 +175,7 @@ nometaImage st
 activitySummary :: ClientState -> Image
 activitySummary st
   | null indicators = emptyImage
-  | otherwise       = string defAttr "─[" <|>
+  | otherwise       = string defAttr (bar:"[") <|>
                       horizCat indicators <|>
                       string defAttr "]"
   where
@@ -204,7 +207,7 @@ activityBarImages st
     baraux i (focus,w)
       | n == 0 = Nothing -- todo: make configurable
       | otherwise = Just
-                  $ string defAttr "─[" <|>
+                  $ string defAttr (bar:"[") <|>
                     char (view palWindowName pal) i <|>
                     char defAttr              ':' <|>
                     text' (view palLabel pal) focusText <|>
@@ -243,7 +246,7 @@ makeLines w (x:xs) = go x xs
       = go acc' ys
 
     go acc ys = makeLines w ys
-            <-> acc <|> charFill defAttr '─' (max 0 (w - imageWidth acc)) 1
+            <-> acc <|> charFill defAttr bar (max 0 (w - imageWidth acc)) 1
 
 
 myNickImage :: ClientState -> Image

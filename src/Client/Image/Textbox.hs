@@ -48,7 +48,8 @@ textboxImage width st
 
   leftOfCurWidth = myWcswidth ('^':txt)
 
-  croppedImage = cropLeft (imageWidth lineImage - newOffset) lineImage
+  croppedImage = resizeWidth width
+               $ cropLeft (imageWidth lineImage - newOffset) lineImage
 
   cursorAnchor = width * 3 `quot` 4
 
