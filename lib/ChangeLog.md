@@ -1,6 +1,6 @@
 # Revision history for irc-core
 
-## 2.2.1
+## 2.2.1 -- 2017-05-13
 
 * Prettier reply code text
 
