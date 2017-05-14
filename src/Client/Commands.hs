@@ -510,7 +510,8 @@ commandsList =
   , Command
       (pure "splits+")
       (RemainingArg "focuses")
-      "Add windows to the splits list.\n\
+      "Add windows to the splits list. Omit the list of focuses to add the\
+      \ current window.\n\
       \\n\
       \\^Bfocuses\^B: space delimited list of focus names.\n\
       \\n\
@@ -523,7 +524,8 @@ commandsList =
   , Command
       (pure "splits-")
       (RemainingArg "focuses")
-      "Remove windows from the splits list.\n\
+      "Remove windows from the splits list. Omit the list of focuses to\
+      \ remove the current window.\n\
       \\n\
       \\^Bfocuses\^B: space delimited list of focus names.\n\
       \\n\
@@ -1136,17 +1138,27 @@ cmdSplits st str = commandSuccess (setExtraFocus extras st)
     extras = nub (parseFocuses str)
 
 
--- | Implementation of @/splits+@
+-- | Implementation of @/splits+@. When no focuses are provided
+-- the current focus is used instead.
 cmdSplitsAdd :: ClientCommand String
 cmdSplitsAdd st str = commandSuccess (setExtraFocus extras st)
   where
-    extras = nub (parseFocuses str ++ view clientExtraFocus st)
+    extras = nub (args' ++ view clientExtraFocus st)
 
--- | Implementation of @/splits-@
+    args  = parseFocuses str
+    args' = if null args then st ^.. clientFocus
+                         else args
+
+-- | Implementation of @/splits-@. When no focuses are provided
+-- the current focus is used instead.
 cmdSplitsDel :: ClientCommand String
 cmdSplitsDel st str = commandSuccess (setExtraFocus extras st)
   where
-    extras = view clientExtraFocus st \\ parseFocuses str
+    extras = view clientExtraFocus st \\ args'
+
+    args  = parseFocuses str
+    args' = if null args then st ^.. clientFocus
+                         else args
 
 
 tabHelp :: Bool -> ClientCommand String
