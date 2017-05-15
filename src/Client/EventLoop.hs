@@ -485,7 +485,7 @@ doAction vty action st =
                                case resp of
                                  CommandSuccess st1 -> continue st1
                                  CommandFailure st1 -> continue st1
-                                 CommandQuit    st1 -> return Nothing
+                                 CommandQuit    _   -> return Nothing
 
     ActIgnored           -> continue st
 

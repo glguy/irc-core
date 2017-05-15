@@ -17,7 +17,6 @@ module Client.Configuration.Colors
   ) where
 
 import           Config.Schema
-import           Control.Applicative
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Functor.Alt ((<!>))

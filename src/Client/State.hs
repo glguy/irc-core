@@ -488,9 +488,6 @@ recordNetworkMessage msg st = updateTransientError msg
 
     cfg        = view clientConfig st
 
-    handleError = case view msgBody msg of
-                    ErrorBody txt -> set clientErrorMsg (Just txt)
-                    _             -> id
 
 -- | Record window line at the given focus creating the window if necessary
 recordWindowLine ::

@@ -62,11 +62,6 @@ statusLineImage w st =
       transientErrorImage <$> maybeToList (view clientErrorMsg st)
 
 
-lineExtend :: Int -> Image -> Image
-lineExtend w img = img <|> charFill defAttr bar fillSize 1
-  where fillSize = max 0 (w - imageWidth img)
-
-
 -- Generates an error message notification image.
 transientErrorImage ::
   Text  {- ^ @error-message@           -} ->

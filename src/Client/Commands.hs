@@ -132,8 +132,7 @@ commandFailure = return . CommandFailure
 -- | Command failure with an error message printed to client window
 commandFailureMsg :: Text -> ClientState -> IO CommandResult
 commandFailureMsg e st =
-  do now <- getZonedTime
-     return $! CommandFailure $! set clientErrorMsg (Just e) st
+  return $! CommandFailure $! set clientErrorMsg (Just e) st
 
 -- | Interpret the given chat message or command. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message

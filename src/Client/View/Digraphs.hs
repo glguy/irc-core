@@ -13,7 +13,6 @@ module Client.View.Digraphs (digraphLines) where
 
 import           Client.Image.Message (cleanChar)
 import           Client.State
-import           Control.Lens
 import           Data.List
 import           Data.List.Split
 import qualified Data.Text as Text

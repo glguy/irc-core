@@ -11,11 +11,8 @@ This module provides the renderer for the client's UI.
 -}
 module Client.Image (clientPicture) where
 
-import           Client.Configuration (LayoutMode(..))
 import           Client.Image.Layout
 import           Client.State
-import           Client.State.Focus
-import           Client.View
 import           Control.Lens
 import           Graphics.Vty            (Background (..), Cursor (..),
                                           Picture (..))

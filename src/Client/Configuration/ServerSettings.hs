@@ -63,8 +63,7 @@ import           Config.Schema.Spec
 import           Control.Lens
 import           Data.Functor.Alt                    ((<!>))
 import           Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
-import           Data.Maybe (catMaybes, fromMaybe)
+import           Data.Maybe (fromMaybe)
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text

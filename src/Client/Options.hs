@@ -38,7 +38,6 @@ import           Data.Foldable
 import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import           Data.Version
 import           Development.GitRev (gitHash, gitDirty)
 import           System.Console.GetOpt

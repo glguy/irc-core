@@ -40,7 +40,7 @@ exceptionToLines' ex
   | Just err  <- fromException ex = explainHookupError err
 
   -- HsOpenSSL errors
-  | Just err <- fromException ex :: Maybe ConnectionAbruptlyTerminated =
+  | Just _ <- fromException ex :: Maybe ConnectionAbruptlyTerminated =
      "Connection abruptly terminated" :| []
   | Just (ProtocolError e) <- fromException ex =
      ("TLS protocol error: " ++ e) :| []
