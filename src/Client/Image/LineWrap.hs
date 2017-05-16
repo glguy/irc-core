@@ -1,14 +1,14 @@
 {-|
-Module      : Client.Image.Utils
+Module      : Client.Image.LineWrap
 Description : Chat message view
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com
 
-Provides utilities for formatting Vty Images.
+Provides utilities for line wrapping images.
 -}
 
-module Client.Image.Utils (lineWrap, lineWrapChat) where
+module Client.Image.LineWrap (lineWrap, lineWrapChat) where
 
 import           Client.Image.PackedImage
 import           Data.Semigroup

@@ -15,10 +15,10 @@ module Client.View.Messages
   ) where
 
 import           Client.Configuration
+import           Client.Image.LineWrap
 import           Client.Image.Message
 import           Client.Image.PackedImage
 import           Client.Image.Palette
-import           Client.Image.Utils
 import           Client.Message
 import           Client.State
 import           Client.State.Focus
@@ -97,11 +97,23 @@ windowLinesToImages st w hideMeta wwls =
       | hideMeta -> windowLinesToImages st w hideMeta wls
 
       | otherwise ->
-         startMetadata img mbnext who mds palette
-       : windowLinesToImages st w hideMeta wls
+         mkLines w (startMetadata img mbnext who mds palette)
+      ++ windowLinesToImages st w hideMeta wls
 
   where
     palette = clientPalette st
+
+mkLines :: Int -> [Vty.Image] -> [Vty.Image]
+mkLines _ []     = []
+mkLines w (x:xs) = reverse (mkLines1 w x xs)
+
+mkLines1 :: Int -> Vty.Image -> [Vty.Image] -> [Vty.Image]
+mkLines1 _ x []            = [x]
+mkLines1 w x (y:ys)
+  | Vty.imageWidth x' <= w = mkLines1 w x' ys
+  | otherwise              = x : mkLines1 w y ys
+  where
+    x' = x Vty.<|> Vty.char defAttr ' ' Vty.<|> y
 
 ------------------------------------------------------------------------
 
@@ -109,32 +121,33 @@ type MetadataState =
   Identifier                             {- ^ current nick -} ->
   [(Image',Identifier,Maybe Identifier)] {- ^ metadata     -} ->
   Palette                                {- ^ palette      -} ->
-  Vty.Image
+  [Vty.Image]
 
 startMetadata ::
   Image'           {- ^ metadata image           -} ->
   Maybe Identifier {- ^ possible nick transition -} ->
   MetadataState
 startMetadata img mbnext who mds palette =
-  unpackImage (quietIdentifier palette who <> img) Vty.<|>
-  transitionMetadata mbnext who mds palette
+  let acc = unpackImage (quietIdentifier palette who <> img)
+  in transitionMetadata acc mbnext who mds palette
 
 transitionMetadata ::
+  Vty.Image ->
   Maybe Identifier {- ^ possible nick transition -} ->
   MetadataState
-transitionMetadata mbwho who mds palette =
+transitionMetadata acc mbwho who mds palette =
   case mbwho of
-    Nothing   -> continueMetadata who  mds palette
-    Just who' -> unpackImage (quietIdentifier palette who')
-         Vty.<|> continueMetadata who' mds palette
+    Nothing   -> continueMetadata acc who mds palette
+    Just who' ->
+      let acc' = acc Vty.<|> unpackImage (quietIdentifier palette who')
+      in continueMetadata acc' who' mds palette
 
-continueMetadata :: MetadataState
-continueMetadata _ [] _ = mempty
-continueMetadata who1 ((img, who2, mbwho3):mds) palette
-  | who1 == who2 = unpackImage img
-           Vty.<|> transitionMetadata mbwho3 who2 mds palette
-  | otherwise    = Vty.char defAttr ' '
-           Vty.<|> startMetadata img mbwho3 who2 mds palette
+continueMetadata :: Vty.Image -> MetadataState
+continueMetadata acc _ [] _ = [acc]
+continueMetadata acc who1 ((img, who2, mbwho3):mds) palette
+  | who1 == who2 = let acc' = acc Vty.<|> unpackImage img
+                   in transitionMetadata acc' mbwho3 who2 mds palette
+  | otherwise    = acc : startMetadata img mbwho3 who2 mds palette
 
 ------------------------------------------------------------------------
 

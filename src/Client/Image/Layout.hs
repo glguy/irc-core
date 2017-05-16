@@ -14,7 +14,7 @@ import Client.State.Focus
 import Client.Configuration (LayoutMode(..))
 import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
 import Client.Image.Textbox
-import Client.Image.Utils (lineWrap)
+import Client.Image.LineWrap (lineWrap)
 import Client.Image.Palette
 import Client.View
 import Graphics.Vty.Image

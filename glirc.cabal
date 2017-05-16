@@ -85,13 +85,13 @@ library
                        Client.Image
                        Client.Image.Arguments
                        Client.Image.Layout
+                       Client.Image.LineWrap
                        Client.Image.Message
                        Client.Image.MircFormatting
                        Client.Image.PackedImage
                        Client.Image.Palette
                        Client.Image.StatusLine
                        Client.Image.Textbox
-                       Client.Image.Utils
                        Client.Log
                        Client.Message
                        Client.Network.Async
