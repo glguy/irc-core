@@ -19,6 +19,7 @@ module Client.Image.PackedImage
   , string
   , imageWidth
   , splitImage
+  , imageText
   ) where
 
 import           Data.List (findIndex)
@@ -94,3 +95,9 @@ imageWidth = go 0
   where
     go acc EmptyImage'            = acc
     go acc (HorizText' _ _ w _ x) = go (acc + w) x
+
+imageText :: Image' -> L.Text
+imageText = L.fromChunks . go
+  where
+    go EmptyImage' = []
+    go (HorizText' _ t _ _ xs) = t : go xs

@@ -14,6 +14,7 @@ import           Client.Image.PackedImage
 import           Data.Semigroup
 import qualified Graphics.Vty.Image as Vty
 import           Graphics.Vty.Attributes
+import qualified Data.Text.Lazy as L
 
 -- | Given an image, break the image up into chunks of at most the
 -- given width and stack the resulting chunks vertically top-to-bottom.
@@ -40,32 +41,62 @@ terminate n img
   | otherwise               = img Vty.<|> Vty.char defAttr ' '
 
 
--- | Given an image, break the image up into chunks of at most the
--- given width and stack the resulting chunks vertically top-to-bottom.
 lineWrapChat ::
   Int       {- ^ terminal width       -} ->
   Maybe Int {- ^ optional indentation -} ->
   Image'    {- ^ unwrapped image      -} ->
   [Image']  {- ^ wrapped image        -}
-lineWrapChat w mi img
-  | imageWidth img == 0 = []
-  | imageWidth img <= w = [img]
-  | otherwise =
-      case mi of
-        Just i | 2*i <= w ->
-           reverse (map indent (simpleLineWrap (w-i) r)) ++ [l]
-          where indent = (string defAttr (replicate i ' ') <>)
-        _ -> reverse (simpleLineWrap w r) ++ [l]
-  where
-    (l,r) = splitImage w img
+lineWrapChat w (Just i)
+  | 2*i <= w = reverse . addPadding i . wordLineWrap w (w-i)
+lineWrapChat w _  = reverse . wordLineWrap w w
 
-simpleLineWrap ::
-  Int      {- ^ terminal width  -} ->
-  Image'   {- ^ unwrapped image -} ->
-  [Image'] {- ^ wrapped image   -}
-simpleLineWrap w img
-  | iw <= w = [img]
-  | otherwise = l : simpleLineWrap w r
+addPadding :: Int -> [Image'] -> [Image']
+addPadding _ [] = []
+addPadding i (x:xs) = x : map indent xs
+  where indent = (string defAttr (replicate i ' ') <>)
+
+
+wordLineWrap ::
+  Int      {- ^ first line length     -} ->
+  Int      {- ^ secondary line length -} ->
+  Image'   {- ^ image                 -} ->
+  [Image'] {- ^ splits                -}
+wordLineWrap w wNext img
+  | imgW == 0 = []
+  | imgW <= w = [img]
+  | otherwise = l : wordLineWrap wNext wNext (dropSpaces r)
   where
-    iw = imageWidth img
-    (l,r) = splitImage w img
+    imgW = imageWidth img
+    x:xs = splitOptions img
+
+    (l,r) = splitImage width img
+
+    width
+      | x <= w = go x xs
+      | otherwise = w
+
+    go y [] = min y w
+    go y (z:zs)
+      | z-y > wNext = w
+      | z > w = y
+      | otherwise = go z zs
+
+
+-- | List of image widths suitable for breaking the image on
+-- that correspond to word breaks.
+splitOptions :: Image' -> [Int]
+splitOptions
+  = dropWhile (0==)
+  . scanl1 (\x y -> 1 + x + y)
+  . map (Vty.wcswidth . L.unpack)
+  . L.split (' '==)
+  . imageText
+
+
+-- | Drop the leading spaces from an image
+dropSpaces :: Image' -> Image'
+dropSpaces img
+  | n == 0    = img
+  | otherwise = snd (splitImage n img)
+  where
+    n = fromIntegral $ L.length $ L.takeWhile (' '==) $ imageText img
