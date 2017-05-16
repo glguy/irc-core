@@ -499,9 +499,11 @@ commandsList =
       \\^Bfocuses\^B: space delimited list of focus names.\n\
       \\n\
       \Client:  *\n\
-      \Network: \^BNETWORK\^B\n\
+      \Network: \^BNETWORK\^B:\n\
       \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
       \User:    \^BNETWORK\^B:\^BNICK\^B\n\
+      \\n\
+      \If the network part is omitted, the current network will be used\n\
       \\n\
       \Not providing an argument unsplits the current windows.\n"
     $ ClientCommand cmdSplits tabSplits
@@ -517,7 +519,9 @@ commandsList =
       \Client:  *\n\
       \Network: \^BNETWORK\^B\n\
       \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
-      \User:    \^BNETWORK\^B:\^BNICK\^B\n"
+      \User:    \^BNETWORK\^B:\^BNICK\^B\n\
+      \\n\
+      \If the network part is omitted, the current network will be used\n"
     $ ClientCommand cmdSplitsAdd tabSplits
 
   , Command
@@ -531,7 +535,9 @@ commandsList =
       \Client:  *\n\
       \Network: \^BNETWORK\^B\n\
       \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
-      \User:    \^BNETWORK\^B:\^BNICK\^B\n"
+      \User:    \^BNETWORK\^B:\^BNICK\^B\n\
+      \\n\
+      \If the network part is omitted, the current network will be used\n"
     $ ClientCommand cmdSplitsDel tabActiveSplits
 
   , Command
@@ -1088,19 +1094,26 @@ cmdHelp st mb = commandSuccess (changeSubfocus focus st)
 -- all of the currently available windows.
 tabSplits :: Bool -> ClientCommand String
 tabSplits isReversed st rest
+
+  -- If no arguments, populate the current splits
   | all (' '==) rest =
-     do let cmd = unwords ("/splits" : map (Text.unpack . renderFocus) currentExtras)
-            newline = Edit.endLine cmd
-        commandSuccess (set (clientTextBox . Edit.line) newline st)
+     let cmd = unwords $ "/splits"
+                       : map (Text.unpack . renderSplitFocus) currentExtras
 
+         currentExtras = view clientExtraFocus st
+         newline = Edit.endLine cmd
+     in commandSuccess (set (clientTextBox . Edit.line) newline st)
+
+  -- Tab complete the available windows. Accepts either fully qualified
+  -- window names or current network names without the ':'
   | otherwise =
-        simpleTabCompletion plainWordCompleteMode [] completions isReversed st
-  where
-    currentExtras = view clientExtraFocus st
+     let completions = currentNet <> allWindows
+         allWindows  = renderSplitFocus <$> views clientWindows Map.keys st
+         currentNet  = case views clientFocus focusNetwork st of
+                         Just net -> idText <$> channelWindowsOnNetwork net st
+                         Nothing  -> []
+     in simpleTabCompletion plainWordCompleteMode [] completions isReversed st
 
-    completions = map renderFocus
-                $ Map.keys
-                $ view clientWindows st
 
 -- | Tab completion for @/splits-@. This completes only from the list of active
 -- entries in the splits list.
@@ -1108,56 +1121,77 @@ tabActiveSplits :: Bool -> ClientCommand String
 tabActiveSplits isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
-    completions = renderFocus <$> view clientExtraFocus st
+    completions = currentNetSplits <> currentSplits
+    currentSplits = renderSplitFocus <$> view clientExtraFocus st
+    currentNetSplits =
+      [ idText chan
+        | ChannelFocus net chan <- view clientExtraFocus st
+        , views clientFocus focusNetwork st == Just net
+        ]
 
 
--- | Parses a list of entries in the format used by @/splits[+-]@ to specify windows.
-parseFocuses :: String -> [Focus]
-parseFocuses = map parseFocus . words
+withSplitFocuses ::
+  ClientState                   ->
+  String                        ->
+  ([Focus] -> IO CommandResult) ->
+  IO CommandResult
+withSplitFocuses st str k =
+  case mb of
+    Nothing   -> commandFailureMsg "unable to parse arguments" st
+    Just args -> k args
+  where
+    mb = traverse
+           (parseSplitFocus (views clientFocus focusNetwork st))
+           (words str)
 
--- | Parses a single entry in the format used by @/splits[+-]@ to specify windows.
-parseFocus :: String -> Focus
-parseFocus x =
+-- | Parses a single entry in the format used by @/splits[+-]@ to specify
+-- windows.
+parseSplitFocus :: Maybe Text -> String -> Maybe Focus
+parseSplitFocus mbNet x =
   case break (==':') x of
-    ("*","")     -> Unfocused
-    (net,"")     -> NetworkFocus (Text.pack net)
-    (net,_:chan) -> ChannelFocus (Text.pack net) (mkId (Text.pack chan))
+    ("*","")     -> Just Unfocused
+    (net,_:"")   -> Just (NetworkFocus (Text.pack net))
+    (net,_:chan) -> Just (ChannelFocus (Text.pack net) (mkId (Text.pack chan)))
+    (chan,"") -> do net <- mbNet
+                    Just (ChannelFocus net (mkId (Text.pack chan)))
 
 -- | Render a entry from splits back to the textual format.
-renderFocus :: Focus -> Text
-renderFocus Unfocused          = "*"
-renderFocus (NetworkFocus x)   = x
-renderFocus (ChannelFocus x y) = x <> ":" <> idText y
+renderSplitFocus :: Focus -> Text
+renderSplitFocus Unfocused          = "*"
+renderSplitFocus (NetworkFocus x)   = x <> ":"
+renderSplitFocus (ChannelFocus x y) = x <> ":" <> idText y
 
 
 -- | Implementation of @/splits@
 cmdSplits :: ClientCommand String
-cmdSplits st str = commandSuccess (setExtraFocus extras st)
-  where
-    extras = nub (parseFocuses str)
+cmdSplits st str =
+  withSplitFocuses st str $ \args ->
+    commandSuccess (setExtraFocus (nub args) st)
 
 
 -- | Implementation of @/splits+@. When no focuses are provided
 -- the current focus is used instead.
 cmdSplitsAdd :: ClientCommand String
-cmdSplitsAdd st str = commandSuccess (setExtraFocus extras st)
-  where
-    extras = nub (args' ++ view clientExtraFocus st)
+cmdSplitsAdd st str =
+  withSplitFocuses st str $ \args ->
+    let args'
+          | null args = st ^.. clientFocus
+          | otherwise = args
+        extras = nub (args' ++ view clientExtraFocus st)
 
-    args  = parseFocuses str
-    args' = if null args then st ^.. clientFocus
-                         else args
+    in commandSuccess (setExtraFocus extras st)
 
 -- | Implementation of @/splits-@. When no focuses are provided
 -- the current focus is used instead.
 cmdSplitsDel :: ClientCommand String
-cmdSplitsDel st str = commandSuccess (setExtraFocus extras st)
-  where
-    extras = view clientExtraFocus st \\ args'
+cmdSplitsDel st str =
+  withSplitFocuses st str $ \args ->
+    let args'
+          | null args = st ^.. clientFocus
+          | otherwise = args
+        extras = view clientExtraFocus st \\ args'
 
-    args  = parseFocuses str
-    args' = if null args then st ^.. clientFocus
-                         else args
+    in commandSuccess (setExtraFocus extras st)
 
 
 tabHelp :: Bool -> ClientCommand String
