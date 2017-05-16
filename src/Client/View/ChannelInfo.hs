@@ -18,6 +18,7 @@ module Client.View.ChannelInfo
 
 import           Client.Image.Message
 import           Client.Image.MircFormatting
+import           Client.Image.PackedImage (unpackImage)
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
@@ -55,7 +56,8 @@ channelInfoImages' pal myNicks !channel
   where
     label = text' (view palLabel pal)
 
-    topicLine = label "Topic: " <|> parseIrcText (view chanTopic channel)
+    topicLine = label "Topic: " <|>
+                unpackImage (parseIrcText (view chanTopic channel))
 
 
     utcTimeImage = string defAttr . formatTime defaultTimeLocale "%F %T"
@@ -65,7 +67,9 @@ channelInfoImages' pal myNicks !channel
           Nothing -> []
           Just !prov ->
             [ label "Topic set by: " <|>
-                coloredUserInfo pal DetailedRender myNicks (view topicAuthor prov)
+                unpackImage
+                  (coloredUserInfo
+                    pal DetailedRender myNicks (view topicAuthor prov))
             , label "Topic set on: " <|> utcTimeImage (view topicTime prov)
             ]
 
@@ -77,5 +81,5 @@ channelInfoImages' pal myNicks !channel
     urlLines =
         case view chanUrl channel of
           Nothing -> []
-          Just url -> [ label "Channel URL: " <|> parseIrcText url ]
+          Just url -> [ label "Channel URL: " <|> unpackImage (parseIrcText url) ]
 

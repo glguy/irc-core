@@ -54,6 +54,7 @@ executable glirc2
   build-depends:       base, glirc, lens, text, vty
 
 library
+  ghc-options: -Wall
   hs-source-dirs:      src
   include-dirs:        include
   includes:            include/glirc-api.h

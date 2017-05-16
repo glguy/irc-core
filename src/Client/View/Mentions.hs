@@ -14,6 +14,7 @@ module Client.View.Mentions
   ( mentionsViewLines
   ) where
 
+import           Client.Image.PackedImage (Image', unpackImage)
 import           Client.Image.StatusLine
 import           Client.State
 import           Client.State.Focus
@@ -43,7 +44,7 @@ data MentionLine = MentionLine
   { mlTimestamp  :: UTCTime
   , mlWindowName :: Char
   , mlFocus      :: Focus
-  , mlImage      :: Image
+  , mlImage      :: Image'
   }
 
 addMarkers ::
@@ -53,7 +54,7 @@ addMarkers ::
   [Image]       {- ^ mention images and channel labels -}
 addMarkers _ _ [] = []
 addMarkers w !st (!ml : xs)
-  = map mlImage (ml:same)
+  = map (unpackImage . mlImage) (ml:same)
  ++ minorStatusLineImage (mlFocus ml) w False st
   : addMarkers w st rest
   where

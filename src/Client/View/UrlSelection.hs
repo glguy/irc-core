@@ -15,6 +15,7 @@ module Client.View.UrlSelection
 
 import           Client.Configuration
 import           Client.Image.Message
+import           Client.Image.PackedImage (unpackImage)
 import           Client.Image.Palette
 import           Client.Message
 import           Client.State
@@ -84,8 +85,9 @@ draw ::
   (Maybe Identifier, Text)  {- ^ sender and url text       -} ->
   Image                     {- ^ rendered line             -}
 draw me pal padding selected i (who,url) =
-  rightPad NormalRender padding
-    (foldMap (coloredIdentifier pal NormalIdentifier me) who) <|>
+  unpackImage
+   (rightPad NormalRender padding
+    (foldMap (coloredIdentifier pal NormalIdentifier me) who)) <|>
   string defAttr ": " <|>
   string attr (shows i ". ") <|>
   text' attr (cleanText url)

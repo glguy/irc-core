@@ -144,7 +144,7 @@ messagePane w h scroll images = (overscroll, img)
 
     assemble acc _ | imageHeight acc >= vh = cropTop vh acc
     assemble acc [] = acc
-    assemble acc (x:xs) = assemble (lineWrap w Nothing x <-> acc) xs
+    assemble acc (x:xs) = assemble (lineWrap w x <-> acc) xs
 
 
 splitHeights ::

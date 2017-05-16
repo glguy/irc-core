@@ -25,7 +25,7 @@ import Control.Monad
 import Control.Applicative hiding (empty)
 
 import           Data.HashMap.Strict (lookup,insertWith,HashMap,empty,unionWith,fromList,toList)
-import           Data.Monoid
+import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Maybe
@@ -41,6 +41,9 @@ data Recognizer a
 instance Monoid (Recognizer a) where
   mempty = Branch "" Nothing empty
   mappend = both
+
+instance Semigroup (Recognizer a) where
+  (<>) = both
 
 -- | Possible results of recognizing text.
 data Recognition a

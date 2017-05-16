@@ -11,40 +11,31 @@ This module provides a more memory efficient way to store images.
 -}
 module Client.Image.PackedImage
   ( Image'
-  , _Image'
+  , unpackImage
 
   -- * Packed image construction
   , char
   , text'
   , string
+  , imageWidth
+  , splitImage
   ) where
 
-import           Control.Lens (Iso', iso)
+import           Data.List (findIndex)
 import qualified Data.Text as S
 import qualified Data.Text.Lazy as L
 import           Data.Semigroup
+import           Data.String
 import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image ((<|>), wcswidth, wcwidth)
 import           Graphics.Vty.Image.Internal (Image(..))
 
 
--- | Isomorphism between packed images and normal images.
-_Image' :: Iso' Image' Image
-_Image' = iso unpackImage packImage
-{-# INLINE _Image' #-}
-
-
 unpackImage :: Image' -> Image
-unpackImage EmptyImage'            = EmptyImage
-unpackImage (HorizText' a b c d e) = HorizText a (L.fromStrict b) c d <|> unpackImage e
-
-packImage :: Image -> Image'
-packImage = flip go mempty
-  where
-    go EmptyImage          = id
-    go (HorizText a b c d) = mappend (HorizText' a (L.toStrict b) c d EmptyImage')
-    go (HorizJoin l r _ _) = go l . go r
-    go _                   = mappend (text' (withForeColor defAttr red) "PANIC: packImage incomplete")
+unpackImage i =
+  case i of
+    EmptyImage'          -> EmptyImage
+    HorizText' a b c d e -> HorizText a (L.fromStrict b) c d <|> unpackImage e
 
 
 -- | Packed, strict version of 'Image' used for long-term storage of images.
@@ -70,12 +61,36 @@ instance Semigroup Image' where
   EmptyImage'          <> y = y
   HorizText' a b c d e <> y = HorizText' a b c d (e <> y)
 
+instance IsString Image' where fromString = string defAttr
+
 text' :: Attr -> S.Text -> Image'
-text' a s = HorizText' a s (wcswidth (S.unpack s)) (S.length s) EmptyImage'
+text' a s
+  | S.null s  = EmptyImage'
+  | otherwise = HorizText' a s (wcswidth (S.unpack s)) (S.length s) EmptyImage'
 
 char :: Attr -> Char -> Image'
 char a c = HorizText' a (S.singleton c) (wcwidth c) 1 EmptyImage'
 
 string :: Attr -> String -> Image'
-string a s = HorizText' a t (wcswidth s) (S.length t) EmptyImage'
+string a s
+  | null s    = EmptyImage'
+  | otherwise = HorizText' a t (wcswidth s) (S.length t) EmptyImage'
   where t = S.pack s
+
+splitImage :: Int {- ^ image width -} -> Image' -> (Image',Image')
+splitImage _ EmptyImage' = (EmptyImage', EmptyImage')
+splitImage w (HorizText' a t w' l rest)
+  | w >= w' = case splitImage (w-w') rest of
+                (x,y) -> (HorizText' a t w' l x, y)
+  | otherwise = (text' a (S.take i t), text' a (S.drop i t) <> rest)
+  where
+    ws = scanl1 (+) (map wcwidth (S.unpack t))
+    i  = case findIndex (> w) ws of
+           Nothing -> 0
+           Just ix -> ix
+
+imageWidth :: Image' -> Int
+imageWidth = go 0
+  where
+    go acc EmptyImage'            = acc
+    go acc (HorizText' _ _ w _ x) = go (acc + w) x

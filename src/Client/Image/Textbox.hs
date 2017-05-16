@@ -22,21 +22,22 @@ import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
 import           Client.Image.Arguments
 import           Client.Image.MircFormatting
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
 import qualified Client.State.EditBox as Edit
 import           Control.Lens
 import           Data.Char
 import           Data.List
-import           Data.Monoid
+import           Data.Semigroup
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
+import qualified Graphics.Vty.Image as Vty
 
 -- | Compute the UI image for the text input box. This computes
 -- the logical cursor position on the screen to compensate for
 -- VTY's cursor placement behavior.
-textboxImage :: Int -> ClientState -> (Int, Int, Image) -- ^ cursor column, new offset, image
+textboxImage :: Int -> ClientState -> (Int, Int, Vty.Image) -- ^ cursor column, new offset, image
 textboxImage width st
   = (newPos, newOffset, croppedImage)
   where
@@ -44,12 +45,12 @@ textboxImage width st
   (txt, content) =
      views (clientTextBox . Edit.content) (renderContent macros pal) st
 
-  lineImage = beginning <|> content <|> ending
+  lineImage = unpackImage (beginning <> content <> ending)
 
   leftOfCurWidth = myWcswidth ('^':txt)
 
-  croppedImage = resizeWidth width
-               $ cropLeft (imageWidth lineImage - newOffset) lineImage
+  croppedImage = Vty.resizeWidth width
+               $ Vty.cropLeft (Vty.imageWidth lineImage - newOffset) lineImage
 
   cursorAnchor = width * 3 `quot` 4
 
@@ -76,9 +77,9 @@ textboxImage width st
 -- the logical cursor position of the cropped version of the text box.
 renderContent ::
   Recognizer MacroSpec {- ^ macro completions                     -} ->
-  Palette         {- ^ palette                               -} ->
-  Edit.Content    {- ^ content                               -} ->
-  (String, Image) {- ^ plain text rendering, image rendering -}
+  Palette              {- ^ palette                               -} ->
+  Edit.Content         {- ^ content                               -} ->
+  (String, Image')     {- ^ plain text rendering, image rendering -}
 renderContent macros pal c = (txt, wholeImg)
   where
   as  = reverse (view Edit.above c)
@@ -91,7 +92,7 @@ renderContent macros pal c = (txt, wholeImg)
   -- ["one","two"] "three" --> "two one three"
   txt = foldl (\acc x -> x ++ ' ' : acc) leftCur as
 
-  wholeImg = horizCat
+  wholeImg = mconcat
            $ intersperse (plainText "\n")
            $ map renderOtherLine as
           ++ renderLine macros pal curTxt
@@ -103,7 +104,7 @@ renderContent macros pal c = (txt, wholeImg)
 myWcwidth :: Char -> Int
 myWcwidth x
   | isControl x = 1
-  | otherwise   = wcwidth x
+  | otherwise   = Vty.wcwidth x
 
 -- | Version of 'wcswidth' that accounts for how control characters are
 -- rendered
@@ -112,40 +113,39 @@ myWcswidth = sum . map myWcwidth
 
 
 -- | Render an unfocused line
-renderOtherLine :: String -> Image
+renderOtherLine :: String -> Image'
 renderOtherLine = parseIrcTextExplicit . Text.pack
 
 -- | Render the active text box line using command highlighting and
 -- placeholders, and WYSIWYG mIRC formatting control characters.
-renderLine :: Recognizer MacroSpec -> Palette -> String -> Image
-renderLine macros pal ('/':xs)
-  = char defAttr '/' <|> string attr cmd <|> continue rest
- where
- specAttr spec =
-   case parseArguments spec rest of
-     Nothing -> view palCommand      pal
-     Just{}  -> view palCommandReady pal
+renderLine :: Recognizer MacroSpec -> Palette -> String -> Image'
+renderLine macros pal ('/':xs) =
+  char defAttr '/' <> string attr cmd <> continue rest
+  where
+    specAttr spec =
+      case parseArguments spec rest of
+        Nothing -> view palCommand      pal
+        Just{}  -> view palCommandReady pal
 
- (cmd, rest) = break isSpace xs
- allCommands = (Left <$> macros) <> (Right <$> commands)
- (attr, continue)
-   = case recognize (Text.pack cmd) allCommands of
-       Exact (Right Command{cmdArgumentSpec = spec}) ->
-         ( specAttr spec
-         , argumentsImage pal spec
-         )
-       Exact (Left (MacroSpec spec)) ->
-         ( specAttr spec
-         , argumentsImage pal spec
-         )
-       Prefix _ ->
-         ( view palCommandPrefix pal
-         , renderOtherLine
-         )
-       Invalid ->
-         ( view palCommandError pal
-         , renderOtherLine
-         )
+    (cmd, rest) = break isSpace xs
+    allCommands = (Left <$> macros) <> (Right <$> commands)
+    (attr, continue)
+      = case recognize (Text.pack cmd) allCommands of
+          Exact (Right Command{cmdArgumentSpec = spec}) ->
+            ( specAttr spec
+            , argumentsImage pal spec
+            )
+          Exact (Left (MacroSpec spec)) ->
+            ( specAttr spec
+            , argumentsImage pal spec
+            )
+          Prefix _ ->
+            ( view palCommandPrefix pal
+            , renderOtherLine
+            )
+          Invalid ->
+            ( view palCommandError pal
+            , renderOtherLine
+            )
 
 renderLine _ _ xs = parseIrcTextExplicit (Text.pack xs)
-

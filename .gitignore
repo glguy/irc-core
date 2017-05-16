@@ -35,3 +35,4 @@ stack.yaml
 tags
 wiki
 wip
+.ghc.environment.*

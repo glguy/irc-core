@@ -26,6 +26,7 @@ module Client.Image.Message
   ) where
 
 import           Client.Image.MircFormatting
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Message
 import           Control.Lens
@@ -34,12 +35,12 @@ import           Data.Hashable (hash)
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.List
+import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
 import qualified Data.Vector as Vector
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
 import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
@@ -73,8 +74,8 @@ defaultRenderParams = MessageRendererParams
 msgImage ::
   RenderMode ->
   ZonedTime {- ^ time of message -} ->
-  MessageRendererParams -> MessageBody -> Image
-msgImage rm when params body = horizCat
+  MessageRendererParams -> MessageBody -> Image'
+msgImage rm when params body = mconcat
   [ renderTime rm (rendPalette params) when
   , statusMsgImage (rendStatusMsg params)
   , bodyImage rm params body
@@ -93,8 +94,8 @@ cleanText = Text.map cleanChar
 errorImage ::
   MessageRendererParams ->
   Text {- ^ error message -} ->
-  Image
-errorImage params txt = horizCat
+  Image'
+errorImage params txt = mconcat
   [ text' (view palError (rendPalette params)) "error "
   , text' defAttr (cleanText txt)
   ]
@@ -102,23 +103,23 @@ errorImage params txt = horizCat
 normalImage ::
   MessageRendererParams ->
   Text {- ^ message -} ->
-  Image
-normalImage params txt = horizCat
+  Image'
+normalImage params txt = mconcat
   [ text' (view palLabel (rendPalette params)) "client "
   , text' defAttr (cleanText txt)
   ]
 
 -- | Render the given time according to the current mode and palette.
-renderTime :: RenderMode -> Palette -> ZonedTime -> Image
+renderTime :: RenderMode -> Palette -> ZonedTime -> Image'
 renderTime DetailedRender = datetimeImage
 renderTime NormalRender   = timeImage
 
 -- | Render the sigils for a restricted message.
-statusMsgImage :: [Char] {- ^ sigils -} -> Image
+statusMsgImage :: [Char] {- ^ sigils -} -> Image'
 statusMsgImage modes
-  | null modes = emptyImage
-  | otherwise  = string defAttr "(" <|>
-                 string statusMsgColor modes <|>
+  | null modes = mempty
+  | otherwise  = string defAttr "(" <>
+                 string statusMsgColor modes <>
                  string defAttr ") "
   where
     statusMsgColor = withForeColor defAttr red
@@ -128,7 +129,7 @@ statusMsgImage modes
 bodyImage ::
   RenderMode ->
   MessageRendererParams ->
-  MessageBody -> Image
+  MessageBody -> Image'
 bodyImage rm params body =
   case body of
     IrcBody    irc -> ircLineImage rm params irc
@@ -140,7 +141,7 @@ bodyImage rm params body =
 -- @
 -- 23:15
 -- @
-timeImage :: Palette -> ZonedTime -> Image
+timeImage :: Palette -> ZonedTime -> Image'
 timeImage palette
   = string (view palTime palette)
   . formatTime defaultTimeLocale "%R "
@@ -150,7 +151,7 @@ timeImage palette
 -- @
 -- 2016-07-24 23:15:10
 -- @
-datetimeImage :: Palette -> ZonedTime -> Image
+datetimeImage :: Palette -> ZonedTime -> Image'
 datetimeImage palette
   = string (view palTime palette)
   . formatTime defaultTimeLocale "%F %T "
@@ -162,10 +163,10 @@ data RenderMode
 
 -- | Optionally insert padding on the right of an 'Image' until it has
 -- the minimum width.
-rightPad :: RenderMode -> Maybe Integer -> Image -> Image
+rightPad :: RenderMode -> Maybe Integer -> Image' -> Image'
 rightPad NormalRender (Just minWidth) i =
   let w = max 0 (fromIntegral minWidth - imageWidth i)
-  in i <|> string defAttr (replicate w ' ')
+  in i <> string defAttr (replicate w ' ')
 rightPad _ _ i = i
 
 -- | Render a chat message given a rendering mode, the sigils of the user
@@ -173,7 +174,7 @@ rightPad _ _ i = i
 ircLineImage ::
   RenderMode ->
   MessageRendererParams ->
-  IrcMsg -> Image
+  IrcMsg -> Image'
 ircLineImage rm !rp body =
   let quietAttr = view palMeta pal
       pal     = rendPalette rp
@@ -182,132 +183,132 @@ ircLineImage rm !rp body =
       nicks   = rendNicks rp
       detail img =
         case rm of
-          NormalRender -> emptyImage
+          NormalRender   -> mempty
           DetailedRender -> img
   in
   case body of
     Nick old new ->
-      detail (string quietAttr "nick ") <|>
-      string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks old <|>
-      string defAttr " is now known as " <|>
+      detail (string quietAttr "nick ") <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks old <>
+      string defAttr " is now known as " <>
       coloredIdentifier pal NormalIdentifier myNicks new
 
     Join nick _chan ->
-      string quietAttr "join " <|>
+      string quietAttr "join " <>
       coloredUserInfo pal rm myNicks nick
 
     Part nick _chan mbreason ->
-      string quietAttr "part " <|>
-      coloredUserInfo pal rm myNicks nick <|>
-      foldMap (\reason -> string quietAttr " (" <|>
-                          parseIrcText reason <|>
+      string quietAttr "part " <>
+      coloredUserInfo pal rm myNicks nick <>
+      foldMap (\reason -> string quietAttr " (" <>
+                          parseIrcText reason <>
                           string quietAttr ")") mbreason
 
     Quit nick mbreason ->
-      string quietAttr "quit "   <|>
-      coloredUserInfo pal rm myNicks nick   <|>
-      foldMap (\reason -> string quietAttr " (" <|>
-                          parseIrcText reason <|>
+      string quietAttr "quit "   <>
+      coloredUserInfo pal rm myNicks nick   <>
+      foldMap (\reason -> string quietAttr " (" <>
+                          parseIrcText reason <>
                           string quietAttr ")") mbreason
 
     Kick kicker _channel kickee reason ->
-      detail (string quietAttr "kick ") <|>
-      string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks kicker <|>
-      string defAttr " kicked " <|>
-      coloredIdentifier pal NormalIdentifier myNicks kickee <|>
-      string defAttr ": " <|>
+      detail (string quietAttr "kick ") <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks kicker <>
+      string defAttr " kicked " <>
+      coloredIdentifier pal NormalIdentifier myNicks kickee <>
+      string defAttr ": " <>
       parseIrcText reason
 
     Topic src _dst txt ->
-      detail (string quietAttr "tpic ") <|>
-      coloredUserInfo pal rm myNicks src <|>
-      string defAttr " changed the topic to: " <|>
+      detail (string quietAttr "tpic ") <>
+      coloredUserInfo pal rm myNicks src <>
+      string defAttr " changed the topic to: " <>
       parseIrcText txt
 
     Notice src _dst txt ->
-      detail (string quietAttr "note ") <|>
+      detail (string quietAttr "note ") <>
       rightPad rm (rendNickPadding rp)
-        (string (view palSigil pal) sigils <|>
-         coloredUserInfo pal rm myNicks src) <|>
-      string (withForeColor defAttr red) ": " <|>
+        (string (view palSigil pal) sigils <>
+         coloredUserInfo pal rm myNicks src) <>
+      string (withForeColor defAttr red) ": " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Privmsg src _dst txt ->
-      detail (string quietAttr "chat ") <|>
+      detail (string quietAttr "chat ") <>
       rightPad rm (rendNickPadding rp)
-        (string (view palSigil pal) sigils <|>
-         coloredUserInfo pal rm myNicks src) <|>
-      string defAttr ": " <|>
+        (string (view palSigil pal) sigils <>
+         coloredUserInfo pal rm myNicks src) <>
+      string defAttr ": " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Ctcp src _dst "ACTION" txt ->
-      detail (string quietAttr "actp ") <|>
-      string (withForeColor defAttr blue) "* " <|>
-      string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks src <|>
-      string defAttr " " <|>
+      detail (string quietAttr "actp ") <>
+      string (withForeColor defAttr blue) "* " <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src <>
+      string defAttr " " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     CtcpNotice src _dst "ACTION" txt ->
-      detail (string quietAttr "actn ") <|>
-      string (withForeColor defAttr red) "* " <|>
-      string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks src <|>
-      string defAttr " " <|>
+      detail (string quietAttr "actn ") <>
+      string (withForeColor defAttr red) "* " <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src <>
+      string defAttr " " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Ctcp src _dst cmd txt ->
-      detail (string quietAttr "ctcp ") <|>
-      string (withForeColor defAttr blue) "! " <|>
-      string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks src <|>
-      string defAttr " " <|>
-      parseIrcText cmd <|>
-      separatorImage <|>
+      detail (string quietAttr "ctcp ") <>
+      string (withForeColor defAttr blue) "! " <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src <>
+      string defAttr " " <>
+      parseIrcText cmd <>
+      separatorImage <>
       parseIrcText txt
 
     CtcpNotice src _dst cmd txt ->
-      detail (string quietAttr "ctcp ") <|>
-      string (withForeColor defAttr red) "! " <|>
-      string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks src <|>
-      string defAttr " " <|>
-      parseIrcText cmd <|>
-      separatorImage <|>
+      detail (string quietAttr "ctcp ") <>
+      string (withForeColor defAttr red) "! " <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src <>
+      string defAttr " " <>
+      parseIrcText cmd <>
+      separatorImage <>
       parseIrcText txt
 
     Ping params ->
-      string defAttr "PING " <|> separatedParams params
+      string defAttr "PING " <> separatedParams params
 
     Pong params ->
-      string defAttr "PONG " <|> separatedParams params
+      string defAttr "PONG " <> separatedParams params
 
     Error reason ->
-      string (view palError pal) "ERROR " <|>
+      string (view palError pal) "ERROR " <>
       parseIrcText reason
 
     Reply code params ->
       renderReplyCode rm rp code params
 
     UnknownMsg irc ->
-      maybe emptyImage (\ui -> coloredUserInfo pal rm myNicks ui <|> char defAttr ' ')
-        (view msgPrefix irc) <|>
-      text' defAttr (view msgCommand irc) <|>
-      char defAttr ' ' <|>
+      foldMap (\ui -> coloredUserInfo pal rm myNicks ui <> char defAttr ' ')
+        (view msgPrefix irc) <>
+      text' defAttr (view msgCommand irc) <>
+      char defAttr ' ' <>
       separatedParams (view msgParams irc)
 
     Cap cmd args ->
-      text' (withForeColor defAttr magenta) (renderCapCmd cmd) <|>
-      text' defAttr ": " <|>
+      text' (withForeColor defAttr magenta) (renderCapCmd cmd) <>
+      text' defAttr ": " <>
       separatedParams args
 
     Mode nick _chan params ->
-      detail (string quietAttr "mode ") <|>
-      string (view palSigil pal) sigils <|>
-      coloredUserInfo pal rm myNicks nick <|>
-      string defAttr " set mode: " <|>
+      detail (string quietAttr "mode ") <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks nick <>
+      string defAttr " set mode: " <>
       ircWords params
 
     Authenticate{} -> string defAttr "AUTHENTICATE ***"
@@ -325,34 +326,34 @@ renderCapCmd cmd =
     CapEnd  -> "caps finished" -- server shouldn't send this
     CapReq  -> "caps requested" -- server shouldn't send this
 
-separatorImage :: Image
+separatorImage :: Image'
 separatorImage = char (withForeColor defAttr blue) '·'
 
 -- | Process list of 'Text' as individual IRC formatted words
 -- separated by a special separator to distinguish parameters
 -- from words within parameters.
-separatedParams :: [Text] -> Image
-separatedParams = horizCat . intersperse separatorImage . map parseIrcText
+separatedParams :: [Text] -> Image'
+separatedParams = mconcat . intersperse separatorImage . map parseIrcText
 
 -- | Process list of 'Text' as individual IRC formatted words
-ircWords :: [Text] -> Image
-ircWords = horizCat . intersperse (char defAttr ' ') . map parseIrcText
+ircWords :: [Text] -> Image'
+ircWords = mconcat . intersperse (char defAttr ' ') . map parseIrcText
 
-renderReplyCode :: RenderMode -> MessageRendererParams -> ReplyCode -> [Text] -> Image
+renderReplyCode :: RenderMode -> MessageRendererParams -> ReplyCode -> [Text] -> Image'
 renderReplyCode rm rp code@(ReplyCode w) params =
   case rm of
-    DetailedRender -> string attr (show w) <|> rawParamsImage
+    DetailedRender -> string attr (show w) <> rawParamsImage
     NormalRender   ->
       rightPad rm (rendNickPadding rp)
-        (text' attr (replyCodeText info)) <|>
-      char defAttr ':' <|>
+        (text' attr (replyCodeText info)) <>
+      char defAttr ':' <>
 
       case code of
         RPL_WHOISIDLE -> whoisIdleParamsImage
         _             -> rawParamsImage
   where
     rawParamsImage =
-      char defAttr ' ' <|>
+      char defAttr ' ' <>
       separatedParams params'
 
     params' = case rm of
@@ -372,11 +373,11 @@ renderReplyCode rm rp code@(ReplyCode w) params =
     whoisIdleParamsImage =
       case params' of
         [name, idle, signon, _txt] ->
-          char defAttr ' ' <|>
-          text' defAttr name <|>
-          text' defAttr " idle: " <|>
-          string defAttr (prettySeconds (Text.unpack idle)) <|>
-          text' defAttr " sign-on: " <|>
+          char defAttr ' ' <>
+          text' defAttr name <>
+          text' defAttr " idle: " <>
+          string defAttr (prettySeconds (Text.unpack idle)) <>
+          text' defAttr " sign-on: " <>
           string defAttr (prettyUnixTime (Text.unpack signon))
 
         _ -> rawParamsImage
@@ -413,7 +414,7 @@ coloredIdentifier ::
   IdentifierColorMode {- ^ draw mode          -} ->
   HashSet Identifier  {- ^ my nicknames       -} ->
   Identifier          {- ^ identifier to draw -} ->
-  Image
+  Image'
 coloredIdentifier palette icm myNicks ident =
   text' color (idText ident)
   where
@@ -436,11 +437,11 @@ coloredUserInfo ::
   RenderMode         {- ^ mode            -} ->
   HashSet Identifier {- ^ my nicks        -} ->
   UserInfo           {- ^ userinfo to draw-} ->
-  Image
+  Image'
 coloredUserInfo palette NormalRender myNicks ui =
   coloredIdentifier palette NormalIdentifier myNicks (userNick ui)
 coloredUserInfo palette DetailedRender myNicks !ui =
-  horizCat
+  mconcat
     [ coloredIdentifier palette NormalIdentifier myNicks (userNick ui)
     , aux '!' (userName ui)
     , aux '@' (userHost ui)
@@ -448,11 +449,11 @@ coloredUserInfo palette DetailedRender myNicks !ui =
   where
     quietAttr = view palMeta palette
     aux x xs
-      | Text.null xs = emptyImage
-      | otherwise    = char quietAttr x <|> text' quietAttr xs
+      | Text.null xs = mempty
+      | otherwise    = char quietAttr x <> text' quietAttr xs
 
 -- | Render an identifier without using colors. This is useful for metadata.
-quietIdentifier :: Palette -> Identifier -> Image
+quietIdentifier :: Palette -> Identifier -> Image'
 quietIdentifier palette ident =
   text' (view palMeta palette) (idText ident)
 
@@ -464,7 +465,7 @@ parseIrcTextWithNicks ::
   Palette ->
   HashSet Identifier {- ^ my nicks    -} ->
   HashSet Identifier {- ^ other nicks -} ->
-  Text -> Image
+  Text -> Image'
 parseIrcTextWithNicks palette myNicks nicks txt
   | Text.any isControl txt = parseIrcText txt
   | otherwise              = highlightNicks palette myNicks nicks txt
@@ -475,8 +476,8 @@ highlightNicks ::
   Palette ->
   HashSet Identifier {- ^ my nicks    -} ->
   HashSet Identifier {- ^ other nicks -} ->
-  Text -> Image
-highlightNicks palette myNicks nicks txt = horizCat (highlight1 <$> txtParts)
+  Text -> Image'
+highlightNicks palette myNicks nicks txt = mconcat (highlight1 <$> txtParts)
   where
     txtParts = nickSplit txt
     allNicks = HashSet.union myNicks nicks
@@ -488,7 +489,7 @@ highlightNicks palette myNicks nicks txt = horizCat (highlight1 <$> txtParts)
 
 -- | Returns image and identifier to be used when collapsing metadata
 -- messages.
-metadataImg :: IrcSummary -> Maybe (Image, Identifier, Maybe Identifier)
+metadataImg :: IrcSummary -> Maybe (Image', Identifier, Maybe Identifier)
 metadataImg msg =
   case msg of
     QuitSummary who     -> Just (char (withForeColor defAttr red   ) 'x', who, Nothing)
@@ -499,5 +500,5 @@ metadataImg msg =
     _                   -> Nothing
 
 -- | Image used when treating ignored chat messages as metadata
-ignoreImage :: Image
+ignoreImage :: Image'
 ignoreImage = char (withForeColor defAttr yellow) 'I'

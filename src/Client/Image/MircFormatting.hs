@@ -17,16 +17,16 @@ module Client.Image.MircFormatting
   , controlImage
   ) where
 
+import           Client.Image.PackedImage as I
 import           Control.Applicative ((<|>))
 import           Control.Lens
 import           Data.Attoparsec.Text as Parse
 import           Data.Bits
 import           Data.Char
 import           Data.Maybe
+import           Data.Semigroup ((<>))
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image hiding ((<|>))
-import qualified Graphics.Vty as Vty
 
 data FormatState = FormatState
   { _fmtFore :: Maybe Color
@@ -56,16 +56,16 @@ defaultFormatState :: FormatState
 defaultFormatState = FormatState Nothing Nothing False False False False
 
 -- | Parse mIRC encoded format characters and hide the control characters.
-parseIrcText :: Text -> Image
+parseIrcText :: Text -> Image'
 parseIrcText = parseIrcText' False
 
 -- | Parse mIRC encoded format characters and render the control characters
 -- explicitly. This view is useful when inputting control characters to make
 -- it clear where they are in the text.
-parseIrcTextExplicit :: Text -> Image
+parseIrcTextExplicit :: Text -> Image'
 parseIrcTextExplicit = parseIrcText' True
 
-parseIrcText' :: Bool -> Text -> Image
+parseIrcText' :: Bool -> Text -> Image'
 parseIrcText' explicit = either plainText id
                        . parseOnly (pIrcLine explicit defaultFormatState)
 
@@ -75,27 +75,27 @@ pSegment :: Parser Segment
 pSegment = TextSegment    <$> takeWhile1 (not . isControl)
        <|> ControlSegment <$> satisfy isControl
 
-pIrcLine :: Bool -> FormatState -> Parser Image
+pIrcLine :: Bool -> FormatState -> Parser Image'
 pIrcLine explicit fmt =
   do seg <- option Nothing (Just <$> pSegment)
      case seg of
-       Nothing -> return emptyImage
+       Nothing -> return mempty
        Just (TextSegment txt) ->
            do rest <- pIrcLine explicit fmt
-              return (text' (formatAttr fmt) txt Vty.<|> rest)
+              return (text' (formatAttr fmt) txt <> rest)
        Just (ControlSegment '\^C') ->
            do (numberText, colorNumbers) <- match pColorNumbers
               rest <- pIrcLine explicit (applyColors colorNumbers fmt)
               return $ if explicit
                          then controlImage '\^C'
-                              Vty.<|> text' defAttr numberText
-                              Vty.<|> rest
+                              <> text' defAttr numberText
+                              <> rest
                           else rest
        Just (ControlSegment c)
           -- always render control codes that we don't understand
           | isNothing mbFmt' || explicit ->
                 do rest <- next
-                   return (controlImage c Vty.<|> rest)
+                   return (controlImage c <> rest)
           | otherwise -> next
           where
             mbFmt' = applyControlEffect c fmt
@@ -152,8 +152,8 @@ applyControlEffect '\^_' = Just . over fmtUnderline not
 applyControlEffect _     = const Nothing
 
 -- | Safely render a control character.
-controlImage :: Char -> Image
-controlImage = Vty.char attr . controlName
+controlImage :: Char -> Image'
+controlImage = I.char attr . controlName
   where
     attr          = withStyle defAttr reverseVideo
     controlName c
@@ -163,11 +163,11 @@ controlImage = Vty.char attr . controlName
 -- | Render a 'String' with default attributes and replacing all of the
 -- control characters with reverse-video letters corresponding to caret
 -- notation.
-plainText :: String -> Image
-plainText "" = emptyImage
+plainText :: String -> Image'
+plainText "" = mempty
 plainText xs =
   case break isControl xs of
-    (first, ""       ) -> Vty.string defAttr first
-    (first, cntl:rest) -> Vty.string defAttr first Vty.<|>
-                          controlImage cntl Vty.<|>
+    (first, ""       ) -> I.string defAttr first
+    (first, cntl:rest) -> I.string defAttr first <>
+                          controlImage cntl <>
                           plainText rest

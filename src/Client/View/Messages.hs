@@ -16,6 +16,7 @@ module Client.View.Messages
 
 import           Client.Configuration
 import           Client.Image.Message
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Image.Utils
 import           Client.Message
@@ -25,13 +26,14 @@ import           Client.State.Network
 import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
+import           Data.Semigroup
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
+import qualified Graphics.Vty.Image as Vty
 import           Irc.Identifier
 import           Irc.Message
 
 
-chatMessageImages :: Focus -> Int -> ClientState -> [Image]
+chatMessageImages :: Focus -> Int -> ClientState -> [Vty.Image]
 chatMessageImages focus w st =
   case preview (clientWindows . ix focus) st of
     Nothing  -> []
@@ -52,12 +54,12 @@ chatMessageImages focus w st =
 
   where
     palette = clientPalette st
-    marker = string (view palLineMarker palette) (replicate w '-')
+    marker = Vty.string (view palLineMarker palette) (replicate w '-')
     windowLineProcessor hideMeta
       | view clientDetailView st =
           if hideMeta
             then detailedImagesWithoutMetadata st
-            else map (view wlFullImage)
+            else map (views wlFullImage unpackImage)
 
       | otherwise = windowLinesToImages st w hideMeta . filter (not . isNoisy)
 
@@ -66,11 +68,12 @@ chatMessageImages focus w st =
         ReplySummary code -> squelchIrcMsg (Reply code [])
         _                 -> False
 
-detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image]
+detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Vty.Image]
 detailedImagesWithoutMetadata st wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], w:ws) -> view wlFullImage w : detailedImagesWithoutMetadata st ws
+    ([], w:ws) -> views wlFullImage unpackImage w
+                : detailedImagesWithoutMetadata st ws
     (_:_, wls) -> detailedImagesWithoutMetadata st wls
 
 
@@ -79,14 +82,16 @@ windowLinesToImages ::
   Int          {- ^ draw width    -} ->
   Bool         {- ^ hide metadata -} ->
   [WindowLine] {- ^ window lines  -} ->
-  [Image]      {- ^ image lines   -}
+  [Vty.Image]  {- ^ image lines   -}
 windowLinesToImages st w hideMeta wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], wl:wls) -> lineWrap w
+    ([], wl:wls) ->
+                   map unpackImage
+                         (lineWrapChat w
                            (view (clientConfig . configIndentWrapped) st)
-                           (view wlImage wl)
-                 : windowLinesToImages st w hideMeta wls
+                           (view wlImage wl))
+                ++ windowLinesToImages st w hideMeta wls
     ((img,who,mbnext):mds, wls)
 
       | hideMeta -> windowLinesToImages st w hideMeta wls
@@ -101,19 +106,18 @@ windowLinesToImages st w hideMeta wwls =
 ------------------------------------------------------------------------
 
 type MetadataState =
-  Identifier                            {- ^ current nick -} ->
-  [(Image,Identifier,Maybe Identifier)] {- ^ metadata     -} ->
-  Palette                               {- ^ palette      -} ->
-  Image
+  Identifier                             {- ^ current nick -} ->
+  [(Image',Identifier,Maybe Identifier)] {- ^ metadata     -} ->
+  Palette                                {- ^ palette      -} ->
+  Vty.Image
 
 startMetadata ::
-  Image            {- ^ metadata image           -} ->
+  Image'           {- ^ metadata image           -} ->
   Maybe Identifier {- ^ possible nick transition -} ->
   MetadataState
 startMetadata img mbnext who mds palette =
-        quietIdentifier palette who
-    <|> img
-    <|> transitionMetadata mbnext who mds palette
+  unpackImage (quietIdentifier palette who <> img) Vty.<|>
+  transitionMetadata mbnext who mds palette
 
 transitionMetadata ::
   Maybe Identifier {- ^ possible nick transition -} ->
@@ -121,23 +125,23 @@ transitionMetadata ::
 transitionMetadata mbwho who mds palette =
   case mbwho of
     Nothing   -> continueMetadata who  mds palette
-    Just who' -> quietIdentifier palette who'
-             <|> continueMetadata who' mds palette
+    Just who' -> unpackImage (quietIdentifier palette who')
+         Vty.<|> continueMetadata who' mds palette
 
 continueMetadata :: MetadataState
-continueMetadata _ [] _ = emptyImage
+continueMetadata _ [] _ = mempty
 continueMetadata who1 ((img, who2, mbwho3):mds) palette
-  | who1 == who2 = img
-               <|> transitionMetadata mbwho3 who2 mds palette
-  | otherwise    = char defAttr ' '
-               <|> startMetadata img mbwho3 who2 mds palette
+  | who1 == who2 = unpackImage img
+           Vty.<|> transitionMetadata mbwho3 who2 mds palette
+  | otherwise    = Vty.char defAttr ' '
+           Vty.<|> startMetadata img mbwho3 who2 mds palette
 
 ------------------------------------------------------------------------
 
 gatherMetadataLines ::
   ClientState ->
   [WindowLine] ->
-  ( [(Image, Identifier, Maybe Identifier)] , [ WindowLine ] )
+  ( [(Image', Identifier, Maybe Identifier)] , [ WindowLine ] )
   -- ^ metadata entries are reversed
 gatherMetadataLines st = go []
   where
@@ -152,7 +156,7 @@ gatherMetadataLines st = go []
 metadataWindowLine ::
   ClientState ->
   WindowLine ->
-  Maybe (Image, Identifier, Maybe Identifier)
+  Maybe (Image', Identifier, Maybe Identifier)
         {- ^ Image, incoming identifier, outgoing identifier if changed -}
 metadataWindowLine st wl =
   case view wlSummary wl of

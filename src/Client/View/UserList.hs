@@ -14,6 +14,7 @@ module Client.View.UserList
   ) where
 
 import           Client.Image.Message
+import           Client.Image.PackedImage (unpackImage)
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
@@ -59,7 +60,7 @@ userListImages' cs channel st =
 
     renderUser (ident, sigils) =
       string (view palSigil pal) sigils <|>
-      coloredIdentifier pal NormalIdentifier myNicks ident
+      unpackImage (coloredIdentifier pal NormalIdentifier myNicks ident)
 
     gap = char defAttr ' '
 
@@ -109,7 +110,7 @@ userInfoImages' cs channel st = renderEntry <$> usersList
 
     renderEntry (info, sigils) =
       string (view palSigil pal) sigils <|>
-      coloredUserInfo pal DetailedRender myNicks info
+      unpackImage (coloredUserInfo pal DetailedRender myNicks info)
 
     matcher' (info,sigils) =
       matcher (Text.pack sigils `Text.append` renderUserInfo info)

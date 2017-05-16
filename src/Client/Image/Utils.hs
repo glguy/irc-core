@@ -8,62 +8,64 @@ Maintainer  : emertens@gmail.com
 Provides utilities for formatting Vty Images.
 -}
 
-module Client.Image.Utils (lineWrap) where
+module Client.Image.Utils (lineWrap, lineWrapChat) where
 
-import           Graphics.Vty.Image
+import           Client.Image.PackedImage
+import           Data.Semigroup
+import qualified Graphics.Vty.Image as Vty
 import           Graphics.Vty.Attributes
 
 -- | Given an image, break the image up into chunks of at most the
 -- given width and stack the resulting chunks vertically top-to-bottom.
 lineWrap ::
   Int       {- ^ terminal width       -} ->
-  Maybe Int {- ^ optional indentation -} ->
-  Image     {- ^ unwrapped image      -} ->
-  Image     {- ^ wrapped image        -}
-lineWrap w mi img
-  | imageWidth img == 0 = emptyImage
-  | imageWidth img <= w = terminate w img
+  Vty.Image {- ^ unwrapped image      -} ->
+  Vty.Image {- ^ wrapped image        -}
+lineWrap w img
+  | Vty.imageWidth img == 0 = Vty.emptyImage
+  | Vty.imageWidth img <= w = terminate w img
   | otherwise =
-      terminate w (cropRight w img) <->
-      maybe (lineWrapNoIndent w) (lineWrapIndent w) mi
-            (cropLeft (imageWidth img - w) img)
+      terminate w (Vty.cropRight w img) Vty.<->
+      lineWrap w (Vty.cropLeft (Vty.imageWidth img - w) img)
 
 -- | Trailing space with default attributes deals with bug in VTY
 -- where the formatting will continue past the end of chat messages.
 -- This adds an extra space if a line doesn't end on the terminal edge.
 terminate ::
-  Int   {- ^ terminal width  -} ->
-  Image {- ^ unwrapped image -} ->
-  Image {- ^ wrapped image   -}
+  Int       {- ^ terminal width  -} ->
+  Vty.Image {- ^ unwrapped image -} ->
+  Vty.Image {- ^ wrapped image   -}
 terminate n img
-  | imageWidth img == n = img
-  | otherwise           = img <|> char defAttr ' '
+  | Vty.imageWidth img == n = img
+  | otherwise               = img Vty.<|> Vty.char defAttr ' '
 
-lineWrapNoIndent ::
-  Int   {- ^ terminal width  -} ->
-  Image {- ^ unwrapped image -} ->
-  Image {- ^ wrapped image   -}
-lineWrapNoIndent w img
-  | iw <= w   = terminate w img
-  | otherwise = cropRight w img <->
-                lineWrapNoIndent w (cropLeft (iw - w) img)
+
+-- | Given an image, break the image up into chunks of at most the
+-- given width and stack the resulting chunks vertically top-to-bottom.
+lineWrapChat ::
+  Int       {- ^ terminal width       -} ->
+  Maybe Int {- ^ optional indentation -} ->
+  Image'    {- ^ unwrapped image      -} ->
+  [Image']  {- ^ wrapped image        -}
+lineWrapChat w mi img
+  | imageWidth img == 0 = []
+  | imageWidth img <= w = [img]
+  | otherwise =
+      case mi of
+        Just i | 2*i <= w ->
+           reverse (map indent (simpleLineWrap (w-i) r)) ++ [l]
+          where indent = (string defAttr (replicate i ' ') <>)
+        _ -> reverse (simpleLineWrap w r) ++ [l]
+  where
+    (l,r) = splitImage w img
+
+simpleLineWrap ::
+  Int      {- ^ terminal width  -} ->
+  Image'   {- ^ unwrapped image -} ->
+  [Image'] {- ^ wrapped image   -}
+simpleLineWrap w img
+  | iw <= w = [img]
+  | otherwise = l : simpleLineWrap w r
   where
     iw = imageWidth img
-
-lineWrapIndent ::
-  Int   {- ^ terminal width  -} ->
-  Int   {- ^ indentation     -} ->
-  Image {- ^ unwrapped image -} ->
-  Image {- ^ wrapped image   -}
-lineWrapIndent w i img
-  | 20 + i >  w = lineWrapNoIndent w img -- ensure we stop wrapping when it doesn't make sense
-  | iw + i <= w = terminate w (leftPad i img)
-  | otherwise   = leftPad i (cropRight (w-i) img) <->
-                  lineWrapIndent w i (cropLeft (iw - w + i) img)
-  where
-    iw = imageWidth img
-
-leftPad :: Int -> Image -> Image
-leftPad w img = charFill defAttr ' ' w 1 <|> img
--- this needed to be charFill and not pad because pad seems to
--- use currentAttr instead of defAttr
+    (l,r) = splitImage w img

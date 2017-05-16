@@ -18,26 +18,27 @@ module Client.Image.Arguments
 
 import           Client.Commands.Arguments
 import           Client.Image.MircFormatting
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Control.Lens
+import           Data.Semigroup
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
 
 -- | Parse command arguments against a given 'ArgumentSpec'.
 -- The given text will be rendered and then any missing arguments
 -- will be indicated by extra placeholder values appended onto the
 -- image. Parameters are rendered with 'plainText' except for
 -- the case of 'RemainingArg' which supports WYSIWYG.
-argumentsImage :: Palette -> ArgumentSpec a -> String -> Image
+argumentsImage :: Palette -> ArgumentSpec a -> String -> Image'
 argumentsImage pal spec xs
   | all (==' ') xs = placeholders
-                 <|> string defAttr (drop (imageWidth placeholders) xs)
+                  <> string defAttr (drop (imageWidth placeholders) xs)
   | otherwise =
      case spec of
        NoArg           -> plainText xs
-       ReqTokenArg _ a -> plainText token <|> argumentsImage pal a xs'
-       OptTokenArg _ a -> plainText token <|> argumentsImage pal a xs'
+       ReqTokenArg _ a -> plainText token <> argumentsImage pal a xs'
+       OptTokenArg _ a -> plainText token <> argumentsImage pal a xs'
        RemainingArg _  -> parseIrcTextExplicit (Text.pack xs)
 
   where
@@ -49,17 +50,17 @@ argumentsImage pal spec xs
 
 -- | Construct an 'Image' containing placeholders for each
 -- of the remaining arguments.
-mkPlaceholders :: Palette -> ArgumentSpec a -> Image
+mkPlaceholders :: Palette -> ArgumentSpec a -> Image'
 mkPlaceholders pal arg =
   case arg of
-    NoArg           -> emptyImage
+    NoArg           -> mempty
     ReqTokenArg n a -> leader
-                   <|> string (view palCommandPlaceholder pal) n
-                   <|> mkPlaceholders pal a
+                    <> string (view palCommandPlaceholder pal) n
+                    <> mkPlaceholders pal a
     OptTokenArg n a -> leader
-                   <|> string (view palCommandPlaceholder pal) (n ++ "?")
-                   <|> mkPlaceholders pal a
+                    <> string (view palCommandPlaceholder pal) (n ++ "?")
+                    <> mkPlaceholders pal a
     RemainingArg n  -> leader
-                   <|> string (view palCommandPlaceholder pal) (n ++ "…")
+                    <> string (view palCommandPlaceholder pal) (n ++ "…")
   where
     leader = char defAttr ' '
