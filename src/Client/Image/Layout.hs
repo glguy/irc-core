@@ -48,7 +48,7 @@ drawLayoutOne st extrafocus =
 
     output = vertCat $ reverse
            $ main
-           : [ drawExtra st w h' scroll foc imgs
+           : [ drawExtra st w h' foc imgs
                  | (h', (foc, imgs)) <- zip hs extraLines]
 
     rows = view clientHeight st
@@ -74,7 +74,7 @@ drawLayoutTwo st extrafocus =
     output = main <|> divider <|> extraImgs
 
     extraImgs = vertCat $ reverse
-             [ drawExtra st wr h' scroll foc imgs
+             [ drawExtra st wr h' foc imgs
                  | (h', (foc, imgs)) <- zip hs extraLines]
 
     (overscroll, pos, nextOffset, main) =
@@ -113,14 +113,13 @@ drawExtra ::
   ClientState {- ^ client state    -} ->
   Int         {- ^ draw width      -} ->
   Int         {- ^ draw height     -} ->
-  Int         {- ^ scroll amount   -} ->
   Focus       {- ^ focus           -} ->
   [Image]     {- ^ image lines     -} ->
   Image       {- ^ rendered window -}
-drawExtra st w h scroll focus lineImages =
+drawExtra st w h focus lineImages =
     msgImg <-> minorStatusLineImage focus w True st
   where
-    (_, msgImg) = messagePane w h scroll lineImages
+    (_, msgImg) = messagePane w h 0 lineImages
 
 
 -- | Generate an image corresponding to the image lines of the given
