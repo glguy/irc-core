@@ -1,12 +1,13 @@
 # Revision history for glirc2
 
-## 2.20.7
+## 2.21
 
 * Make metadata toggle (F4) a window-level setting instead of client level
 * Add configuration option to hide metadata by default `hide-metadata`
 * Make keymap configurable under `key-bindings`, add `/keymap` command
-* Add transient error message view
+* Add transient error message view, press ESC to clear
 * Implement two-column split window mode: `/toggle-layout` and F5
+* Implement word-boundary based line wrapping
 
 ## 2.20.6
 
