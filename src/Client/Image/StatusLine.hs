@@ -46,7 +46,8 @@ statusLineImage w st =
   where
     common = horizCat
       [ myNickImage st
-      , focusImage st
+      , focusImage (view clientFocus st) st
+      , subfocusImage st
       , detailImage st
       , nometaImage (view clientFocus st) st
       , scrollImage st
@@ -83,7 +84,7 @@ minorStatusLineImage ::
 minorStatusLineImage focus w showHideMeta st =
   content <|> charFill defAttr bar fillSize 1
   where
-    content = infoBubble (focusImageMajor focus st) <|>
+    content = focusImage focus st <|>
               if showHideMeta then nometaImage focus st else mempty
 
     fillSize = max 0 (w - imageWidth content)
@@ -268,19 +269,14 @@ myNickImage st =
                 Just chan -> view (csChannels . ix chan . chanUsers . ix nick) cs
 
 
-focusImage :: ClientState -> Image
-focusImage st =
-    infoBubble (focusImageMajor focus st) <|>
-    foldMap infoBubble (viewSubfocusLabel pal subfocus)
+subfocusImage :: ClientState -> Image
+subfocusImage st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
   where
-
-    !pal        = clientPalette st
-    focus       = view clientFocus st
+    pal         = clientPalette st
     subfocus    = view clientSubfocus st
 
-focusImageMajor :: Focus -> ClientState -> Image
-focusImageMajor focus st =
-  horizCat
+focusImage :: Focus -> ClientState -> Image
+focusImage focus st = infoBubble $ horizCat
     [ char (view palWindowName pal) windowName
     , char defAttr ':'
     , viewFocusLabel st focus

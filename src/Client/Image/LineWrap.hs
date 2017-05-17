@@ -50,6 +50,7 @@ lineWrapChat w (Just i)
   | 2*i <= w = reverse . addPadding i . wordLineWrap w (w-i)
 lineWrapChat w _  = reverse . wordLineWrap w w
 
+
 addPadding :: Int -> [Image'] -> [Image']
 addPadding _ [] = []
 addPadding i (x:xs) = x : map indent xs
