@@ -211,7 +211,7 @@ loadConfiguration mbPath = try $
        Right cfg -> return (cfg mbPath def)
 
 
-explainLoadError :: LoadError -> Text
+explainLoadError :: LoadError Position -> Text
 explainLoadError (LoadError pos path problem) =
   Text.concat [ positionText, " at ", pathText, ": ", problemText]
 
