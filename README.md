@@ -10,8 +10,6 @@ GLIRC - Advanced Console IRC Client
 Building
 ========
 
-Note that glirc currently requires GHC 8.0.1
-
 glirc uses recent versions of packages, make sure you package databases are
 up-to-date:
 
@@ -39,6 +37,9 @@ Building with stack
 $ stack init --resolver=lts-8 --solver
 $ stack build
 ```
+
+Note that if you're using a *nightly* resolver that you'll need to work around a
+bug in stack by manually installing `alex` and `happy`.
 
 Client Features
 ===============
