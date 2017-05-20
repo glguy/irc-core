@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.21.1
+
+* Support for latest config-schema
+
 ## 2.21
 
 * Make metadata toggle (F4) a window-level setting instead of client level

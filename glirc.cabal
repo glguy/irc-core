@@ -1,5 +1,5 @@
 name:                glirc
-version:             2.21
+version:             2.21.1
 synopsis:            Console IRC client
 description:         Console IRC client
                      .
@@ -11,7 +11,7 @@ license:             ISC
 license-file:        LICENSE
 author:              Eric Mertens
 maintainer:          emertens@gmail.com
-copyright:           2016 Eric Mertens
+copyright:           2016,2017 Eric Mertens
 category:            Network
 build-type:          Custom
 extra-source-files:  ChangeLog.md README.md
