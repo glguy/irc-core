@@ -1,7 +1,9 @@
 GLIRC - Advanced Console IRC Client
 =============
 
-[![Build Status](https://secure.travis-ci.org/glguy/irc-core.svg)](http://travis-ci.org/glguy/irc-core)
+* **glirc** [![Hackage](https://img.shields.io/hackage/v/glirc.svg)](https://hackage.haskell.org/package/glirc) [![Build Status](https://secure.travis-ci.org/glguy/irc-core.svg)](http://travis-ci.org/glguy/irc-core)
+* **irc-core** [![Hackage](https://img.shields.io/hackage/v/irc-core.svg)](https://hackage.haskell.org/package/irc-core)
+* **hookup** [![Hackage](https://img.shields.io/hackage/v/hookup.svg)](https://hackage.haskell.org/package/hookup)
 
 [Wiki Documentation](https://github.com/glguy/irc-core/wiki)
 
