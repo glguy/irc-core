@@ -1627,7 +1627,6 @@ activeNicks st =
     -- be considered a hint for tab completion.
     summaryActor :: IrcSummary -> Maybe Identifier
     summaryActor (ChatSummary who) = Just who
-    summaryActor (JoinSummary who) = Just who
     summaryActor _                 = Nothing
 
 -- | Use the *!*@host masks of users for channel lists when setting list modes
