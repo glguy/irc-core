@@ -42,7 +42,7 @@ typedef enum process_result process_message_type(void *glirc, void *S, const str
 typedef void process_command_type(void *glirc, void *S, const struct glirc_command *);
 
 struct glirc_extension {
-        char *name;
+        const char *name;
         int major_version, minor_version;
         start_type           *start;
         stop_type            *stop;
