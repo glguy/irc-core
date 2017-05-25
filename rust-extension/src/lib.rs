@@ -27,7 +27,10 @@ unsafe fn import_string<'a>(_: &'a glirc, gstr: &glirc_string) -> &'a str {
 }
 
 fn export_string(s: &str) -> glirc_string {
-    glirc_string { str: s.as_ptr() as *const i8, len: s.len() }
+    glirc_string {
+        str: s.as_ptr() as *const i8,
+        len: s.len(),
+    }
 }
 
 unsafe fn import_command<'a>(G: &'a glirc, cmd: *const glirc_command) -> Vec<&'a str> {
@@ -51,7 +54,7 @@ fn export_session(s: my_state) -> *mut c_void {
     Box::into_raw(Box::new(s)) as *mut c_void
 }
 
-unsafe fn import_strings(p: *mut *mut c_char) -> Vec<String>{
+unsafe fn import_strings(p: *mut *mut c_char) -> Vec<String> {
     let mut v = Vec::new();
     let mut i = p;
 
@@ -70,8 +73,10 @@ unsafe fn import_strings(p: *mut *mut c_char) -> Vec<String>{
  * Wrappers for client API
  */
 
-fn write_message (G: &glirc, code: message_code, msg: &str) {
-    unsafe { glirc_print(mem::transmute(G), code, export_string(msg)); }
+fn write_message(G: &glirc, code: message_code, msg: &str) {
+    unsafe {
+        glirc_print(mem::transmute(G), code, export_string(msg));
+    }
 }
 
 #[allow(dead_code)]
@@ -80,13 +85,16 @@ fn irc_command(G: &glirc, net: &str, cmd: &str, args: &[&str]) {
     let v: Vec<glirc_string> = args.iter().map(|&x| export_string(x)).collect();
 
     let gmsg = glirc_message {
-            network: export_string(net),
-            command: export_string(cmd),
-            params: v.as_ptr(),
-            params_n: v.len(),
-            ..Default::default() };
+        network: export_string(net),
+        command: export_string(cmd),
+        params: v.as_ptr(),
+        params_n: v.len(),
+        ..Default::default()
+    };
 
-    unsafe { glirc_send_message(mem::transmute(G), &gmsg); }
+    unsafe {
+        glirc_send_message(mem::transmute(G), &gmsg);
+    }
 }
 
 #[allow(dead_code)]
@@ -101,24 +109,28 @@ fn list_channels(G: &glirc, net: &str) -> Vec<String> {
 
 #[allow(dead_code)]
 fn list_channel_users(G: &glirc, net: &str, chan: &str) -> Vec<String> {
-    unsafe { import_strings(glirc_list_channel_users(mem::transmute(G), export_string(net), export_string(chan))) }
+    unsafe {
+        import_strings(glirc_list_channel_users(mem::transmute(G),
+                                                export_string(net),
+                                                export_string(chan)))
+    }
 }
 
 #[allow(dead_code)]
-fn my_nick (G: &glirc, net: &str) -> Option<String> {
+fn my_nick(G: &glirc, net: &str) -> Option<String> {
     unsafe {
         let ptr = glirc_my_nick(mem::transmute(G), export_string(net));
         if ptr == ptr::null_mut() {
             None
         } else {
-            Some (CStr::from_ptr(ptr).to_string_lossy().into_owned())
+            Some(CStr::from_ptr(ptr).to_string_lossy().into_owned())
         }
     }
 }
 
 #[allow(dead_code)]
 fn identifier_cmp(x: &str, y: &str) -> Ordering {
-    unsafe {glirc_identifier_cmp(export_string(x), export_string(y)).cmp(&0)}
+    unsafe { glirc_identifier_cmp(export_string(x), export_string(y)).cmp(&0) }
 }
 
 /*
@@ -142,19 +154,20 @@ fn my_process_command(G: &glirc, session: &my_state, params: Vec<&str>) {
 
     if params.len() > 0 {
         match params[0] {
-          "networks" =>
-              for x in list_networks(G) {
-                  write_message(G, message_code::NORMAL_MESSAGE, &format!("Network: {}", x))
-              },
-          "state" =>
-              write_message(G, message_code::NORMAL_MESSAGE, &session.a_string),
-          "nick" =>
-              if params.len() > 1 {
-                  if let Some(nick) = my_nick(G, params[1]) {
-                      write_message(G, message_code::NORMAL_MESSAGE, &nick)
-                  }
-              },
-          _ => write_message(G, message_code::ERROR_MESSAGE, "Unknown command"),
+            "networks" => {
+                for x in list_networks(G) {
+                    write_message(G, message_code::NORMAL_MESSAGE, &format!("Network: {}", x))
+                }
+            }
+            "state" => write_message(G, message_code::NORMAL_MESSAGE, &session.a_string),
+            "nick" => {
+                if params.len() > 1 {
+                    if let Some(nick) = my_nick(G, params[1]) {
+                        write_message(G, message_code::NORMAL_MESSAGE, &nick)
+                    }
+                }
+            }
+            _ => write_message(G, message_code::ERROR_MESSAGE, "Unknown command"),
         }
     } else {
         write_message(G, message_code::ERROR_MESSAGE, "Missing argument")
@@ -178,12 +191,13 @@ unsafe extern "C" fn stop_entry(G: *mut glirc, sptr: *mut c_void) {
     my_stop(g, st)
 }
 
-unsafe extern "C" fn process_command_entry
-  (G: *mut glirc, sptr: *mut c_void, rawcmd: *const glirc_command) {
-      let g = &*G;
-      let session = use_session(g, sptr);
-      let params = import_command(g, rawcmd);
-      my_process_command(g, session, params)
+unsafe extern "C" fn process_command_entry(G: *mut glirc,
+                                           sptr: *mut c_void,
+                                           rawcmd: *const glirc_command) {
+    let g = &*G;
+    let session = use_session(g, sptr);
+    let params = import_command(g, rawcmd);
+    my_process_command(g, session, params)
 }
 
 /*
@@ -192,7 +206,7 @@ unsafe extern "C" fn process_command_entry
 
 #[no_mangle]
 pub static mut extension: glirc_extension = glirc_extension {
-    name: "rust\0" as *const str as *const [c_char] as *const c_char,
+    name: "rust\0" as *const str as *const c_char,
     major_version: 1,
     minor_version: 0,
     start: Some(start_entry),
