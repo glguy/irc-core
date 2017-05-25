@@ -3,18 +3,20 @@
 #![allow(non_snake_case)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::ffi::CStr;
+use std::mem;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
-use std::slice;
 use std::ptr;
+use std::slice;
 use std::str;
-use std::cmp::Ordering;
-use std::mem;
 
 // Example of some state
+type command_callback = fn (&glirc, &[&str]);
 struct my_state {
-    a_string: String,
+    commands: HashMap<&'static str, command_callback>,
 }
 
 /*
@@ -42,7 +44,7 @@ unsafe fn import_command<'a>(G: &'a glirc, cmd: *const glirc_command) -> Vec<&'a
     v
 }
 
-unsafe fn close_session(sptr: *mut c_void) -> my_state {
+unsafe fn close_session<'a>(sptr: *mut c_void) -> my_state{
     *Box::from_raw(sptr as *mut my_state)
 }
 
@@ -137,40 +139,46 @@ fn identifier_cmp(x: &str, y: &str) -> Ordering {
  * Entry points from client
  */
 
-fn my_start(G: &glirc, path: &str) -> my_state {
+fn my_start<'a>(G: &glirc, path: &str) -> my_state {
 
     let msg = format!("Rust extension started: {}", path);
     write_message(G, message_code::NORMAL_MESSAGE, &msg);
 
-    my_state { a_string: String::from("some_string") }
+    let mut cmds: HashMap<&'static str, command_callback> = HashMap::new();
+    cmds.insert("nick", nick_command);
+    cmds.insert("networks", networks_command);
+
+    my_state { commands: cmds, }
 }
 
-fn my_stop(G: &glirc, session: my_state) {
-    let txt = format!("Rust extension stopped; {}", session.a_string);
-    write_message(G, message_code::NORMAL_MESSAGE, &txt);
+fn nick_command(G: &glirc, params: &[&str]) {
+    if params.len() > 0 {
+        if let Some(nick) = my_nick(G, params[0]) {
+            write_message(G, message_code::NORMAL_MESSAGE, &nick)
+        }
+    }
+}
+
+fn networks_command(G: &glirc, _params: &[&str]) {
+    for x in list_networks(G) {
+        write_message(G, message_code::NORMAL_MESSAGE, &format!("Network: {}", x))
+    }
+}
+
+fn my_stop(G: &glirc, _session: my_state) {
+    write_message(G, message_code::NORMAL_MESSAGE, "Rust extension stopped");
 }
 
 fn my_process_command(G: &glirc, session: &my_state, params: Vec<&str>) {
 
-    if params.len() > 0 {
-        match params[0] {
-            "networks" => {
-                for x in list_networks(G) {
-                    write_message(G, message_code::NORMAL_MESSAGE, &format!("Network: {}", x))
-                }
-            }
-            "state" => write_message(G, message_code::NORMAL_MESSAGE, &session.a_string),
-            "nick" => {
-                if params.len() > 1 {
-                    if let Some(nick) = my_nick(G, params[1]) {
-                        write_message(G, message_code::NORMAL_MESSAGE, &nick)
-                    }
-                }
-            }
-            _ => write_message(G, message_code::ERROR_MESSAGE, "Unknown command"),
-        }
-    } else {
-        write_message(G, message_code::ERROR_MESSAGE, "Missing argument")
+    match params.split_first() {
+        None =>
+            write_message(G, message_code::ERROR_MESSAGE, "No command"),
+        Some((cmd,args)) =>
+            match session.commands.get(cmd) {
+                None => write_message(G, message_code::ERROR_MESSAGE, "Missing command"),
+                Some(f) => f(G, args),
+            },
     }
 }
 
