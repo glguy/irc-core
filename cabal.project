@@ -1,5 +1,4 @@
 packages:
-  /Users/emertens/Source/lens/lens.cabal
   config-schema/config-schema.cabal
   config-value/config-value.cabal
   lib/irc-core.cabal
