@@ -3,6 +3,7 @@
 ## 2.21.1
 
 * Support for latest config-schema
+* Adapt extension API to help support stub Rust extension
 
 ## 2.21
 

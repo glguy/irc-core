@@ -338,6 +338,8 @@ glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
 
 ------------------------------------------------------------------------
 
+-- | Free one of the heap allocated strings found as a return value
+-- from the extension API. If argument is NULL, nothing happens.
 type Glirc_free_string =
   CString {- ^ glirc allocated string -} ->
   IO ()
@@ -351,6 +353,8 @@ glirc_free_string = free
 
 ------------------------------------------------------------------------
 
+-- | Free an array of heap allocated strings found as a return value
+-- from the extension API. If argument is NULL, nothing happens.
 type Glirc_free_strings =
   Ptr CString {- ^ glirc allocated strings, null-terminated -} ->
   IO ()
