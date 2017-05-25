@@ -18,11 +18,11 @@ static void get_glirc_string(lua_State *L, int i, struct glirc_string *s)
         s->str = lua_tolstring(L, i, &s->len);
 }
 
-static inline void * get_glirc(lua_State *L)
+static inline struct glirc *get_glirc(lua_State *L)
 {
-        void * glirc;
-        memcpy(&glirc, lua_getextraspace(L), sizeof(glirc));
-        return glirc;
+        struct glirc *G;
+        memcpy(&G, lua_getextraspace(L), sizeof(G));
+        return G;
 }
 
 /* Lua Function:
@@ -136,10 +136,9 @@ static void import_string_array(lua_State *L, char **list)
         lua_newtable(L);
         for (int i = 0; list[i] != NULL; i++) {
                 lua_pushstring(L, list[i]);
-                free(list[i]);
                 lua_rawseti(L, -2, i+1);
         }
-        free(list);
+        glirc_free_strings(list);
 }
 
 /* Lua Function:
@@ -208,7 +207,7 @@ static int glirc_lua_my_nick(lua_State *L)
         char *nick = glirc_my_nick(get_glirc(L), network);
         if (nick == NULL) { luaL_error(L, "no such network"); }
         lua_pushstring(L, nick);
-        free(nick);
+        glirc_free_string(nick);
 
         return 1;
 }
@@ -298,7 +297,7 @@ static void glirc_install_lib(lua_State *L)
  * the callback for message processing.
  *
  */
-static void *start(void *glirc, const char *path)
+static void *start(struct glirc *G, const char *path)
 {
         char scriptpath[PATH_MAX];
         if (compute_script_path(path, scriptpath)) {
@@ -307,7 +306,7 @@ static void *start(void *glirc, const char *path)
 
         lua_State *L = luaL_newstate();
         if (L == NULL) return NULL;
-        memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
+        memcpy(lua_getextraspace(L), &G, sizeof(G));
 
 
         luaL_openlibs(L);
@@ -316,7 +315,7 @@ static void *start(void *glirc, const char *path)
         if (luaL_dofile(L, scriptpath)) {
                 struct glirc_string message;
                 message.str = lua_tolstring(L, -1, &message.len);
-                glirc_print(glirc, ERROR_MESSAGE, message);
+                glirc_print(G, ERROR_MESSAGE, message);
 
                 lua_close(L);
                 L = NULL;
@@ -398,10 +397,10 @@ static int callback_worker(lua_State *L)
         return 1;
 }
 
-static int callback(void *glirc, lua_State *L, const char *callback_name, int args)
+static int callback(struct glirc *G, lua_State *L, const char *callback_name, int args)
 {
         // remember glirc handle
-        memcpy(lua_getextraspace(L), &glirc, sizeof(glirc));
+        memcpy(lua_getextraspace(L), &G, sizeof(G));
 
                                                // STACK: arguments...
         lua_pushcfunction(L, callback_worker); // STACK: arguments... worker
@@ -412,7 +411,7 @@ static int callback(void *glirc, lua_State *L, const char *callback_name, int ar
         if (res != LUA_OK) {
                 struct glirc_string message;
                 message.str = lua_tolstring(L, -1, &message.len);
-                glirc_print(glirc, ERROR_MESSAGE, message);
+                glirc_print(G, ERROR_MESSAGE, message);
                 lua_settop(L, 0); // discard error message
         }
 
@@ -421,28 +420,28 @@ static int callback(void *glirc, lua_State *L, const char *callback_name, int ar
         return res;
 }
 
-static void stop_entrypoint(void *glirc, void *L)
+static void stop_entrypoint(struct glirc *G, void *L)
 {
         if (L == NULL) return;
-        callback(glirc, L, "stop", 0);
+        callback(G, L, "stop", 0);
         lua_close(L);
 }
 
-static enum process_result message_entrypoint(void *glirc, void *L, const struct glirc_message *msg)
+static enum process_result message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 {
         if (L == NULL) return PASS_MESSAGE;
         push_glirc_message(L, msg);
-        int res = callback(glirc, L, "process_message", 1);
+        int res = callback(G, L, "process_message", 1);
         return res ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
-static void command_entrypoint(void *glirc, void *L, const struct glirc_command *cmd)
+static void command_entrypoint(struct glirc *G, void *L, const struct glirc_command *cmd)
 {
         if (L == NULL) return;
         for (size_t i = 0; i < cmd->params_n; i++) {
                 push_glirc_string(L, &cmd->params[i]);
         }
-        callback(glirc, L, "process_command", cmd->params_n);
+        callback(G, L, "process_command", cmd->params_n);
 }
 
 struct glirc_extension extension = {

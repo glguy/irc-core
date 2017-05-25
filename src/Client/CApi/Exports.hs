@@ -20,6 +20,8 @@ module Client.CApi.Exports
  , Glirc_identifier_cmp
  , Glirc_mark_seen
  , Glirc_clear_window
+ , Glirc_free_string
+ , Glirc_free_strings
  ) where
 
 import           Client.CApi.Types
@@ -32,6 +34,8 @@ import           Client.State.Window
 import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens
+import           Control.Monad (unless)
+import           Data.Foldable (traverse_)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -331,3 +335,32 @@ glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
      mvar <- derefToken stab
      modifyMVar_ mvar $ \st ->
        return $! set (clientWindows . ix focus) emptyWindow st
+
+------------------------------------------------------------------------
+
+type Glirc_free_string =
+  CString {- ^ glirc allocated string -} ->
+  IO ()
+
+#ifdef EXPORT_GLIRC_CAPI
+foreign export ccall glirc_free_string :: Glirc_free_string
+#endif
+
+glirc_free_string :: Glirc_free_string
+glirc_free_string = free
+
+------------------------------------------------------------------------
+
+type Glirc_free_strings =
+  Ptr CString {- ^ glirc allocated strings, null-terminated -} ->
+  IO ()
+
+#ifdef EXPORT_GLIRC_CAPI
+foreign export ccall glirc_free_strings :: Glirc_free_strings
+#endif
+
+glirc_free_strings :: Glirc_free_strings
+glirc_free_strings p =
+  unless (p == nullPtr) $
+    do traverse_ free =<< peekArray0 nullPtr p
+       free p

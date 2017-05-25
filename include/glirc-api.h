@@ -3,6 +3,8 @@
 
 #include <stdlib.h>
 
+struct glirc;
+
 enum message_code {
         NORMAL_MESSAGE = 0,
         ERROR_MESSAGE  = 1
@@ -24,22 +26,22 @@ struct glirc_message {
         struct glirc_string prefix_user;
         struct glirc_string prefix_host;
         struct glirc_string command;
-        struct glirc_string *params;
+        const struct glirc_string *params;
         size_t params_n;
-        struct glirc_string *tagkeys;
-        struct glirc_string *tagvals;
+        const struct glirc_string *tagkeys;
+        const struct glirc_string *tagvals;
         size_t tags_n;
 };
 
 struct glirc_command {
-        struct glirc_string *params;
+        const struct glirc_string *params;
         size_t params_n;
 };
 
-typedef void *start_type         (void *glirc, const char *path);
-typedef void stop_type           (void *glirc, void *S);
-typedef enum process_result process_message_type(void *glirc, void *S, const struct glirc_message *);
-typedef void process_command_type(void *glirc, void *S, const struct glirc_command *);
+typedef void *start_type         (struct glirc *G, const char *path);
+typedef void stop_type           (struct glirc *G, void *S);
+typedef enum process_result process_message_type(struct glirc *G, void *S, const struct glirc_message *);
+typedef void process_command_type(struct glirc *G, void *S, const struct glirc_command *);
 
 struct glirc_extension {
         const char *name;
@@ -50,14 +52,17 @@ struct glirc_extension {
         process_command_type *process_command;
 };
 
-int glirc_send_message(void *glirc, const struct glirc_message *);
-int glirc_print(void *glirc, enum message_code, struct glirc_string msg);
-char ** glirc_list_networks(void *glirc);
-char ** glirc_list_channels(void *glirc, struct glirc_string network);
-char ** glirc_list_channel_users(void *glirc, struct glirc_string network, struct glirc_string channel);
-char * glirc_my_nick(void *glirc, struct glirc_string network);
-void glirc_mark_seen(void *glirc, struct glirc_string network, struct glirc_string channel);
-void glirc_clear_window(void *glirc, struct glirc_string network, struct glirc_string channel);
+int glirc_send_message(struct glirc *G, const struct glirc_message *);
+int glirc_print(struct glirc *G, enum message_code, struct glirc_string msg);
+char ** glirc_list_networks(struct glirc *G);
+char ** glirc_list_channels(struct glirc *G, struct glirc_string network);
+char ** glirc_list_channel_users(struct glirc *G, struct glirc_string network, struct glirc_string channel);
+char * glirc_my_nick(struct glirc *G, struct glirc_string network);
+void glirc_mark_seen(struct glirc *G, struct glirc_string network, struct glirc_string channel);
+void glirc_clear_window(struct glirc *G, struct glirc_string network, struct glirc_string channel);
 int glirc_identifier_cmp(struct glirc_string s, struct glirc_string t);
+
+void glirc_free_string(char *);
+void glirc_free_strings(char **);
 
 #endif

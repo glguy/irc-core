@@ -18,7 +18,11 @@ fn main() {
         .no_unstable_rust()
         // The input header we would like to generate
         // bindings for.
-        .header("wrapper.h")
+        .header("../include/glirc-api.h")
+        .generate_comments(true)
+        .whitelisted_function("glirc_.*")
+        .whitelisted_type("glirc_.*")
+        .derive_default(true)
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
