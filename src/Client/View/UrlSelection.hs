@@ -15,7 +15,7 @@ module Client.View.UrlSelection
 
 import           Client.Configuration
 import           Client.Image.Message
-import           Client.Image.PackedImage (unpackImage)
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Message
 import           Client.State
@@ -25,9 +25,9 @@ import           Client.State.Window
 import           Control.Lens
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
+import           Data.Semigroup
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
 import           Irc.Identifier
 import           Text.Read (readMaybe)
 
@@ -37,7 +37,7 @@ urlSelectionView ::
   Focus       {- ^ window to search    -} ->
   String      {- ^ argument to command -} ->
   ClientState {- ^ client state        -} ->
-  [Image]     {- ^ image lines         -}
+  [Image']     {- ^ image lines         -}
 urlSelectionView focus arg st =
   zipWith (draw me pal padding selected) [1..] (toListOf urled st)
   where
@@ -83,13 +83,12 @@ draw ::
   Int                       {- ^ selected index            -} ->
   Int                       {- ^ url index                 -} ->
   (Maybe Identifier, Text)  {- ^ sender and url text       -} ->
-  Image                     {- ^ rendered line             -}
+  Image'                    {- ^ rendered line             -}
 draw me pal padding selected i (who,url) =
-  unpackImage
-   (rightPad NormalRender padding
-    (foldMap (coloredIdentifier pal NormalIdentifier me) who)) <|>
-  string defAttr ": " <|>
-  string attr (shows i ". ") <|>
+  rightPad NormalRender padding
+    (foldMap (coloredIdentifier pal NormalIdentifier me) who) <>
+  string defAttr ": " <>
+  string attr (shows i ". ") <>
   text' attr (cleanText url)
   where
     attr | selected == i = withStyle defAttr reverseVideo

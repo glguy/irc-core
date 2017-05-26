@@ -18,24 +18,24 @@ module Client.View.ChannelInfo
 
 import           Client.Image.Message
 import           Client.Image.MircFormatting
-import           Client.Image.PackedImage (unpackImage)
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
 import           Client.State.Network
 import           Control.Lens
 import           Data.HashSet (HashSet)
+import           Data.Semigroup
 import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
 import           Irc.Identifier
 
 -- | Render the lines used in a channel mask list
 channelInfoImages ::
   Text        {- ^ network -} ->
   Identifier  {- ^ channel -} ->
-  ClientState -> [Image]
+  ClientState -> [Image']
 channelInfoImages network channelId st
 
   | Just cs      <- preview (clientConnection network) st
@@ -46,7 +46,7 @@ channelInfoImages network channelId st
   where
     pal = clientPalette st
 
-channelInfoImages' :: Palette -> HashSet Identifier -> ChannelState -> [Image]
+channelInfoImages' :: Palette -> HashSet Identifier -> ChannelState -> [Image']
 channelInfoImages' pal myNicks !channel
     = topicLine
     : provenanceLines
@@ -56,8 +56,8 @@ channelInfoImages' pal myNicks !channel
   where
     label = text' (view palLabel pal)
 
-    topicLine = label "Topic: " <|>
-                unpackImage (parseIrcText (view chanTopic channel))
+    topicLine = label "Topic: " <>
+                parseIrcText (view chanTopic channel)
 
 
     utcTimeImage = string defAttr . formatTime defaultTimeLocale "%F %T"
@@ -66,20 +66,18 @@ channelInfoImages' pal myNicks !channel
         case view chanTopicProvenance channel of
           Nothing -> []
           Just !prov ->
-            [ label "Topic set by: " <|>
-                unpackImage
-                  (coloredUserInfo
-                    pal DetailedRender myNicks (view topicAuthor prov))
-            , label "Topic set on: " <|> utcTimeImage (view topicTime prov)
+            [ label "Topic set by: " <>
+                coloredUserInfo pal DetailedRender myNicks (view topicAuthor prov)
+            , label "Topic set on: " <> utcTimeImage (view topicTime prov)
             ]
 
     creationLines =
         case view chanCreation channel of
           Nothing   -> []
-          Just time -> [label "Created on: " <|> utcTimeImage time]
+          Just time -> [label "Created on: " <> utcTimeImage time]
 
     urlLines =
         case view chanUrl channel of
           Nothing -> []
-          Just url -> [ label "Channel URL: " <|> unpackImage (parseIrcText url) ]
+          Just url -> [ label "Channel URL: " <> parseIrcText url ]
 

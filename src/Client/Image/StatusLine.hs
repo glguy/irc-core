@@ -17,6 +17,7 @@ module Client.Image.StatusLine
   ) where
 
 import           Client.Image.Message (cleanText)
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
@@ -26,10 +27,11 @@ import           Client.State.Window
 import           Control.Lens
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
+import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
+import qualified Graphics.Vty.Image as Vty
 import           Irc.Identifier (Identifier, idText)
 import           Numeric
 
@@ -40,13 +42,14 @@ bar = '━'
 statusLineImage ::
   Int         {- ^ draw width   -} ->
   ClientState {- ^ client state -} ->
-  Image       {- ^ status bar   -}
+  Vty.Image   {- ^ status bar   -}
 statusLineImage w st =
   makeLines w (common : activity ++ errorImgs)
   where
-    common = horizCat
-      [ myNickImage st
-      , focusImage (view clientFocus st) st
+    common = Vty.horizCat $
+      myNickImage st :
+      map unpackImage
+      [ focusImage (view clientFocus st) st
       , subfocusImage st
       , detailImage st
       , nometaImage (view clientFocus st) st
@@ -66,12 +69,12 @@ statusLineImage w st =
 -- Generates an error message notification image.
 transientErrorImage ::
   Text  {- ^ @error-message@           -} ->
-  Image {- ^ @─[error: error-message]@ -}
+  Vty.Image {- ^ @─[error: error-message]@ -}
 transientErrorImage txt =
-  text' defAttr "─[" <|>
-  text' (withForeColor defAttr red) "error: " <|>
-  text' defAttr (cleanText txt) <|>
-  text' defAttr "]"
+  Vty.text' defAttr "─[" Vty.<|>
+  Vty.text' (withForeColor defAttr red) "error: " Vty.<|>
+  Vty.text' defAttr (cleanText txt) Vty.<|>
+  Vty.text' defAttr "]"
 
 
 -- | The minor status line is used when rendering the @/splits@ and
@@ -80,20 +83,21 @@ minorStatusLineImage ::
   Focus {- ^ window name          -} ->
   Int   {- ^ draw width           -} ->
   Bool  {- ^ show hidemeta status -} ->
-  ClientState -> Image
+  ClientState {- ^ client state -} ->
+  Image'
 minorStatusLineImage focus w showHideMeta st =
-  content <|> charFill defAttr bar fillSize 1
+  content <> string defAttr (replicate fillSize bar)
   where
-    content = focusImage focus st <|>
+    content = focusImage focus st <>
               if showHideMeta then nometaImage focus st else mempty
 
     fillSize = max 0 (w - imageWidth content)
 
 
 -- | Indicate when the client is scrolling and old messages are being shown.
-scrollImage :: ClientState -> Image
+scrollImage :: ClientState -> Image'
 scrollImage st
-  | 0 == view clientScroll st = emptyImage
+  | 0 == view clientScroll st = mempty
   | otherwise = infoBubble (string attr "scroll")
   where
     pal  = clientPalette st
@@ -102,10 +106,10 @@ scrollImage st
 
 -- | Indicate when the client is potentially showing a subset of the
 -- available chat messages.
-filterImage :: ClientState -> Image
+filterImage :: ClientState -> Image'
 filterImage st =
   case clientActiveRegex st of
-    Nothing -> emptyImage
+    Nothing -> mempty
     Just {} -> infoBubble (string attr "filtered")
   where
     pal  = clientPalette st
@@ -115,42 +119,43 @@ filterImage st =
 -- | Indicate the current connection health. This will either indicate
 -- that the connection is being established or that a ping has been
 -- sent or long the previous ping round-trip was.
-latencyImage :: ClientState -> Image
+latencyImage :: ClientState -> Image'
 latencyImage st =
   case views clientFocus focusNetwork st of
-    Nothing      -> emptyImage
+    Nothing      -> mempty
     Just network ->
       case preview (clientConnection network) st of
         Nothing -> infoBubble (string (view palError pal) "offline")
         Just cs ->
           case view csPingStatus cs of
-            PingNever          -> emptyImage
+            PingNever          -> mempty
             PingSent {}        -> latency "ping sent"
             PingLatency delta  -> latency (showFFloat (Just 2) delta "s")
             PingConnecting n _ ->
-              infoBubble (string (view palLatency pal) "connecting" <|>
+              infoBubble (string (view palLatency pal) "connecting" <>
                           retryImage n)
   where
     pal     = clientPalette st
     latency = infoBubble . string (view palLatency pal)
 
     retryImage n
-      | n > 0     = string defAttr ": " <|>
+      | n > 0     = string defAttr ": " <>
                     string (view palLabel pal) ("retry " ++ show n)
-      | otherwise = emptyImage
+      | otherwise = mempty
 
 
 -- | Wrap some text in parentheses to make it suitable for inclusion in the
 -- status line.
-infoBubble :: Image -> Image
-infoBubble img = string defAttr (bar:"(") <|> img <|> string defAttr ")"
+infoBubble :: Image' -> Image'
+infoBubble img =
+  string defAttr (bar:"(") <> img <> string defAttr ")"
 
 
 -- | Indicate that the client is in the /detailed/ view.
-detailImage :: ClientState -> Image
+detailImage :: ClientState -> Image'
 detailImage st
   | view clientDetailView st = infoBubble (string attr "detail")
-  | otherwise = emptyImage
+  | otherwise = mempty
   where
     pal  = clientPalette st
     attr = view palLabel pal
@@ -158,10 +163,10 @@ detailImage st
 
 -- | Indicate that the client isn't showing the metadata lines in /normal/
 -- view.
-nometaImage :: Focus -> ClientState -> Image
+nometaImage :: Focus -> ClientState -> Image'
 nometaImage focus st
   | metaHidden = infoBubble (string attr "nometa")
-  | otherwise  = emptyImage
+  | otherwise  = mempty
   where
     pal        = clientPalette st
     attr       = view palLabel pal
@@ -170,12 +175,12 @@ nometaImage focus st
 -- | Image for little box with active window names:
 --
 -- @-[15p]@
-activitySummary :: ClientState -> Image
+activitySummary :: ClientState -> Vty.Image
 activitySummary st
-  | null indicators = emptyImage
-  | otherwise       = string defAttr (bar:"[") <|>
-                      horizCat indicators <|>
-                      string defAttr "]"
+  | null indicators = Vty.emptyImage
+  | otherwise       = Vty.string defAttr (bar:"[") Vty.<|>
+                      Vty.horizCat indicators Vty.<|>
+                      Vty.string defAttr "]"
   where
     winNames = clientWindowNames st ++ repeat '?'
 
@@ -184,14 +189,14 @@ activitySummary st
 
     aux (i,w) rest =
       case view winMention w of
-        WLImportant -> char (view palMention  pal) i : rest
-        WLNormal    -> char (view palActivity pal) i : rest
+        WLImportant -> Vty.char (view palMention  pal) i : rest
+        WLNormal    -> Vty.char (view palActivity pal) i : rest
         WLBoring    -> rest
       where
         pal = clientPalette st
 
 -- | Multi-line activity information enabled by F3
-activityBarImages :: ClientState -> [Image]
+activityBarImages :: ClientState -> [Vty.Image]
 activityBarImages st
   = catMaybes
   $ zipWith baraux winNames
@@ -205,13 +210,13 @@ activityBarImages st
     baraux i (focus,w)
       | n == 0 = Nothing -- todo: make configurable
       | otherwise = Just
-                  $ string defAttr (bar:"[") <|>
-                    char (view palWindowName pal) i <|>
-                    char defAttr              ':' <|>
-                    text' (view palLabel pal) focusText <|>
-                    char defAttr              ':' <|>
-                    string attr               (show n) <|>
-                    string defAttr "]"
+                  $ Vty.string defAttr (bar:"[") Vty.<|>
+                    Vty.char (view palWindowName pal) i Vty.<|>
+                    Vty.char defAttr ':' Vty.<|>
+                    Vty.text' (view palLabel pal) focusText Vty.<|>
+                    Vty.char defAttr ':' Vty.<|>
+                    Vty.string attr (show n) Vty.<|>
+                    Vty.string defAttr "]"
       where
         n   = view winUnread w
         pal = clientPalette st
@@ -232,35 +237,35 @@ activityBarImages st
 -- cases.
 makeLines ::
   Int     {- ^ window width       -} ->
-  [Image] {- ^ components to pack -} ->
-  Image
-makeLines _ [] = emptyImage
+  [Vty.Image] {- ^ components to pack -} ->
+  Vty.Image
+makeLines _ [] = Vty.emptyImage
 makeLines w (x:xs) = go x xs
   where
 
     go acc (y:ys)
-      | let acc' = acc <|> y
-      , imageWidth acc' <= w
+      | let acc' = acc Vty.<|> y
+      , Vty.imageWidth acc' <= w
       = go acc' ys
 
     go acc ys = makeLines w ys
-            <-> acc <|> charFill defAttr bar (max 0 (w - imageWidth acc)) 1
+        Vty.<-> acc Vty.<|> Vty.charFill defAttr bar (max 0 (w - Vty.imageWidth acc)) 1
 
 
-myNickImage :: ClientState -> Image
+myNickImage :: ClientState -> Vty.Image
 myNickImage st =
   case view clientFocus st of
     NetworkFocus network      -> nickPart network Nothing
     ChannelFocus network chan -> nickPart network (Just chan)
-    Unfocused                 -> emptyImage
+    Unfocused                 -> Vty.emptyImage
   where
     pal = clientPalette st
     nickPart network mbChan =
       case preview (clientConnection network) st of
-        Nothing -> emptyImage
-        Just cs -> string (view palSigil pal) myChanModes
-               <|> text' defAttr (idText nick)
-               <|> parens defAttr (string defAttr ('+' : view csModes cs))
+        Nothing -> Vty.emptyImage
+        Just cs -> Vty.string (view palSigil pal) myChanModes
+           Vty.<|> Vty.text' defAttr (idText nick)
+           Vty.<|> parens defAttr (Vty.string defAttr ('+' : view csModes cs))
           where
             nick      = view csNick cs
             myChanModes =
@@ -269,14 +274,14 @@ myNickImage st =
                 Just chan -> view (csChannels . ix chan . chanUsers . ix nick) cs
 
 
-subfocusImage :: ClientState -> Image
+subfocusImage :: ClientState -> Image'
 subfocusImage st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
   where
     pal         = clientPalette st
     subfocus    = view clientSubfocus st
 
-focusImage :: Focus -> ClientState -> Image
-focusImage focus st = infoBubble $ horizCat
+focusImage :: Focus -> ClientState -> Image'
+focusImage focus st = infoBubble $ mconcat
     [ char (view palWindowName pal) windowName
     , char defAttr ':'
     , viewFocusLabel st focus
@@ -290,10 +295,10 @@ focusImage focus st = infoBubble $ horizCat
                     preview (ix i) windowNames
 
 
-parens :: Attr -> Image -> Image
-parens attr i = char attr '(' <|> i <|> char attr ')'
+parens :: Attr -> Vty.Image -> Vty.Image
+parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'
 
-viewFocusLabel :: ClientState -> Focus -> Image
+viewFocusLabel :: ClientState -> Focus -> Image'
 viewFocusLabel st focus =
   let !pal = clientPalette st in
   case focus of
@@ -302,25 +307,25 @@ viewFocusLabel st focus =
     NetworkFocus network ->
       text' (view palLabel pal) network
     ChannelFocus network channel ->
-      text' (view palLabel pal) network <|>
-      char defAttr ':' <|>
-      text' (view palLabel pal) (idText channel) <|>
+      text' (view palLabel pal) network <>
+      char defAttr ':' <>
+      text' (view palLabel pal) (idText channel) <>
       channelModesImage network channel st
 
-channelModesImage :: Text -> Identifier -> ClientState -> Image
+channelModesImage :: Text -> Identifier -> ClientState -> Image'
 channelModesImage network channel st =
   case preview (clientConnection network . csChannels . ix channel . chanModes) st of
     Just modeMap | not (null modeMap) ->
-        string defAttr (" +" ++ modes) <|>
-        horizCat [ char defAttr ' ' <|> text' defAttr arg | arg <- args, not (Text.null arg) ]
+        string defAttr (" +" ++ modes) <>
+        mconcat [ char defAttr ' ' <> text' defAttr arg | arg <- args, not (Text.null arg) ]
       where (modes,args) = unzip (Map.toList modeMap)
-    _ -> emptyImage
+    _ -> mempty
 
-viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image
+viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image'
 viewSubfocusLabel pal subfocus =
   case subfocus of
     FocusMessages -> Nothing
-    FocusWindows filt -> Just $ string (view palLabel pal) "windows" <|>
+    FocusWindows filt -> Just $ string (view palLabel pal) "windows" <>
                                 opt (windowFilterName filt)
     FocusInfo     -> Just $ string (view palLabel pal) "info"
     FocusUsers    -> Just $ string (view palLabel pal) "users"
@@ -328,15 +333,15 @@ viewSubfocusLabel pal subfocus =
     FocusPalette  -> Just $ string (view palLabel pal) "palette"
     FocusDigraphs -> Just $ string (view palLabel pal) "digraphs"
     FocusKeyMap   -> Just $ string (view palLabel pal) "keymap"
-    FocusHelp mb  -> Just $ string (view palLabel pal) "help" <|>
+    FocusHelp mb  -> Just $ string (view palLabel pal) "help" <>
                             opt mb
-    FocusMasks m  -> Just $ horizCat
+    FocusMasks m  -> Just $ mconcat
       [ string (view palLabel pal) "masks"
       , char defAttr ':'
       , char (view palLabel pal) m
       ]
   where
-    opt = foldMap (\cmd -> char defAttr ':' <|>
+    opt = foldMap (\cmd -> char defAttr ':' <>
                            text' (view palLabel pal) cmd)
 
 windowFilterName :: WindowsFilter -> Maybe Text

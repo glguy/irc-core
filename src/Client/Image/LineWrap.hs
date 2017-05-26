@@ -8,7 +8,7 @@ Maintainer  : emertens@gmail.com
 Provides utilities for line wrapping images.
 -}
 
-module Client.Image.LineWrap (lineWrap, lineWrapChat) where
+module Client.Image.LineWrap (lineWrap, lineWrapChat, terminate) where
 
 import           Client.Image.PackedImage
 import           Data.Semigroup
@@ -46,9 +46,11 @@ lineWrapChat ::
   Maybe Int {- ^ optional indentation -} ->
   Image'    {- ^ unwrapped image      -} ->
   [Image']  {- ^ wrapped image        -}
-lineWrapChat w (Just i)
-  | 2*i <= w = reverse . addPadding i . wordLineWrap w (w-i)
-lineWrapChat w _  = reverse . wordLineWrap w w
+lineWrapChat w _ img
+  | imageWidth img <= w = [img] -- optimization
+lineWrapChat w (Just i) img
+  | 2*i <= w = reverse $ addPadding i $ wordLineWrap w (w-i) img
+lineWrapChat w _ img = reverse $ wordLineWrap w w img
 
 
 addPadding :: Int -> [Image'] -> [Image']

@@ -13,26 +13,27 @@ module Client.View.KeyMap (keyMapLines) where
 
 import           Client.Configuration
 import           Client.EventLoop.Actions
+import           Client.Image.PackedImage
 import           Client.State
 import           Control.Lens
 import           Data.List
+import           Data.Semigroup
 import           Data.Ord
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
 import           Graphics.Vty.Input
 
 -- | Render the lines of a table showing all of the available digraph entries
 keyMapLines ::
   ClientState {- ^ client state -} ->
-  [Image]     {- ^ output lines -}
+  [Image']    {- ^ output lines -}
 keyMapLines
   = renderEntries
   . keyMapEntries
   . view (clientConfig . configKeyMap)
 
-renderEntries :: [([Modifier], Key, Action)] -> [Image]
+renderEntries :: [([Modifier], Key, Action)] -> [Image']
 renderEntries entries =
-  [ resizeWidth keyColWidth key <|> act | (key,act) <- images ]
+  [ resizeImage keyColWidth key <> act | (key,act) <- images ]
 
   where
     third (_,_,x) = x

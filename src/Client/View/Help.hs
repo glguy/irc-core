@@ -29,7 +29,6 @@ import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image (Image)
 
 -- | Generate either the list of all commands and their arguments,
 -- or when given a command name generate the detailed help text
@@ -37,8 +36,8 @@ import           Graphics.Vty.Image (Image)
 helpImageLines ::
   Maybe Text {- ^ optional command name -} ->
   Palette    {- ^ palette               -} ->
-  [Image]    {- ^ help lines            -}
-helpImageLines mbCmd pal = map unpackImage $
+  [Image']   {- ^ help lines            -}
+helpImageLines mbCmd pal =
   case mbCmd of
     Nothing  -> listAllCommands pal
     Just cmd -> commandHelpLines cmd pal

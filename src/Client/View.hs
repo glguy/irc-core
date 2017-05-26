@@ -13,6 +13,7 @@ module Client.View
   ( viewLines
   ) where
 
+import           Client.Image.PackedImage
 import           Client.State
 import           Client.State.Focus
 import           Client.View.ChannelInfo
@@ -27,9 +28,8 @@ import           Client.View.UrlSelection
 import           Client.View.UserList
 import           Client.View.Windows
 import           Control.Lens
-import           Graphics.Vty.Image
 
-viewLines :: Focus -> Subfocus -> Int -> ClientState -> [Image]
+viewLines :: Focus -> Subfocus -> Int -> ClientState -> [Image']
 viewLines focus subfocus w !st =
   case (focus, subfocus) of
     _ | Just ("url",arg) <- clientActiveCommand st ->

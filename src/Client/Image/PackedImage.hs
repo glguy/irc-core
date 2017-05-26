@@ -20,6 +20,7 @@ module Client.Image.PackedImage
   , imageWidth
   , splitImage
   , imageText
+  , resizeImage
   ) where
 
 import           Data.List (findIndex)
@@ -101,3 +102,11 @@ imageText = L.fromChunks . go
   where
     go EmptyImage' = []
     go (HorizText' _ t _ _ xs) = t : go xs
+
+resizeImage :: Int -> Image' -> Image'
+resizeImage w img =
+  let iw = imageWidth img in
+  case compare w iw of
+    LT -> fst (splitImage w img)
+    EQ -> img
+    GT -> img <> string defAttr (replicate (w-iw) ' ')

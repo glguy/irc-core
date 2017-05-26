@@ -12,9 +12,10 @@ import Control.Lens
 import Client.State
 import Client.State.Focus
 import Client.Configuration (LayoutMode(..))
+import Client.Image.PackedImage (Image', unpackImage)
 import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
 import Client.Image.Textbox
-import Client.Image.LineWrap (lineWrap)
+import Client.Image.LineWrap (lineWrapChat, terminate)
 import Client.Image.Palette
 import Client.View
 import Graphics.Vty.Image
@@ -114,10 +115,10 @@ drawExtra ::
   Int         {- ^ draw width      -} ->
   Int         {- ^ draw height     -} ->
   Focus       {- ^ focus           -} ->
-  [Image]     {- ^ image lines     -} ->
+  [Image']    {- ^ image lines     -} ->
   Image       {- ^ rendered window -}
 drawExtra st w h focus lineImages =
-    msgImg <-> minorStatusLineImage focus w True st
+    msgImg <-> unpackImage (minorStatusLineImage focus w True st)
   where
     (_, msgImg) = messagePane w h 0 lineImages
 
@@ -129,7 +130,7 @@ messagePane ::
   Int          {- ^ client width                  -} ->
   Int          {- ^ available rows                -} ->
   Int          {- ^ current scroll                -} ->
-  [Image]      {- ^ focused window                -} ->
+  [Image']     {- ^ focused window                -} ->
   (Int, Image) {- ^ overscroll, rendered messages -}
 messagePane w h scroll images = (overscroll, img)
   where
@@ -143,7 +144,12 @@ messagePane w h scroll images = (overscroll, img)
 
     assemble acc _ | imageHeight acc >= vh = cropTop vh acc
     assemble acc [] = acc
-    assemble acc (x:xs) = assemble (lineWrap w x <-> acc) xs
+    assemble acc (x:xs) = assemble (this <-> acc) xs
+      where
+        this = vertCat
+             $ map (terminate w . unpackImage)
+             $ reverse
+             $ lineWrapChat w Nothing x
 
 
 splitHeights ::

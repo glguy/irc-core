@@ -12,21 +12,22 @@ This module provides a view of the built-in digraph list.
 module Client.View.Digraphs (digraphLines) where
 
 import           Client.Image.Message (cleanChar)
+import           Client.Image.PackedImage
 import           Client.State
 import           Data.List
 import           Data.List.Split
 import qualified Data.Text as Text
 import           Digraphs
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
+import           Graphics.Vty.Image (wcwidth, wcswidth)
 
 -- | Render the lines of a table showing all of the available digraph entries
 digraphLines ::
   Int         {- ^ draw width   -} ->
   ClientState {- ^ client state -} ->
-  [Image]     {- ^ output lines -}
+  [Image']    {- ^ output lines -}
 digraphLines w st
-  = map (horizCat . intersperse sep)
+  = map (mconcat . intersperse sep)
   $ chunksOf entriesPerLine
   $ map (text' defAttr)
   $ matcher
@@ -43,7 +44,7 @@ entryWidth = 5 -- "Ka カ"
 sepWidth :: Int
 sepWidth = imageWidth sep
 
-sep :: Image
+sep :: Image'
 sep = text' defAttr "   "
 
 drawEntry :: (Char,Char,Char) -> String

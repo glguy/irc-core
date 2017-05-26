@@ -14,7 +14,7 @@ module Client.View.Mentions
   ( mentionsViewLines
   ) where
 
-import           Client.Image.PackedImage (Image', unpackImage)
+import           Client.Image.PackedImage
 import           Client.Image.StatusLine
 import           Client.State
 import           Client.State.Focus
@@ -22,12 +22,11 @@ import           Client.State.Window
 import qualified Data.Map as Map
 import           Control.Lens
 import           Data.Time (UTCTime)
-import           Graphics.Vty.Image
 
 -- | Generate the list of message lines marked important ordered by
 -- time. Each run of lines from the same channel will be grouped
 -- together. Messages are headed by their window, network, and channel.
-mentionsViewLines :: Int -> ClientState -> [Image]
+mentionsViewLines :: Int -> ClientState -> [Image']
 mentionsViewLines w st = addMarkers w st entries
 
   where
@@ -51,10 +50,10 @@ addMarkers ::
   Int           {- ^ draw width                        -} ->
   ClientState   {- ^ client state                      -} ->
   [MentionLine] {- ^ list of mentions in time order    -} ->
-  [Image]       {- ^ mention images and channel labels -}
+  [Image']      {- ^ mention images and channel labels -}
 addMarkers _ _ [] = []
 addMarkers w !st (!ml : xs)
-  = map (unpackImage . mlImage) (ml:same)
+  = map mlImage (ml:same)
  ++ minorStatusLineImage (mlFocus ml) w False st
   : addMarkers w st rest
   where

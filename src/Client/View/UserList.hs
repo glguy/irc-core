@@ -14,7 +14,7 @@ module Client.View.UserList
   ) where
 
 import           Client.Image.Message
-import           Client.Image.PackedImage (unpackImage)
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
@@ -25,10 +25,10 @@ import qualified Data.Map.Strict as Map
 import           Data.List
 import           Data.Maybe
 import           Data.Ord
+import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
 import           Irc.Identifier
 import           Irc.UserInfo
 
@@ -39,7 +39,7 @@ userListImages ::
   Text        {- ^ network -} ->
   Identifier  {- ^ channel -} ->
   ClientState                 ->
-  [Image]
+  [Image']
 userListImages network channel st =
   case preview (clientConnection network) st of
     Just cs -> userListImages' cs channel st
@@ -47,11 +47,11 @@ userListImages network channel st =
   where
     pal = clientPalette st
 
-userListImages' :: NetworkState -> Identifier -> ClientState -> [Image]
+userListImages' :: NetworkState -> Identifier -> ClientState -> [Image']
 userListImages' cs channel st =
-    [countImage, horizCat (intersperse gap (map renderUser usersList))]
+    [countImage, mconcat (intersperse gap (map renderUser usersList))]
   where
-    countImage = text' (view palLabel pal) "Users:" <|>
+    countImage = text' (view palLabel pal) "Users:" <>
                  sigilCountImage
 
     matcher = fromMaybe (const True) (clientMatcher st)
@@ -59,8 +59,8 @@ userListImages' cs channel st =
     myNicks = clientHighlights cs st
 
     renderUser (ident, sigils) =
-      string (view palSigil pal) sigils <|>
-      unpackImage (coloredIdentifier pal NormalIdentifier myNicks ident)
+      string (view palSigil pal) sigils <>
+      coloredIdentifier pal NormalIdentifier myNicks ident
 
     gap = char defAttr ' '
 
@@ -73,8 +73,8 @@ userListImages' cs channel st =
     sigilCounts = Map.fromListWith (+)
                     [ (take 1 sigil, 1::Int) | (_,sigil) <- usersList ]
 
-    sigilCountImage = horizCat
-      [ string (view palSigil pal) (' ':sigil) <|>
+    sigilCountImage = mconcat
+      [ string (view palSigil pal) (' ':sigil) <>
         string defAttr (show n)
       | (sigil,n) <- Map.toList sigilCounts
       ]
@@ -91,7 +91,7 @@ userInfoImages ::
   Text        {- ^ network -} ->
   Identifier  {- ^ channel -} ->
   ClientState                 ->
-  [Image]
+  [Image']
 userInfoImages network channel st =
   case preview (clientConnection network) st of
     Just cs -> userInfoImages' cs channel st
@@ -99,7 +99,7 @@ userInfoImages network channel st =
   where
     pal = clientPalette st
 
-userInfoImages' :: NetworkState -> Identifier -> ClientState -> [Image]
+userInfoImages' :: NetworkState -> Identifier -> ClientState -> [Image']
 userInfoImages' cs channel st = renderEntry <$> usersList
   where
     matcher = fromMaybe (const True) (clientMatcher st)
@@ -109,8 +109,8 @@ userInfoImages' cs channel st = renderEntry <$> usersList
     pal = clientPalette st
 
     renderEntry (info, sigils) =
-      string (view palSigil pal) sigils <|>
-      unpackImage (coloredUserInfo pal DetailedRender myNicks info)
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal DetailedRender myNicks info
 
     matcher' (info,sigils) =
       matcher (Text.pack sigils `Text.append` renderUserInfo info)

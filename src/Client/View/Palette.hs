@@ -15,24 +15,24 @@ module Client.View.Palette
   ) where
 
 import           Client.Image.Palette
+import           Client.Image.PackedImage
 import           Control.Lens
 import           Data.List
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
 
 digits :: String
 digits = "0123456789ABCDEF"
 
-digitImage :: Char -> Image
+digitImage :: Char -> Image'
 digitImage d = string defAttr [' ',d,' ']
 
-columns :: [Image] -> Image
-columns = horizCat . intersperse (char defAttr ' ')
+columns :: [Image'] -> Image'
+columns = mconcat . intersperse (char defAttr ' ')
 
 -- | Generate lines used for @/palette@. These lines show
 -- all the colors used in the current palette as well as
 -- the colors available for use in palettes.
-paletteViewLines :: Palette -> [Image]
+paletteViewLines :: Palette -> [Image']
 paletteViewLines pal =
   [ columns
   $ digitImage digit
@@ -49,12 +49,12 @@ paletteViewLines pal =
     ]
 
   , columns (map digitImage (' ':digits))
-  , emptyImage
+  , mempty
   , columns
     [ text' (view l pal) name
     | (name, Lens l) <- paletteMap
     ]
-  , emptyImage
+  , mempty
   , columns
     [ string attr "nicks"
     | attr <- toListOf (palNicks . folded) pal

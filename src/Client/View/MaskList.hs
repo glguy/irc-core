@@ -13,6 +13,7 @@ module Client.View.MaskList
   ( maskListImages
   ) where
 
+import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
@@ -23,10 +24,10 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Ord
 import           Data.Maybe
+import           Data.Semigroup
 import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image
 import           Irc.Identifier
 
 -- | Render the lines used in a channel mask list
@@ -35,7 +36,7 @@ maskListImages ::
   Text        {- ^ network    -} ->
   Identifier  {- ^ channel    -} ->
   Int         {- ^ draw width -} ->
-  ClientState -> [Image]
+  ClientState -> [Image']
 maskListImages mode network channel w st =
   case mbEntries of
     Nothing      -> [text' (view palError pal) "Mask list not loaded"]
@@ -49,14 +50,14 @@ maskListImages mode network channel w st =
                 . chanLists . ix mode
                 ) st
 
-maskListImages' :: HashMap Text MaskListEntry -> Int -> ClientState -> [Image]
+maskListImages' :: HashMap Text MaskListEntry -> Int -> ClientState -> [Image']
 maskListImages' entries w st = countImage : images
   where
     pal = clientPalette st
 
-    countImage = text' (view palLabel pal) "Masks (visible/total): " <|>
-                 string defAttr (show (length entryList)) <|>
-                 char (view palLabel pal) '/' <|>
+    countImage = text' (view palLabel pal) "Masks (visible/total): " <>
+                 string defAttr (show (length entryList)) <>
+                 char (view palLabel pal) '/' <>
                  string defAttr (show (HashMap.size entries))
 
     matcher = fromMaybe (const True) (clientMatcher st)
@@ -72,14 +73,14 @@ maskListImages' entries w st = countImage : images
     (masks, whoWhens) = unzip entryList
     maskImages       = text' defAttr <$> masks
     maskColumnWidth  = maximum (imageWidth <$> maskImages) + 1
-    paddedMaskImages = resizeWidth maskColumnWidth <$> maskImages
+    paddedMaskImages = resizeImage maskColumnWidth <$> maskImages
     width            = max 1 w
 
-    images = [ cropLine $ mask <|>
-                          text' defAttr who <|>
+    images = [ cropLine $ mask <>
+                          text' defAttr who <>
                           string defAttr (renderWhen when)
              | (mask, MaskListEntry who when) <- zip paddedMaskImages whoWhens ]
 
     cropLine img
-      | imageWidth img > width = cropRight width img
+      | imageWidth img > width = resizeImage width img
       | otherwise              = img

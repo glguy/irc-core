@@ -346,7 +346,7 @@ commandsList =
       \\n\
       \When \^Binput\^B is specified it is sent to the stdin.\n\
       \\n\
-      \When neither \^Bnetwork\^B nor \^Bchannel\^B are specified output goes to client window (*)\n\
+      \When neither \^Bnetwork\^B nor \^Bchannel\^B are specified output goes to client window (*).\n\
       \When \^Bnetwork\^B is specified output is sent as raw IRC traffic to the network.\n\
       \When \^Bchannel\^B is specified output is sent as chat to the given channel on the current network.\n\
       \When \^Bnetwork\^B and \^Bchannel\^B are specified output is sent as chat to the given channel on the given network.\n\
@@ -503,7 +503,7 @@ commandsList =
       \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
       \User:    \^BNETWORK\^B:\^BNICK\^B\n\
       \\n\
-      \If the network part is omitted, the current network will be used\n\
+      \If the network part is omitted, the current network will be used.\n\
       \\n\
       \Not providing an argument unsplits the current windows.\n"
     $ ClientCommand cmdSplits tabSplits
@@ -521,7 +521,7 @@ commandsList =
       \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
       \User:    \^BNETWORK\^B:\^BNICK\^B\n\
       \\n\
-      \If the network part is omitted, the current network will be used\n"
+      \If the network part is omitted, the current network will be used.\n"
     $ ClientCommand cmdSplitsAdd tabSplits
 
   , Command
@@ -537,7 +537,7 @@ commandsList =
       \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
       \User:    \^BNETWORK\^B:\^BNICK\^B\n\
       \\n\
-      \If the network part is omitted, the current network will be used\n"
+      \If the network part is omitted, the current network will be used.\n"
     $ ClientCommand cmdSplitsDel tabActiveSplits
 
   , Command
