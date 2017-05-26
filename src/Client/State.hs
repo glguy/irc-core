@@ -302,7 +302,7 @@ recordChannelMessage network channel msg st
       , rendNicks       = HashSet.fromList (channelUserList network channel' st)
       , rendMyNicks     = highlights
       , rendPalette     = clientPalette st
-      , rendNickPadding = view (clientConfig . configNickPadding) st
+      , _rendNickPadding = view (clientConfig . configNickPadding) st
       }
 
     -- on failure returns mempty/""
@@ -528,9 +528,9 @@ toWindowLine params importance msg = WindowLine
 toWindowLine' :: Configuration -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine' config =
   toWindowLine defaultRenderParams
-    { rendPalette     = view configPalette     config
-    , rendNickPadding = view configNickPadding config
-    , rendMyNicks     = view configExtraHighlights config
+    { rendPalette      = view configPalette     config
+    , _rendNickPadding = view configNickPadding config
+    , rendMyNicks      = view configExtraHighlights config
     }
 
 

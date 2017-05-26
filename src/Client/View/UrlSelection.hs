@@ -79,7 +79,7 @@ summaryActor s =
 draw ::
   HashSet Identifier        {- ^ my nick                   -} ->
   Palette                   {- ^ palette                   -} ->
-  Maybe Integer             {- ^ nick render padding       -} ->
+  Maybe Int                 {- ^ nick render padding       -} ->
   Int                       {- ^ selected index            -} ->
   Int                       {- ^ url index                 -} ->
   (Maybe Identifier, Text)  {- ^ sender and url text       -} ->

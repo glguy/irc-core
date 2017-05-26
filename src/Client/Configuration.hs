@@ -90,7 +90,7 @@ data Configuration = Configuration
   , _configPalette         :: Palette
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
-  , _configNickPadding     :: Maybe Integer -- ^ Padding of nicks
+  , _configNickPadding     :: Maybe Int -- ^ Padding of nicks
   , _configConfigPath      :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
   , _configMacros          :: Recognizer Macro -- ^ command macros
