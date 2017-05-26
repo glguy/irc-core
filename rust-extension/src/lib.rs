@@ -9,6 +9,7 @@ use std::ffi::CStr;
 use std::mem;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
+use std::panic;
 use std::ptr;
 use std::slice;
 use std::str;
@@ -36,7 +37,7 @@ fn export_string(s: &str) -> glirc_string {
 }
 
 unsafe fn import_command<'a>(G: &'a glirc, cmd: *const glirc_command) -> Vec<&'a str> {
-    let ref cmdref = *cmd;
+    let cmdref = &*cmd;
     let mut v = Vec::with_capacity(cmdref.params_n);
     for x in slice::from_raw_parts(cmdref.params, cmdref.params_n) {
         v.push(import_string(G, x))
@@ -144,6 +145,8 @@ fn my_start<'a>(G: &glirc, path: &str) -> my_state {
     let msg = format!("Rust extension started: {}", path);
     write_message(G, message_code::NORMAL_MESSAGE, &msg);
 
+    panic::set_hook(Box::new(|_| ()));
+
     let mut cmds: HashMap<&'static str, command_callback> = HashMap::new();
     cmds.insert("nick", nick_command);
     cmds.insert("networks", networks_command);
@@ -152,11 +155,11 @@ fn my_start<'a>(G: &glirc, path: &str) -> my_state {
 }
 
 fn nick_command(G: &glirc, params: &[&str]) {
-    if params.len() > 0 {
+    //if params.len() > 0 {
         if let Some(nick) = my_nick(G, params[0]) {
             write_message(G, message_code::NORMAL_MESSAGE, &nick)
         }
-    }
+    //}
 }
 
 fn networks_command(G: &glirc, _params: &[&str]) {
@@ -189,14 +192,15 @@ fn my_process_command(G: &glirc, session: &my_state, params: Vec<&str>) {
 unsafe extern "C" fn start_entry(G: *mut glirc, path: *const c_char) -> *mut c_void {
     let g = &*G;
     let p = CStr::from_ptr(path).to_str().unwrap();
-    let st = my_start(g, p);
+    let def = my_state { commands: HashMap::new() };
+    let st = handle_panics(g, || my_start(g, p), def);
     export_session(st)
 }
 
 unsafe extern "C" fn stop_entry(G: *mut glirc, sptr: *mut c_void) {
     let g = &*G;
     let st = close_session(sptr);
-    my_stop(g, st)
+    handle_panics(g, || my_stop(g, st), ())
 }
 
 unsafe extern "C" fn process_command_entry(G: *mut glirc,
@@ -205,7 +209,20 @@ unsafe extern "C" fn process_command_entry(G: *mut glirc,
     let g = &*G;
     let session = use_session(g, sptr);
     let params = import_command(g, rawcmd);
-    my_process_command(g, session, params)
+    handle_panics(g, || my_process_command(g, session, params), ());
+}
+
+fn handle_panics<F: FnOnce() -> R + panic::UnwindSafe, R>
+(G: &glirc, f: F, def: R) -> R {
+    match panic::catch_unwind(f) {
+        Ok(x) => x,
+        Err(e) => {
+            let msg = e.downcast_ref::<String>()
+                       .map(|x| x as &str)
+                       .unwrap_or("unknown");
+            let msg1 = format!("Panic in rust extension: {}", msg);
+            write_message(G, message_code::ERROR_MESSAGE, &msg1); def},
+    }
 }
 
 /*
