@@ -14,7 +14,6 @@ module Client.View.Messages
   ( chatMessageImages
   ) where
 
-import           Client.Configuration
 import           Client.Image.LineWrap
 import           Client.Image.Message
 import           Client.Image.PackedImage
@@ -27,7 +26,6 @@ import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
 import           Data.Semigroup
-import           Graphics.Vty.Attributes
 import           Irc.Identifier
 import           Irc.Message
 
@@ -86,9 +84,10 @@ windowLinesToImages st w hideMeta wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
     ([], wl:wls) ->
-                   (lineWrapChat w
-                     (view (clientConfig . configIndentWrapped) st)
-                     (view wlImage wl))
+                   reverse
+                   (lineWrapPrefix w
+                     (view wlPrefix wl)
+                     (view wlImage  wl))
                 ++ windowLinesToImages st w hideMeta wls
     ((img,who,mbnext):mds, wls)
 

@@ -515,14 +515,14 @@ toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -
 toWindowLine params importance msg = WindowLine
   { _wlSummary    = msgSummary (view msgBody msg)
   , _wlText       = msgText (view msgBody msg)
-  , _wlImage      = mkImage NormalRender
-  , _wlFullImage  = mkImage DetailedRender
+  , _wlPrefix     = prefix
+  , _wlImage      = image
+  , _wlFullImage  = full
   , _wlImportance = importance
   , _wlTimestamp  = zonedTimeToUTC (view msgTime msg)
   }
   where
-    mkImage mode =
-      msgImage mode (view msgTime msg) params (view msgBody msg)
+    (prefix, image, full) = msgImage (view msgTime msg) params (view msgBody msg)
 
 -- | 'toWindowLine' but with mostly defaulted parameters.
 toWindowLine' :: Configuration -> WindowLineImportance -> ClientMessage -> WindowLine

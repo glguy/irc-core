@@ -26,6 +26,7 @@ module Client.State.Window
   , WindowLine(..)
   , wlSummary
   , wlText
+  , wlPrefix
   , wlImage
   , wlFullImage
   , wlImportance
@@ -48,10 +49,15 @@ import           Control.Lens
 import           Data.Text (Text)
 import           Data.Time (UTCTime)
 
--- | A single message to be displayed in a window
+-- | A single message to be displayed in a window.
+-- The normal message line consists of the image prefix
+-- and the image. This allows line wrapping to be applied
+-- separately to the image and prefix so that wrapped
+-- messages can fall to the right side of the prefix.
 data WindowLine = WindowLine
   { _wlSummary    :: !IrcSummary  -- ^ Summary value
   , _wlText       :: {-# UNPACK #-} !Text -- ^ Searchable text form
+  , _wlPrefix     :: !Image'      -- ^ Normal rendered image prefix
   , _wlImage      :: !Image'      -- ^ Normal rendered image
   , _wlFullImage  :: !Image'      -- ^ Detailed rendered image
   , _wlImportance :: !WindowLineImportance -- ^ Importance of message

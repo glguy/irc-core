@@ -27,7 +27,6 @@ module Client.Configuration
   , configPalette
   , configWindowNames
   , configNickPadding
-  , configIndentWrapped
   , configConfigPath
   , configMacros
   , configExtensions
@@ -92,7 +91,6 @@ data Configuration = Configuration
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
   , _configNickPadding     :: Maybe Integer -- ^ Padding of nicks
-  , _configIndentWrapped   :: Maybe Int -- ^ How far to indent wrapped lines
   , _configConfigPath      :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
   , _configMacros          :: Recognizer Macro -- ^ command macros
@@ -257,8 +255,6 @@ configurationSpec = sectionsSpec "" $
                                "Extra words to highlight in chat messages"
      _configNickPadding     <- optSection' "nick-padding" nonnegativeSpec
                                "Amount of space to reserve for nicknames in chat messages"
-     _configIndentWrapped   <- optSection' "indent-wrapped-lines" nonnegativeSpec
-                               "Amount of indentation for wrapped message lines"
      _configIgnores         <- sec' mempty "ignores" identifierSetSpec
                                "Set of nicknames to ignore on startup"
      _configActivityBar     <- sec' False  "activity-bar" yesOrNoSpec

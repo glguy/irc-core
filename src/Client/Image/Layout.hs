@@ -15,7 +15,7 @@ import Client.Configuration (LayoutMode(..))
 import Client.Image.PackedImage (Image', unpackImage)
 import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
 import Client.Image.Textbox
-import Client.Image.LineWrap (lineWrapChat, terminate)
+import Client.Image.LineWrap (lineWrap, terminate)
 import Client.Image.Palette
 import Client.View
 import Graphics.Vty.Image
@@ -148,8 +148,7 @@ messagePane w h scroll images = (overscroll, img)
       where
         this = vertCat
              $ map (terminate w . unpackImage)
-             $ reverse
-             $ lineWrapChat w Nothing x
+             $ lineWrap w x
 
 
 splitHeights ::

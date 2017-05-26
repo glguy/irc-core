@@ -72,14 +72,26 @@ defaultRenderParams = MessageRendererParams
 -- | Construct a message given the time the message was received and its
 -- render parameters.
 msgImage ::
-  RenderMode ->
-  ZonedTime {- ^ time of message -} ->
-  MessageRendererParams -> MessageBody -> Image'
-msgImage rm when params body = mconcat
-  [ renderTime rm (rendPalette params) when
-  , statusMsgImage (rendStatusMsg params)
-  , bodyImage rm params body
-  ]
+  ZonedTime                {- ^ time of message     -} ->
+  MessageRendererParams    {- render parameters     -} ->
+  MessageBody              {- ^ message body        -} ->
+  (Image', Image', Image') {- ^ prefix, image, full -}
+msgImage when params body = (prefix, image, full)
+  where
+    prefix = mconcat
+       [ renderTime NormalRender (rendPalette params) when
+       , statusMsgImage (rendStatusMsg params)
+       , prefixImage params body
+       ]
+
+    image = bodyImage NormalRender params body
+
+    full =
+      mconcat
+       [ renderTime DetailedRender (rendPalette params) when
+       , statusMsgImage (rendStatusMsg params)
+       , bodyImage DetailedRender params body
+       ]
 
 cleanChar :: Char -> Char
 cleanChar x
@@ -91,23 +103,17 @@ cleanChar x
 cleanText :: Text -> Text
 cleanText = Text.map cleanChar
 
-errorImage ::
+errorPrefix ::
   MessageRendererParams ->
-  Text {- ^ error message -} ->
   Image'
-errorImage params txt = mconcat
-  [ text' (view palError (rendPalette params)) "error "
-  , text' defAttr (cleanText txt)
-  ]
+errorPrefix params =
+  text' (view palError (rendPalette params)) "error"
 
-normalImage ::
-  MessageRendererParams ->
-  Text {- ^ message -} ->
-  Image'
-normalImage params txt = mconcat
-  [ text' (view palLabel (rendPalette params)) "client "
-  , text' defAttr (cleanText txt)
-  ]
+
+normalPrefix :: MessageRendererParams -> Image'
+normalPrefix params =
+  text' (view palLabel (rendPalette params)) "client"
+
 
 -- | Render the given time according to the current mode and palette.
 renderTime :: RenderMode -> Palette -> ZonedTime -> Image'
@@ -124,6 +130,18 @@ statusMsgImage modes
   where
     statusMsgColor = withForeColor defAttr red
 
+
+-- | Render a 'MessageBody' given the sender's sigils and the nicknames to
+-- highlight.
+prefixImage ::
+  MessageRendererParams ->
+  MessageBody -> Image'
+prefixImage params body =
+  case body of
+    IrcBody irc  -> ircLinePrefix params irc
+    ErrorBody{}  -> errorPrefix  params
+    NormalBody{} -> normalPrefix params
+
 -- | Render a 'MessageBody' given the sender's sigils and the nicknames to
 -- highlight.
 bodyImage ::
@@ -132,9 +150,10 @@ bodyImage ::
   MessageBody -> Image'
 bodyImage rm params body =
   case body of
-    IrcBody    irc -> ircLineImage rm params irc
-    ErrorBody  txt -> errorImage params txt
-    NormalBody txt -> normalImage params txt
+    IrcBody irc | NormalRender   <- rm -> ircLineImage     params irc
+                | DetailedRender <- rm -> fullIrcLineImage params irc
+    ErrorBody  txt                     -> text' defAttr (cleanText txt)
+    NormalBody txt                     -> text' defAttr (cleanText txt)
 
 -- | Render a 'ZonedTime' as time using quiet attributes
 --
@@ -163,32 +182,162 @@ data RenderMode
 
 -- | Optionally insert padding on the right of an 'Image' until it has
 -- the minimum width.
-rightPad :: RenderMode -> Maybe Integer -> Image' -> Image'
-rightPad NormalRender (Just minWidth) i =
+rightPad :: Maybe Integer -> Image' -> Image'
+rightPad (Just minWidth) i =
   let w = max 0 (fromIntegral minWidth - imageWidth i)
   in i <> string defAttr (replicate w ' ')
-rightPad _ _ i = i
+rightPad _ i = i
+
+
+-- | Render a chat message given a rendering mode, the sigils of the user
+-- who sent the message, and a list of nicknames to highlight.
+ircLinePrefix ::
+  MessageRendererParams ->
+  IrcMsg -> Image'
+ircLinePrefix !rp body =
+  let pal     = rendPalette rp
+      sigils  = rendUserSigils rp
+      myNicks = rendMyNicks rp
+      rm      = NormalRender
+  in
+  case body of
+    Join       {} -> mempty
+    Part       {} -> mempty
+    Quit       {} -> mempty
+    Topic      {} -> mempty
+    Ping       {} -> mempty
+    Pong       {} -> mempty
+
+    Nick old _ ->
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks old
+
+    Kick kicker _channel kickee _reason ->
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks kicker <>
+      string defAttr " kicked " <>
+      coloredIdentifier pal NormalIdentifier myNicks kickee <>
+      string defAttr ":"
+
+    Notice src _dst _txt ->
+      rightPad (rendNickPadding rp)
+        (string (view palSigil pal) sigils <>
+         coloredUserInfo pal rm myNicks src) <>
+      string (withForeColor defAttr red) ":"
+
+    Privmsg src _dst _txt ->
+      rightPad (rendNickPadding rp)
+        (string (view palSigil pal) sigils <>
+         coloredUserInfo pal rm myNicks src) <>
+      string defAttr ":"
+
+    Ctcp src _dst "ACTION" _txt ->
+      string (withForeColor defAttr blue) "* " <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src
+
+    CtcpNotice src _dst "ACTION" _txt ->
+      string (withForeColor defAttr red) "* " <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src
+
+    -- Must be matched after the ACTION patterns above
+    Ctcp       {} -> mempty
+    CtcpNotice {} -> mempty
+
+    Error {} -> string (view palError pal) "ERROR"
+
+    Reply code _ -> replyCodePrefix rp code
+
+    UnknownMsg irc ->
+      foldMap (\ui -> coloredUserInfo pal rm myNicks ui <> char defAttr ' ')
+        (view msgPrefix irc) <>
+      text' defAttr (view msgCommand irc)
+
+    Cap cmd _ ->
+      text' (withForeColor defAttr magenta) (renderCapCmd cmd) <>
+      text' defAttr ":"
+
+    Mode nick _ _ ->
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks nick <>
+      string defAttr " set mode:"
+
+    Authenticate{} -> string defAttr "AUTHENTICATE ***"
+    BatchStart{}   -> mempty
+    BatchEnd{}     -> mempty
+
 
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
 ircLineImage ::
-  RenderMode ->
   MessageRendererParams ->
   IrcMsg -> Image'
-ircLineImage rm !rp body =
+ircLineImage !rp body =
+  let pal     = rendPalette rp
+      myNicks = rendMyNicks rp
+      nicks   = rendNicks rp
+  in
+  case body of
+    Join        {} -> mempty
+    Part        {} -> mempty
+    Quit        {} -> mempty
+    Topic       {} -> mempty
+    Ping        {} -> mempty
+    Pong        {} -> mempty
+    Authenticate{} -> mempty
+    BatchStart  {} -> mempty
+    BatchEnd    {} -> mempty
+
+    Nick _ new ->
+      string defAttr "is now known as " <>
+      coloredIdentifier pal NormalIdentifier myNicks new
+
+    Kick _ _ _ reason -> parseIrcText reason
+
+    Notice _ _ txt ->
+      parseIrcTextWithNicks pal myNicks nicks txt
+
+    Privmsg _ _ txt ->
+      parseIrcTextWithNicks pal myNicks nicks txt
+
+    Ctcp _ _ "ACTION" txt ->
+      parseIrcTextWithNicks pal myNicks nicks txt
+
+    CtcpNotice _ _ "ACTION" txt ->
+      parseIrcTextWithNicks pal myNicks nicks txt
+
+    -- Must be matched after the ACTION patterns above
+    Ctcp       {} -> mempty
+    CtcpNotice {} -> mempty
+
+    Error reason -> parseIrcText reason
+
+    Reply code params -> renderReplyCode NormalRender code params
+
+    UnknownMsg irc ->
+      separatedParams (view msgParams irc)
+
+    Cap _ args -> separatedParams args
+
+    Mode _ _ params -> ircWords params
+
+-- | Render a chat message given a rendering mode, the sigils of the user
+-- who sent the message, and a list of nicknames to highlight.
+fullIrcLineImage ::
+  MessageRendererParams ->
+  IrcMsg -> Image'
+fullIrcLineImage !rp body =
   let quietAttr = view palMeta pal
       pal     = rendPalette rp
       sigils  = rendUserSigils rp
       myNicks = rendMyNicks rp
       nicks   = rendNicks rp
-      detail img =
-        case rm of
-          NormalRender   -> mempty
-          DetailedRender -> img
+      rm      = DetailedRender
   in
   case body of
     Nick old new ->
-      detail (string quietAttr "nick ") <>
+      string quietAttr "nick " <>
       string (view palSigil pal) sigils <>
       coloredUserInfo pal rm myNicks old <>
       string defAttr " is now known as " <>
@@ -213,7 +362,7 @@ ircLineImage rm !rp body =
                           string quietAttr ")") mbreason
 
     Kick kicker _channel kickee reason ->
-      detail (string quietAttr "kick ") <>
+      string quietAttr "kick " <>
       string (view palSigil pal) sigils <>
       coloredUserInfo pal rm myNicks kicker <>
       string defAttr " kicked " <>
@@ -222,29 +371,29 @@ ircLineImage rm !rp body =
       parseIrcText reason
 
     Topic src _dst txt ->
-      detail (string quietAttr "tpic ") <>
+      string quietAttr "tpic " <>
       coloredUserInfo pal rm myNicks src <>
       string defAttr " changed the topic to: " <>
       parseIrcText txt
 
     Notice src _dst txt ->
-      detail (string quietAttr "note ") <>
-      rightPad rm (rendNickPadding rp)
+      string quietAttr "note " <>
+      rightPad (rendNickPadding rp)
         (string (view palSigil pal) sigils <>
          coloredUserInfo pal rm myNicks src) <>
       string (withForeColor defAttr red) ": " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Privmsg src _dst txt ->
-      detail (string quietAttr "chat ") <>
-      rightPad rm (rendNickPadding rp)
+      string quietAttr "chat " <>
+      rightPad (rendNickPadding rp)
         (string (view palSigil pal) sigils <>
          coloredUserInfo pal rm myNicks src) <>
       string defAttr ": " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Ctcp src _dst "ACTION" txt ->
-      detail (string quietAttr "actp ") <>
+      string quietAttr "actp " <>
       string (withForeColor defAttr blue) "* " <>
       string (view palSigil pal) sigils <>
       coloredUserInfo pal rm myNicks src <>
@@ -252,7 +401,7 @@ ircLineImage rm !rp body =
       parseIrcTextWithNicks pal myNicks nicks txt
 
     CtcpNotice src _dst "ACTION" txt ->
-      detail (string quietAttr "actn ") <>
+      string quietAttr "actn " <>
       string (withForeColor defAttr red) "* " <>
       string (view palSigil pal) sigils <>
       coloredUserInfo pal rm myNicks src <>
@@ -260,7 +409,7 @@ ircLineImage rm !rp body =
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Ctcp src _dst cmd txt ->
-      detail (string quietAttr "ctcp ") <>
+      string quietAttr "ctcp " <>
       string (withForeColor defAttr blue) "! " <>
       string (view palSigil pal) sigils <>
       coloredUserInfo pal rm myNicks src <>
@@ -270,7 +419,7 @@ ircLineImage rm !rp body =
       parseIrcText txt
 
     CtcpNotice src _dst cmd txt ->
-      detail (string quietAttr "ctcp ") <>
+      string quietAttr "ctcp " <>
       string (withForeColor defAttr red) "! " <>
       string (view palSigil pal) sigils <>
       coloredUserInfo pal rm myNicks src <>
@@ -290,7 +439,7 @@ ircLineImage rm !rp body =
       parseIrcText reason
 
     Reply code params ->
-      renderReplyCode rm rp code params
+      renderReplyCode DetailedRender code params
 
     UnknownMsg irc ->
       foldMap (\ui -> coloredUserInfo pal rm myNicks ui <> char defAttr ' ')
@@ -305,7 +454,7 @@ ircLineImage rm !rp body =
       separatedParams args
 
     Mode nick _chan params ->
-      detail (string quietAttr "mode ") <>
+      string quietAttr "mode " <>
       string (view palSigil pal) sigils <>
       coloredUserInfo pal rm myNicks nick <>
       string defAttr " set mode: " <>
@@ -339,15 +488,27 @@ separatedParams = mconcat . intersperse separatorImage . map parseIrcText
 ircWords :: [Text] -> Image'
 ircWords = mconcat . intersperse (char defAttr ' ') . map parseIrcText
 
-renderReplyCode :: RenderMode -> MessageRendererParams -> ReplyCode -> [Text] -> Image'
-renderReplyCode rm rp code@(ReplyCode w) params =
+replyCodePrefix :: MessageRendererParams -> ReplyCode -> Image'
+replyCodePrefix rp code =
+  rightPad (rendNickPadding rp)
+    (text' attr (replyCodeText info)) <>
+  char defAttr ':'
+  where
+    info = replyCodeInfo code
+
+    color = case replyCodeType info of
+              ClientServerReply -> magenta
+              CommandReply      -> green
+              ErrorReply        -> red
+              UnknownReply      -> yellow
+
+    attr = withForeColor defAttr color
+
+renderReplyCode :: RenderMode -> ReplyCode -> [Text] -> Image'
+renderReplyCode rm code@(ReplyCode w) params =
   case rm of
     DetailedRender -> string attr (show w) <> rawParamsImage
     NormalRender   ->
-      rightPad rm (rendNickPadding rp)
-        (text' attr (replyCodeText info)) <>
-      char defAttr ':' <>
-
       case code of
         RPL_WHOISIDLE -> whoisIdleParamsImage
         _             -> rawParamsImage

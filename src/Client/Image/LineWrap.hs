@@ -8,7 +8,11 @@ Maintainer  : emertens@gmail.com
 Provides utilities for line wrapping images.
 -}
 
-module Client.Image.LineWrap (lineWrap, lineWrapChat, terminate) where
+module Client.Image.LineWrap
+  ( lineWrap
+  , lineWrapPrefix
+  , terminate
+  ) where
 
 import           Client.Image.PackedImage
 import           Data.Semigroup
@@ -16,18 +20,6 @@ import qualified Graphics.Vty.Image as Vty
 import           Graphics.Vty.Attributes
 import qualified Data.Text.Lazy as L
 
--- | Given an image, break the image up into chunks of at most the
--- given width and stack the resulting chunks vertically top-to-bottom.
-lineWrap ::
-  Int       {- ^ terminal width       -} ->
-  Vty.Image {- ^ unwrapped image      -} ->
-  Vty.Image {- ^ wrapped image        -}
-lineWrap w img
-  | Vty.imageWidth img == 0 = Vty.emptyImage
-  | Vty.imageWidth img <= w = terminate w img
-  | otherwise =
-      terminate w (Vty.cropRight w img) Vty.<->
-      lineWrap w (Vty.cropLeft (Vty.imageWidth img - w) img)
 
 -- | Trailing space with default attributes deals with bug in VTY
 -- where the formatting will continue past the end of chat messages.
@@ -41,33 +33,40 @@ terminate n img
   | otherwise               = img Vty.<|> Vty.char defAttr ' '
 
 
-lineWrapChat ::
-  Int       {- ^ terminal width       -} ->
-  Maybe Int {- ^ optional indentation -} ->
-  Image'    {- ^ unwrapped image      -} ->
-  [Image']  {- ^ wrapped image        -}
-lineWrapChat w _ img
-  | imageWidth img <= w = [img] -- optimization
-lineWrapChat w (Just i) img
-  | 2*i <= w = reverse $ addPadding i $ wordLineWrap w (w-i) img
-lineWrapChat w _ img = reverse $ wordLineWrap w w img
+lineWrapPrefix ::
+  Int       {- ^ terminal width  -} ->
+  Image'    {- ^ prefix image    -} ->
+  Image'    {- ^ unwrapped image -} ->
+  [Image']  {- ^ wrapped image   -}
+lineWrapPrefix w pfx img
+  | 3*pfxW <= w = pfx <> char defAttr ' ' <> x :
+                  map (pad<>) xs
+  where
+    pfxW = imageWidth pfx
+    x:xs = lineWrap (w - pfxW - 1) img
+    pad  = string defAttr (replicate (pfxW + 1) ' ')
+
+-- Don't index when the window is tiny
+lineWrapPrefix w pfx img = lineWrap w (pfx <> char defAttr ' ' <> img)
 
 
-addPadding :: Int -> [Image'] -> [Image']
-addPadding _ [] = []
-addPadding i (x:xs) = x : map indent xs
-  where indent = (string defAttr (replicate i ' ') <>)
-
-
-wordLineWrap ::
+lineWrap ::
   Int      {- ^ first line length     -} ->
-  Int      {- ^ secondary line length -} ->
   Image'   {- ^ image                 -} ->
   [Image'] {- ^ splits                -}
-wordLineWrap w wNext img
+lineWrap w img
+  | imageWidth img <= w = [img] -- could be empty
+  | otherwise           = lineWrap' w img
+
+
+lineWrap' ::
+  Int      {- ^ first line length     -} ->
+  Image'   {- ^ image                 -} ->
+  [Image'] {- ^ splits                -}
+lineWrap' w img
   | imgW == 0 = []
   | imgW <= w = [img]
-  | otherwise = l : wordLineWrap wNext wNext (dropSpaces r)
+  | otherwise = l : lineWrap' w (dropSpaces r)
   where
     imgW = imageWidth img
     x:xs = splitOptions img
@@ -80,7 +79,7 @@ wordLineWrap w wNext img
 
     go y [] = min y w
     go y (z:zs)
-      | z-y > wNext = w
+      | z-y > w = w
       | z > w = y
       | otherwise = go z zs
 
