@@ -1,5 +1,12 @@
 # Revision history for glirc2
 
+## 2.22
+
+* Added dyanmic indentation of wrapped lines
+* Added pervasive word-boundary oriented line wrapping
+  (beyond what was previously restricted to chat messages)
+* Removed `indent-wrapped-lines` configuration setting
+
 ## 2.21.1
 
 * Support for latest config-schema

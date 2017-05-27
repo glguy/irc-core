@@ -372,17 +372,15 @@ fullIrcLineImage !rp body =
 
     Notice src _dst txt ->
       string quietAttr "note " <>
-      rightPad (view rendNickPadding rp)
-        (string (view palSigil pal) sigils <>
-         coloredUserInfo pal rm myNicks src) <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src <>
       string (withForeColor defAttr red) ": " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Privmsg src _dst txt ->
       string quietAttr "chat " <>
-      rightPad (view rendNickPadding rp)
-        (string (view palSigil pal) sigils <>
-         coloredUserInfo pal rm myNicks src) <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src <>
       string defAttr ": " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
