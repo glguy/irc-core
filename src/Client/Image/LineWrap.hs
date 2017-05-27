@@ -11,6 +11,7 @@ Provides utilities for line wrapping images.
 module Client.Image.LineWrap
   ( lineWrap
   , lineWrapPrefix
+  , fullLineWrap
   , terminate
   ) where
 
@@ -32,6 +33,18 @@ terminate n img
   | Vty.imageWidth img == n = img
   | otherwise               = img Vty.<|> Vty.char defAttr ' '
 
+
+-- | This version of line wrap wraps without regard for word boundaries.
+fullLineWrap ::
+  Int       {- ^ terminal width  -} ->
+  Image'    {- ^ unwrapped image -} ->
+  [Image']  {- ^ wrapped image   -}
+fullLineWrap w img
+  | iw <= w = [img]
+  | otherwise = l : fullLineWrap w r
+  where
+    iw = imageWidth img
+    (l,r) = splitImage w img
 
 lineWrapPrefix ::
   Int       {- ^ terminal width  -} ->

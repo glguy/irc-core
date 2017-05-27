@@ -55,6 +55,7 @@ chatMessageImages focus w st =
     marker = string (view palLineMarker palette) (replicate w '-')
     windowLineProcessor hideMeta
       | view clientDetailView st =
+          concatMap (reverse . fullLineWrap (view clientWidth st)) .
           if hideMeta
             then detailedImagesWithoutMetadata st
             else map (view wlFullImage)

@@ -501,7 +501,7 @@ replyCodePrefix rp code =
 renderReplyCode :: RenderMode -> ReplyCode -> [Text] -> Image'
 renderReplyCode rm code@(ReplyCode w) params =
   case rm of
-    DetailedRender -> string attr (show w) <> rawParamsImage
+    DetailedRender -> string attr (shows w " ") <> rawParamsImage
     NormalRender   ->
       case code of
         RPL_WHOISIDLE -> whoisIdleParamsImage
