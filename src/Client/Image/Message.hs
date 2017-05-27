@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, OverloadedStrings, BangPatterns #-}
+{-# Language OverloadedStrings, BangPatterns #-}
 {-|
 Module      : Client.Image.Message
 Description : Renderer for message lines
@@ -22,7 +22,7 @@ module Client.Image.Message
   , coloredIdentifier
   , cleanText
   , cleanChar
-  , rightPad
+  , leftPad
   ) where
 
 import           Client.Image.MircFormatting
@@ -55,7 +55,7 @@ data MessageRendererParams = MessageRendererParams
   , rendNicks      :: HashSet Identifier -- ^ nicknames to highlight
   , rendMyNicks    :: HashSet Identifier -- ^ nicknames to highlight in red
   , rendPalette    :: Palette -- ^ nick color palette
-  , _rendNickPadding :: Maybe Int -- ^ nick padding
+  , rendNickPadding :: Maybe Int -- ^ nick padding
   }
 
 -- | Default 'MessageRendererParams' with no sigils or nicknames specified
@@ -66,10 +66,9 @@ defaultRenderParams = MessageRendererParams
   , rendNicks       = HashSet.empty
   , rendMyNicks     = HashSet.empty
   , rendPalette     = defaultPalette
-  , _rendNickPadding = Nothing
+  , rendNickPadding = Nothing
   }
 
-makeLenses ''MessageRendererParams
 
 -- | Construct a message given the time the message was received and its
 -- render parameters.
@@ -81,13 +80,11 @@ msgImage ::
 msgImage when params body = (prefix, image, full)
   where
     si = statusMsgImage (rendStatusMsg params)
-    params' = params & rendNickPadding . _Just -~ imageWidth si
 
-    prefix = mconcat
-       [ renderTime NormalRender (rendPalette params) when
-       , si
-       , prefixImage params' body
-       ]
+    prefix =
+      renderTime NormalRender (rendPalette params) when <>
+      leftPad (rendNickPadding params)
+        (si <> prefixImage params body)
 
     image = bodyImage NormalRender params body
 
@@ -187,11 +184,11 @@ data RenderMode
 
 -- | Optionally insert padding on the right of an 'Image' until it has
 -- the minimum width.
-rightPad :: Maybe Int -> Image' -> Image'
-rightPad (Just minWidth) i =
+leftPad :: Maybe Int -> Image' -> Image'
+leftPad (Just minWidth) i =
   let w = max 0 (minWidth - imageWidth i)
-  in i <> string defAttr (replicate w ' ')
-rightPad _ i = i
+  in string defAttr (replicate w ' ') <> i
+leftPad _ i = i
 
 
 -- | Render the sender of a message in normal mode.
@@ -228,15 +225,13 @@ ircLinePrefix !rp body =
       string defAttr ":"
 
     Notice src _dst _txt ->
-      rightPad (view rendNickPadding rp)
-        (string (view palSigil pal) sigils <>
-         coloredUserInfo pal rm myNicks src) <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src <>
       string (withForeColor defAttr red) ":"
 
     Privmsg src _dst _txt ->
-      rightPad (view rendNickPadding rp)
-        (string (view palSigil pal) sigils <>
-         coloredUserInfo pal rm myNicks src) <>
+      string (view palSigil pal) sigils <>
+      coloredUserInfo pal rm myNicks src <>
       string defAttr ":"
 
     Ctcp src _dst "ACTION" _txt ->
@@ -253,7 +248,7 @@ ircLinePrefix !rp body =
 
     Error {} -> string (view palError pal) "ERROR"
 
-    Reply code _ -> replyCodePrefix rp code
+    Reply code _ -> replyCodePrefix code
 
     UnknownMsg irc ->
       case view msgPrefix irc of
@@ -480,10 +475,9 @@ separatedParams = mconcat . intersperse separatorImage . map parseIrcText
 ircWords :: [Text] -> Image'
 ircWords = mconcat . intersperse (char defAttr ' ') . map parseIrcText
 
-replyCodePrefix :: MessageRendererParams -> ReplyCode -> Image'
-replyCodePrefix rp code =
-  rightPad (view rendNickPadding rp)
-    (text' attr (replyCodeText info)) <>
+replyCodePrefix :: ReplyCode -> Image'
+replyCodePrefix code =
+  text' attr (replyCodeText info) <>
   char defAttr ':'
   where
     info = replyCodeInfo code
