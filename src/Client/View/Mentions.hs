@@ -21,6 +21,7 @@ import           Client.State.Focus
 import           Client.State.Window
 import qualified Data.Map as Map
 import           Control.Lens
+import           Data.Semigroup
 import           Data.Time (UTCTime)
 
 -- | Generate the list of message lines marked important ordered by
@@ -72,7 +73,11 @@ windowEntries !detailed name focus w =
       { mlTimestamp  = view wlTimestamp l
       , mlWindowName = name
       , mlFocus      = focus
-      , mlImage      = if detailed then view wlFullImage l else view wlImage l
+      , mlImage      = if detailed
+                        then view wlFullImage l
+                        else view wlPrefix l <>
+                             char mempty ' ' <>
+                             view wlImage l
       }
   | let p x = WLImportant == view wlImportance x
   , l <- toListOf (winMessages . each . filtered p) w

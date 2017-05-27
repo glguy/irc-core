@@ -507,9 +507,7 @@ renderReplyCode rm code@(ReplyCode w) params =
         RPL_WHOISIDLE -> whoisIdleParamsImage
         _             -> rawParamsImage
   where
-    rawParamsImage =
-      char defAttr ' ' <>
-      separatedParams params'
+    rawParamsImage = separatedParams params'
 
     params' = case rm of
                 DetailedRender -> params
@@ -528,7 +526,6 @@ renderReplyCode rm code@(ReplyCode w) params =
     whoisIdleParamsImage =
       case params' of
         [name, idle, signon, _txt] ->
-          char defAttr ' ' <>
           text' defAttr name <>
           text' defAttr " idle: " <>
           string defAttr (prettySeconds (Text.unpack idle)) <>

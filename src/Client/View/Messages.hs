@@ -25,6 +25,7 @@ import           Client.State.Network
 import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
+import           Data.List
 import           Data.Semigroup
 import           Irc.Identifier
 import           Irc.Message
@@ -94,8 +95,11 @@ windowLinesToImages st w hideMeta wwls =
       | hideMeta -> windowLinesToImages st w hideMeta wls
 
       | otherwise ->
-         startMetadata img mbnext who mds palette
-      ++ windowLinesToImages st w hideMeta wls
+         mconcat
+           (intersperse
+              (char mempty ' ')
+              (startMetadata img mbnext who mds palette))
+       : windowLinesToImages st w hideMeta wls
 
   where
     palette = clientPalette st
