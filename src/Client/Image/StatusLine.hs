@@ -139,8 +139,7 @@ latencyImage st =
     latency = infoBubble . string (view palLatency pal)
 
     retryImage n
-      | n > 0     = string defAttr ": " <>
-                    string (view palLabel pal) ("retry " ++ show n)
+      | n > 0     = ": " <> string (view palLabel pal) ("retry " ++ show n)
       | otherwise = mempty
 
 
@@ -148,7 +147,7 @@ latencyImage st =
 -- status line.
 infoBubble :: Image' -> Image'
 infoBubble img =
-  string defAttr (bar:"(") <> img <> string defAttr ")"
+  string defAttr (bar:"(") <> img <> ")"
 
 
 -- | Indicate that the client is in the /detailed/ view.

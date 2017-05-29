@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 {-|
 Module      : Client.View.UrlSelection
 Description : URL selection module
@@ -88,8 +89,7 @@ draw me pal padding selected i (who,url) =
   string defAttr (shows i ". ") <>
   leftPad padding
     (foldMap (coloredIdentifier pal NormalIdentifier me) who) <>
-  string defAttr ": " <>
-  text' attr (cleanText url)
+  ": " <> text' attr (cleanText url)
   where
     attr | selected == i = withStyle defAttr reverseVideo
          | otherwise     = defAttr

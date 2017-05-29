@@ -93,9 +93,9 @@ msgImage when params body = (prefix, image, full)
 
 cleanChar :: Char -> Char
 cleanChar x
-  | x < '\x20'  = chr (0x2400 + ord x)
-  | x == '\DEL' = '␡'
-  | isControl x = '�'
+  | x < '\x20'  = chr (0x2400 + ord x) -- ␀ .. ␙
+  | x == '\DEL' = '\x2421' -- ␡
+  | isControl x = '\xfffd' -- �
   | otherwise   = x
 
 cleanText :: Text -> Text
@@ -119,9 +119,7 @@ normalPrefix params =
 statusMsgImage :: [Char] {- ^ sigils -} -> Image'
 statusMsgImage modes
   | null modes = mempty
-  | otherwise  = string defAttr "(" <>
-                 string statusMsgColor modes <>
-                 string defAttr ") "
+  | otherwise  = "(" <> string statusMsgColor modes <> ") "
   where
     statusMsgColor = withForeColor defAttr red
 
@@ -195,6 +193,9 @@ ircLinePrefix !rp body =
       sigils  = rendUserSigils rp
       myNicks = rendMyNicks rp
       rm      = NormalRender
+
+      who n   = string (view palSigil pal) sigils <>
+                coloredUserInfo pal rm myNicks n
   in
   case body of
     Join       {} -> mempty
@@ -202,63 +203,46 @@ ircLinePrefix !rp body =
     Quit       {} -> mempty
     Ping       {} -> mempty
     Pong       {} -> mempty
+    Nick       {} -> mempty
 
     Topic src _ _ ->
-      coloredUserInfo pal rm myNicks src <>
-      string defAttr " changed the topic:"
-
-    Nick old _ ->
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks old
+      who src <> " changed the topic:"
 
     Kick kicker _channel kickee _reason ->
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks kicker <>
-      string defAttr " kicked " <>
+      who kicker <>
+      " kicked " <>
       coloredIdentifier pal NormalIdentifier myNicks kickee <>
-      string defAttr ":"
+      ":"
 
-    Notice src _dst _txt ->
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src <>
+    Notice src _ _ ->
+      who src <>
       string (withForeColor defAttr red) ":"
 
-    Privmsg src _dst _txt ->
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src <>
-      string defAttr ":"
+    Privmsg src _ _ -> who src <> ":"
 
     Ctcp src _dst "ACTION" _txt ->
-      string (withForeColor defAttr blue) "* " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src
+      string (withForeColor defAttr blue) "* " <> who src
     Ctcp {} -> mempty
 
     CtcpNotice src _dst "ACTION" _txt ->
-      string (withForeColor defAttr red) "* " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src
+      string (withForeColor defAttr red) "* " <> who src
     CtcpNotice {} -> mempty
 
-    Error {} -> string (view palError pal) "ERROR"
+    Error {} -> string (view palError pal) "ERROR" <> ":"
 
     Reply code _ -> replyCodePrefix code
 
     UnknownMsg irc ->
       case view msgPrefix irc of
-        Just ui -> coloredUserInfo pal rm myNicks ui
+        Just ui -> who ui
         Nothing -> string (view palError pal) "?"
 
     Cap cmd _ ->
-      text' (withForeColor defAttr magenta) (renderCapCmd cmd) <>
-      text' defAttr ":"
+      text' (withForeColor defAttr magenta) (renderCapCmd cmd) <> ":"
 
-    Mode nick _ _ ->
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks nick <>
-      string defAttr " set mode:"
+    Mode nick _ _ -> who nick <> " set mode:"
 
-    Authenticate{} -> string defAttr "AUTHENTICATE"
+    Authenticate{} -> "AUTHENTICATE"
     BatchStart{}   -> mempty
     BatchEnd{}     -> mempty
 
@@ -281,7 +265,8 @@ ircLineImage !rp body =
     Pong        {} -> mempty
     BatchStart  {} -> mempty
     BatchEnd    {} -> mempty
-    Authenticate{} -> string defAttr "***"
+    Nick        {} -> mempty
+    Authenticate{} -> "***"
 
     Error                   txt -> parseIrcText txt
     Topic      _ _          txt -> parseIrcTextWithNicks pal myNicks nicks txt
@@ -292,10 +277,6 @@ ircLineImage !rp body =
     Ctcp {}                     -> mempty
     CtcpNotice _ _ "ACTION" txt -> parseIrcTextWithNicks pal myNicks nicks txt
     CtcpNotice {}               -> mempty
-
-    Nick _ new ->
-      string defAttr "is now known as " <>
-      coloredIdentifier pal NormalIdentifier myNicks new
 
     Reply code params -> renderReplyCode NormalRender code params
     UnknownMsg irc    ->
@@ -317,13 +298,15 @@ fullIrcLineImage !rp body =
       myNicks = rendMyNicks rp
       nicks   = rendNicks rp
       rm      = DetailedRender
+
+      who n = string (view palSigil pal) sigils <>
+              coloredUserInfo pal rm myNicks n
   in
   case body of
     Nick old new ->
       string quietAttr "nick " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks old <>
-      string defAttr " is now known as " <>
+      who old <>
+      " is now known as " <>
       coloredIdentifier pal NormalIdentifier myNicks new
 
     Join nick _chan ->
@@ -346,55 +329,45 @@ fullIrcLineImage !rp body =
 
     Kick kicker _channel kickee reason ->
       string quietAttr "kick " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks kicker <>
-      string defAttr " kicked " <>
+      who kicker <>
+      " kicked " <>
       coloredIdentifier pal NormalIdentifier myNicks kickee <>
-      string defAttr ": " <>
+      ": " <>
       parseIrcText reason
 
     Topic src _dst txt ->
       string quietAttr "tpic " <>
       coloredUserInfo pal rm myNicks src <>
-      string defAttr " changed the topic: " <>
+      " changed the topic: " <>
       parseIrcText txt
 
     Notice src _dst txt ->
       string quietAttr "note " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src <>
+      who src <>
       string (withForeColor defAttr red) ": " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Privmsg src _dst txt ->
       string quietAttr "chat " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src <>
-      string defAttr ": " <>
+      who src <> ": " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Ctcp src _dst "ACTION" txt ->
       string quietAttr "actp " <>
       string (withForeColor defAttr blue) "* " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src <>
-      string defAttr " " <>
+      who src <> " " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     CtcpNotice src _dst "ACTION" txt ->
       string quietAttr "actn " <>
       string (withForeColor defAttr red) "* " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src <>
-      string defAttr " " <>
+      who src <> " " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
     Ctcp src _dst cmd txt ->
       string quietAttr "ctcp " <>
       string (withForeColor defAttr blue) "! " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src <>
-      string defAttr " " <>
+      who src <> " " <>
       parseIrcText cmd <>
       separatorImage <>
       parseIrcText txt
@@ -402,18 +375,16 @@ fullIrcLineImage !rp body =
     CtcpNotice src _dst cmd txt ->
       string quietAttr "ctcp " <>
       string (withForeColor defAttr red) "! " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks src <>
-      string defAttr " " <>
+      who src <> " " <>
       parseIrcText cmd <>
       separatorImage <>
       parseIrcText txt
 
     Ping params ->
-      string defAttr "PING " <> separatedParams params
+      "PING " <> separatedParams params
 
     Pong params ->
-      string defAttr "PONG " <> separatedParams params
+      "PONG " <> separatedParams params
 
     Error reason ->
       string (view palError pal) "ERROR " <>
@@ -436,14 +407,12 @@ fullIrcLineImage !rp body =
 
     Mode nick _chan params ->
       string quietAttr "mode " <>
-      string (view palSigil pal) sigils <>
-      coloredUserInfo pal rm myNicks nick <>
-      string defAttr " set mode: " <>
+      who nick <> " set mode: " <>
       ircWords params
 
-    Authenticate{} -> string defAttr "AUTHENTICATE ***"
-    BatchStart{}   -> string defAttr "BATCH +"
-    BatchEnd{}     -> string defAttr "BATCH -"
+    Authenticate{} -> "AUTHENTICATE ***"
+    BatchStart{}   -> "BATCH +"
+    BatchEnd{}     -> "BATCH -"
 
 
 renderCapCmd :: CapCmd -> Text
