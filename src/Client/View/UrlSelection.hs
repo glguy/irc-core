@@ -87,7 +87,7 @@ draw ::
   Image'                    {- ^ rendered line             -}
 draw me pal padding selected i (who,url) =
   string defAttr (shows i ". ") <>
-  leftPad padding
+  nickPad padding
     (foldMap (coloredIdentifier pal NormalIdentifier me) who) <>
   ": " <> text' attr (cleanText url)
   where

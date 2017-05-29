@@ -22,7 +22,7 @@ module Client.Image.Message
   , coloredIdentifier
   , cleanText
   , cleanChar
-  , leftPad
+  , nickPad
   , timeImage
   ) where
 
@@ -176,11 +176,11 @@ data RenderMode
 
 -- | Optionally insert padding on the right of an 'Image' until it has
 -- the minimum width.
-leftPad :: Maybe Int -> Image' -> Image'
-leftPad (Just minWidth) i =
+nickPad :: Maybe Int -> Image' -> Image'
+nickPad (Just minWidth) i =
   let w = max 0 (minWidth - imageWidth i)
-  in string defAttr (replicate w ' ') <> i
-leftPad _ i = i
+  in i <> string defAttr (replicate w ' ')
+nickPad _ i = i
 
 
 -- | Render the sender of a message in normal mode.

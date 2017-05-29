@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 {-|
 Module      : Client.View.Messages
 Description : Chat message view
@@ -27,9 +28,11 @@ import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
 import           Data.List
+import           Data.Maybe
 import           Data.Semigroup
 import           Irc.Identifier
 import           Irc.Message
+import           Graphics.Vty.Attributes
 
 
 chatMessageImages :: Focus -> Int -> ClientState -> [Image']
@@ -93,18 +96,21 @@ windowLinesToImages st w hideMeta wwls =
       | hideMeta -> windowLinesToImages st w hideMeta wls
 
       | otherwise ->
-         mconcat
-           (intersperse
-              (char mempty ' ')
-              (startMetadata img mbnext who mds palette))
-       : windowLinesToImages st w hideMeta wls
+         lineWrapPrefix w
+           metaPad
+           (mconcat
+              (intersperse " "
+                 (startMetadata img mbnext who mds palette)))
+      ++ windowLinesToImages st w hideMeta wls
 
   where
     palette = clientPalette st
     config  = view clientConfig st
+    padAmt  = view configNickPadding config
 
     drawTime = timeImage palette . unpackTimeOfDay
-    padNick  = leftPad (view configNickPadding config)
+    padNick  = nickPad padAmt
+    metaPad  = string defAttr (replicate (6 + fromMaybe 0 padAmt) ' ')
 
     drawPrefix = views wlTimestamp drawTime <>
                  views wlPrefix    padNick
