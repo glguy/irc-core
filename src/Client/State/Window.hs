@@ -41,13 +41,21 @@ module Client.State.Window
   , windowSeen
   , windowActivate
   , windowDeactivate
+
+    -- * Packed time
+  , PackedTime
+  , packZonedTime
+  , unpackUTCTime
+  , unpackTimeOfDay
   ) where
 
 import           Client.Image.PackedImage
 import           Client.Message
 import           Control.Lens
 import           Data.Text (Text)
-import           Data.Time (UTCTime)
+import           Data.Time
+import           Data.Word
+import           Data.Bits
 
 -- | A single message to be displayed in a window.
 -- The normal message line consists of the image prefix
@@ -61,8 +69,10 @@ data WindowLine = WindowLine
   , _wlImage      :: !Image'      -- ^ Normal rendered image
   , _wlFullImage  :: !Image'      -- ^ Detailed rendered image
   , _wlImportance :: !WindowLineImportance -- ^ Importance of message
-  , _wlTimestamp  :: {-# UNPACK #-} !UTCTime
+  , _wlTimestamp  :: {-# UNPACK #-} !PackedTime
   }
+
+newtype PackedTime = PackedTime Word64
 
 data WindowLines
   = {-# UNPACK #-} !WindowLine :- WindowLines
@@ -141,3 +151,52 @@ windowDeactivate = set winMarker (Just 0)
 instance Each WindowLines WindowLines WindowLine WindowLine where
   each _ Nil = pure Nil
   each f (x :- xs) = (:-) <$> f x <*> each f xs
+
+------------------------------------------------------------------------
+
+-- Field   Range   Bits Start
+-- year:     0..   33     31
+-- month:    1..12 4      27
+-- day:      1..31 5      22
+-- hour:     0..23 5      17
+-- minute:   0..60 6      11
+-- second:   0..61 6       5
+-- offset: -12..14 5       0
+
+field :: Num a => PackedTime -> Int -> Int -> a
+field (PackedTime x) off sz = fromIntegral ((x `shiftR` off) .&. (2^sz-1))
+{-# INLINE field #-}
+
+packField :: Int -> Int -> Word64
+packField off val = fromIntegral val `shiftL` off
+
+packZonedTime :: ZonedTime -> PackedTime
+packZonedTime (ZonedTime (LocalTime (ModifiedJulianDay d) (TimeOfDay h m s)) z)
+  = PackedTime
+  $ packField 17 h .|.
+    packField 11 m .|.
+    packField  5 (floor s) .|.
+    packField 22 (fromInteger d) .|.
+    packField  0 (timeZoneMinutes z `div` 60 + 12)
+
+unpackTimeOfDay :: PackedTime -> TimeOfDay
+unpackTimeOfDay !x = TimeOfDay h m s
+  where
+    h = field x 17 5
+    m = field x 11 6
+    s = field x  5 6
+
+unpackLocalTime :: PackedTime -> LocalTime
+unpackLocalTime !x = LocalTime d t
+  where
+    d = ModifiedJulianDay (field x 22 42)
+    t = unpackTimeOfDay x
+
+unpackUTCTime :: PackedTime -> UTCTime
+unpackUTCTime = zonedTimeToUTC . unpackZonedTime
+
+unpackZonedTime :: PackedTime -> ZonedTime
+unpackZonedTime !x = ZonedTime t z
+  where
+    z = minutesToTimeZone ((field x 0 5 - 12) * 60)
+    t = unpackLocalTime x

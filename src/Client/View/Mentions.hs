@@ -70,7 +70,7 @@ windowEntries ::
   [MentionLine]
 windowEntries !detailed name focus w =
   [ MentionLine
-      { mlTimestamp  = view wlTimestamp l
+      { mlTimestamp  = views wlTimestamp unpackUTCTime l
       , mlWindowName = name
       , mlFocus      = focus
       , mlImage      = if detailed

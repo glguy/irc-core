@@ -14,6 +14,7 @@ module Client.View.Messages
   ( chatMessageImages
   ) where
 
+import           Client.Configuration
 import           Client.Image.LineWrap
 import           Client.Image.Message
 import           Client.Image.PackedImage
@@ -85,11 +86,7 @@ windowLinesToImages ::
 windowLinesToImages st w hideMeta wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], wl:wls) ->
-                   reverse
-                   (lineWrapPrefix w
-                     (view wlPrefix wl)
-                     (view wlImage  wl))
+    ([], wl:wls) -> drawLine wl
                 ++ windowLinesToImages st w hideMeta wls
     ((img,who,mbnext):mds, wls)
 
@@ -104,6 +101,19 @@ windowLinesToImages st w hideMeta wwls =
 
   where
     palette = clientPalette st
+    config  = view clientConfig st
+
+    drawTime = timeImage palette . unpackTimeOfDay
+    padNick  = leftPad (view configNickPadding config)
+
+    drawPrefix = views wlTimestamp drawTime <>
+                 views wlPrefix    padNick
+
+    drawLine wl
+      = reverse
+      $ lineWrapPrefix w
+          (drawPrefix wl)
+          (view wlImage wl)
 
 ------------------------------------------------------------------------
 

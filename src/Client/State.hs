@@ -302,7 +302,6 @@ recordChannelMessage network channel msg st
       , rendNicks       = HashSet.fromList (channelUserList network channel' st)
       , rendMyNicks     = highlights
       , rendPalette     = clientPalette st
-      , rendNickPadding = view (clientConfig . configNickPadding) st
       }
 
     -- on failure returns mempty/""
@@ -519,7 +518,7 @@ toWindowLine params importance msg = WindowLine
   , _wlImage      = image
   , _wlFullImage  = full
   , _wlImportance = importance
-  , _wlTimestamp  = zonedTimeToUTC (view msgTime msg)
+  , _wlTimestamp  = views msgTime packZonedTime msg
   }
   where
     (prefix, image, full) = msgImage (view msgTime msg) params (view msgBody msg)
@@ -529,7 +528,6 @@ toWindowLine' :: Configuration -> WindowLineImportance -> ClientMessage -> Windo
 toWindowLine' config =
   toWindowLine defaultRenderParams
     { rendPalette     = view configPalette     config
-    , rendNickPadding = view configNickPadding config
     , rendMyNicks     = view configExtraHighlights config
     }
 

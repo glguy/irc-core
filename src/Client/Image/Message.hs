@@ -23,6 +23,7 @@ module Client.Image.Message
   , cleanText
   , cleanChar
   , leftPad
+  , timeImage
   ) where
 
 import           Client.Image.MircFormatting
@@ -55,7 +56,6 @@ data MessageRendererParams = MessageRendererParams
   , rendNicks      :: HashSet Identifier -- ^ nicknames to highlight
   , rendMyNicks    :: HashSet Identifier -- ^ nicknames to highlight in red
   , rendPalette    :: Palette -- ^ nick color palette
-  , rendNickPadding :: Maybe Int -- ^ nick padding
   }
 
 -- | Default 'MessageRendererParams' with no sigils or nicknames specified
@@ -66,7 +66,6 @@ defaultRenderParams = MessageRendererParams
   , rendNicks       = HashSet.empty
   , rendMyNicks     = HashSet.empty
   , rendPalette     = defaultPalette
-  , rendNickPadding = Nothing
   }
 
 
@@ -81,16 +80,13 @@ msgImage when params body = (prefix, image, full)
   where
     si = statusMsgImage (rendStatusMsg params)
 
-    prefix =
-      renderTime NormalRender (rendPalette params) when <>
-      leftPad (rendNickPadding params)
-        (si <> prefixImage params body)
+    prefix = si <> prefixImage params body
 
     image = bodyImage NormalRender params body
 
     full =
       mconcat
-       [ renderTime DetailedRender (rendPalette params) when
+       [ datetimeImage (rendPalette params) when
        , statusMsgImage (rendStatusMsg params)
        , bodyImage DetailedRender params body
        ]
@@ -109,18 +105,15 @@ errorPrefix ::
   MessageRendererParams ->
   Image'
 errorPrefix params =
-  text' (view palError (rendPalette params)) "error"
+  text' (view palError (rendPalette params)) "error" <>
+  char defAttr ':'
 
 
 normalPrefix :: MessageRendererParams -> Image'
 normalPrefix params =
-  text' (view palLabel (rendPalette params)) "client"
+  text' (view palLabel (rendPalette params)) "client" <>
+  char defAttr ':'
 
-
--- | Render the given time according to the current mode and palette.
-renderTime :: RenderMode -> Palette -> ZonedTime -> Image'
-renderTime DetailedRender = datetimeImage
-renderTime NormalRender   = timeImage
 
 -- | Render the sigils for a restricted message.
 statusMsgImage :: [Char] {- ^ sigils -} -> Image'
@@ -162,20 +155,21 @@ bodyImage rm params body =
 -- @
 -- 23:15
 -- @
-timeImage :: Palette -> ZonedTime -> Image'
+timeImage :: Palette -> TimeOfDay -> Image'
 timeImage palette
   = string (view palTime palette)
   . formatTime defaultTimeLocale "%R "
 
--- | Render a 'ZonedTime' as full date and time user quiet attributes
+-- | Render a 'ZonedTime' as full date and time user quiet attributes.
+-- Excludes the year.
 --
 -- @
--- 2016-07-24 23:15:10
+-- 07-24 23:15:10
 -- @
 datetimeImage :: Palette -> ZonedTime -> Image'
 datetimeImage palette
   = string (view palTime palette)
-  . formatTime defaultTimeLocale "%F %T "
+  . formatTime defaultTimeLocale "%m-%d %T "
 
 -- | Level of detail to use when rendering
 data RenderMode
