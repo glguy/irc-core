@@ -21,6 +21,7 @@ module Irc.Commands
   , ircMode
   , ircNick
   , ircNotice
+  , ircOper
   , ircPart
   , ircPass
   , ircPing
@@ -196,6 +197,13 @@ ircStats ::
   [Text] {- ^ parameters -} ->
   RawIrcMsg
 ircStats = rawIrcMsg "STATS"
+
+-- | OPER command
+ircOper ::
+  Text {- ^ username -} ->
+  Text {- ^ password -} ->
+  RawIrcMsg
+ircOper u p = rawIrcMsg "OPER" [u,p]
 
 -- | LINKS command
 ircLinks ::

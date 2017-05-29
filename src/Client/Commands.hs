@@ -828,6 +828,14 @@ commandsList =
       \Note that the playback module is not installed in ZNC by default!\n"
     $ NetworkCommand cmdZncPlayback noNetworkTab
 
+  ] , CommandSection "Network operator commands"
+
+  [ Command
+      (pure "oper")
+      (ReqTokenArg "user" (ReqTokenArg "password" NoArg))
+      "Authenticate as a server operator.\n"
+    $ NetworkCommand cmdOper noNetworkTab
+
   ]]
 
 -- | Provides no tab completion for client commands
@@ -1812,3 +1820,8 @@ cmdGrep sensitive st str
       case compile defaultCompOpt{caseSensitive=sensitive} defaultExecOpt str of
         Left e -> commandFailureMsg (Text.pack e) st
         Right r -> commandSuccess (set clientRegex (Just r) st)
+
+cmdOper :: NetworkCommand (String, (String, ()))
+cmdOper cs st (user, (pass, ())) =
+  do sendMsg cs (ircOper (Text.pack user) (Text.pack pass))
+     commandSuccess st

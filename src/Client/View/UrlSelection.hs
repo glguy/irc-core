@@ -85,10 +85,10 @@ draw ::
   (Maybe Identifier, Text)  {- ^ sender and url text       -} ->
   Image'                    {- ^ rendered line             -}
 draw me pal padding selected i (who,url) =
+  string defAttr (shows i ". ") <>
   leftPad padding
     (foldMap (coloredIdentifier pal NormalIdentifier me) who) <>
   string defAttr ": " <>
-  string attr (shows i ". ") <>
   text' attr (cleanText url)
   where
     attr | selected == i = withStyle defAttr reverseVideo
