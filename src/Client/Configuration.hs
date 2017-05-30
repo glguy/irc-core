@@ -20,6 +20,7 @@ module Client.Configuration
     Configuration(..)
   , ConfigurationFailure(..)
   , LayoutMode(..)
+  , PaddingMode(..)
 
   -- * Lenses
   , configDefaults
@@ -90,7 +91,7 @@ data Configuration = Configuration
   , _configPalette         :: Palette
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
-  , _configNickPadding     :: Maybe Int -- ^ Padding of nicks
+  , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
   , _configConfigPath      :: Maybe FilePath
         -- ^ manually specified configuration path, used for reloading
   , _configMacros          :: Recognizer Macro -- ^ command macros
@@ -105,6 +106,13 @@ data Configuration = Configuration
   , _configJumpModifier    :: [Modifier] -- ^ Modifier used for jumping windows
   }
   deriving Show
+
+-- | Setting for how to pad the message prefix.
+data PaddingMode
+  = LeftPadding  !Int -- ^ Whitespace add to the left side of chat prefix
+  | RightPadding !Int -- ^ Whitespace add to the right side of chat prefix
+  | NoPadding         -- ^ No whitespace added
+  deriving (Show)
 
 data LayoutMode
   -- | Vertically stack all windows in a single column
@@ -253,7 +261,7 @@ configurationSpec = sectionsSpec "" $
                                "External command used by /url command"
      _configExtraHighlights <- sec' mempty "extra-highlights" identifierSetSpec
                                "Extra words to highlight in chat messages"
-     _configNickPadding     <- optSection' "nick-padding" nonnegativeSpec
+     _configNickPadding     <- sec' NoPadding "nick-padding" nickPaddingSpec
                                "Amount of space to reserve for nicknames in chat messages"
      _configIgnores         <- sec' mempty "ignores" identifierSetSpec
                                "Set of nicknames to ignore on startup"
@@ -273,6 +281,37 @@ configurationSpec = sectionsSpec "" $
                  _configServers  = buildServerMap _configDefaults ssUpdates
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
              in Configuration{..})
+
+-- | The default nick padding side if padding is going to be used
+defaultPaddingSide :: Int -> PaddingMode
+defaultPaddingSide = RightPadding
+
+-- | Either full or abbreviated nick-padding configuration
+--
+-- > nick-padding: 10
+--
+-- > nick-padding:
+-- >   side: right
+-- >   width: 16
+nickPaddingSpec :: ValueSpecs PaddingMode
+nickPaddingSpec = defaultPaddingSide <$> nonnegativeSpec <!> fullNickPaddingSpec
+
+-- | Full nick padding specification:
+--
+-- > nick-padding:
+-- >   side: left
+-- >   width: 15
+fullNickPaddingSpec :: ValueSpecs PaddingMode
+fullNickPaddingSpec = sectionsSpec "nick-padding" (sideSec <*> amtSec)
+  where
+    sideSpec = LeftPadding  <$ atomSpec "left" <!>
+               RightPadding <$ atomSpec "right"
+
+    sideSec = fromMaybe defaultPaddingSide
+          <$> optSection' "side" sideSpec "Side to pad (default `right`)"
+
+    amtSec  = reqSection' "width" nonnegativeSpec "Field width"
+
 
 modifierSpec :: ValueSpecs [Modifier]
 modifierSpec = toList <$> oneOrNonemptySpec modifier1Spec

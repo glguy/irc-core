@@ -26,6 +26,7 @@ module Client.Image.Message
   , timeImage
   ) where
 
+import           Client.Configuration (PaddingMode(..))
 import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Client.Image.Palette
@@ -174,13 +175,21 @@ data RenderMode
   = NormalRender -- ^ only render nicknames
   | DetailedRender -- ^ render full user info
 
--- | Optionally insert padding on the right of an 'Image' until it has
--- the minimum width.
-nickPad :: Maybe Int -> Image' -> Image'
-nickPad (Just minWidth) i =
-  let w = max 0 (minWidth - imageWidth i)
-  in i <> string defAttr (replicate w ' ')
-nickPad _ i = i
+-- | Optionally add padding to an input image according to the
+-- specified mode. If the input image is already wider than
+-- the specified padding mode, the image is returned unmodified.
+nickPad ::
+  PaddingMode {- ^ padding mode -} ->
+  Image'      {- ^ input image  -} ->
+  Image'      {- ^ padded image -}
+nickPad mode img =
+  case mode of
+    LeftPadding  w | w > iw -> mkpad (w-iw) <> img
+    RightPadding w | w > iw -> img <> mkpad (w-iw)
+    _                       -> img
+  where
+    iw = imageWidth img
+    mkpad n = string defAttr (replicate n ' ')
 
 
 -- | Render the sender of a message in normal mode.

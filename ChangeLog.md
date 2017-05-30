@@ -2,10 +2,17 @@
 
 ## 2.22
 
-* Added dyanmic indentation of wrapped lines
+* Added dynanic indentation of wrapped lines. Lines now
+  wrap to where the message portion of the line started.
+  This removes `indent-wrapped-lines` configuration setting
 * Added pervasive word-boundary oriented line wrapping
   (beyond what was previously restricted to chat messages)
-* Removed `indent-wrapped-lines` configuration setting
+* Made nick prefix padding configurable to be on left or right.
+  See `nick-padding` setting in `glirc2 --config-format`.
+  In addition this setting is now reconfigurable at runtime
+  via `/reload`
+* Added `/oper` command for network operator authentication.
+* Memory savings by packing message timestamp information.
 
 ## 2.21.1
 

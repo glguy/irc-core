@@ -28,11 +28,9 @@ import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
 import           Data.List
-import           Data.Maybe
 import           Data.Semigroup
 import           Irc.Identifier
 import           Irc.Message
-import           Graphics.Vty.Attributes
 
 
 chatMessageImages :: Focus -> Int -> ClientState -> [Image']
@@ -110,7 +108,7 @@ windowLinesToImages st w hideMeta wwls =
 
     drawTime = timeImage palette . unpackTimeOfDay
     padNick  = nickPad padAmt
-    metaPad  = string defAttr (replicate (6 + fromMaybe 0 padAmt) ' ')
+    metaPad  = "      " <> padNick ""
 
     drawPrefix = views wlTimestamp drawTime <>
                  views wlPrefix    padNick
