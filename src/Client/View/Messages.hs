@@ -96,7 +96,7 @@ windowLinesToImages st w hideMeta wwls =
       | hideMeta -> windowLinesToImages st w hideMeta wls
 
       | otherwise ->
-         lineWrapPrefix w
+         wrap
            metaPad
            (mconcat
               (intersperse " "
@@ -115,11 +115,9 @@ windowLinesToImages st w hideMeta wwls =
     drawPrefix = views wlTimestamp drawTime <>
                  views wlPrefix    padNick
 
-    drawLine wl
-      = reverse
-      $ lineWrapPrefix w
-          (drawPrefix wl)
-          (view wlImage wl)
+    wrap pfx body = reverse (lineWrapPrefix w pfx body)
+
+    drawLine wl = wrap (drawPrefix wl) (view wlImage wl)
 
 ------------------------------------------------------------------------
 
