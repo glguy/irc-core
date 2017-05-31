@@ -33,7 +33,7 @@ viewLines :: Focus -> Subfocus -> Int -> ClientState -> [Image']
 viewLines focus subfocus w !st =
   case (focus, subfocus) of
     _ | Just ("url",arg) <- clientActiveCommand st ->
-      urlSelectionView focus arg st
+      urlSelectionView w focus arg st
     (ChannelFocus network channel, FocusInfo) ->
       channelInfoImages network channel st
     (ChannelFocus network channel, FocusUsers)

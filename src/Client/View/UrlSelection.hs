@@ -18,6 +18,7 @@ import           Client.Configuration
 import           Client.Image.Message
 import           Client.Image.PackedImage
 import           Client.Image.Palette
+import           Client.Image.LineWrap
 import           Client.Message
 import           Client.State
 import           Client.State.Focus
@@ -35,12 +36,14 @@ import           Text.Read (readMaybe)
 
 -- | Generate the lines used for the view when typing @/url@
 urlSelectionView ::
+  Int         {- ^ render width        -} ->
   Focus       {- ^ window to search    -} ->
   String      {- ^ argument to command -} ->
   ClientState {- ^ client state        -} ->
   [Image']     {- ^ image lines         -}
-urlSelectionView focus arg st =
-  zipWith (draw me pal padding selected) [1..] (toListOf urled st)
+urlSelectionView w focus arg st
+  = concat
+  $ zipWith (draw w me pal padding selected) [1..] (toListOf urled st)
   where
     urled = clientWindows . ix focus
           . winMessages   . each
@@ -78,18 +81,21 @@ summaryActor s =
 
 -- | Render one line of the url list
 draw ::
+  Int                       {- ^ rendered width            -} ->
   HashSet Identifier        {- ^ my nick                   -} ->
   Palette                   {- ^ palette                   -} ->
   PaddingMode               {- ^ nick render padding       -} ->
   Int                       {- ^ selected index            -} ->
   Int                       {- ^ url index                 -} ->
   (Maybe Identifier, Text)  {- ^ sender and url text       -} ->
-  Image'                    {- ^ rendered line             -}
-draw me pal padding selected i (who,url) =
-  string defAttr (shows i ". ") <>
-  nickPad padding
-    (foldMap (coloredIdentifier pal NormalIdentifier me) who) <>
-  ": " <> text' attr (cleanText url)
+  [Image']                  {- ^ rendered lines            -}
+draw w me pal padding selected i (who,url)
+  = reverse
+  $ lineWrapPrefix w
+      (string defAttr (shows i ". ") <>
+       nickPad padding
+         (foldMap (coloredIdentifier pal NormalIdentifier me) who) <> ": ")
+      (text' attr (cleanText url))
   where
     attr | selected == i = withStyle defAttr reverseVideo
          | otherwise     = defAttr
