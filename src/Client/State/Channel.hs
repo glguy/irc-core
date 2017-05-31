@@ -111,7 +111,7 @@ joinChannel nick = set (chanUsers . at nick) (Just "")
 
 -- | Remove a user from the user list
 partChannel :: Identifier -> ChannelState -> ChannelState
-partChannel nick = set (chanUsers . at nick) Nothing
+partChannel = over chanUsers . sans
 
 -- | Rename a user in the user list
 nickChange :: Identifier -> Identifier -> ChannelState -> ChannelState

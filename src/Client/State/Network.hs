@@ -273,12 +273,9 @@ applyMessage' msgWhen msg cs =
          $ forgetUser (userNick user)
          $ overChannels (partChannel (userNick user)) cs
 
-    Part user chan _mbreason ->
-           noReply
-         $ forgetUser' (userNick user) -- possibly forget
-         $ if userNick user == view csNick cs
-             then over csChannels (sans chan) cs
-             else overChannel chan (partChannel (userNick user)) cs
+    Part user chan _mbreason -> exitChannel chan (userNick user)
+
+    Kick _kicker chan nick _reason -> exitChannel chan nick
 
     Nick oldNick newNick ->
            noReply
@@ -286,10 +283,6 @@ applyMessage' msgWhen msg cs =
          $ updateMyNick (userNick oldNick) newNick
          $ overChannels (nickChange (userNick oldNick) newNick) cs
 
-    Kick _kicker chan nick _reason ->
-           noReply
-         $ forgetUser' nick
-         $ overChannel chan (partChannel nick) cs
     Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
     Reply RPL_SASLSUCCESS _ -> ([ircCapEnd], cs)
     Reply RPL_SASLFAIL _ -> ([ircCapEnd], cs)
@@ -301,6 +294,20 @@ applyMessage' msgWhen msg cs =
     Mode who target (modes:params)  -> doMode msgWhen who target modes params cs
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
     _                      -> noReply cs
+  where
+    exitChannel chan nick
+      | nick == view csNick cs = noReply $ pruneUsers
+                               $ over csChannels (sans chan) cs
+
+      | otherwise              = noReply $ forgetUser' nick
+                               $ overChannel chan (partChannel nick) cs
+
+-- | Restrict 'csUsers' to only users are in a channel that the client
+-- is connected to.
+pruneUsers :: NetworkState -> NetworkState
+pruneUsers cs = over csUsers (`HashMap.intersection` u) cs
+  where
+    u = foldOf (csChannels . folded . chanUsers) cs
 
 -- | 001 'RPL_WELCOME' is the first message received when transitioning
 -- from the initial handshake to a connected state. At this point we know
