@@ -40,7 +40,7 @@ urlSelectionView ::
   Focus       {- ^ window to search    -} ->
   String      {- ^ argument to command -} ->
   ClientState {- ^ client state        -} ->
-  [Image']     {- ^ image lines         -}
+  [Image']    {- ^ image lines         -}
 urlSelectionView w focus arg st
   = concat
   $ zipWith (draw w me pal padding selected) [1..] (toListOf urled st)
@@ -49,7 +49,10 @@ urlSelectionView w focus arg st
           . winMessages   . each
           . folding matches
 
+    focused = focus == view clientFocus st
+
     selected
+      | not focused             = 0
       | all (==' ') arg         = 1
       | Just i <- readMaybe arg = i
       | otherwise               = 0 -- won't match
