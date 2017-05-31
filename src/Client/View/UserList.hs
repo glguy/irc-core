@@ -51,8 +51,7 @@ userListImages' :: NetworkState -> Identifier -> ClientState -> [Image']
 userListImages' cs channel st =
     [countImage, mconcat (intersperse gap (map renderUser usersList))]
   where
-    countImage = text' (view palLabel pal) "Users:" <>
-                 sigilCountImage
+    countImage = drawSigilCount pal (map snd usersList)
 
     matcher = fromMaybe (const True) (clientMatcher st)
 
@@ -70,19 +69,24 @@ userListImages' cs channel st =
               $ filter matcher'
               $ HashMap.toList usersHashMap
 
-    sigilCounts = Map.fromListWith (+)
-                    [ (take 1 sigil, 1::Int) | (_,sigil) <- usersList ]
-
-    sigilCountImage = mconcat
-      [ string (view palSigil pal) (' ':sigil) <>
-        string defAttr (show n)
-      | (sigil,n) <- Map.toList sigilCounts
-      ]
-
     pal = clientPalette st
 
     usersHashMap =
       view (csChannels . ix channel . chanUsers) cs
+
+drawSigilCount :: Palette -> [String] -> Image'
+drawSigilCount pal sigils =
+  text' (view palLabel pal) "Users:" <> mconcat entries
+  where
+    sigilCounts = Map.fromListWith (+) [ (take 1 sigil, 1::Int) | sigil <- sigils ]
+
+    entries
+      | Map.null sigilCounts = [" 0"]
+      | otherwise = [ string (view palSigil pal) (' ':sigil) <>
+                      string defAttr (show n)
+                    | (sigil,n) <- Map.toList sigilCounts
+                    ]
+
 
 -- | Render lines for the @/users@ command in detailed view.
 -- Each user will be rendered on a separate line with username
@@ -100,9 +104,11 @@ userInfoImages network channel st =
     pal = clientPalette st
 
 userInfoImages' :: NetworkState -> Identifier -> ClientState -> [Image']
-userInfoImages' cs channel st = renderEntry <$> usersList
+userInfoImages' cs channel st = countImage : map renderEntry usersList
   where
     matcher = fromMaybe (const True) (clientMatcher st)
+
+    countImage = drawSigilCount pal (map snd usersList)
 
     myNicks = clientHighlights cs st
 
