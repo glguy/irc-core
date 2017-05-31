@@ -56,7 +56,7 @@ commandHelpLines cmdName pal =
       suggestions = Text.unpack $ Text.intercalate " " ((cmdName <>) <$> sfxs)
     Exact Command{cmdNames = names, cmdImplementation = impl,
                   cmdArgumentSpec = spec, cmdDocumentation = doc} ->
-      reverse $ commandSummary pal (pure cmdName) spec
+      reverse $ heading "Syntax: " <> commandSummary pal (pure cmdName) spec
               : emptyLine
               : aliasLines
              ++ explainContext impl
@@ -66,8 +66,12 @@ commandHelpLines cmdName pal =
         aliasLines =
           case delete cmdName (toList names) of
             [] -> []
-            ns -> [ text' defAttr (Text.unwords ("Aliases:":ns))
+            ns -> [ heading "Aliases: " <>
+                    text' defAttr (Text.intercalate ", " ns)
                   , emptyLine ]
+
+heading :: Text -> Image'
+heading = text' (withStyle defAttr bold)
 
 -- | Generate an explanation of the context where the given command
 -- implementation will be valid.
@@ -75,14 +79,13 @@ explainContext ::
   CommandImpl a {- ^ command implementation -} ->
   Image'        {- ^ help line              -}
 explainContext impl =
+  heading "Context: " <>
   case impl of
-    ClientCommand {} -> go "client command" "works everywhere"
-    NetworkCommand{} -> go "network command" "works when focused on active network"
-    ChannelCommand{} -> go "channel command" "works when focused on active channel"
-    ChatCommand   {} -> go "chat command" "works when focused on an active channel or private message"
-  where
-    go x y = string (withStyle defAttr bold) x <>
-             string defAttr (": " ++ y)
+    ClientCommand {} -> "client (works everywhere)"
+    NetworkCommand{} -> "network (works when focused on active network)"
+    ChannelCommand{} -> "channel (works when focused on active channel)"
+    ChatCommand   {} -> "chat (works when focused on an active channel or private message)"
+
 
 -- | Generate the lines for the help window showing all commands.
 listAllCommands ::
@@ -115,7 +118,7 @@ commandSummary ::
   Image'         {- ^ summary help line        -}
 commandSummary pal (cmd :| _) args  =
   char defAttr '/' <>
-  text' (view palCommand pal) cmd <>
+  text' (view palCommandReady pal) cmd <>
   argumentsImage pal' args ""
 
   where
