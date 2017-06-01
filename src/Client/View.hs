@@ -24,6 +24,7 @@ import           Client.View.MaskList
 import           Client.View.Mentions
 import           Client.View.Messages
 import           Client.View.Palette
+import           Client.View.RtsStats
 import           Client.View.UrlSelection
 import           Client.View.UserList
 import           Client.View.Windows
@@ -47,6 +48,7 @@ viewLines focus subfocus w !st =
     (_, FocusDigraphs) -> digraphLines w st
     (_, FocusKeyMap) -> keyMapLines st
     (_, FocusHelp mb) -> helpImageLines mb pal
+    (_, FocusRtsStats) -> rtsStatsLines (view clientRtsStats st) pal
     _ -> chatMessageImages focus w st
   where
     pal = clientPalette st

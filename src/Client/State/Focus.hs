@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP, TemplateHaskell #-}
 
 {-|
 Module      : Client.State.Focus
@@ -53,6 +53,7 @@ data Subfocus
   | FocusDigraphs    -- ^ Show all digraphs
   | FocusKeyMap      -- ^ Show key bindings
   | FocusHelp (Maybe Text) -- ^ Show help window with optional command
+  | FocusRtsStats    -- ^ Show GHC RTS statistics
   deriving (Eq,Show)
 
 -- | Unfocused first, followed by focuses sorted by network.

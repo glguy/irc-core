@@ -334,6 +334,7 @@ viewSubfocusLabel pal subfocus =
     FocusKeyMap   -> Just $ string (view palLabel pal) "keymap"
     FocusHelp mb  -> Just $ string (view palLabel pal) "help" <>
                             opt mb
+    FocusRtsStats -> Just $ string (view palLabel pal) "rtsstats"
     FocusMasks m  -> Just $ mconcat
       [ string (view palLabel pal) "masks"
       , char defAttr ':'

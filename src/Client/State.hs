@@ -42,6 +42,7 @@ module Client.State
   , clientActivityReturn
   , clientErrorMsg
   , clientLayout
+  , clientRtsStats
 
   -- * Client operations
   , withClientState
@@ -142,6 +143,7 @@ import           Irc.Message
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
+import           RtsStats (Stats)
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
 
@@ -179,6 +181,7 @@ data ClientState = ClientState
   , _clientExtensions        :: !ExtensionState           -- ^ state of loaded extensions
   , _clientLogQueue          :: ![LogLine]                -- ^ log lines ready to write
   , _clientErrorMsg          :: Maybe Text                -- ^ transient error box text
+  , _clientRtsStats          :: Maybe Stats               -- ^ most recent GHC RTS stats
   }
 
 
@@ -259,6 +262,7 @@ withClientState cfg k =
         , _clientExtensions        = exts
         , _clientLogQueue          = []
         , _clientErrorMsg          = Nothing
+        , _clientRtsStats          = Nothing
         }
 
 withExtensionState :: (ExtensionState -> IO a) -> IO a

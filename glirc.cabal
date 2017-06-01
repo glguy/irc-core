@@ -113,6 +113,7 @@ library
                        Client.View.Mentions
                        Client.View.Messages
                        Client.View.Palette
+                       Client.View.RtsStats
                        Client.View.UrlSelection
                        Client.View.UserList
                        Client.View.Windows
@@ -120,6 +121,7 @@ library
   other-modules:       LensUtils
                        StrictUnit
                        Digraphs
+                       RtsStats
                        Paths_glirc
                        Build_glirc
 

@@ -61,6 +61,7 @@ import           Irc.Message
 import           Irc.UserInfo
 import           Irc.Modes
 import           LensUtils
+import           RtsStats (getStats)
 import           System.Process
 import           Text.Read
 import           Text.Regex.TDFA
@@ -336,6 +337,12 @@ commandsList =
       \\n\
       \Key bindings can be changed in configuration file. See `glirc2 --config-format`.\n"
     $ ClientCommand cmdKeyMap noClientTab
+
+  , Command
+      (pure "rtsstats")
+      NoArg
+      "Show the GHC RTS statistics.\n"
+    $ ClientCommand cmdRtsStats noClientTab
 
   , Command
       (pure "exec")
@@ -1220,6 +1227,16 @@ cmdDigraphs st _ = commandSuccess (changeSubfocus FocusDigraphs st)
 -- | Implementation of @/keymap@ command. Set subfocus to Keymap.
 cmdKeyMap :: ClientCommand ()
 cmdKeyMap st _ = commandSuccess (changeSubfocus FocusKeyMap st)
+
+-- | Implementation of @/rtsstats@ command. Set subfocus to RtsStats.
+-- Update cached rts stats in client state.
+cmdRtsStats :: ClientCommand ()
+cmdRtsStats st _ =
+  do mb <- getStats
+     case mb of
+       Nothing -> commandFailureMsg "RTS statistics not available. (Use +RTS -T)" st
+       Just{}  -> commandSuccess $ set clientRtsStats mb
+                                 $ changeSubfocus FocusRtsStats st
 
 -- | Implementation of @/help@ command. Set subfocus to Help.
 cmdHelp :: ClientCommand (Maybe (String, ()))

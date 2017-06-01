@@ -13,6 +13,7 @@
   via `/reload`
 * Added `/oper` command for network operator authentication.
 * Memory savings by packing message timestamp information.
+* Added `/rtsstats` command for inspecting the GHC RTS statistics
 
 ## 2.21.1
 
