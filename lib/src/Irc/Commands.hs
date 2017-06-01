@@ -9,16 +9,25 @@ Maintainer  : emertens@gmail.com
 This module provides smart constructors for IRC commands.
 -}
 module Irc.Commands
-  ( ircAway
+  ( ircAdmin
+  , ircAway
   , ircCapEnd
   , ircCapLs
   , ircCapReq
+  , ircCnotice
+  , ircCprivmsg
+  , ircInfo
   , ircInvite
   , ircIson
   , ircJoin
   , ircKick
+  , ircKill
+  , ircKnock
   , ircLinks
+  , ircList
+  , ircLusers
   , ircMode
+  , ircMotd
   , ircNick
   , ircNotice
   , ircOper
@@ -37,6 +46,7 @@ module Irc.Commands
   , ircWho
   , ircWhois
   , ircWhowas
+  , ircVersion
 
   -- * ZNC support
   , ircZnc
@@ -54,12 +64,44 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.ByteString.Base64 as Enc
 
+nonempty :: Text -> [Text]
+nonempty txt = filter (not . Text.null) [txt]
+
 -- | PRIVMSG command
 ircPrivmsg ::
   Text {- ^ target  -} ->
   Text {- ^ message -} ->
   RawIrcMsg
 ircPrivmsg who msg = rawIrcMsg "PRIVMSG" [who, msg]
+
+-- | CPRIVMSG command
+--
+-- > CPRIVMSG <nickname> <channel> :<message>
+ircCprivmsg ::
+  Text {- ^ nickname -} ->
+  Text {- ^ channel  -} ->
+  Text {- ^ message  -} ->
+  RawIrcMsg
+ircCprivmsg nick chan msg = rawIrcMsg "CPRIVMSG" [nick, chan, msg]
+
+-- | CNOTICE command
+--
+-- > CNOTICE <nickname> <channel> :<message>
+ircCnotice ::
+  Text {- ^ nickname -} ->
+  Text {- ^ channel  -} ->
+  Text {- ^ message  -} ->
+  RawIrcMsg
+ircCnotice nick chan msg = rawIrcMsg "CNOTICE" [nick, chan, msg]
+
+-- | KNOCK command
+--
+-- > KNOCK <channel> [<message>]
+ircKnock ::
+  Text {- ^ channel  -} ->
+  Text {- ^ message  -} ->
+  RawIrcMsg
+ircKnock chan msg = rawIrcMsg "KNOCK" (chan : nonempty msg)
 
 -- | NOTICE command
 ircNotice ::
@@ -93,6 +135,12 @@ ircWhowas ::
   RawIrcMsg
 ircWhowas = rawIrcMsg "WHOWAS"
 
+-- | WALLOPS command
+ircWallops ::
+  Text {- ^ message -} ->
+  RawIrcMsg
+ircWallops msg = rawIrcMsg "WALLOPS" [msg]
+
 -- | NICK command
 ircNick ::
   Text {- ^ nickname -} ->
@@ -104,9 +152,7 @@ ircPart ::
   Identifier {- ^ channel -} ->
   Text       {- ^ message -} ->
   RawIrcMsg
-ircPart chan msg
-  | Text.null msg = rawIrcMsg "PART" [idText chan]
-  | otherwise     = rawIrcMsg "PART" [idText chan, msg]
+ircPart chan msg = rawIrcMsg "PART" (idText chan : nonempty msg)
 
 -- | JOIN command
 ircJoin ::
@@ -128,9 +174,7 @@ ircTopic ::
   Identifier {- ^ channel -} ->
   Text       {- ^ topic   -} ->
   RawIrcMsg
-ircTopic chan msg
-  | Text.null msg = rawIrcMsg "TOPIC" [idText chan]
-  | otherwise     = rawIrcMsg "TOPIC" [idText chan, msg]
+ircTopic chan msg = rawIrcMsg "TOPIC" (idText chan : nonempty msg)
 
 -- | KICK command
 ircKick ::
@@ -138,9 +182,14 @@ ircKick ::
   Text       {- ^ nickname -} ->
   Text       {- ^ message  -} ->
   RawIrcMsg
-ircKick chan who msg
-  | Text.null msg = rawIrcMsg "KICK" [idText chan, who]
-  | otherwise     = rawIrcMsg "KICK" [idText chan, who, msg]
+ircKick chan who msg = rawIrcMsg "KICK" (idText chan : who : nonempty msg)
+
+-- | KILL command
+ircKill ::
+  Text {- ^ client  -} ->
+  Text {- ^ message -} ->
+  RawIrcMsg
+ircKill who msg = rawIrcMsg "KILL" (who : nonempty msg)
 
 -- | REMOVE command
 ircRemove ::
@@ -148,19 +197,21 @@ ircRemove ::
   Text       {- ^ nickname -} ->
   Text       {- ^ message  -} ->
   RawIrcMsg
-ircRemove chan who msg
-  | Text.null msg = rawIrcMsg "REMOVE" [idText chan, who]
-  | otherwise     = rawIrcMsg "REMOVE" [idText chan, who, msg]
+ircRemove chan who msg = rawIrcMsg "REMOVE" (idText chan : who : nonempty msg)
 
 -- | QUIT command
 ircQuit :: Text {- ^ quit message -} -> RawIrcMsg
-ircQuit msg
-  | Text.null msg = rawIrcMsg "QUIT" []
-  | otherwise     = rawIrcMsg "QUIT" [msg]
+ircQuit msg = rawIrcMsg "QUIT" (nonempty msg)
 
 -- | PASS command
 ircPass :: Text {- ^ password -} -> RawIrcMsg
 ircPass pass = rawIrcMsg "PASS" [pass]
+
+-- | LIST command
+ircList ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircList = rawIrcMsg "LIST"
 
 -- | PING command
 ircPing ::
@@ -192,6 +243,18 @@ ircUserhost ::
   RawIrcMsg
 ircUserhost = rawIrcMsg "USERHOST"
 
+-- | USERIP command
+ircUserip ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircUserip = rawIrcMsg "USERIP"
+
+-- | USERS command
+ircUsers ::
+  Text {- ^ server -} ->
+  RawIrcMsg
+ircUsers srv = rawIrcMsg "USERS" (nonempty srv)
+
 -- | STATS command
 ircStats ::
   [Text] {- ^ parameters -} ->
@@ -215,9 +278,44 @@ ircLinks = rawIrcMsg "LINKS"
 ircAway ::
   Text {- ^ message -} ->
   RawIrcMsg
-ircAway msg
-  | Text.null msg = rawIrcMsg "AWAY" []
-  | otherwise     = rawIrcMsg "AWAY" [msg]
+ircAway msg = rawIrcMsg "AWAY" (nonempty msg)
+
+-- | MAP command
+ircMap :: RawIrcMsg
+ircMap = rawIrcMsg "MAP" []
+
+-- | INFO command
+ircInfo :: RawIrcMsg
+ircInfo = rawIrcMsg "INFO" []
+
+-- | VERSION command
+ircVersion ::
+  RawIrcMsg
+ircVersion = rawIrcMsg "VERSION" []
+
+-- | LUSERS command
+--
+-- > LUSERS [<mask> [<server>]]
+ircLusers ::
+  [Text] {- ^ params -} ->
+  RawIrcMsg
+ircLusers = rawIrcMsg "LUSERS"
+
+-- | MOTD command
+--
+-- > MOTD [<server>]
+ircMotd ::
+  Text {- ^ server -} ->
+  RawIrcMsg
+ircMotd srv = rawIrcMsg "MOTD" (nonempty srv)
+
+-- | ADMIN command
+--
+-- > ADMIN [<target>]
+ircAdmin ::
+  Text {- ^ target -} ->
+  RawIrcMsg
+ircAdmin srv = rawIrcMsg "ADMIN" (nonempty srv)
 
 -- | USER command
 ircUser ::
