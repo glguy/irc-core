@@ -1,5 +1,11 @@
 # Revision history for irc-core
 
+## 2.3.0 -- YYYY-MM-DD
+
+* Change type of `idDenote` to save a bit of memory
+* Add more commands to `Irc.Commands`
+* Fix comments
+
 ## 2.2.1 -- 2017-05-13
 
 * Prettier reply code text

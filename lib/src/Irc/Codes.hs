@@ -38,7 +38,7 @@ instance Read ReplyCode where
 data ReplyType
   = ClientServerReply -- ^ 0-99 Messages between client and server
   | CommandReply      -- ^ 200-399 Responses to commands
-  | ErrorReply        -- ^ 200-399 Errors
+  | ErrorReply        -- ^ 400-599 Errors
   | UnknownReply      -- ^ Uncategorized
   deriving (Eq, Ord, Read, Show)
 

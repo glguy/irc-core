@@ -16,15 +16,12 @@ import           Client.Image.Message (cleanText)
 import           Client.Message
 import           Control.Exception
 import           Control.Lens hiding ((<.>))
-import qualified Data.ByteString as B
 import           Data.Monoid
 import           Data.Time
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as L
 import qualified Data.Text.Lazy.IO as L
-import qualified Data.Vector.Primitive as PV
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.UserInfo
@@ -90,10 +87,6 @@ renderLogLine !msg dir target =
     success txt = Just LogLine
       { logBaseDir = dir
       , logDay     = day
-      , logTarget  = Text.toLower
-                   $ Text.decodeUtf8
-                   $ B.pack
-                   $ PV.toList
-                   $ idDenote target
+      , logTarget  = Text.toLower (idTextNorm target)
       , logLine    = L.fromChunks ["[", Text.pack todStr, "] "] <> txt <> "\n"
       }

@@ -1,5 +1,5 @@
 name:                irc-core
-version:             2.2.2
+version:             2.3.0
 synopsis:            IRC core library for glirc
 description:         IRC core library for glirc
                      .

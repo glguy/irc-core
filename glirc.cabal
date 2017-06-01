@@ -136,7 +136,7 @@ library
                        gitrev               >=1.2    && <1.4,
                        hashable             >=1.2.4  && <1.3,
                        HsOpenSSL            >=0.11   && <0.12,
-                       irc-core             >=2.2.2  && <2.3,
+                       irc-core             >=2.3    && <2.4,
                        lens                 >=4.14   && <4.16,
                        kan-extensions       >=5.0    && <5.1,
                        network              >=2.6.2  && <2.7,
