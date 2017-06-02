@@ -501,18 +501,32 @@ commandsList =
   , Command
       (pure "splits")
       (RemainingArg "focuses")
-      "Set the extra message view splits.\n\
+      "\^BParameters:\^B\n\
       \\n\
-      \\^Bfocuses\^B: space delimited list of focus names.\n\
+      \    focuses: List of focus names\n\
       \\n\
-      \Client:  *\n\
-      \Network: \^BNETWORK\^B:\n\
-      \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
-      \User:    \^BNETWORK\^B:\^BNICK\^B\n\
+      \\^BDescription:\^B\n\
       \\n\
-      \If the network part is omitted, the current network will be used.\n\
+      \    This command sents the set of focuses that will always\n\
+      \    be visible, even when unfocused. When the client is focused\n\
+      \    to an active network, the network can be omitted when\n\
+      \    specifying a focus. If no focuses are listed, they will\n\
+      \    all be cleared.\n\
       \\n\
-      \Not providing an argument unsplits the current windows.\n"
+      \    Client:  *\n\
+      \    Network: \^_network\^_:\n\
+      \    Channel: \^_#channel\^_\n\
+      \    Channel: \^_network\^_:\^_#channel\^_\n\
+      \    User:    \^_nick\^_\n\
+      \    User:    \^_network\^_:\^_nick\^_\n\
+      \\n\
+      \\^BExamples:\^B\n\
+      \\n\
+      \    /splits * fn:#haskell fn:chanserv\n\
+      \    /splits #haskell #haskell-lens nickserv\n\
+      \    /splits\n\
+      \\n\
+      \\^BSee also:\^B splits+, splits-\n"
     $ ClientCommand cmdSplits tabSplits
 
   , Command
@@ -875,6 +889,11 @@ commandsList =
       (pure "rules") (OptTokenArg "servername" NoArg)
       "Send RULES query to server.\n"
     $ NetworkCommand cmdRules simpleNetworkTab
+
+  , Command
+      (pure "info") NoArg
+      "Send INFO query to server.\n"
+    $ NetworkCommand cmdInfo noNetworkTab
 
   , Command
       (pure "list") (RemainingArg "arguments")
@@ -1507,6 +1526,11 @@ cmdRules cs st mbservername =
 cmdMap :: NetworkCommand ()
 cmdMap cs st _ =
   do sendMsg cs ircMap
+     commandSuccess st
+
+cmdInfo :: NetworkCommand ()
+cmdInfo cs st _ =
+  do sendMsg cs ircInfo
      commandSuccess st
 
 cmdVersion :: NetworkCommand (Maybe (String, ()))
