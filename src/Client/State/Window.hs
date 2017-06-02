@@ -52,7 +52,8 @@ module Client.State.Window
 import           Client.Image.PackedImage
 import           Client.Message
 import           Control.Lens
-import           Data.Text (Text)
+import           Control.Monad ((<$!>))
+import           Data.Text.Lazy (Text)
 import           Data.Time
 import           Data.Word
 import           Data.Bits
@@ -64,7 +65,6 @@ import           Data.Bits
 -- messages can fall to the right side of the prefix.
 data WindowLine = WindowLine
   { _wlSummary    :: !IrcSummary  -- ^ Summary value
-  , _wlText       :: {-# UNPACK #-} !Text -- ^ Searchable text form
   , _wlPrefix     :: !Image'      -- ^ Normal rendered image prefix
   , _wlImage      :: !Image'      -- ^ Normal rendered image
   , _wlFullImage  :: !Image'      -- ^ Detailed rendered image
@@ -103,6 +103,9 @@ makeLenses ''Window
 makeLenses ''WindowLine
 
 
+wlText :: Getter WindowLine Text
+wlText = wlFullImage . to imageText
+
 -- | A window with no messages
 emptyWindow :: Window
 emptyWindow = Window
@@ -120,7 +123,7 @@ addToWindow :: WindowLine -> Window -> Window
 addToWindow !msg !win = Window
     { _winMessages = msg :- view winMessages win
     , _winTotal    = view winTotal win + 1
-    , _winMarker   = do i <- view winMarker win; return $! i+1
+    , _winMarker   = (+1) <$!> view winMarker win
     , _winUnread   = if view wlImportance msg == WLBoring
                      then view winUnread win
                      else view winUnread win + 1

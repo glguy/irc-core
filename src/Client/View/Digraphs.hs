@@ -34,7 +34,7 @@ digraphLines w st
   $ map (Text.pack . drawEntry)
   $ digraphListToList digraphs
   where
-    matcher        = maybe id filter (clientMatcher st)
+    matcher        = maybe id filter (clientMatcher' st)
     entriesPerLine = max 1 -- just in case?
                    $ (w + sepWidth) `quot` (entryWidth + sepWidth)
 

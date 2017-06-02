@@ -50,6 +50,7 @@ module Client.State
   , clientShutdown
   , clientPark
   , clientMatcher
+  , clientMatcher'
   , clientActiveRegex
   , clientToggleHideMeta
 
@@ -134,6 +135,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
 import           Data.Time
 import           Foreign.Ptr
 import           Foreign.StablePtr
@@ -517,7 +519,6 @@ recordWindowLine focus wl st = st2
 toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine params importance msg = WindowLine
   { _wlSummary    = msgSummary (view msgBody msg)
-  , _wlText       = msgText (view msgBody msg)
   , _wlPrefix     = prefix
   , _wlImage      = image
   , _wlFullImage  = full
@@ -596,10 +597,18 @@ channelUserList network channel =
 -- | Returns the current filtering predicate if one is active.
 clientMatcher ::
   ClientState          {- ^ client state       -} ->
-  Maybe (Text -> Bool) {- ^ optional predicate -}
+  Maybe (LText.Text -> Bool) {- ^ optional predicate -}
 clientMatcher st =
   do r <- clientActiveRegex st
-     return (matchTest r . Text.unpack)
+     return (matchTest r . LText.unpack)
+
+-- | Strict version of 'clientMatcher'
+clientMatcher' ::
+  ClientState          {- ^ client state       -} ->
+  Maybe (Text -> Bool) {- ^ optional predicate -}
+clientMatcher' st =
+  do p <- clientMatcher st
+     return (p . LText.fromStrict)
 
 
 -- | Construct a text matching predicate used to filter the message window.
@@ -642,11 +651,13 @@ Right urlPattern =
 
 -- | Find all the URL matches using 'urlPattern' in a given 'Text' suitable
 -- for being opened. Surrounding @<@ and @>@ are removed.
-urlMatches :: Text -> [Text]
+urlMatches :: LText.Text -> [Text]
 urlMatches txt = removeBrackets . extractText . (^?! ix 0)
-             <$> matchAll urlPattern (Text.unpack txt)
+             <$> matchAll urlPattern (LText.unpack txt)
   where
-    extractText (off,len) = Text.take len (Text.drop off txt)
+    extractText (off,len) = LText.toStrict
+                          $ LText.take (fromIntegral len)
+                          $ LText.drop (fromIntegral off) txt
 
     removeBrackets t =
       case Text.uncons t of

@@ -43,7 +43,7 @@ unpackImage i =
 -- | Packed, strict version of 'Image' used for long-term storage of images.
 data Image'
   = HorizText'
-      Attr -- don't unpack, these get reused from the palette
+      !Attr -- don't unpack, these get reused from the palette
       {-# UNPACK #-} !S.Text
       {-# UNPACK #-} !Int
       {-# UNPACK #-} !Int

@@ -60,7 +60,7 @@ maskListImages' entries w st = countImage : images
                  char (view palLabel pal) '/' <>
                  string defAttr (show (HashMap.size entries))
 
-    matcher = fromMaybe (const True) (clientMatcher st)
+    matcher = fromMaybe (const True) (clientMatcher' st)
 
     matcher' (mask,entry) = matcher mask || matcher (view maskListSetter entry)
 

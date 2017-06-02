@@ -28,6 +28,7 @@ import           Data.Ord
 import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
 import           Irc.UserInfo
@@ -63,7 +64,7 @@ userListImages' cs channel st =
 
     gap = char defAttr ' '
 
-    matcher' (ident,sigils) = matcher (Text.pack sigils `Text.append` idText ident)
+    matcher' (ident,sigils) = matcher (LText.fromChunks [Text.pack sigils, idText ident])
 
     usersList = sortBy (comparing fst)
               $ filter matcher'
@@ -119,7 +120,7 @@ userInfoImages' cs channel st = countImage : map renderEntry usersList
       coloredUserInfo pal DetailedRender myNicks info
 
     matcher' (info,sigils) =
-      matcher (Text.pack sigils `Text.append` renderUserInfo info)
+      matcher (LText.fromChunks [Text.pack sigils, renderUserInfo info])
 
     userInfos = view csUsers cs
 
