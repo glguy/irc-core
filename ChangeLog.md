@@ -12,8 +12,11 @@
   In addition this setting is now reconfigurable at runtime
   via `/reload`
 * Added `/oper` command for network operator authentication.
-* Memory savings by packing message timestamp information.
+* Memory savings by packing message timestamp information, and
+  using the "detailed" image for regular expression matching.
 * Added `/rtsstats` command for inspecting the GHC RTS statistics
+* Added many minor IRC query commands: admin, info, map, rules
+  motd, version, lusers, kill, knock, list.
 
 ## 2.21.1
 

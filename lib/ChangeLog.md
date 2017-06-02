@@ -1,6 +1,6 @@
 # Revision history for irc-core
 
-## 2.3.0 -- YYYY-MM-DD
+## 2.3.0 -- 2017-06-02
 
 * Change type of `idDenote` to save a bit of memory
 * Add more commands to `Irc.Commands`
