@@ -26,6 +26,7 @@ module Irc.Commands
   , ircLinks
   , ircList
   , ircLusers
+  , ircMap
   , ircMode
   , ircMotd
   , ircNick
@@ -36,6 +37,7 @@ module Irc.Commands
   , ircPing
   , ircPong
   , ircPrivmsg
+  , ircRules
   , ircQuit
   , ircRemove
   , ircStats
@@ -201,7 +203,7 @@ ircRemove chan who msg = rawIrcMsg "REMOVE" (idText chan : who : nonempty msg)
 
 -- | QUIT command
 ircQuit :: Text {- ^ quit message -} -> RawIrcMsg
-ircQuit msg = rawIrcMsg "QUIT" (nonempty msg)
+ircQuit = rawIrcMsg "QUIT" . nonempty
 
 -- | PASS command
 ircPass :: Text {- ^ password -} -> RawIrcMsg
@@ -233,9 +235,9 @@ ircIson nicks = rawIrcMsg "ISON" [Text.unwords nicks]
 
 -- | TIME command
 ircTime ::
-  [Text] {- ^ parameters -} ->
+  Text {- ^ servername -} ->
   RawIrcMsg
-ircTime = rawIrcMsg "TIME"
+ircTime = rawIrcMsg "TIME" . nonempty
 
 -- | USERHOST command
 ircUserhost ::
@@ -253,7 +255,7 @@ ircUserip = rawIrcMsg "USERIP"
 ircUsers ::
   Text {- ^ server -} ->
   RawIrcMsg
-ircUsers srv = rawIrcMsg "USERS" (nonempty srv)
+ircUsers = rawIrcMsg "USERS" . nonempty
 
 -- | STATS command
 ircStats ::
@@ -278,7 +280,7 @@ ircLinks = rawIrcMsg "LINKS"
 ircAway ::
   Text {- ^ message -} ->
   RawIrcMsg
-ircAway msg = rawIrcMsg "AWAY" (nonempty msg)
+ircAway = rawIrcMsg "AWAY" . nonempty
 
 -- | MAP command
 ircMap :: RawIrcMsg
@@ -288,10 +290,17 @@ ircMap = rawIrcMsg "MAP" []
 ircInfo :: RawIrcMsg
 ircInfo = rawIrcMsg "INFO" []
 
+-- | RULES command
+ircRules ::
+  Text {- ^ servername -} ->
+  RawIrcMsg
+ircRules = rawIrcMsg "RULES" . nonempty
+
 -- | VERSION command
 ircVersion ::
+  Text {- ^ server -} ->
   RawIrcMsg
-ircVersion = rawIrcMsg "VERSION" []
+ircVersion = rawIrcMsg "VERSION" . nonempty
 
 -- | LUSERS command
 --
@@ -307,7 +316,7 @@ ircLusers = rawIrcMsg "LUSERS"
 ircMotd ::
   Text {- ^ server -} ->
   RawIrcMsg
-ircMotd srv = rawIrcMsg "MOTD" (nonempty srv)
+ircMotd = rawIrcMsg "MOTD" . nonempty
 
 -- | ADMIN command
 --
@@ -315,7 +324,7 @@ ircMotd srv = rawIrcMsg "MOTD" (nonempty srv)
 ircAdmin ::
   Text {- ^ target -} ->
   RawIrcMsg
-ircAdmin srv = rawIrcMsg "ADMIN" (nonempty srv)
+ircAdmin = rawIrcMsg "ADMIN" . nonempty
 
 -- | USER command
 ircUser ::

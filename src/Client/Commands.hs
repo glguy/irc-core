@@ -844,14 +844,8 @@ commandsList =
     $ NetworkCommand cmdUserhost simpleNetworkTab
 
   , Command
-      (pure "links")
-      (RemainingArg "arguments")
-      "Send LINKS query to server with given arguments.\n"
-    $ NetworkCommand cmdLinks simpleNetworkTab
-
-  , Command
       (pure "time")
-      (RemainingArg "arguments")
+      (OptTokenArg "servername" NoArg)
       "Send TIME query to server with given arguments.\n"
     $ NetworkCommand cmdTime simpleNetworkTab
 
@@ -860,6 +854,37 @@ commandsList =
       (RemainingArg "arguments")
       "Send STATS query to server with given arguments.\n"
     $ NetworkCommand cmdStats simpleNetworkTab
+
+  , Command
+      (pure "lusers")
+      (OptTokenArg "mask" (OptTokenArg "servername" NoArg))
+      "Send LUSERS query to server with given arguments.\n"
+    $ NetworkCommand cmdLusers simpleNetworkTab
+
+  , Command
+      (pure "motd") (OptTokenArg "servername" NoArg)
+      "Send MOTD query to server.\n"
+    $ NetworkCommand cmdMotd simpleNetworkTab
+
+  , Command
+      (pure "admin") (OptTokenArg "servername" NoArg)
+      "Send ADMIN query to server.\n"
+    $ NetworkCommand cmdAdmin simpleNetworkTab
+
+  , Command
+      (pure "rules") (OptTokenArg "servername" NoArg)
+      "Send RULES query to server.\n"
+    $ NetworkCommand cmdRules simpleNetworkTab
+
+  , Command
+      (pure "list") (RemainingArg "arguments")
+      "Send LIST query to server.\n"
+    $ NetworkCommand cmdList simpleNetworkTab
+
+  , Command
+      (pure "version") (OptTokenArg "servername" NoArg)
+      "Send VERSION query to server.\n"
+    $ NetworkCommand cmdVersion simpleNetworkTab
 
   ------------------------------------------------------------------------
   ] , CommandSection "IRC channel management"
@@ -936,6 +961,12 @@ commandsList =
       \See also: /kick /kickban\n"
     $ ChannelCommand cmdRemove simpleChannelTab
 
+  , Command
+      (pure "knock")
+      (ReqTokenArg "channel" (RemainingArg "message"))
+      "Request entry to an invite-only channel.\n"
+    $ NetworkCommand cmdKnock simpleNetworkTab
+
   ------------------------------------------------------------------------
   ] , CommandSection "ZNC Support"
   ------------------------------------------------------------------------
@@ -972,6 +1003,24 @@ commandsList =
       (ReqTokenArg "user" (ReqTokenArg "password" NoArg))
       "Authenticate as a server operator.\n"
     $ NetworkCommand cmdOper noNetworkTab
+
+  , Command
+      (pure "kill")
+      (ReqTokenArg "client" (RemainingArg "reason"))
+      "Kill a client connection to the server.\n"
+    $ NetworkCommand cmdKill simpleNetworkTab
+
+  , Command
+      (pure "map")
+      NoArg
+      "Display network map.\n"
+    $ NetworkCommand cmdMap simpleNetworkTab
+
+  , Command
+      (pure "links")
+      (RemainingArg "arguments")
+      "Send LINKS query to server with given arguments.\n"
+    $ NetworkCommand cmdLinks simpleNetworkTab
 
   ]]
 
@@ -1424,6 +1473,59 @@ cmdStats cs st rest =
   do sendMsg cs (ircStats (Text.pack <$> words rest))
      commandSuccess st
 
+cmdLusers :: NetworkCommand (Maybe (String, Maybe (String, ())))
+cmdLusers cs st arg =
+  do sendMsg cs $ ircLusers $ fmap Text.pack $
+       case arg of
+         Nothing                -> []
+         Just (x, Nothing)      -> [x]
+         Just (x, (Just (y,_))) -> [x,y]
+     commandSuccess st
+
+cmdMotd :: NetworkCommand (Maybe (String, ()))
+cmdMotd cs st mbservername =
+  do sendMsg cs $ ircMotd $ case mbservername of
+                              Just (s,_) -> Text.pack s
+                              Nothing    -> ""
+     commandSuccess st
+
+cmdAdmin :: NetworkCommand (Maybe (String, ()))
+cmdAdmin cs st mbservername =
+  do sendMsg cs $ ircAdmin $ case mbservername of
+                              Just (s,_) -> Text.pack s
+                              Nothing    -> ""
+     commandSuccess st
+
+cmdRules :: NetworkCommand (Maybe (String, ()))
+cmdRules cs st mbservername =
+  do sendMsg cs $ ircRules $
+       case mbservername of
+         Just (s,_) -> Text.pack s
+         Nothing    -> ""
+     commandSuccess st
+
+cmdMap :: NetworkCommand ()
+cmdMap cs st _ =
+  do sendMsg cs ircMap
+     commandSuccess st
+
+cmdVersion :: NetworkCommand (Maybe (String, ()))
+cmdVersion cs st mbservername =
+  do sendMsg cs $ ircVersion $ case mbservername of
+                                Just (s,_) -> Text.pack s
+                                Nothing    -> ""
+     commandSuccess st
+
+cmdList :: NetworkCommand String
+cmdList cs st rest =
+  do sendMsg cs (ircList (Text.pack <$> words rest))
+     commandSuccess st
+
+cmdKill :: NetworkCommand (String, String)
+cmdKill cs st (client,rest) =
+  do sendMsg cs (ircKill (Text.pack client) (Text.pack rest))
+     commandSuccess st
+
 cmdAway :: NetworkCommand String
 cmdAway cs st rest =
   do sendMsg cs (ircAway (Text.pack rest))
@@ -1434,9 +1536,12 @@ cmdLinks cs st rest =
   do sendMsg cs (ircLinks (Text.pack <$> words rest))
      commandSuccess st
 
-cmdTime :: NetworkCommand String
-cmdTime cs st rest =
-  do sendMsg cs (ircTime (Text.pack <$> words rest))
+cmdTime :: NetworkCommand (Maybe (String, ()))
+cmdTime cs st arg =
+  do sendMsg cs $ ircTime $
+       case arg of
+         Nothing    -> ""
+         Just (x,_) -> Text.pack x
      commandSuccess st
 
 cmdZnc :: NetworkCommand String
@@ -1593,6 +1698,11 @@ cmdRemove channelId cs st (who,reason) =
          cmd = ircRemove channelId (Text.pack who) msg
      cs' <- sendModeration channelId [cmd] cs
      commandSuccessUpdateCS cs' st
+
+cmdKnock :: NetworkCommand (String, String)
+cmdKnock cs st (chan,message) =
+  do sendMsg cs (ircKnock (Text.pack chan) (Text.pack message))
+     commandSuccess st
 
 cmdJoin :: NetworkCommand (String, Maybe (String, ()))
 cmdJoin cs st (channels, mbKeys) =
