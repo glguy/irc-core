@@ -95,6 +95,11 @@ Relative paths are relative to the home directory.
 Learn more about this file format at [config-value](http://hackage.haskell.org/package/config-value)
 
 ```
+-- vim: filetype=config-value
+-- Grab the Vim syntax highlighting file from the config-value package
+
+-- Learn more about these settings with `glirc2 --config-format`
+
 -- Defaults used when not specified on command line
 defaults:
   nick:            "yournick"
@@ -143,7 +148,18 @@ macros:
 
 extra-highlights: ["glirc", "lens"]
 
+nick-padding:
+   side: left -- try right if you don't like left padding
+   width: 13
+
+url-opener: "open" -- This works on macOS, "gnome-open" for GNOME
+
+key-bindings:
+  * bind: "C-M-b"
+    command: "masks b"
+
 palette:
+  line-marker: yellow
   time:
     fg: [10,10,10] -- RGB values for color for timestamps
     bg: blue
