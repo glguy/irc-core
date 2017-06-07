@@ -17,6 +17,7 @@ import           Client.State
 import           Data.List
 import           Data.List.Split
 import qualified Data.Text as Text
+import           Data.Text (Text)
 import           Digraphs
 import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image (wcwidth, wcswidth)
@@ -32,7 +33,7 @@ digraphLines w st
   $ map (text' defAttr)
   $ matcher
   $ map (Text.pack . drawEntry)
-  $ digraphListToList digraphs
+  $ Text.chunksOf 3 digraphs
   where
     matcher        = maybe id filter (clientMatcher' st)
     entriesPerLine = max 1 -- just in case?
@@ -47,9 +48,10 @@ sepWidth = imageWidth sep
 sep :: Image'
 sep = text' defAttr "   "
 
-drawEntry :: (Char,Char,Char) -> String
-drawEntry (x,y,z) = output ++ replicate (entryWidth - wcswidth output) ' '
+drawEntry :: Text {- ^ 3-character entry -} -> String
+drawEntry entry = output ++ replicate (entryWidth - wcswidth output) ' '
   where
+    [x,y,z] = Text.unpack entry
     output = x:y:z2
     dottedCircle = '\x25cc'
     z1 = cleanChar z

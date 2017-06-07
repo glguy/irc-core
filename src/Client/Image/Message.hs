@@ -288,7 +288,7 @@ ircLineImage !rp body =
     CtcpNotice {}               -> mempty
 
     Reply code params -> renderReplyCode NormalRender code params
-    UnknownMsg irc    ->
+    UnknownMsg irc ->
       text' defAttr (view msgCommand irc) <>
       char defAttr ' ' <>
       separatedParams (view msgParams irc)

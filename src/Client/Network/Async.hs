@@ -43,6 +43,7 @@ import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
+import qualified Data.ByteString as B
 import           Data.Foldable
 import           Data.Time
 import           Irc.RateLimit
@@ -176,7 +177,8 @@ receiveLoop :: NetworkId -> Connection -> TQueue NetworkEvent -> IO ()
 receiveLoop network h inQueue =
   do mb <- recvLine h (2*ircMaxMessageLength)
      for_ mb $ \msg ->
-       do now <- getZonedTime
-          atomically $ writeTQueue inQueue
-                     $ NetworkLine network now msg
+       do unless (B.null msg) $ -- RFC says to ignore empty messages
+            do now <- getZonedTime
+               atomically $ writeTQueue inQueue
+                          $ NetworkLine network now msg
           receiveLoop network h inQueue
