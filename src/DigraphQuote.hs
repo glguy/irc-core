@@ -39,8 +39,8 @@ digraphTableExp = stringE . concat <=< traverse parseEntry . lines
 parseEntry :: String -> Q String
 parseEntry line =
   case words line of
-    [x,y] : code : rest
-       | [(n,"")] <- readHex code
+    [x,y] : ('U':'+':hex) : rest
+       | [(n,"")] <- readHex hex
        , isAllowedTerminator rest   -> pure [x,y,chr n]
 
     rest | isAllowedTerminator rest -> pure "" -- skip empty lines
