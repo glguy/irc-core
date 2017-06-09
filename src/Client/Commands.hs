@@ -467,14 +467,33 @@ commandsList =
 
   , Command
       ("query" :| ["c", "channel"])
-      (ReqTokenArg "target" NoArg)
-      "Change the focused window.\n\
+      (ReqTokenArg "focus" NoArg)
+      "\^BParameters:\^B\n\
       \\n\
-      \Changes the focus to the \^Btarget\^B chat window on the current network.\n\
+      \    focuses: Focus name\n\
       \\n\
-      \Nicknames and channels can be specified in the \^Btarget\^B parameter.\n\
-      \See also: /focus to switch to a target on a different network.\n"
-    $ NetworkCommand cmdQuery tabQuery
+      \\^BDescription:\^B\n\
+      \\n\
+      \    This command sets the current window focus. When\n\
+      \    no network is specified, the current network will\n\
+      \    be used.\n\
+      \\n\
+      \    Client:  *\n\
+      \    Network: \^_network\^_:\n\
+      \    Channel: \^_#channel\^_\n\
+      \    Channel: \^_network\^_:\^_#channel\^_\n\
+      \    User:    \^_nick\^_\n\
+      \    User:    \^_network\^_:\^_nick\^_\n\
+      \\n\
+      \\^BExamples:\^B\n\
+      \\n\
+      \    /c fn:#haskell\n\
+      \    /c #haskell\n\
+      \    /c fn:\n\
+      \    /c *:\n\
+      \\n\
+      \\^BSee also:\^B focus\n"
+    $ ClientCommand cmdQuery tabQuery
 
   , Command
       (pure "clear")
@@ -1364,19 +1383,26 @@ withSplitFocuses st str k =
     Just args -> k args
   where
     mb = traverse
-           (parseSplitFocus (views clientFocus focusNetwork st))
+           (parseFocus (views clientFocus focusNetwork st))
            (words str)
 
--- | Parses a single entry in the format used by @/splits[+-]@ to specify
--- windows.
-parseSplitFocus :: Maybe Text -> String -> Maybe Focus
-parseSplitFocus mbNet x =
+-- | Parses a single focus name given a default network.
+--
+-- The default is parameterized over an arbitrary 'Applicative'
+-- instance so that if you know the network you can use 'Identity'
+-- and if you might not, you can use 'Maybe'
+parseFocus ::
+  Applicative f =>
+  f Text {- ^ default network    -} ->
+  String {- ^ @[network:]target@ -} ->
+  f Focus
+parseFocus mbNet x =
   case break (==':') x of
-    ("*","")     -> Just Unfocused
-    (net,_:"")   -> Just (NetworkFocus (Text.pack net))
-    (net,_:chan) -> Just (ChannelFocus (Text.pack net) (mkId (Text.pack chan)))
-    (chan,"") -> do net <- mbNet
-                    Just (ChannelFocus net (mkId (Text.pack chan)))
+    ("*","")     -> pure Unfocused
+    (net,_:"")   -> pure (NetworkFocus (Text.pack net))
+    (net,_:chan) -> pure (ChannelFocus (Text.pack net) (mkId (Text.pack chan)))
+    (chan,"")    -> mbNet <&> \net ->
+                    ChannelFocus net (mkId (Text.pack chan))
 
 -- | Render a entry from splits back to the textual format.
 renderSplitFocus :: Focus -> Text
@@ -1739,19 +1765,24 @@ cmdJoin cs st (channels, mbKeys) =
 
 -- | @/query@ command. Takes a channel or nickname and switches
 -- focus to that target on the current network.
-cmdQuery :: NetworkCommand (String, ())
-cmdQuery cs st (channel, _) =
-  commandSuccess
-    $ changeFocus (ChannelFocus (view csNetwork cs) (mkId (Text.pack channel))) st
+cmdQuery :: ClientCommand (String, ())
+cmdQuery st (channel, _) =
+  case parseFocus (views clientFocus focusNetwork st) channel of
+    Just focus -> commandSuccess (changeFocus focus st)
+    Nothing    -> commandFailureMsg "No current network" st
 
 -- | Tab completion for @/query@
 tabQuery ::
   Bool {- ^ reversed order -} ->
-  NetworkCommand String
-tabQuery isReversed cs st _ =
+  ClientCommand String
+tabQuery isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
-    completions = channelWindowsOnNetwork (view csNetwork cs) st
+    completions = currentNet <> allWindows
+    allWindows  = renderSplitFocus <$> views clientWindows Map.keys st
+    currentNet  = case views clientFocus focusNetwork st of
+                    Just net -> idText <$> channelWindowsOnNetwork net st
+                    Nothing  -> []
 
 -- | Return the list of identifiers for open channel windows on
 -- the given network name.
