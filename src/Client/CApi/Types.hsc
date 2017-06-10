@@ -30,12 +30,16 @@ module Client.CApi.Types
   -- * Commands
   , FgnCmd(..)
 
+  -- * Chat
+  , FgnChat(..)
+
   -- * Function pointer calling
   , Dynamic
   , runStartExtension
   , runStopExtension
   , runProcessMessage
   , runProcessCommand
+  , runProcessChat
 
   -- * report message codes
   , MessageCode(..), normalMessage, errorMessage
@@ -90,6 +94,13 @@ type ProcessCommand =
   Ptr FgnCmd {- ^ command         -} ->
   IO ()
 
+-- | @typedef void process_chat(void *glirc, void *S, const struct glirc_chat *);@
+type ProcessChat =
+  Ptr ()      {- ^ api token       -} ->
+  Ptr ()      {- ^ extension state -} ->
+  Ptr FgnChat {- ^ chat info       -} ->
+  IO MessageResult
+
 -- | Type of dynamic function pointer wrappers.
 type Dynamic a = FunPtr a -> a
 
@@ -97,6 +108,7 @@ foreign import ccall "dynamic" runStartExtension :: Dynamic StartExtension
 foreign import ccall "dynamic" runStopExtension  :: Dynamic StopExtension
 foreign import ccall "dynamic" runProcessMessage :: Dynamic ProcessMessage
 foreign import ccall "dynamic" runProcessCommand :: Dynamic ProcessCommand
+foreign import ccall "dynamic" runProcessChat    :: Dynamic ProcessChat
 
 ------------------------------------------------------------------------
 
@@ -105,6 +117,7 @@ data FgnExtension = FgnExtension
   { fgnStart   :: FunPtr StartExtension -- ^ Optional startup callback
   , fgnStop    :: FunPtr StopExtension  -- ^ Optional shutdown callback
   , fgnMessage :: FunPtr ProcessMessage -- ^ Optional message received callback
+  , fgnChat    :: FunPtr ProcessChat    -- ^ Optional message send callback
   , fgnCommand :: FunPtr ProcessCommand -- ^ Optional client command callback
   , fgnName    :: CString               -- ^ Null-terminated name
   , fgnMajorVersion, fgnMinorVersion :: CInt -- ^ extension version
@@ -117,6 +130,7 @@ instance Storable FgnExtension where
             <$> (#peek struct glirc_extension, start          ) p
             <*> (#peek struct glirc_extension, stop           ) p
             <*> (#peek struct glirc_extension, process_message) p
+            <*> (#peek struct glirc_extension, process_chat   ) p
             <*> (#peek struct glirc_extension, process_command) p
             <*> (#peek struct glirc_extension, name           ) p
             <*> (#peek struct glirc_extension, major_version  ) p
@@ -125,6 +139,7 @@ instance Storable FgnExtension where
              do (#poke struct glirc_extension, start          ) p fgnStart
                 (#poke struct glirc_extension, stop           ) p fgnStop
                 (#poke struct glirc_extension, process_message) p fgnMessage
+                (#poke struct glirc_extension, process_chat   ) p fgnChat
                 (#poke struct glirc_extension, process_command) p fgnCommand
                 (#poke struct glirc_extension, name           ) p fgnName
                 (#poke struct glirc_extension, major_version  ) p fgnMajorVersion
@@ -172,6 +187,28 @@ instance Storable FgnMsg where
                 (#poke struct glirc_message, tagkeys ) p fmTagKeys
                 (#poke struct glirc_message, tagvals ) p fmTagVals
                 (#poke struct glirc_message, tags_n  ) p fmTagN
+
+------------------------------------------------------------------------
+
+-- | @struct glirc_message@
+data FgnChat = FgnChat
+  { fhNetwork    :: FgnStringLen
+  , fhTarget     :: FgnStringLen
+  , fhMessage    :: FgnStringLen
+  }
+
+instance Storable FgnChat where
+  alignment _ = #alignment struct glirc_chat
+  sizeOf    _ = #size      struct glirc_chat
+  peek p      = FgnChat
+            <$> (#peek struct glirc_chat, network) p
+            <*> (#peek struct glirc_chat, target ) p
+            <*> (#peek struct glirc_chat, message) p
+
+  poke p FgnChat{..} =
+             do (#poke struct glirc_chat, network) p fhNetwork
+                (#poke struct glirc_chat, target ) p fhTarget
+                (#poke struct glirc_chat, message) p fhMessage
 
 ------------------------------------------------------------------------
 

@@ -33,6 +33,12 @@ struct glirc_message {
         size_t tags_n;
 };
 
+struct glirc_chat {
+        struct glirc_string network;
+        struct glirc_string target;
+        struct glirc_string message;
+};
+
 struct glirc_command {
         const struct glirc_string *params;
         size_t params_n;
@@ -41,6 +47,7 @@ struct glirc_command {
 typedef void *start_type         (struct glirc *G, const char *path);
 typedef void stop_type           (struct glirc *G, void *S);
 typedef enum process_result process_message_type(struct glirc *G, void *S, const struct glirc_message *);
+typedef enum process_result process_chat_type(struct glirc *G, void *S, const struct glirc_chat *);
 typedef void process_command_type(struct glirc *G, void *S, const struct glirc_command *);
 
 struct glirc_extension {
@@ -50,6 +57,7 @@ struct glirc_extension {
         stop_type            *stop;
         process_message_type *process_message;
         process_command_type *process_command;
+        process_chat_type    *process_chat;
 };
 
 int glirc_send_message(struct glirc *G, const struct glirc_message *);

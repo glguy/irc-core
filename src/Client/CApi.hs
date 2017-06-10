@@ -21,6 +21,7 @@ module Client.CApi
   , deactivateExtension
   , notifyExtensions
   , commandExtension
+  , chatExtension
   ) where
 
 import           Client.CApi.Types
@@ -100,16 +101,19 @@ deactivateExtension stab ae =
 -- | Call all of the process message callbacks in the list of extensions.
 -- This operation marshals the IRC message once and shares that across
 -- all of the callbacks.
+--
+-- Returns 'True' to pass message to client.  Returns 'False to drop message.
 notifyExtensions ::
   Ptr ()            {- ^ clientstate stable pointer -} ->
-  Text              {- ^ network              -} ->
-  RawIrcMsg         {- ^ current message      -} ->
-  [ActiveExtension] ->
-  IO Bool {- ^ Return 'True' to pass message -}
+  Text              {- ^ network                    -} ->
+  RawIrcMsg         {- ^ current message            -} ->
+  [ActiveExtension] {- ^ all active extensions      -} ->
+  IO Bool           {- ^ should pass message        -}
 notifyExtensions stab network msg aes
   | null aes' = return True
   | otherwise = doNotifications
   where
+    -- only the extensions that have a incoming message callback
     aes' = [ (f,s) | ae <- aes
                   , let f = fgnMessage (aeFgn ae)
                         s = aeSession ae
@@ -125,6 +129,40 @@ notifyExtensions stab network msg aes
        do res <- runProcessMessage f stab s msgPtr
           if res == passMessage
             then go rest msgPtr
+            else return False
+
+-- | Call all of the process chat callbacks in the list of extensions.
+-- This operation marshals the IRC message once and shares that across
+-- all of the callbacks.
+--
+-- Returns 'True' to pass message to client.  Returns 'False to drop message.
+chatExtension ::
+  Ptr ()            {- ^ clientstate stable pointer -} ->
+  Text              {- ^ network                    -} ->
+  Text              {- ^ target (channel or user)   -} ->
+  Text              {- ^ message body               -} ->
+  [ActiveExtension] {- ^ all active extensions      -} ->
+  IO Bool           {- ^ should pass message        -}
+chatExtension stab net tgt msg aes
+  | null aes' = return True
+  | otherwise = doNotifications
+  where
+    -- only the extensions that have a chat callback
+    aes' = [ (f, aeSession ae)
+             | ae <- aes
+             , let f = fgnChat (aeFgn ae)
+             , f /= nullFunPtr ]
+
+    doNotifications = evalNestedIO $
+      do chat <- withChat net tgt msg
+         liftIO (go aes' chat)
+
+    -- run handlers until one of them drops the message
+    go [] _ = return True
+    go ((f,s):rest) ptr =
+       do res <- runProcessChat f stab s ptr
+          if res == passMessage
+            then go rest ptr
             else return False
 
 -- | Notify an extension of a client command with the given parameters.
@@ -159,6 +197,17 @@ withRawIrcMsg network RawIrcMsg{..} =
      (prmN,prmPtr)  <- nest2 $ withArrayLen prms
      nest1 $ with $ FgnMsg net pfxN pfxU pfxH cmd prmPtr (fromIntegral prmN)
                                        keysPtr valsPtr (fromIntegral tagN)
+
+withChat ::
+  Text {- ^ network -} ->
+  Text {- ^ target  -} ->
+  Text {- ^ message -} ->
+  NestedIO (Ptr FgnChat)
+withChat net tgt msg =
+  do net' <- withText net
+     tgt' <- withText tgt
+     msg' <- withText msg
+     nest1 $ with $ FgnChat net' tgt' msg'
 
 withCommand ::
   [Text] {- ^ parameters -} ->

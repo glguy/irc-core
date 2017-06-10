@@ -209,15 +209,20 @@ executeChat msg st =
       | Just !cs <- preview (clientConnection network) st ->
           do now <- getZonedTime
              let msgTxt = Text.pack $ takeWhile (/='\n') msg
-                 ircMsg = ircPrivmsg (idText channel) msgTxt
-                 myNick = UserInfo (view csNick cs) "" ""
+                 tgtTxt = idText channel
+
+             (st1,allow) <- clientPark st $ \ptr ->
+                do let aes = view (clientExtensions . esActive) st
+                   chatExtension ptr network tgtTxt msgTxt aes
+
+             when allow (sendMsg cs (ircPrivmsg tgtTxt msgTxt))
+
+             let myNick = UserInfo (view csNick cs) "" ""
                  entry = ClientMessage
-                            { _msgTime    = now
-                            , _msgNetwork = network
-                            , _msgBody    = IrcBody (Privmsg myNick channel msgTxt)
-                            }
-             sendMsg cs ircMsg
-             commandSuccess $! recordChannelMessage network channel entry st
+                   { _msgTime    = now
+                   , _msgNetwork = network
+                   , _msgBody    = IrcBody (Privmsg myNick channel msgTxt) }
+             commandSuccess $! recordChannelMessage network channel entry st1
 
     _ -> commandFailureMsg "cannot send chat messages to this window" st
 

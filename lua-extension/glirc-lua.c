@@ -338,6 +338,25 @@ static void push_glirc_string(lua_State *L, const struct glirc_string *s)
 }
 
 /* Push a table onto the top of the stack containing all of the fields
+ * of the chat struct
+ *
+ * [-0, +1, m]
+ * */
+static void push_glirc_chat(lua_State *L, const struct glirc_chat *chat)
+{
+        lua_createtable(L, 0, 3);
+
+        push_glirc_string(L, &chat->network);
+        lua_setfield(L,-2,"network");
+
+        push_glirc_string(L, &chat->target);
+        lua_setfield(L,-2,"target");
+
+        push_glirc_string(L, &chat->message);
+        lua_setfield(L,-2,"message");
+}
+
+/* Push a table onto the top of the stack containing all of the fields
  * of the message struct
  *
  * [-0, +1, m]
@@ -435,6 +454,14 @@ static enum process_result message_entrypoint(struct glirc *G, void *L, const st
         return res ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
+static enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
+{
+        if (L == NULL) return PASS_MESSAGE;
+        push_glirc_chat(L, chat);
+        int res = callback(G, L, "process_chat", 1);
+        return res ? DROP_MESSAGE : PASS_MESSAGE;
+}
+
 static void command_entrypoint(struct glirc *G, void *L, const struct glirc_command *cmd)
 {
         if (L == NULL) return;
@@ -451,5 +478,6 @@ struct glirc_extension extension = {
         .start           = start,
         .stop            = stop_entrypoint,
         .process_message = message_entrypoint,
-        .process_command = command_entrypoint
+        .process_command = command_entrypoint,
+        .process_chat    = chat_entrypoint
 };
