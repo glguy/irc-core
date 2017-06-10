@@ -1,5 +1,6 @@
 _glirc_send_message
 _glirc_print
+_glirc_inject_chat
 _glirc_identifier_cmp
 _glirc_list_networks
 _glirc_list_channels

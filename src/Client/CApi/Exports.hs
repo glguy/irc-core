@@ -49,6 +49,7 @@ import           Foreign.Storable
 import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
+import           Irc.Message
 import           LensUtils
 
 ------------------------------------------------------------------------
@@ -144,6 +145,45 @@ glirc_print stab code msgPtr msgLen =
                  }
      modifyMVar_ mvar $ \st ->
        do return (recordNetworkMessage msg st)
+     return 0
+  `catch` \SomeException{} -> return 1
+
+------------------------------------------------------------------------
+
+-- | Print a message or error to the client window
+type Glirc_inject_chat =
+  Ptr ()  {- ^ api token         -} ->
+  CString {- ^ network           -} ->
+  CSize   {- ^ network length    -} ->
+  CString {- ^ source            -} ->
+  CSize   {- ^ source length     -} ->
+  CString {- ^ target            -} ->
+  CSize   {- ^ target length     -} ->
+  CString {- ^ message           -} ->
+  CSize   {- ^ message length    -} ->
+  IO CInt {- ^ 0 on success      -}
+
+#ifdef EXPORT_GLIRC_CAPI
+foreign export ccall glirc_inject_chat :: Glirc_inject_chat
+#endif
+
+glirc_inject_chat :: Glirc_inject_chat
+glirc_inject_chat stab netPtr netLen srcPtr srcLen tgtPtr tgtLen msgPtr msgLen =
+  do writeFile "help.txt" (show (netPtr, srcPtr, tgtPtr, msgPtr))
+     mvar <- derefToken stab
+     net  <- peekFgnStringLen (FgnStringLen netPtr netLen)
+     src  <- peekFgnStringLen (FgnStringLen srcPtr srcLen)
+     tgt  <- mkId <$> peekFgnStringLen (FgnStringLen tgtPtr tgtLen)
+     txt  <- peekFgnStringLen (FgnStringLen msgPtr msgLen)
+     now  <- getZonedTime
+
+     let msg = ClientMessage
+                 { _msgBody    = IrcBody (Privmsg (parseUserInfo src) tgt txt)
+                 , _msgTime    = now
+                 , _msgNetwork = net
+                 }
+     modifyMVar_ mvar $ \st ->
+       do return (recordChannelMessage net tgt msg st)
      return 0
   `catch` \SomeException{} -> return 1
 

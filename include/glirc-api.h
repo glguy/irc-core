@@ -54,6 +54,11 @@ struct glirc_extension {
 
 int glirc_send_message(struct glirc *G, const struct glirc_message *);
 int glirc_print(struct glirc *G, enum message_code, struct glirc_string msg);
+int glirc_inject_chat(struct glirc *G,
+                const char* net, size_t netLen,
+                const char* src, size_t srcLen,
+                const char* tgt, size_t tgtLen,
+                const char* msg, size_t msgLen);
 char ** glirc_list_networks(struct glirc *G);
 char ** glirc_list_channels(struct glirc *G, struct glirc_string network);
 char ** glirc_list_channel_users(struct glirc *G, struct glirc_string network, struct glirc_string channel);
