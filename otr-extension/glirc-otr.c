@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <limits.h>
 #include <libotr/proto.h>
 #include <libotr/message.h>
@@ -12,37 +13,42 @@
 #define MAJOR 1
 #define MINOR 0
 
-static OtrlPolicy op_policy(void *opdata, ConnContext *context) {
-    return OTRL_POLICY_DEFAULT;
+static OtrlPolicy op_policy(void *opdata, ConnContext *context)
+{
+    return OTRL_POLICY_MANUAL;
 }
 
 static void op_inject(void *opdata, const char *accountname,
   const char *protocol, const char *recipient, const char *message)
 {
         char *message1 = strdup(message);
+        bool nonempty = 0;
         for (char *cursor = message1; *cursor; cursor++) {
                 if (*cursor == '\n') *cursor = ' ';
+                if (*cursor != ' ') nonempty = true;
         }
 
         struct glirc *G = opdata;
         struct glirc_string params[2] =
         { { .str = recipient, .len = strlen(recipient) },
-          { .str = message1, .len = strlen(message1) },
+          { .str = message1 , .len = strlen(message1)  },
         };
         struct glirc_message m =
         {
-                  .network = { .str = protocol, .len = strlen(protocol) } ,
-                  .command = { .str = "PRIVMSG", .len = strlen("PRIVMSG") },
-                  .params = params,
+                  .network  = { .str = protocol, .len  = strlen(protocol) } ,
+                  .command  = { .str = "PRIVMSG", .len = strlen("PRIVMSG") },
+                  .params   = params,
                   .params_n = 2
         };
-        glirc_send_message(G, &m);
+        if (nonempty) {
+                glirc_send_message(G, &m);
+        }
         free(message1);
 }
 
-static void op_msg_event(void *opdata, OtrlMessageEvent msg_event,
-                ConnContext *context, const char *message,
-                gcry_error_t err)
+static void
+op_msg_event(void *opdata, OtrlMessageEvent msg_event, ConnContext *context,
+             const char *message, gcry_error_t err)
 {
   struct glirc *G = opdata;
   if (message) {
@@ -51,28 +57,94 @@ static void op_msg_event(void *opdata, OtrlMessageEvent msg_event,
   }
 }
 
-static int op_max_message(void *opdata, ConnContext *context) {
+static int op_max_message(void *opdata, ConnContext *context)
+{
         return 400; // pessmistic
 }
 
-static void op_create_privkey(void *opdata, const char *accountname, const char *protocol) {
+static void
+op_create_privkey(void *opdata, const char *accountname, const char *protocol)
+{
         const char *txt = "No private key";
         struct glirc *G = opdata;
-  struct glirc_string m = { .str = txt, .len = strlen(txt) };
-  glirc_print(G, ERROR_MESSAGE, m);
+        struct glirc_string m = { .str = txt, .len = strlen(txt) };
+        glirc_print(G, ERROR_MESSAGE, m);
 }
 
-int op_is_logged_in(void *opdata, const char *accountname, const char *protocol, const char *recipient) {
+static int is_logged_in
+  (void *opdata, const char *accountname, const char *protocol,
+   const char *recipient)
+{
         return 1; // TODO: ask glirc if we share a channel, look in csUsers
 }
 
+static
+const char *
+account_name(void *opdata, const char *account, const char *protocol)
+{
+        const char *fmt = "%s:%s";
+        int needed = snprintf(NULL, 0, fmt, protocol, account);
+        if (needed < 0) {
+                return NULL;
+        }
+        needed++;
+        char *result = malloc(needed);
+        snprintf(result, needed, fmt, protocol, account);
+        return result;
+}
+
+static void account_name_free(void *opdata, const char *account_name)
+{
+        free((char*)account_name);
+}
+
+static void print_status(struct glirc *G, ConnContext *context, const char *msg)
+{
+        const char *net = context->protocol;
+        const char *src = "* OTR *";
+        const char *tgt = context->username;
+
+        glirc_inject_chat
+          (G, net, strlen(net),
+              src, strlen(src),
+              tgt, strlen(tgt),
+              msg, strlen(msg));
+}
+
+static void gone_secure(void *G, ConnContext *context)
+{
+        print_status(G, context, "SECURE");
+}
+
+static void gone_insecure(void *G, ConnContext *context)
+{
+        print_status(G, context, "INSECURE");
+}
+
+static void still_secure(void *G, ConnContext *context, int is_reply)
+{
+        if (is_reply) {
+                print_status(G, context, "STILL SECURE (reply)");
+        } else {
+                print_status(G, context, "STILL SECURE");
+        }
+}
+
+
+
 static OtrlMessageAppOps ops = {
-    .policy = op_policy,
-    .create_privkey = op_create_privkey,
-    .inject_message = op_inject,
-    .max_message_size = op_max_message,
-    .handle_msg_event = op_msg_event,
-    .is_logged_in = op_is_logged_in
+    .policy            = op_policy,
+    .create_privkey    = op_create_privkey,
+    .inject_message    = op_inject,
+    .max_message_size  = op_max_message,
+    .handle_msg_event  = op_msg_event,
+    .is_logged_in      = is_logged_in,
+    .account_name      = account_name,
+    .account_name_free = account_name_free,
+
+    .gone_secure       = gone_secure,
+    .gone_insecure     = gone_insecure,
+    .still_secure      = still_secure,
 };
 
 static void *start_entrypoint(struct glirc *G, const char *path)
@@ -133,6 +205,38 @@ static enum process_result message_entrypoint(struct glirc *G, void *L, const st
     return PASS_MESSAGE;
 }
 
+static void command_entrypoint
+  (struct glirc *G, void *L, const struct glirc_command *cmd)
+{
+        if (cmd->params_n >= 1 &&
+            0 == strncmp(cmd->params[0].str, "start", cmd->params[0].len))
+        {
+                const char *privmsg = "PRIVMSG";
+                const char *body    = "?OTRv23? Attempting to initiate OTR encrypted connection";
+                struct glirc_string params[2] =
+                  { [1] = { .str = body, .len = strlen(body) } };
+                struct glirc_message m = {
+                  .params = params,
+                  .params_n = 2,
+                  .command.str = privmsg,
+                  .command.len = strlen(privmsg),
+                  };
+
+                char *net = NULL;
+                char *tgt = NULL;
+                glirc_current_focus(G, &net, &m.network.len, &tgt, &params[0].len);
+
+                if (*net && *tgt) {
+                        m.network.str = net;
+                        params[0].str = tgt;
+                        glirc_send_message(G, &m);
+                }
+
+                glirc_free_string(net);
+                glirc_free_string(tgt);
+        }
+}
+
 static enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
 {
         OtrlUserState us = L;
@@ -172,5 +276,6 @@ struct glirc_extension extension = {
         .start           = start_entrypoint,
         .stop            = stop_entrypoint,
         .process_message = message_entrypoint,
-        .process_chat    = chat_entrypoint
+        .process_chat    = chat_entrypoint,
+        .process_command = command_entrypoint,
 };
