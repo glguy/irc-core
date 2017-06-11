@@ -20,6 +20,7 @@ module Client.CApi.Exports
  , Glirc_identifier_cmp
  , Glirc_mark_seen
  , Glirc_clear_window
+ , Glirc_current_focus
  , Glirc_free_string
  , Glirc_free_strings
  ) where
@@ -169,8 +170,7 @@ foreign export ccall glirc_inject_chat :: Glirc_inject_chat
 
 glirc_inject_chat :: Glirc_inject_chat
 glirc_inject_chat stab netPtr netLen srcPtr srcLen tgtPtr tgtLen msgPtr msgLen =
-  do writeFile "help.txt" (show (netPtr, srcPtr, tgtPtr, msgPtr))
-     mvar <- derefToken stab
+  do mvar <- derefToken stab
      net  <- peekFgnStringLen (FgnStringLen netPtr netLen)
      src  <- peekFgnStringLen (FgnStringLen srcPtr srcLen)
      tgt  <- mkId <$> peekFgnStringLen (FgnStringLen tgtPtr tgtLen)
@@ -408,3 +408,44 @@ glirc_free_strings p =
   unless (p == nullPtr) $
     do traverse_ free =<< peekArray0 nullPtr p
        free p
+
+------------------------------------------------------------------------
+
+-- | Free an array of heap allocated strings found as a return value
+-- from the extension API. If argument is NULL, nothing happens.
+--
+-- @
+-- void glirc_current_focus(struct glirc *G, char **net, size_t *netlen, char **tgt , size_t *tgtlen);
+-- @
+type Glirc_current_focus =
+  Ptr ()      {- ^ api token                      -} ->
+  Ptr CString {- ^ newly allocated network string -} ->
+  Ptr CSize   {- ^ network length                 -} ->
+  Ptr CString {- ^ newly allocated target string  -} ->
+  Ptr CSize   {- ^ target length                  -} ->
+  IO ()
+
+#ifdef EXPORT_GLIRC_CAPI
+foreign export ccall glirc_current_focus :: Glirc_current_focus
+#endif
+
+glirc_current_focus :: Glirc_current_focus
+glirc_current_focus stab netP netL tgtP tgtL =
+  do mvar <- derefToken stab
+     st   <- readMVar mvar
+     let (netTxt, tgtTxt) = case view clientFocus st of
+                              Unfocused        -> (Text.empty,Text.empty)
+                              NetworkFocus n   -> (n         ,Text.empty)
+                              ChannelFocus n t -> (n         ,idText t  )
+     export netP netL netTxt
+     export tgtP tgtL tgtTxt
+  where
+    export dstP dstL txt =
+      Text.withCStringLen txt $ \(srcP, srcL) ->
+        do unless (dstP == nullPtr) $
+             do a <- mallocArray0 srcL
+                copyArray a srcP srcL
+                pokeElemOff a srcL 0
+                poke dstP a
+           unless (dstL == nullPtr) $
+             do poke dstL (fromIntegral srcL)
