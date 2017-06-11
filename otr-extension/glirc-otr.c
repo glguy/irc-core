@@ -226,7 +226,7 @@ static void command_entrypoint
                 char *tgt = NULL;
                 glirc_current_focus(G, &net, &m.network.len, &tgt, &params[0].len);
 
-                if (*net && *tgt) {
+                if (net && tgt) {
                         m.network.str = net;
                         params[0].str = tgt;
                         glirc_send_message(G, &m);

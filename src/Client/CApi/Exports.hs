@@ -414,9 +414,10 @@ glirc_free_strings p =
 -- | Free an array of heap allocated strings found as a return value
 -- from the extension API. If argument is NULL, nothing happens.
 --
--- @
--- void glirc_current_focus(struct glirc *G, char **net, size_t *netlen, char **tgt , size_t *tgtlen);
--- @
+-- Free the allocated strings with @glirc_free_string@
+--
+-- Strings set to NULL if there is no current network or no
+-- current target.
 type Glirc_current_focus =
   Ptr ()      {- ^ api token                      -} ->
   Ptr CString {- ^ newly allocated network string -} ->
@@ -433,19 +434,32 @@ glirc_current_focus :: Glirc_current_focus
 glirc_current_focus stab netP netL tgtP tgtL =
   do mvar <- derefToken stab
      st   <- readMVar mvar
-     let (netTxt, tgtTxt) = case view clientFocus st of
-                              Unfocused        -> (Text.empty,Text.empty)
-                              NetworkFocus n   -> (n         ,Text.empty)
-                              ChannelFocus n t -> (n         ,idText t  )
-     export netP netL netTxt
-     export tgtP tgtL tgtTxt
-  where
-    export dstP dstL txt =
-      Text.withCStringLen txt $ \(srcP, srcL) ->
-        do unless (dstP == nullPtr) $
-             do a <- mallocArray0 srcL
-                copyArray a srcP srcL
-                pokeElemOff a srcL 0
-                poke dstP a
-           unless (dstL == nullPtr) $
-             do poke dstL (fromIntegral srcL)
+     case view clientFocus st of
+       Unfocused        -> do poke' netP nullPtr
+                              poke' netL 0
+                              poke' tgtP nullPtr
+                              poke' tgtL 0
+
+       NetworkFocus n   -> do exportText netP netL n
+                              poke' tgtP nullPtr
+                              poke' tgtL 0
+
+       ChannelFocus n t -> do exportText netP netL n
+                              exportText tgtP tgtL (idText t)
+
+------------------------------------------------------------------------
+
+poke' :: Storable a => Ptr a -> a -> IO ()
+poke' ptr x = unless (nullPtr == ptr) (poke ptr x)
+
+exportText :: Ptr CString -> Ptr CSize -> Text -> IO ()
+exportText dstP dstL txt =
+
+  Text.withCStringLen txt $ \(srcP, srcL) ->
+    do poke' dstL (fromIntegral srcL)
+       unless (dstP == nullPtr) $
+         do a <- mallocArray0 srcL
+            copyArray a srcP srcL
+            pokeElemOff a srcL 0
+            poke dstP a
+
