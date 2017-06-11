@@ -10,7 +10,6 @@ Entry point into glirc2. This module sets up VTY and launches the client.
 
 module Main where
 
-import Control.Concurrent
 import Control.Exception
 import Control.Lens
 import Control.Monad
@@ -31,8 +30,7 @@ main :: IO ()
 main =
   do opts <- getOptions
      cfg  <- loadConfiguration' (view optConfigFile opts)
-     runInUnboundThread $
-       withClientState cfg $ \st0 ->
+     withClientState cfg $ \st0 ->
        withVty             $ \vty ->
          do st1 <- clientStartExtensions    st0
             st2 <- initialNetworkLogic opts st1
@@ -54,10 +52,10 @@ loadConfiguration' path =
        Right cfg -> return cfg
        Left (ConfigurationReadFailed e) ->
          report "Failed to open configuration:" e
-       Left (ConfigurationParseFailed path e) ->
-         report ("Failed to parse configuration file: " ++ path) e
-       Left (ConfigurationMalformed path e) ->
-         report ("Malformed configuration file: " ++ path ++ "\n(try --config-format)") e
+       Left (ConfigurationParseFailed p e) ->
+         report ("Failed to parse configuration file: " ++ p) e
+       Left (ConfigurationMalformed p e) ->
+         report ("Malformed configuration file: " ++ p ++ "\n(try --config-format)") e
   where
     report problem msg =
       do hPutStrLn stderr problem
