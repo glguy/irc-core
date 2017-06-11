@@ -205,37 +205,6 @@ static enum process_result message_entrypoint(struct glirc *G, void *L, const st
     return PASS_MESSAGE;
 }
 
-static void command_entrypoint
-  (struct glirc *G, void *L, const struct glirc_command *cmd)
-{
-        if (cmd->params_n >= 1 &&
-            0 == strncmp(cmd->params[0].str, "start", cmd->params[0].len))
-        {
-                const char *privmsg = "PRIVMSG";
-                const char *body    = "?OTRv23? Attempting to initiate OTR encrypted connection";
-                struct glirc_string params[2] =
-                  { [1] = { .str = body, .len = strlen(body) } };
-                struct glirc_message m = {
-                  .params = params,
-                  .params_n = 2,
-                  .command.str = privmsg,
-                  .command.len = strlen(privmsg),
-                  };
-
-                char *net = NULL;
-                char *tgt = NULL;
-                glirc_current_focus(G, &net, &m.network.len, &tgt, &params[0].len);
-
-                if (net && tgt) {
-                        m.network.str = net;
-                        params[0].str = tgt;
-                        glirc_send_message(G, &m);
-                }
-
-                glirc_free_string(net);
-                glirc_free_string(tgt);
-        }
-}
 
 static enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
 {
@@ -267,6 +236,34 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
 
         return PASS_MESSAGE;
 
+}
+
+static void command_entrypoint
+  (struct glirc *G, void *L, const struct glirc_command *cmd)
+{
+        if (cmd->params_n >= 1 &&
+            0 == strncmp(cmd->params[0].str, "start", cmd->params[0].len))
+        {
+                char *net = NULL; size_t netlen = 0;
+                char *tgt = NULL; size_t tgtlen = 0;
+                char *txt = "?OTR?"; size_t txtlen = strlen(txt);
+                glirc_current_focus(G, &net, &netlen, &tgt, &tgtlen);
+
+                if (net && tgt) {
+                        struct glirc_chat chat = {
+                                .network.str = net,
+                                .network.len = netlen,
+                                .target.str  = tgt,
+                                .target.len  = tgtlen,
+                                .message.str = txt,
+                                .message.len = txtlen,
+                        };
+                        chat_entrypoint(G, L, &chat);
+                }
+
+                glirc_free_string(net);
+                glirc_free_string(tgt);
+        }
 }
 
 struct glirc_extension extension = {
