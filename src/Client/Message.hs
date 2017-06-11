@@ -90,7 +90,8 @@ ircSummary msg =
     Privmsg who _ _ -> ChatSummary (userNick who)
     Notice who _ _  -> ChatSummary (userNick who)
     Ctcp who _ "ACTION" _ -> ChatSummary (userNick who)
+    CtcpNotice who _ "ACTION" _ -> ChatSummary (userNick who)
     Ctcp who _ _ _ -> CtcpSummary (userNick who)
-    CtcpNotice who _ _ _ -> ChatSummary (userNick who)
+    CtcpNotice who _ _ _ -> CtcpSummary (userNick who)
     Reply code _    -> ReplySummary code
     _               -> NoSummary
