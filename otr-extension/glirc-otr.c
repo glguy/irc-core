@@ -10,6 +10,7 @@
 
 #include "glirc-api.h"
 
+#define NAME "OTR"
 #define MAJOR 1
 #define MINOR 0
 
@@ -75,33 +76,33 @@ static void handle_smp_event
     print_status(G, context, buffer);
 }
 
-static void op_inject
+static void
+op_inject
   (void *opdata, const char *accountname,
   const char *protocol, const char *recipient, const char *message)
 {
-        char *message1 = strdup(message);
-        bool nonempty = 0;
-        for (char *cursor = message1; *cursor; cursor++) {
-                if (*cursor == '\n') *cursor = ' ';
-                if (*cursor != ' ') nonempty = true;
-        }
+    char *message1 = strdup(message);
+    bool nonempty = 0;
+    for (char *cursor = message1; *cursor; cursor++) {
+        if (*cursor == '\n') *cursor = ' ';
+        if (*cursor != ' ') nonempty = true;
+    }
 
-        struct glirc *G = opdata;
-        struct glirc_string params[2] =
-        { { .str = recipient, .len = strlen(recipient) },
-          { .str = message1 , .len = strlen(message1)  },
-        };
-        struct glirc_message m =
-        {
-                  .network  = { .str = protocol, .len  = strlen(protocol) } ,
-                  .command  = { .str = "PRIVMSG", .len = strlen("PRIVMSG") },
-                  .params   = params,
-                  .params_n = 2
-        };
-        if (nonempty) {
-                glirc_send_message(G, &m);
-        }
-        free(message1);
+    struct glirc *G = opdata;
+    struct glirc_string params[2] =
+    { { .str = recipient, .len = strlen(recipient) },
+      { .str = message1 , .len = strlen(message1)  },
+    };
+    struct glirc_message m = {
+      .network  = { .str = protocol, .len  = strlen(protocol) } ,
+      .command  = { .str = "PRIVMSG", .len = strlen("PRIVMSG") },
+      .params   = params,
+      .params_n = 2
+    };
+    if (nonempty) {
+        glirc_send_message(G, &m);
+    }
+    free(message1);
 }
 
 static void
@@ -144,62 +145,57 @@ handle_msg_event
 
 static int op_max_message(void *opdata, ConnContext *context)
 {
-        return 400; // pessmistic
+    return 400; // pessmistic
 }
 
 static void
 op_create_privkey(void *opdata, const char *accountname, const char *protocol)
 {
-        const char *txt = "No private key [/extension OTR keygen]";
-        struct glirc *G = opdata;
-        struct glirc_string m = { .str = txt, .len = strlen(txt) };
-        glirc_print(G, ERROR_MESSAGE, m);
+    const char *txt = "No private key [/extension " NAME " keygen]";
+    struct glirc *G = opdata;
+    struct glirc_string m = { .str = txt, .len = strlen(txt) };
+    glirc_print(G, ERROR_MESSAGE, m);
 }
 
 static int is_logged_in
   (void *opdata, const char *accountname, const char *protocol,
    const char *recipient)
 {
-        return 1; // TODO: ask glirc if we share a channel, look in csUsers
+    return 1; // TODO: ask glirc if we share a channel, look in csUsers
 }
 
 static
 const char *
 account_name(void *opdata, const char *account, const char *protocol)
 {
-        const char *fmt = "%s:%s";
-        int needed = snprintf(NULL, 0, fmt, protocol, account);
-        if (needed < 0) {
-                return NULL;
-        }
-        needed++;
-        char *result = malloc(needed);
-        snprintf(result, needed, fmt, protocol, account);
-        return result;
+    const char *fmt = "%s:%s";
+    char *res = NULL;
+    asprintf(&res, fmt, protocol, account);
+    return res;
 }
 
 static void account_name_free(void *opdata, const char *account_name)
 {
-        free((char*)account_name);
+    free((char*)account_name);
 }
 
 static void gone_secure(void *G, ConnContext *context)
 {
-        print_status(G, context, "SECURE");
+    print_status(G, context, "SECURE");
 }
 
 static void gone_insecure(void *G, ConnContext *context)
 {
-        print_status(G, context, "INSECURE");
+    print_status(G, context, "INSECURE");
 }
 
 static void still_secure(void *G, ConnContext *context, int is_reply)
 {
-        if (is_reply) {
-                print_status(G, context, "STILL SECURE (reply)");
-        } else {
-                print_status(G, context, "STILL SECURE");
-        }
+    if (is_reply) {
+        print_status(G, context, "STILL SECURE (reply)");
+    } else {
+        print_status(G, context, "STILL SECURE");
+    }
 }
 
 
@@ -238,10 +234,6 @@ static void stop_entrypoint(struct glirc *G, void *L)
         otrl_userstate_free(us);
 }
 
-static char *import_string(struct glirc_string s) {
-        return strndup(s.str, s.len);
-}
-
 static enum process_result
 message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 {
@@ -252,10 +244,10 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
         char *newmessage = NULL;
         OtrlTLV *tlvs = NULL;
 
-        char *sender = import_string(msg->prefix_nick);
-        char *target = import_string(msg->params[0]);
-        char *message = import_string(msg->params[1]);
-        char *net = import_string(msg->network);
+        const char *sender  = msg->prefix_nick.str;
+        const char *target  = msg->params[0].str;
+        const char *message = msg->params[1].str;
+        const char *net     = msg->network.str;
 
         int drop = otrl_message_receiving(us, &ops, G, target, net, sender,
                           message, &newmessage, &tlvs, NULL, NULL, NULL);
@@ -269,10 +261,6 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 
         otrl_tlv_free(tlvs); // ignoring this for now
         otrl_message_free(newmessage);
-        free(sender);
-        free(target);
-        free(message);
-        free(net);
 
         return (newmessage || drop) ? DROP_MESSAGE : PASS_MESSAGE;
     }
@@ -284,9 +272,9 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 static enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
 {
         OtrlUserState us = L;
-        char * net = import_string(chat->network);
-        char * tgt = import_string(chat->target );
-        char * msg = import_string(chat->message);
+        const char * net = chat->network.str;
+        const char * tgt = chat->target.str;
+        const char * msg = chat->message.str;
 
         char * me = glirc_my_nick(G, chat->network);
         char *newmsg = NULL;
@@ -295,7 +283,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
           (us, &ops, G, me, net, tgt, OTRL_INSTAG_BEST, msg,
            NULL, &newmsg, OTRL_FRAGMENT_SEND_ALL, NULL, NULL, NULL);
 
-        free(msg); free(tgt); free(net); free(me);
+        glirc_free_string(me);
 
         if (newmsg) {
                 otrl_message_free(newmsg);
@@ -450,7 +438,7 @@ static void command_entrypoint
 }
 
 struct glirc_extension extension = {
-        .name            = "OTR",
+        .name            = NAME,
         .major_version   = MAJOR,
         .minor_version   = MINOR,
         .start           = start_entrypoint,
