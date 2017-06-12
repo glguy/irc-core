@@ -27,7 +27,15 @@ static void print_status(struct glirc *G, ConnContext *context, const char *msg)
           msg, strlen(msg));
 }
 
-
+static char * keyfile_path(void)
+{
+    const char *home = getenv("HOME");
+    char *res = NULL;
+    if (home) {
+        asprintf(&res, "%s/.config/glirc/otr-keys.txt", home);
+    }
+    return res;
+}
 
 
 static OtrlPolicy op_policy(void *opdata, ConnContext *context)
@@ -57,8 +65,6 @@ static void handle_smp_event
       };
 
     const char *message = messages[smp_event];
-
-    if (question == NULL) question = "";
 
     if (question) {
         snprintf(buffer, sizeof(buffer), "SMP %s [%s]", message, question);
@@ -128,9 +134,9 @@ handle_msg_event
     const char *desc = messages[msg_event];
 
     if (message) {
-        snprintf(buffer, sizeof(buffer), "OTR Error: %s [%s]", desc, message);
+        snprintf(buffer, sizeof(buffer), "%s [%s]", desc, message);
     } else {
-        snprintf(buffer, sizeof(buffer), "OTR Error: %s", desc);
+        snprintf(buffer, sizeof(buffer), "%s", desc);
     }
 
     print_status(G, context, buffer);
@@ -144,7 +150,7 @@ static int op_max_message(void *opdata, ConnContext *context)
 static void
 op_create_privkey(void *opdata, const char *accountname, const char *protocol)
 {
-        const char *txt = "No private key";
+        const char *txt = "No private key [/extension OTR keygen]";
         struct glirc *G = opdata;
         struct glirc_string m = { .str = txt, .len = strlen(txt) };
         glirc_print(G, ERROR_MESSAGE, m);
@@ -214,15 +220,15 @@ static OtrlMessageAppOps ops = {
     .handle_smp_event  = handle_smp_event,
 };
 
-static void *start_entrypoint(struct glirc *G, const char *path)
+static void *start_entrypoint(struct glirc *G, const char *libpath)
 {
-        // TODO: Move this into message handler 001, use correct
-        char keyfile[PATH_MAX] = {0};
-        dirname_r(path, keyfile);
-        strcat(keyfile, "/keyfile");
         OTRL_INIT;
         OtrlUserState us = otrl_userstate_create();
-        otrl_privkey_generate(us, keyfile, "glguy", "localhost");
+
+        char *path = keyfile_path();
+        if (path) otrl_privkey_read(us, path);
+        free(path);
+
         return us;
 }
 
@@ -310,7 +316,9 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
 typedef void (*smp_func)
   (OtrlUserState, const OtrlMessageAppOps *, void *, ConnContext *, const unsigned char *, size_t);
 
-static void do_end (struct glirc *G, OtrlUserState us)
+static void cmd_end
+  (struct glirc *G, OtrlUserState us,
+   const struct glirc_string *params, size_t params_n)
 {
     char *net = NULL; size_t netlen = 0;
     char *tgt = NULL; size_t tgtlen = 0;
@@ -364,57 +372,81 @@ static void do_smp
     glirc_free_string(tgt);
 }
 
+static void cmd_ask
+  (struct glirc *G, OtrlUserState us,
+   const struct glirc_string *params, size_t params_n)
+{
+    if (params_n >= 2) {
+            do_smp(G, us, (unsigned char *)params[1].str,
+                                           params[1].len,
+            otrl_message_initiate_smp);
+    }
+}
+
+static void cmd_secret
+  (struct glirc *G, OtrlUserState us,
+   const struct glirc_string *params, size_t params_n)
+{
+    if (params_n >= 2) {
+        do_smp(G, us, (unsigned char *)params[1].str,
+                                       params[1].len,
+        otrl_message_respond_smp);
+    }
+}
+
+static void cmd_poll
+  (struct glirc *G, OtrlUserState us,
+   const struct glirc_string *params, size_t params_n)
+{
+    otrl_message_poll(us, &ops, G);
+}
+
+static void cmd_keygen
+  (struct glirc *G, OtrlUserState us,
+   const struct glirc_string *params, size_t params_n)
+{
+    char *path = keyfile_path(), *net = NULL, *me = NULL;
+    size_t netlen = 0;
+    if (path) {
+        glirc_current_focus(G, &net, &netlen, NULL, NULL);
+        if (net) {
+            struct glirc_string netstr = {.str=net, .len=netlen};
+            char *me = glirc_my_nick(G, netstr);
+            otrl_privkey_generate(us, path, me, net);
+        }
+    }
+    free(path);
+    glirc_free_string(me);
+    glirc_free_string(net);
+}
+
+struct cmd_impl {
+    const char *name;
+    void (*func)(struct glirc *, OtrlUserState, const struct glirc_string *, size_t);
+};
+
+struct cmd_impl cmd_impls[] = {
+   { .name = "secret", .func = cmd_secret },
+   { .name = "ask",    .func = cmd_ask    },
+   { .name = "poll",   .func = cmd_poll   },
+   { .name = "end",    .func = cmd_end    },
+   { .name = "keygen", .func = cmd_keygen },
+   { .name = NULL,     .func = NULL       },
+};
+
 static void command_entrypoint
   (struct glirc *G, void *L, const struct glirc_command *cmd)
 {
     OtrlUserState us = L;
 
-    if (cmd->params_n == 0) { return; }
-#define IS_COMMAND(name) (0 == strncmp(cmd->params[0].str, (name), cmd->params[0].len))
-
-    if (IS_COMMAND("secret")) {
-            if (cmd->params_n >= 2) {
-                    do_smp(G, us, (unsigned char *)cmd->params[1].str,
-                                                   cmd->params[1].len,
-                    otrl_message_respond_smp);
+    if (cmd->params_n > 0) {
+        for (struct cmd_impl *c = cmd_impls; c->name; c++) {
+            if (0 == strncmp(cmd->params[0].str, c->name, cmd->params[0].len)) {
+                c->func(G, us, cmd->params, cmd->params_n);
+                break;
             }
-
-    } else if (IS_COMMAND("ask")) {
-            if (cmd->params_n >= 2) {
-                    do_smp(G, us, (unsigned char *)cmd->params[1].str,
-                                                   cmd->params[1].len,
-                    otrl_message_initiate_smp);
-            }
-
-    } else if (IS_COMMAND("poll")) {
-            otrl_message_poll(L, &ops, G);
-
-    } else if (IS_COMMAND("end")) {
-                    do_end(G, us);
-
-    } else if (IS_COMMAND("start")) {
-            char *net = NULL; size_t netlen = 0;
-            char *tgt = NULL; size_t tgtlen = 0;
-            char *txt = OTRL_MESSAGE_TAG_BASE OTRL_MESSAGE_TAG_V2;
-            size_t txtlen = strlen(txt);
-            glirc_current_focus(G, &net, &netlen, &tgt, &tgtlen);
-
-            if (net && tgt) {
-                    struct glirc_chat chat = {
-                            .network.str = net,
-                            .network.len = netlen,
-                            .target.str  = tgt,
-                            .target.len  = tgtlen,
-                            .message.str = txt,
-                            .message.len = txtlen,
-                    };
-                    chat_entrypoint(G, L, &chat);
-            }
-
-            glirc_free_string(net);
-            glirc_free_string(tgt);
+        }
     }
-#undef IS_COMMAND
 }
 
 struct glirc_extension extension = {
