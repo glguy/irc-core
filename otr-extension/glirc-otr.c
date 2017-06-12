@@ -413,7 +413,7 @@ struct cmd_impl {
     void (*func)(struct glirc *, OtrlUserState, const struct glirc_string *, size_t);
 };
 
-struct cmd_impl cmd_impls[] = {
+static struct cmd_impl cmd_impls[] = {
    { .name = "secret", .func = cmd_secret },
    { .name = "ask",    .func = cmd_ask    },
    { .name = "poll",   .func = cmd_poll   },

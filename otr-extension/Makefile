@@ -11,6 +11,7 @@ glirc-otr.dylib: glirc-otr.c
 	  -pedantic -Wall \
 	  -undefined dynamic_lookup \
 	  `pkg-config --cflags --libs libotr`
+	strip -x $@
 
 glirc-otr.so: glirc-otr.c
 	cc -shared -o $@ $^ -I../include \
