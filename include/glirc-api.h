@@ -71,7 +71,7 @@ char ** glirc_list_networks(struct glirc *G);
 char ** glirc_list_channels(struct glirc *G, struct glirc_string network);
 char ** glirc_list_channel_users(struct glirc *G, struct glirc_string network, struct glirc_string channel);
 void glirc_current_focus(struct glirc *G, char **net, size_t *netlen, char **tgt , size_t *tgtlen);
-char * glirc_my_nick(struct glirc *G, struct glirc_string network);
+char * glirc_my_nick(struct glirc *G, const char *net, size_t netlen);
 void glirc_mark_seen(struct glirc *G, struct glirc_string network, struct glirc_string channel);
 void glirc_clear_window(struct glirc *G, struct glirc_string network, struct glirc_string channel);
 int glirc_identifier_cmp(struct glirc_string s, struct glirc_string t);

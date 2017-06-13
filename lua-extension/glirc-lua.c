@@ -200,11 +200,11 @@ static int glirc_lua_list_channel_users(lua_State *L)
  */
 static int glirc_lua_my_nick(lua_State *L)
 {
-        struct glirc_string network;
-        network.str = luaL_checklstring(L, 1, &network.len);
+        size_t netlen = 0;
+        const char *net = luaL_checklstring(L, 1, &netlen);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        char *nick = glirc_my_nick(get_glirc(L), network);
+        char *nick = glirc_my_nick(get_glirc(L), net, netlen);
         if (nick == NULL) { luaL_error(L, "no such network"); }
         lua_pushstring(L, nick);
         glirc_free_string(nick);
