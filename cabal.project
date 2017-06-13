@@ -1,7 +1,9 @@
 packages:
-  config-schema/config-schema.cabal
-  config-value/config-value.cabal
   lib/irc-core.cabal
   bot/irc-core-bot.cabal
   hookup/hookup.cabal
   glirc.cabal
+
+optional-packages:
+  config-schema/
+  config-value/
