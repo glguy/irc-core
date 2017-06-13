@@ -28,22 +28,12 @@ static void print_status(struct glirc *G, ConnContext *context, const char *msg)
           msg, strlen(msg));
 }
 
-static char * keyfile_path(void)
+static char * state_path(const char *what)
 {
     const char *home = getenv("HOME");
     char *res = NULL;
     if (home) {
-        asprintf(&res, "%s/.config/glirc/otr-keys.txt", home);
-    }
-    return res;
-}
-
-static char * fingerprint_path(void)
-{
-    const char *home = getenv("HOME");
-    char *res = NULL;
-    if (home) {
-        asprintf(&res, "%s/.config/glirc/otr-fingerprints.txt", home);
+        asprintf(&res, "%s/.config/glirc/otr-%s.txt", home, what);
     }
     return res;
 }
@@ -214,7 +204,7 @@ new_fingerprint
    const char *tgt, unsigned char fp[20])
 {
 
-    char *path = fingerprint_path();
+    char *path = state_path("fingerprints");
     otrl_privkey_write_fingerprints(us, path);
     free(path);
 
@@ -259,12 +249,16 @@ static void *start_entrypoint(struct glirc *G, const char *libpath)
         OTRL_INIT;
         OtrlUserState us = otrl_userstate_create();
 
-        char *path = keyfile_path();
+        char *path = state_path("keys");
         if (path) otrl_privkey_read(us, path);
         free(path);
 
-        path = fingerprint_path();
+        path = state_path("fingerprints");
         if (path) otrl_privkey_read_fingerprints(us, path, NULL, NULL);
+        free(path);
+
+        path = state_path("instags");
+        if (path) otrl_instag_read(us, path);
         free(path);
 
         return us;
@@ -435,7 +429,7 @@ static void cmd_keygen
   (struct glirc *G, OtrlUserState us,
    const struct glirc_string *params, size_t params_n)
 {
-    char *path = keyfile_path(), *net = NULL, *me = NULL;
+    char *path = state_path("keys"), *net = NULL, *me = NULL;
     size_t netlen = 0;
     if (path) {
         glirc_current_focus(G, &net, &netlen, NULL, NULL);
