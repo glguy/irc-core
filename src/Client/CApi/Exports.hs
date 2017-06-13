@@ -446,20 +446,3 @@ glirc_current_focus stab netP netL tgtP tgtL =
 
        ChannelFocus n t -> do exportText netP netL n
                               exportText tgtP tgtL (idText t)
-
-------------------------------------------------------------------------
-
-poke' :: Storable a => Ptr a -> a -> IO ()
-poke' ptr x = unless (nullPtr == ptr) (poke ptr x)
-
-exportText :: Ptr CString -> Ptr CSize -> Text -> IO ()
-exportText dstP dstL txt =
-
-  Text.withCStringLen txt $ \(srcP, srcL) ->
-    do poke' dstL (fromIntegral srcL)
-       unless (dstP == nullPtr) $
-         do a <- mallocArray0 srcL
-            copyArray a srcP srcL
-            pokeElemOff a srcL 0
-            poke dstP a
-

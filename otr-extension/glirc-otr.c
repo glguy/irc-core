@@ -38,6 +38,15 @@ static char * keyfile_path(void)
     return res;
 }
 
+static char * fingerprint_path(void)
+{
+    const char *home = getenv("HOME");
+    char *res = NULL;
+    if (home) {
+        asprintf(&res, "%s/.config/glirc/otr-fingerprints.txt", home);
+    }
+    return res;
+}
 
 static OtrlPolicy op_policy(void *opdata, ConnContext *context)
 {
@@ -198,7 +207,35 @@ static void still_secure(void *G, ConnContext *context, int is_reply)
     }
 }
 
+static void
+new_fingerprint
+  (void *opdata, OtrlUserState us,
+   const char *accountname, const char *net,
+   const char *tgt, unsigned char fp[20])
+{
 
+    char *path = fingerprint_path();
+    otrl_privkey_write_fingerprints(us, path);
+    free(path);
+
+    char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
+    otrl_privkey_hash_to_human(human, fp);
+
+    struct glirc *G = opdata;
+    const char *src = "* OTR *";
+    char *msg = NULL;
+    asprintf(&msg, "New fingerprint: %s", human);
+
+    if (!msg) abort();
+
+    glirc_inject_chat
+      (G, net, strlen(net),
+          src, strlen(src),
+          tgt, strlen(tgt),
+          msg, strlen(msg));
+
+    free(msg);
+}
 
 static OtrlMessageAppOps ops = {
     .policy            = op_policy,
@@ -214,6 +251,7 @@ static OtrlMessageAppOps ops = {
     .gone_insecure     = gone_insecure,
     .still_secure      = still_secure,
     .handle_smp_event  = handle_smp_event,
+    .new_fingerprint   = new_fingerprint,
 };
 
 static void *start_entrypoint(struct glirc *G, const char *libpath)
@@ -223,6 +261,10 @@ static void *start_entrypoint(struct glirc *G, const char *libpath)
 
         char *path = keyfile_path();
         if (path) otrl_privkey_read(us, path);
+        free(path);
+
+        path = fingerprint_path();
+        if (path) otrl_privkey_read_fingerprints(us, path, NULL, NULL);
         free(path);
 
         return us;

@@ -255,9 +255,9 @@ renderPrefix u
   <> Text.encodeUtf8Builder (renderUserInfo u)
   <> Builder.char8 ' '
 
--- | Build concatenate a list of parameters into a single, space-
--- delimited bytestring. Use a colon for the last parameter if it contains
--- a colon or a space.
+-- | Concatenate a list of parameters into a single, space-delimited
+-- bytestring. Use a colon for the last parameter if it starts with
+-- a colon or contains a space.
 buildParams :: [Text] -> Builder
 buildParams [x]
   | " " `Text.isInfixOf` x || ":" `Text.isPrefixOf` x

@@ -30,7 +30,6 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Codensity
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.Foreign as Text
 import           Foreign.C
 import           Foreign.Marshal
 import           Foreign.Ptr
@@ -225,7 +224,7 @@ withTag (TagEntry k v) =
 
 withText :: Text -> NestedIO FgnStringLen
 withText txt =
-  do (ptr,len) <- nest1 $ Text.withCStringLen txt
+  do (ptr,len) <- nest1 $ withText0 txt
      return $ FgnStringLen ptr $ fromIntegral len
 
 ------------------------------------------------------------------------

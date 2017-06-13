@@ -46,11 +46,20 @@ module Client.CApi.Types
 
   -- * process message results
   , MessageResult(..), passMessage, dropMessage
+
+  -- * Marshaling helpers
+  , withText0
+  , exportText
+  , poke'
   ) where
 
-import Foreign.C
-import Foreign.Ptr
-import Foreign.Storable
+import           Control.Monad
+import           Data.Text (Text)
+import qualified Data.Text.Foreign as Text
+import           Foreign.C
+import           Foreign.Marshal.Array
+import           Foreign.Ptr
+import           Foreign.Storable
 
 -- | Tag for describing the kind of message to display in the client
 -- as used in `glirc_print`.
@@ -243,3 +252,30 @@ instance Storable FgnStringLen where
   poke p (FgnStringLen x y) =
              do (#poke struct glirc_string, str) p x
                 (#poke struct glirc_string, len) p y
+
+------------------------------------------------------------------------
+
+-- | Like 'poke' except it doesn't write to NULL
+poke' :: Storable a => Ptr a -> a -> IO ()
+poke' ptr x = unless (nullPtr == ptr) (poke ptr x)
+
+-- | Marshal a text as a malloced null-terminated CStringLen
+exportText :: Ptr CString -> Ptr CSize -> Text -> IO ()
+exportText dstP dstL txt =
+
+  Text.withCStringLen txt $ \(srcP, srcL) ->
+    do poke' dstL (fromIntegral srcL)
+       unless (dstP == nullPtr) $
+         do a <- mallocArray0 srcL
+            copyArray a srcP srcL
+            pokeElemOff a srcL 0
+            poke dstP a
+
+-- | Marshal a text as a temporary null-terminated CStringLen
+withText0 :: Text -> (CStringLen -> IO a) -> IO a
+withText0 txt k =
+  Text.withCStringLen txt $ \(p,l) ->
+  allocaArray0 l $ \p' ->
+    do copyArray p' p l
+       pokeElemOff p' l 0
+       k (p', l)
