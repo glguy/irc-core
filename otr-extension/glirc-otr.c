@@ -14,7 +14,10 @@
 #define NAME "OTR"
 #define MAJOR 1
 #define MINOR 0
-#define BOLD "\2"
+#define PLAIN "\x0f"
+#define BOLD(x) "\x02" x "\x02"
+#define GREEN(x) "\x03" "03" x PLAIN
+#define RED(x)   "\x03" "04" x PLAIN
 
 static void
 glirc_printf
@@ -89,15 +92,15 @@ static void handle_smp_event
     if (smp_event >= 9) return;
 
     const char *messages[9] = {
-      [OTRL_SMPEVENT_NONE          ] = "None"       ,
-      [OTRL_SMPEVENT_ERROR         ] = "Error"      ,
-      [OTRL_SMPEVENT_ABORT         ] = "Abort"      ,
-      [OTRL_SMPEVENT_CHEATED       ] = "Cheated"    ,
-      [OTRL_SMPEVENT_ASK_FOR_ANSWER] = "Question:"  ,
-      [OTRL_SMPEVENT_ASK_FOR_SECRET] = "Secret?"    ,
+      [OTRL_SMPEVENT_NONE          ] = "None",
+      [OTRL_SMPEVENT_ERROR         ] = "Error",
+      [OTRL_SMPEVENT_ABORT         ] = "Abort",
+      [OTRL_SMPEVENT_CHEATED       ] = "Cheated",
+      [OTRL_SMPEVENT_ASK_FOR_ANSWER] = "Question: [/extension OTR secret <response>]"  ,
+      [OTRL_SMPEVENT_ASK_FOR_SECRET] = "Secret? [/extension OTR secret <response>]",
       [OTRL_SMPEVENT_IN_PROGRESS   ] = "In progress",
-      [OTRL_SMPEVENT_SUCCESS       ] = "Success"    ,
-      [OTRL_SMPEVENT_FAILURE       ] = "Failure"    ,
+      [OTRL_SMPEVENT_SUCCESS       ] = "Success",
+      [OTRL_SMPEVENT_FAILURE       ] = "Failure",
       };
 
     const char *message = messages[smp_event];
@@ -218,15 +221,15 @@ static void account_name_free(void *opdata, const char *account_name)
 static void gone_secure(void *G, ConnContext *context)
 {
     if (otrl_context_is_fingerprint_trusted(context->active_fingerprint)) {
-        print_status(G, context, "Connection secured [trusted]");
+        print_status(G, context, "Connection secured [" GREEN("trusted") "]");
     } else {
-        print_status(G, context, "Connection secured [" BOLD "untrusted" BOLD "]");
+        print_status(G, context, "Connection secured [" RED("untrusted") "]");
     }
 }
 
 static void gone_insecure(void *G, ConnContext *context)
 {
-    print_status(G, context, BOLD "Secure session terminated");
+    print_status(G, context, "Secure session terminated");
 }
 
 static void still_secure(void *G, ConnContext *context, int is_reply)
@@ -433,30 +436,42 @@ cmd_end_done:
     glirc_free_string(tgt);
 }
 
+
+static ConnContext *
+get_current_context(struct glirc *G, OtrlUserState us)
+{
+    char *net = NULL; size_t netlen = 0;
+    char *tgt = NULL; size_t tgtlen = 0;
+    char *me  = NULL;
+    ConnContext *context = NULL;
+
+    glirc_current_focus(G, &net, &netlen, &tgt, &tgtlen);
+    if (!net || !tgt) goto get_current_context_done;
+
+    me = glirc_my_nick(G, net, netlen);
+    if (!me) goto get_current_context_done;
+
+    context = otrl_context_find(us, tgt, me, net, OTRL_INSTAG_BEST, 0, NULL, NULL, NULL);
+
+get_current_context_done:
+    glirc_free_string(me);
+    glirc_free_string(net);
+    glirc_free_string(tgt);
+
+    return context;
+}
+
 static void do_smp
   (struct glirc *G, OtrlUserState us,
    const unsigned char *secret, size_t secretlen,
    smp_func func)
 {
-    char *net = NULL; size_t netlen = 0;
-    char *tgt = NULL; size_t tgtlen = 0;
-    char *me  = NULL;
+    ConnContext *context = get_current_context(G, us);
 
-    glirc_current_focus(G, &net, &netlen, &tgt, &tgtlen);
-    if (!net || !tgt) goto do_smp_done;
+    if (context) {
+        func(us, &ops, G, context, secret, secretlen);
+    }
 
-    me = glirc_my_nick(G, net, netlen);
-    if (!me) goto do_smp_done;
-
-    ConnContext *context = otrl_context_find(us, tgt, me, net, OTRL_INSTAG_BEST, 0, NULL, NULL, NULL);
-    if (!context) goto do_smp_done;
-
-    func(us, &ops, G, context, secret, secretlen);
-
-do_smp_done:
-    glirc_free_string(me);
-    glirc_free_string(net);
-    glirc_free_string(tgt);
 }
 
 static void cmd_ask
@@ -516,6 +531,85 @@ cmd_keygen_done:
     glirc_free_string(net);
 }
 
+/*
+ * Manually mark the finger print associated with the current window trusted.
+ */
+static void cmd_trust
+  (struct glirc *G, OtrlUserState us,
+   const struct glirc_string *params, size_t params_n)
+{
+    ConnContext *context = get_current_context(G, us);
+    if (!context) return;
+
+    otrl_context_set_trust(context->active_fingerprint, "manual");
+
+    char *path = state_path("fingerprints");
+    if (path) otrl_privkey_write_fingerprints(us, path);
+    free(path);
+
+    char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
+    otrl_privkey_hash_to_human(human, context->active_fingerprint->fingerprint);
+    print_status(G, context, "Fingerprint trusted: " BOLD("%s"), human);
+}
+
+/*
+ * Manually mark the finger print associated with the current window trusted.
+ */
+static void cmd_untrust
+  (struct glirc *G, OtrlUserState us,
+   const struct glirc_string *params, size_t params_n)
+{
+    ConnContext *context = get_current_context(G, us);
+    if (!context) return;
+
+    otrl_context_set_trust(context->active_fingerprint, NULL);
+
+    char *path = state_path("fingerprints");
+    if (path) otrl_privkey_write_fingerprints(us, path);
+    free(path);
+
+    char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
+    otrl_privkey_hash_to_human(human, context->active_fingerprint->fingerprint);
+    print_status(G, context, "Fingerprint untrusted: " BOLD("%s"), human);
+}
+
+static void cmd_status
+  (struct glirc *G, OtrlUserState us,
+   const struct glirc_string *params, size_t params_n)
+{
+    ConnContext *context = get_current_context(G, us);
+    if (!context) return;
+
+    char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN] = {0};
+
+    otrl_privkey_fingerprint(us, human, context->accountname, context->protocol);
+    print_status(G, context, "Local  fingerprint: " BOLD("%s"), human);
+
+    const Fingerprint *fp = context->active_fingerprint;
+    if (fp) {
+        otrl_privkey_hash_to_human(human, fp->fingerprint);
+
+        const char *trust = fp->trust;
+        if (trust) {
+            print_status(G, context, "Remote fingerprint: " BOLD("%s") " [" GREEN("%s") "]", human, trust);
+        } else {
+            print_status(G, context, "Remote fingerprint: " BOLD("%s") " [" RED("untrusted") "]", human);
+        }
+    }
+
+    print_status(G, context,
+      "Local instance [" BOLD("%08X") "] Remote instance [" BOLD("%08X") "] Protocol [" BOLD("%u") "]",
+      context->our_instance, context->their_instance, context->protocol_version);
+
+    const char *statuses[] = {
+      [OTRL_MSGSTATE_PLAINTEXT] = RED  ("Plaintext"),
+      [OTRL_MSGSTATE_ENCRYPTED] = GREEN("Encrypted"),
+      [OTRL_MSGSTATE_FINISHED ] = RED  ("Finished" ),
+    };
+
+    print_status(G, context, "Connection state: %s", statuses[context->msgstate]);
+}
+
 struct cmd_impl {
     const char *name;
     void (*func)(struct glirc *, OtrlUserState, const struct glirc_string *, size_t);
@@ -527,6 +621,9 @@ static struct cmd_impl cmd_impls[] = {
    { .name = "poll",    .func = cmd_poll    },
    { .name = "end",     .func = cmd_end     },
    { .name = "keygen",  .func = cmd_keygen  },
+   { .name = "trust",   .func = cmd_trust   },
+   { .name = "untrust", .func = cmd_untrust },
+   { .name = "status",  .func = cmd_status  },
    { .name = NULL,      .func = NULL        },
 };
 
