@@ -7,6 +7,8 @@ _glirc_list_channels
 _glirc_list_channel_users
 _glirc_my_nick
 _glirc_mark_seen
+_glirc_is_channel
+_glirc_is_logged_on
 _glirc_clear_window
 _glirc_current_focus
 _glirc_free_string

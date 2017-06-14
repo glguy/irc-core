@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <limits.h>
 #include <libotr/proto.h>
 #include <libotr/message.h>
@@ -13,19 +14,55 @@
 #define NAME "OTR"
 #define MAJOR 1
 #define MINOR 0
+#define BOLD "\2"
+
+static void
+glirc_printf
+  (struct glirc *G, const char *net, const char *src, const char *tgt, const char *fmt, ...)
+  __attribute__ ((format (printf, 5, 6)));
+
+static void print_status(struct glirc *G, ConnContext *context, const char *fmt, ...)
+  __attribute__ ((format (printf, 3, 4)));
 
 
-static void print_status(struct glirc *G, ConnContext *context, const char *msg)
+
+static void
+glirc_vprintf
+  (struct glirc *G, const char *net, const char *src, const char *tgt, const char *fmt, va_list ap)
 {
-    const char *net = context->protocol;
-    const char *src = "* OTR *";
-    const char *tgt = context->username;
+    char *msg = NULL;
+
+    int res = vasprintf(&msg, fmt, ap);
+
+    if (res < 0 || !msg) abort();
 
     glirc_inject_chat
       (G, net, strlen(net),
           src, strlen(src),
           tgt, strlen(tgt),
           msg, strlen(msg));
+}
+
+static void
+glirc_printf
+  (struct glirc *G, const char *net, const char *src, const char *tgt, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    glirc_vprintf(G, net, src, tgt, fmt, ap);
+    va_end(ap);
+}
+
+static void print_status(struct glirc *G, ConnContext *context, const char *fmt, ...)
+{
+    const char *net = context->protocol;
+    const char *src = "* OTR *";
+    const char *tgt = context->username;
+
+    va_list ap;
+    va_start(ap, fmt);
+    glirc_vprintf(G, net, src, tgt, fmt, ap);
+    va_end(ap);
 }
 
 static char * state_path(const char *what)
@@ -48,7 +85,6 @@ static void handle_smp_event
    unsigned short progress_percent, char *question)
 {
     struct glirc *G = opdata;
-    char buffer[512];
 
     if (smp_event >= 9) return;
 
@@ -67,40 +103,41 @@ static void handle_smp_event
     const char *message = messages[smp_event];
 
     if (question) {
-        snprintf(buffer, sizeof(buffer), "SMP %s [%s]", message, question);
+        print_status(G, context, "SMP %s [%s]", message, question);
     } else {
-        snprintf(buffer, sizeof(buffer), "SMP %s", message);
+        print_status(G, context, "SMP %s", message);
     }
-
-    print_status(G, context, buffer);
 }
 
 static void
-op_inject
+inject_message
   (void *opdata, const char *accountname,
   const char *protocol, const char *recipient, const char *message)
 {
     char *message1 = strdup(message);
+    if (!message1) abort();
+
     bool nonempty = 0;
     for (char *cursor = message1; *cursor; cursor++) {
         if (*cursor == '\n') *cursor = ' ';
         if (*cursor != ' ') nonempty = true;
     }
 
-    struct glirc *G = opdata;
-    struct glirc_string params[2] =
-    { { .str = recipient, .len = strlen(recipient) },
-      { .str = message1 , .len = strlen(message1)  },
-    };
-    struct glirc_message m = {
-      .network  = { .str = protocol, .len  = strlen(protocol) } ,
-      .command  = { .str = "PRIVMSG", .len = strlen("PRIVMSG") },
-      .params   = params,
-      .params_n = 2
-    };
     if (nonempty) {
+        struct glirc *G = opdata;
+        struct glirc_string params[2] =
+        { { .str = recipient, .len = strlen(recipient) },
+          { .str = message1 , .len = strlen(message1)  },
+        };
+        struct glirc_message m = {
+          .network  = { .str = protocol, .len  = strlen(protocol) } ,
+          .command  = { .str = "PRIVMSG", .len = strlen("PRIVMSG") },
+          .params   = params,
+          .params_n = 2
+        };
         glirc_send_message(G, &m);
     }
+
     free(message1);
 }
 
@@ -110,22 +147,21 @@ handle_msg_event
    const char *message, gcry_error_t err)
 {
     struct glirc *G = opdata;
-    char buffer[512];
 
     const char *messages[16] = {
       [OTRL_MSGEVENT_NONE                      ] = "None",
-      [OTRL_MSGEVENT_ENCRYPTION_REQUIRED       ] = "Encryption required",
-      [OTRL_MSGEVENT_ENCRYPTION_ERROR          ] = "Encryption error",
-      [OTRL_MSGEVENT_CONNECTION_ENDED          ] = "Connection ended",
+      [OTRL_MSGEVENT_ENCRYPTION_REQUIRED       ] = "Encryption required, message not sent",
+      [OTRL_MSGEVENT_ENCRYPTION_ERROR          ] = "Encryption error, message not sent",
+      [OTRL_MSGEVENT_CONNECTION_ENDED          ] = "Connection ended, message not sent",
       [OTRL_MSGEVENT_SETUP_ERROR               ] = "Setup error",
       [OTRL_MSGEVENT_MSG_REFLECTED             ] = "Message reflected",
-      [OTRL_MSGEVENT_MSG_RESENT                ] = "Message reset",
-      [OTRL_MSGEVENT_RCVDMSG_NOT_IN_PRIVATE    ] = "Received message not private",
+      [OTRL_MSGEVENT_MSG_RESENT                ] = "Previous message resent",
+      [OTRL_MSGEVENT_RCVDMSG_NOT_IN_PRIVATE    ] = "Received unexpected encrypted message",
       [OTRL_MSGEVENT_RCVDMSG_UNREADABLE        ] = "Received message unreadable",
       [OTRL_MSGEVENT_RCVDMSG_MALFORMED         ] = "Received message malformed",
-      [OTRL_MSGEVENT_LOG_HEARTBEAT_RCVD        ] = "Log heartbeat received",
-      [OTRL_MSGEVENT_LOG_HEARTBEAT_SENT        ] = "Log heartbeat sent",
-      [OTRL_MSGEVENT_RCVDMSG_GENERAL_ERR       ] = "Received general error:",
+      [OTRL_MSGEVENT_LOG_HEARTBEAT_RCVD        ] = "Heartbeat received",
+      [OTRL_MSGEVENT_LOG_HEARTBEAT_SENT        ] = "Heartbeat sent",
+      [OTRL_MSGEVENT_RCVDMSG_GENERAL_ERR       ] = "Received general error",
       [OTRL_MSGEVENT_RCVDMSG_UNENCRYPTED       ] = "Received message unencrypted",
       [OTRL_MSGEVENT_RCVDMSG_UNRECOGNIZED      ] = "Received message unrecognizable",
       [OTRL_MSGEVENT_RCVDMSG_FOR_OTHER_INSTANCE] = "Received message for other instance",
@@ -134,12 +170,10 @@ handle_msg_event
     const char *desc = messages[msg_event];
 
     if (message) {
-        snprintf(buffer, sizeof(buffer), "%s [%s]", desc, message);
+        print_status(G, context, "%s [%s]", desc, message);
     } else {
-        snprintf(buffer, sizeof(buffer), "%s", desc);
+        print_status(G, context, "%s", desc);
     }
-
-    print_status(G, context, buffer);
 }
 
 static int op_max_message(void *opdata, ConnContext *context)
@@ -152,15 +186,18 @@ op_create_privkey(void *opdata, const char *accountname, const char *protocol)
 {
     const char *txt = "No private key [/extension " NAME " keygen]";
     struct glirc *G = opdata;
-    struct glirc_string m = { .str = txt, .len = strlen(txt) };
-    glirc_print(G, ERROR_MESSAGE, m);
+    glirc_print(G, ERROR_MESSAGE, txt, strlen(txt));
 }
 
 static int is_logged_in
   (void *opdata, const char *accountname, const char *protocol,
    const char *recipient)
 {
-    return 1; // TODO: ask glirc if we share a channel, look in csUsers
+    struct glirc *G = opdata;
+    int seen = glirc_is_logged_on(G, protocol, strlen(protocol),
+                                     recipient, strlen(recipient));
+
+    return seen ? 1 : -1; // not seen just means we might not share a channel
 }
 
 static
@@ -180,20 +217,16 @@ static void account_name_free(void *opdata, const char *account_name)
 
 static void gone_secure(void *G, ConnContext *context)
 {
-    const char *msg = NULL;
-
     if (otrl_context_is_fingerprint_trusted(context->active_fingerprint)) {
-        msg = "Connection secured [trusted]";
+        print_status(G, context, "Connection secured [trusted]");
     } else {
-        msg = "Connection secured [\2untrusted\2]";
+        print_status(G, context, "Connection secured [" BOLD "untrusted" BOLD "]");
     }
-
-    print_status(G, context, msg);
 }
 
 static void gone_insecure(void *G, ConnContext *context)
 {
-    print_status(G, context, "\2Secure session terminated\2");
+    print_status(G, context, BOLD "Secure session terminated");
 }
 
 static void still_secure(void *G, ConnContext *context, int is_reply)
@@ -221,24 +254,14 @@ new_fingerprint
 
     struct glirc *G = opdata;
     const char *src = "* OTR *";
-    char *msg = NULL;
-    asprintf(&msg, "New fingerprint: %s", human);
 
-    if (!msg) abort();
-
-    glirc_inject_chat
-      (G, net, strlen(net),
-          src, strlen(src),
-          tgt, strlen(tgt),
-          msg, strlen(msg));
-
-    free(msg);
+    glirc_printf(G, net, src, tgt, "New fingerprint: %s", human);
 }
 
 static OtrlMessageAppOps ops = {
     .policy            = op_policy,
     .create_privkey    = op_create_privkey,
-    .inject_message    = op_inject,
+    .inject_message    = inject_message,
     .max_message_size  = op_max_message,
     .handle_msg_event  = handle_msg_event,
     .is_logged_in      = is_logged_in,
@@ -322,15 +345,17 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
         const char *message = msg->params[1].str;
         const char *net     = msg->network.str;
 
+        if (glirc_is_channel(G, net, msg->network.len, target, msg->params[0].len)) return PASS_MESSAGE;
+
         int drop = otrl_message_receiving(us, &ops, G, target, net, sender,
                           message, &newmessage, &tlvs, NULL, NULL, NULL);
 
         if (newmessage) {
             char *userinfo = rebuild_userinfo(msg);
-            glirc_inject_chat(G, msg->network.str, msg->network.len,
-                                 userinfo, strlen(userinfo),
+            glirc_inject_chat(G, msg->network.str    , msg->network.len,
+                                 userinfo            , strlen(userinfo),
                                  msg->prefix_nick.str, msg->prefix_nick.len,
-                                 newmessage, strlen(newmessage));
+                                 newmessage          , strlen(newmessage));
             free(userinfo);
         }
 
@@ -354,6 +379,8 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     const char * tgt = chat->target.str;
     const char * msg = chat->message.str;
 
+    if (glirc_is_channel(G, net, chat->network.len, tgt, chat->target.len)) return PASS_MESSAGE;
+
     me = glirc_my_nick(G, chat->network.str, chat->network.len);
     if (!me) goto chat_entrypoint_done;
 
@@ -363,8 +390,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
 
     if (err) {
         const char *errTxt = "PANIC: OTR encryption error";
-        struct glirc_string m = { .str = errTxt, .len = strlen(errTxt) };
-        glirc_print(G, ERROR_MESSAGE, m);
+        glirc_print(G, ERROR_MESSAGE, errTxt, strlen(errTxt));
     }
 
 chat_entrypoint_done:

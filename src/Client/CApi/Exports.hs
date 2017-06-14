@@ -18,6 +18,8 @@ module Client.CApi.Exports
  , Glirc_list_channel_users
  , Glirc_my_nick
  , Glirc_identifier_cmp
+ , Glirc_is_channel
+ , Glirc_is_logged_on
  , Glirc_mark_seen
  , Glirc_clear_window
  , Glirc_current_focus
@@ -446,3 +448,60 @@ glirc_current_focus stab netP netL tgtP tgtL =
 
        ChannelFocus n t -> do exportText netP netL n
                               exportText tgtP tgtL (idText t)
+
+------------------------------------------------------------------------
+
+-- | Returns @1@ when the given target on the given network is a channel
+-- name, otherwise returns @0@.
+--
+-- If the given network is not currently active this returns @0@.
+type Glirc_is_channel =
+  Ptr ()  {- ^ api token       -} ->
+  CString {- ^ network name    -} ->
+  CSize   {- ^ network length  -} ->
+  CString {- ^ target name     -} ->
+  CSize   {- ^ target length   -} ->
+  IO CInt {- ^ boolean         -}
+
+#ifdef EXPORT_GLIRC_CAPI
+foreign export ccall glirc_is_channel :: Glirc_is_channel
+#endif
+
+glirc_is_channel :: Glirc_is_channel
+glirc_is_channel stab net netL tgt tgtL =
+  do mvar    <- derefToken stab
+     st      <- readMVar mvar
+     network <- peekFgnStringLen (FgnStringLen net netL)
+     target  <- peekFgnStringLen (FgnStringLen tgt tgtL)
+
+     case preview (clientConnection network) st of
+       Just cs | isChannelIdentifier cs (mkId target) -> return 1
+       _ -> return 0
+
+------------------------------------------------------------------------
+
+-- | Returns @1@ when the given target on the given network shares a
+-- channel with the user, @0@ otherwise.
+--
+-- If the given network is not currently active this returns @0@.
+type Glirc_is_logged_on =
+  Ptr ()  {- ^ api token       -} ->
+  CString {- ^ network name    -} ->
+  CSize   {- ^ network length  -} ->
+  CString {- ^ target name     -} ->
+  CSize   {- ^ target length   -} ->
+  IO CInt {- ^ boolean         -}
+
+#ifdef EXPORT_GLIRC_CAPI
+foreign export ccall glirc_is_logged_on :: Glirc_is_channel
+#endif
+
+glirc_is_logged_on :: Glirc_is_channel
+glirc_is_logged_on stab net netL tgt tgtL =
+  do mvar    <- derefToken stab
+     st      <- readMVar mvar
+     network <- peekFgnStringLen (FgnStringLen net netL)
+     target  <- peekFgnStringLen (FgnStringLen tgt tgtL)
+
+     let online = has (clientConnection network . csUsers . ix (mkId target)) st
+     return $! if online then 1 else 0

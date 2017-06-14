@@ -105,11 +105,11 @@ int compute_script_path(const char *libpath, char *scriptpath)
  */
 static int glirc_lua_print(lua_State *L)
 {
-        struct glirc_string message;
-        message.str = luaL_checklstring(L, 1, &message.len);
+        size_t msglen = 0;
+        const char *msg = luaL_checklstring(L, 1, &msglen);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        glirc_print(get_glirc(L), NORMAL_MESSAGE, message);
+        glirc_print(get_glirc(L), NORMAL_MESSAGE, msg, msglen);
         return 0;
 }
 
@@ -119,11 +119,11 @@ static int glirc_lua_print(lua_State *L)
  */
 static int glirc_lua_error(lua_State *L)
 {
-        struct glirc_string message;
-        message.str = luaL_checklstring(L, 1, &message.len);
+        size_t msglen = 0;
+        const char *msg = luaL_checklstring(L, 1, &msglen);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        glirc_print(get_glirc(L), ERROR_MESSAGE, message);
+        glirc_print(get_glirc(L), ERROR_MESSAGE, msg, msglen);
         return 0;
 }
 
@@ -313,9 +313,9 @@ static void *start(struct glirc *G, const char *path)
         glirc_install_lib(L);
 
         if (luaL_dofile(L, scriptpath)) {
-                struct glirc_string message;
-                message.str = lua_tolstring(L, -1, &message.len);
-                glirc_print(G, ERROR_MESSAGE, message);
+                size_t msglen = 0;
+                const char *msg = lua_tolstring(L, -1, &msglen);
+                glirc_print(G, ERROR_MESSAGE, msg, msglen);
 
                 lua_close(L);
                 L = NULL;
@@ -428,9 +428,9 @@ static int callback(struct glirc *G, lua_State *L, const char *callback_name, in
         int res = lua_pcall(L, 1+args, 1, 0);  // STACK:
 
         if (res != LUA_OK) {
-                struct glirc_string message;
-                message.str = lua_tolstring(L, -1, &message.len);
-                glirc_print(G, ERROR_MESSAGE, message);
+                size_t msglen = 0;
+                const char *msg = lua_tolstring(L, -1, &msglen);
+                glirc_print(G, ERROR_MESSAGE, msg, msglen);
                 lua_settop(L, 0); // discard error message
         }
 

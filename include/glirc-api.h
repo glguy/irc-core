@@ -61,7 +61,7 @@ struct glirc_extension {
 };
 
 int glirc_send_message(struct glirc *G, const struct glirc_message *);
-int glirc_print(struct glirc *G, enum message_code, struct glirc_string msg);
+int glirc_print(struct glirc *G, enum message_code, const char *msg, size_t msglen);
 int glirc_inject_chat(struct glirc *G,
                 const char* net, size_t netLen,
                 const char* src, size_t srcLen,
@@ -75,6 +75,10 @@ char * glirc_my_nick(struct glirc *G, const char *net, size_t netlen);
 void glirc_mark_seen(struct glirc *G, struct glirc_string network, struct glirc_string channel);
 void glirc_clear_window(struct glirc *G, struct glirc_string network, struct glirc_string channel);
 int glirc_identifier_cmp(struct glirc_string s, struct glirc_string t);
+int glirc_is_channel(struct glirc *G, const char *net, size_t netlen,
+                                      const char *tgt, size_t tgtlen);
+int glirc_is_logged_on(struct glirc *G, const char *net, size_t netlen,
+                                        const char *tgt, size_t tgtlen);
 
 void glirc_free_string(char *);
 void glirc_free_strings(char **);

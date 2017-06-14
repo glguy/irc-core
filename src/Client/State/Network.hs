@@ -161,6 +161,9 @@ makeLenses ''NetworkState
 makePrisms ''Transaction
 makePrisms ''PingStatus
 
+defaultChannelTypes :: String
+defaultChannelTypes = "#&"
+
 csNick :: Lens' NetworkState Identifier
 csNick = csUserInfo . uiNick
 
@@ -223,7 +226,7 @@ newNetworkState networkId network settings sock ping = NetworkState
   , _csUserInfo     = UserInfo "*" "" ""
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
-  , _csChannelTypes = "#&"
+  , _csChannelTypes = defaultChannelTypes
   , _csModeTypes    = defaultModeTypes
   , _csTransaction  = NoTransaction
   , _csModes        = ""
