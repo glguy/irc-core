@@ -14,6 +14,7 @@
 #define NAME "OTR"
 #define MAJOR 1
 #define MINOR 0
+#define PLUGIN_USER "* OTR *"
 #define PLAIN "\x0f"
 #define BOLD(x) "\x02" x "\x02"
 #define GREEN(x) "\x03" "03" x PLAIN
@@ -59,7 +60,7 @@ glirc_printf
 static void print_status(struct glirc *G, ConnContext *context, const char *fmt, ...)
 {
     const char *net = context->protocol;
-    const char *src = "* OTR *";
+    const char *src = PLUGIN_USER;
     const char *tgt = context->username;
 
     va_list ap;
@@ -117,31 +118,26 @@ inject_message
   (void *opdata, const char *accountname,
   const char *protocol, const char *recipient, const char *message)
 {
-    char *message1 = strdup(message);
-    if (!message1) abort();
+    OtrlMessageType msgtype = otrl_proto_message_type(message);
 
-    bool nonempty = 0;
-    for (char *cursor = message1; *cursor; cursor++) {
-        if (*cursor == '\n') *cursor = ' ';
-        if (*cursor != ' ') nonempty = true;
+    // The default query message contains HTML and newlines!
+    if (msgtype == OTRL_MSGTYPE_QUERY) {
+        message = "?OTRv23? This message is attempting to initiate an encrypted"
+                  " session, but your client doesn't support this protocol.";
     }
 
-    if (nonempty) {
-        struct glirc *G = opdata;
-        struct glirc_string params[2] =
-        { { .str = recipient, .len = strlen(recipient) },
-          { .str = message1 , .len = strlen(message1)  },
-        };
-        struct glirc_message m = {
-          .network  = { .str = protocol, .len  = strlen(protocol) } ,
-          .command  = { .str = "PRIVMSG", .len = strlen("PRIVMSG") },
-          .params   = params,
-          .params_n = 2
-        };
-        glirc_send_message(G, &m);
-    }
-
-    free(message1);
+    struct glirc *G = opdata;
+    struct glirc_string params[2] =
+    { { .str = recipient, .len = strlen(recipient) },
+      { .str = message  , .len = strlen(message)   },
+    };
+    struct glirc_message m = {
+      .network  = { .str = protocol, .len  = strlen(protocol) } ,
+      .command  = { .str = "PRIVMSG", .len = strlen("PRIVMSG") },
+      .params   = params,
+      .params_n = 2
+    };
+    glirc_send_message(G, &m);
 }
 
 static void
@@ -256,7 +252,7 @@ new_fingerprint
     otrl_privkey_hash_to_human(human, fp);
 
     struct glirc *G = opdata;
-    const char *src = "* OTR *";
+    const char *src = PLUGIN_USER;
 
     glirc_printf(G, net, src, tgt, "New fingerprint: %s", human);
 }
@@ -421,7 +417,7 @@ static void cmd_end
 
     otrl_message_disconnect_all_instances(us, &ops, G, me, net, tgt);
 
-    const char *src = "* OTR *";
+    const char *src = PLUGIN_USER;
     const char *msg = "Session Terminated";
 
     glirc_inject_chat
@@ -461,7 +457,7 @@ get_current_context_done:
     return context;
 }
 
-static void do_smp
+static inline void do_smp
   (struct glirc *G, OtrlUserState us,
    const unsigned char *secret, size_t secretlen,
    smp_func func)
@@ -503,6 +499,9 @@ static void cmd_poll
     otrl_message_poll(us, &ops, G);
 }
 
+/*
+ * Generate keypair and instance tag for the current network and nick.
+ */
 static void cmd_keygen
   (struct glirc *G, OtrlUserState us,
    const struct glirc_string *params, size_t params_n)
@@ -532,7 +531,7 @@ cmd_keygen_done:
 }
 
 /*
- * Manually mark the finger print associated with the current window trusted.
+ * Manually mark the fingerprint associated with the current window trusted.
  */
 static void cmd_trust
   (struct glirc *G, OtrlUserState us,
@@ -553,7 +552,7 @@ static void cmd_trust
 }
 
 /*
- * Manually mark the finger print associated with the current window trusted.
+ * Manually mark the fingerprint associated with the current window untrusted.
  */
 static void cmd_untrust
   (struct glirc *G, OtrlUserState us,
@@ -573,6 +572,9 @@ static void cmd_untrust
     print_status(G, context, "Fingerprint untrusted: " BOLD("%s"), human);
 }
 
+/*
+ * Print status information for the current context to the chat window
+ */
 static void cmd_status
   (struct glirc *G, OtrlUserState us,
    const struct glirc_string *params, size_t params_n)
