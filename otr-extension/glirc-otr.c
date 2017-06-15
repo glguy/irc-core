@@ -521,7 +521,8 @@ static void cmd_poll
   (struct glirc *G, OtrlUserState us,
    const struct glirc_string *params, size_t params_n)
 {
-    otrl_message_poll(us, &ops, G);
+    GET_opdata;
+    otrl_message_poll(us, &ops, &opdata);
 }
 
 
