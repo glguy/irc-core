@@ -111,23 +111,27 @@ static void handle_smp_event
     if (smp_event >= 9) return;
 
     const char *messages[9] = {
-      [OTRL_SMPEVENT_NONE          ] = "None",
-      [OTRL_SMPEVENT_ERROR         ] = "Error",
-      [OTRL_SMPEVENT_ABORT         ] = "Abort",
-      [OTRL_SMPEVENT_CHEATED       ] = "Cheated",
-      [OTRL_SMPEVENT_ASK_FOR_ANSWER] = "Question: [/extension OTR secret <response>]"  ,
-      [OTRL_SMPEVENT_ASK_FOR_SECRET] = "Secret? [/extension OTR secret <response>]",
-      [OTRL_SMPEVENT_IN_PROGRESS   ] = "In progress",
-      [OTRL_SMPEVENT_SUCCESS       ] = "Success",
-      [OTRL_SMPEVENT_FAILURE       ] = "Failure",
+      [OTRL_SMPEVENT_NONE          ] = BOLD("none"),
+      [OTRL_SMPEVENT_ERROR         ] = RED("error"),
+      [OTRL_SMPEVENT_ABORT         ] = RED("abort"),
+      [OTRL_SMPEVENT_CHEATED       ] = RED("cheated"),
+      [OTRL_SMPEVENT_ASK_FOR_ANSWER] = BOLD("question"),
+      [OTRL_SMPEVENT_ASK_FOR_SECRET] = BOLD("secret?"),
+      [OTRL_SMPEVENT_IN_PROGRESS   ] = BOLD("in progress"),
+      [OTRL_SMPEVENT_SUCCESS       ] = GREEN("success"),
+      [OTRL_SMPEVENT_FAILURE       ] = RED("failure"),
       };
 
     const char *message = messages[smp_event];
 
     if (question) {
-        print_status(G, context, "SMP %s [%s]", message, question);
+        print_status(G, context, "Peer verification [%s] [%s]", message, question);
     } else {
-        print_status(G, context, "SMP %s", message);
+        print_status(G, context, "Peer verification [%s]", message);
+    }
+
+    if (smp_event == OTRL_SMPEVENT_ASK_FOR_ANSWER || smp_event == OTRL_SMPEVENT_ASK_FOR_SECRET) {
+        print_status(G, context, "Reply with: /extension " NAME " secret <answer>");
     }
 }
 
@@ -176,8 +180,8 @@ handle_msg_event
       [OTRL_MSGEVENT_RCVDMSG_NOT_IN_PRIVATE    ] = "Received unexpected encrypted message",
       [OTRL_MSGEVENT_RCVDMSG_UNREADABLE        ] = "Received message unreadable",
       [OTRL_MSGEVENT_RCVDMSG_MALFORMED         ] = "Received message malformed",
-      [OTRL_MSGEVENT_LOG_HEARTBEAT_RCVD        ] = "Heartbeat received",
-      [OTRL_MSGEVENT_LOG_HEARTBEAT_SENT        ] = "Heartbeat sent",
+      [OTRL_MSGEVENT_LOG_HEARTBEAT_RCVD        ] = NULL,
+      [OTRL_MSGEVENT_LOG_HEARTBEAT_SENT        ] = NULL,
       [OTRL_MSGEVENT_RCVDMSG_GENERAL_ERR       ] = "Received general error",
       [OTRL_MSGEVENT_RCVDMSG_UNENCRYPTED       ] = "Received message unencrypted",
       [OTRL_MSGEVENT_RCVDMSG_UNRECOGNIZED      ] = "Received message unrecognizable",
@@ -186,10 +190,12 @@ handle_msg_event
 
     const char *desc = messages[msg_event];
 
-    if (message) {
-        print_status(G, context, "%s [%s]", desc, message);
-    } else {
-        print_status(G, context, "%s", desc);
+    if (desc) {
+        if (message) {
+            print_status(G, context, "%s [%s]", desc, message);
+        } else {
+            print_status(G, context, "%s", desc);
+        }
     }
 }
 
@@ -204,7 +210,7 @@ static int is_logged_in
 {
     GET_G;
 
-    int seen = glirc_is_logged_on(G, protocol, strlen(protocol),
+    int seen = glirc_is_logged_on(G, protocol,  strlen(protocol),
                                      recipient, strlen(recipient));
 
     return seen ? 1 : -1; // not seen just means we might not share a channel
@@ -221,21 +227,13 @@ static void gone_secure(void *opdata, ConnContext *context)
     }
 }
 
-static void gone_insecure(void *opdata, ConnContext *context)
-{
-    GET_G;
-
-    print_status(G, context, "Secure session terminated");
-}
-
 static void still_secure(void *opdata, ConnContext *context, int is_reply)
 {
     GET_G;
-
-    if (is_reply) {
-        print_status(G, context, "Connection refreshed (by remote)");
+    if (otrl_context_is_fingerprint_trusted(context->active_fingerprint)) {
+        print_status(G, context, "Connection refreshed [" GREEN("trusted") "]");
     } else {
-        print_status(G, context, "Connection refreshed (by local)");
+        print_status(G, context, "Connection refreshed [" RED("untrusted") "]");
     }
 }
 
@@ -291,7 +289,6 @@ static OtrlMessageAppOps ops = {
     .is_logged_in      = is_logged_in,
 
     .gone_secure       = gone_secure,
-    .gone_insecure     = gone_insecure,
     .still_secure      = still_secure,
     .handle_smp_event  = handle_smp_event,
 
@@ -328,6 +325,8 @@ static void stop_entrypoint(struct glirc *G, void *L)
 }
 
 
+// Rebuild the userinfo "nick!user@host" from the prefix
+// fields of a glirc message
 static char *
 rebuild_userinfo(const struct glirc_message *msg)
 {
@@ -423,9 +422,6 @@ chat_entrypoint_done:
     return err || newmsg ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
-typedef void (*smp_func)
-  (OtrlUserState, const OtrlMessageAppOps *, void *, ConnContext *, const unsigned char *, size_t);
-
 static void cmd_end
   (struct glirc *G, OtrlUserState us,
    const struct glirc_string *params, size_t params_n)
@@ -433,10 +429,10 @@ static void cmd_end
     GET_opdata;
 
     char *net = NULL; size_t netlen = 0;
-    char *tgt = NULL; size_t tgtlen = 0;
+    char *tgt = NULL;
     char *me  = NULL;
 
-    glirc_current_focus(G, &net, &netlen, &tgt, &tgtlen);
+    glirc_current_focus(G, &net, &netlen, &tgt, NULL);
     if (!net || !tgt) goto cmd_end_done;
 
     me = glirc_my_nick(G, net, netlen);
@@ -445,7 +441,7 @@ static void cmd_end
     otrl_message_disconnect_all_instances(us, &ops, &opdata, me, net, tgt);
 
     const char *src = PLUGIN_USER;
-    const char *msg = "Session Terminated";
+    const char *msg = RED("Session terminated");
 
     glirc_inject_chat
       (G, net, strlen(net),
@@ -464,11 +460,11 @@ static ConnContext *
 get_current_context(struct glirc *G, OtrlUserState us)
 {
     char *net = NULL; size_t netlen = 0;
-    char *tgt = NULL; size_t tgtlen = 0;
+    char *tgt = NULL;
     char *me  = NULL;
     ConnContext *context = NULL;
 
-    glirc_current_focus(G, &net, &netlen, &tgt, &tgtlen);
+    glirc_current_focus(G, &net, &netlen, &tgt, NULL);
     if (!net || !tgt) goto get_current_context_done;
 
     me = glirc_my_nick(G, net, netlen);
@@ -484,42 +480,42 @@ get_current_context_done:
     return context;
 }
 
-static inline void do_smp
-  (struct glirc *G, OtrlUserState us,
-   const unsigned char *secret, size_t secretlen,
-   smp_func func)
-{
-    GET_opdata;
-
-    ConnContext *context = get_current_context(G, us);
-
-    if (context) {
-        func(us, &ops, &opdata, context, secret, secretlen);
-    }
-
-}
 
 static void cmd_ask
   (struct glirc *G, OtrlUserState us,
    const struct glirc_string *params, size_t params_n)
 {
-    if (params_n >= 2) {
-            do_smp(G, us, (unsigned char *)params[1].str,
-                                           params[1].len,
-            otrl_message_initiate_smp);
+    GET_opdata;
+
+    if (params_n < 2) return;
+
+    ConnContext *context = get_current_context(G, us);
+
+    if (context) {
+        otrl_message_initiate_smp
+            (us, &ops, &opdata, context,
+             (unsigned char *)params[1].str, params[1].len);
     }
 }
+
 
 static void cmd_secret
   (struct glirc *G, OtrlUserState us,
    const struct glirc_string *params, size_t params_n)
 {
-    if (params_n >= 2) {
-        do_smp(G, us, (unsigned char *)params[1].str,
-                                       params[1].len,
-        otrl_message_respond_smp);
+    GET_opdata;
+
+    if (params_n < 2) return;
+
+    ConnContext *context = get_current_context(G, us);
+
+    if (context) {
+        otrl_message_respond_smp
+            (us, &ops, &opdata, context,
+             (unsigned char *)params[1].str, params[1].len);
     }
 }
+
 
 static void cmd_poll
   (struct glirc *G, OtrlUserState us,
@@ -527,6 +523,7 @@ static void cmd_poll
 {
     otrl_message_poll(us, &ops, G);
 }
+
 
 /*
  * Manually mark the fingerprint associated with the current window trusted.
@@ -536,7 +533,7 @@ static void cmd_trust
    const struct glirc_string *params, size_t params_n)
 {
     ConnContext *context = get_current_context(G, us);
-    if (!context) return;
+    if (!context || !context->active_fingerprint) return;
 
     otrl_context_set_trust(context->active_fingerprint, "manual");
 
@@ -557,7 +554,7 @@ static void cmd_untrust
    const struct glirc_string *params, size_t params_n)
 {
     ConnContext *context = get_current_context(G, us);
-    if (!context) return;
+    if (!context || !context->active_fingerprint) return;
 
     otrl_context_set_trust(context->active_fingerprint, NULL);
 
