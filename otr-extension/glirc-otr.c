@@ -1,14 +1,10 @@
 #define _GNU_SOURCE
 #include <string.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <stdarg.h>
-#include <limits.h>
 #include <libotr/proto.h>
 #include <libotr/message.h>
 #include <libotr/privkey.h>
-#include <libgen.h>
-
 
 #include "glirc-api.h"
 
@@ -84,6 +80,11 @@ static void print_status(struct glirc *G, ConnContext *context, const char *fmt,
     va_start(ap, fmt);
     glirc_vprintf(G, net, src, tgt, fmt, ap);
     va_end(ap);
+}
+
+static inline int match_string(const char *x, struct glirc_string y)
+{
+        return 0 == strncmp(x, y.str, y.len);
 }
 
 static char * state_path(const char *what)
@@ -194,7 +195,7 @@ handle_msg_event
 
 static int op_max_message(void *opdata, ConnContext *context)
 {
-    return 400; // pessmistic
+    return 400; // pessimistic
 }
 
 static int is_logged_in
@@ -356,37 +357,36 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
     OtrlUserState us = L;
     GET_opdata;
 
-    if (0 == strncmp("PRIVMSG", msg->command.str, msg->command.len) && msg->params_n == 2) {
-
-        char *newmessage = NULL;
-        OtrlTLV *tlvs = NULL;
-
-        const char *sender  = msg->prefix_nick.str;
-        const char *target  = msg->params[0].str;
-        const char *message = msg->params[1].str;
-        const char *net     = msg->network.str;
-
-        if (glirc_is_channel(G, net, msg->network.len, target, msg->params[0].len)) return PASS_MESSAGE;
-
-        int drop = otrl_message_receiving(us, &ops, &opdata, target, net, sender,
-                          message, &newmessage, &tlvs, NULL, NULL, NULL);
-
-        if (newmessage) {
-            char *userinfo = rebuild_userinfo(msg);
-            glirc_inject_chat(G, msg->network.str    , msg->network.len,
-                                 userinfo            , strlen(userinfo),
-                                 msg->prefix_nick.str, msg->prefix_nick.len,
-                                 newmessage          , strlen(newmessage));
-            free(userinfo);
-        }
-
-        otrl_tlv_free(tlvs); // ignoring this for now
-        otrl_message_free(newmessage);
-
-        return (newmessage || drop) ? DROP_MESSAGE : PASS_MESSAGE;
+    if (!match_string("PRIVMSG", msg->command) || msg->params_n != 2) {
+        return PASS_MESSAGE;
     }
 
-    return PASS_MESSAGE;
+    const char *sender  = msg->prefix_nick.str;
+    const char *target  = msg->params[0].str;
+    const char *message = msg->params[1].str;
+    const char *net     = msg->network.str;
+
+    if (glirc_is_channel(G, net, msg->network.len, target, msg->params[0].len)) return PASS_MESSAGE;
+
+    char *newmessage = NULL;
+    OtrlTLV *tlvs = NULL;
+
+    int internal = otrl_message_receiving(us, &ops, &opdata, target, net, sender,
+                      message, &newmessage, &tlvs, NULL, NULL, NULL);
+
+    if (!internal && newmessage) {
+        char *userinfo = rebuild_userinfo(msg);
+        glirc_inject_chat(G, msg->network.str    , msg->network.len,
+                             userinfo            , strlen(userinfo),
+                             msg->prefix_nick.str, msg->prefix_nick.len,
+                             newmessage          , strlen(newmessage));
+        free(userinfo);
+    }
+
+    otrl_tlv_free(tlvs);
+    otrl_message_free(newmessage);
+
+    return (internal || newmessage) ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
 
@@ -397,12 +397,14 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
 
     char * newmsg = NULL;
     char * me = NULL;
-    int err = 1; // default to error unless sending runs and succeeds
+    gcry_error_t err = 1; // default to error unless sending runs and succeeds
     const char * net = chat->network.str;
     const char * tgt = chat->target.str;
     const char * msg = chat->message.str;
 
-    if (glirc_is_channel(G, net, chat->network.len, tgt, chat->target.len)) return PASS_MESSAGE;
+    if (glirc_is_channel(G, net, chat->network.len, tgt, chat->target.len)) {
+        return PASS_MESSAGE;
+    }
 
     me = glirc_my_nick(G, chat->network.str, chat->network.len);
     if (!me) goto chat_entrypoint_done;
@@ -412,8 +414,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
        NULL, &newmsg, OTRL_FRAGMENT_SEND_ALL, NULL, NULL, NULL);
 
     if (err) {
-        const char *errTxt = "PANIC: OTR encryption error";
-        glirc_print(G, ERROR_MESSAGE, errTxt, strlen(errTxt));
+        glirc_printf(G, net, PLUGIN_USER, tgt, "PANIC: OTR encryption error");
     }
 
 chat_entrypoint_done:
@@ -582,7 +583,7 @@ static void cmd_status
     char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN] = {0};
 
     otrl_privkey_fingerprint(us, human, context->accountname, context->protocol);
-    print_status(G, context, "Local  fingerprint: " BOLD("%s"), human);
+    print_status(G, context, "Local  fingerprint [" BOLD("%s") "]", human);
 
     const Fingerprint *fp = context->active_fingerprint;
     if (fp) {
@@ -590,9 +591,9 @@ static void cmd_status
 
         const char *trust = fp->trust;
         if (trust) {
-            print_status(G, context, "Remote fingerprint: " BOLD("%s") " [" GREEN("%s") "]", human, trust);
+            print_status(G, context, "Remote fingerprint [" BOLD("%s") "] [" GREEN("%s") "]", human, trust);
         } else {
-            print_status(G, context, "Remote fingerprint: " BOLD("%s") " [" RED("untrusted") "]", human);
+            print_status(G, context, "Remote fingerprint [" BOLD("%s") "] [" RED("untrusted") "]", human);
         }
     }
 
@@ -601,12 +602,12 @@ static void cmd_status
       context->our_instance, context->their_instance, context->protocol_version);
 
     const char *statuses[] = {
-      [OTRL_MSGSTATE_PLAINTEXT] = RED  ("Plaintext"),
-      [OTRL_MSGSTATE_ENCRYPTED] = GREEN("Encrypted"),
-      [OTRL_MSGSTATE_FINISHED ] = RED  ("Finished" ),
+      [OTRL_MSGSTATE_PLAINTEXT] = RED  ("plaintext"),
+      [OTRL_MSGSTATE_ENCRYPTED] = GREEN("encrypted"),
+      [OTRL_MSGSTATE_FINISHED ] = RED  ("finished" ),
     };
 
-    print_status(G, context, "Connection state: %s", statuses[context->msgstate]);
+    print_status(G, context, "Connection state [%s]", statuses[context->msgstate]);
 }
 
 struct cmd_impl {
@@ -615,14 +616,14 @@ struct cmd_impl {
 };
 
 static struct cmd_impl cmd_impls[] = {
-   { .name = "secret",  .func = cmd_secret  },
-   { .name = "ask",     .func = cmd_ask     },
-   { .name = "poll",    .func = cmd_poll    },
-   { .name = "end",     .func = cmd_end     },
-   { .name = "trust",   .func = cmd_trust   },
+   { .name = "secret" , .func = cmd_secret  },
+   { .name = "ask"    , .func = cmd_ask     },
+   { .name = "poll"   , .func = cmd_poll    },
+   { .name = "end"    , .func = cmd_end     },
+   { .name = "trust"  , .func = cmd_trust   },
    { .name = "untrust", .func = cmd_untrust },
-   { .name = "status",  .func = cmd_status  },
-   { .name = NULL,      .func = NULL        },
+   { .name = "status" , .func = cmd_status  },
+   { .name = NULL     , .func = NULL        },
 };
 
 static void command_entrypoint
@@ -632,7 +633,7 @@ static void command_entrypoint
 
     if (cmd->params_n > 0) {
         for (struct cmd_impl *c = cmd_impls; c->name; c++) {
-            if (0 == strncmp(cmd->params[0].str, c->name, cmd->params[0].len)) {
+            if (match_string(c->name, cmd->params[0])) {
                 c->func(G, us, cmd->params, cmd->params_n);
                 break;
             }
