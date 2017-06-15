@@ -16,10 +16,29 @@
 #define MAJOR 1
 #define MINOR 0
 #define PLUGIN_USER "* OTR *"
-#define PLAIN "\x0f"
-#define BOLD(x) "\x02" x "\x02"
-#define GREEN(x) "\x03" "03" x PLAIN
-#define RED(x)   "\x03" "04" x PLAIN
+
+// IRC formatting escape sequences
+#define PLAIN    "\17"
+#define BOLD(x)  "\2" x "\2"
+#define GREEN(x) "\3" "03" x PLAIN
+#define RED(x)   "\3" "04" x PLAIN
+
+#define QUERY_TEXT "?OTRv23? This message is attempting to initiate an encrypted" \
+                   " session, but your client doesn't support this protocol."
+
+// These macros try to make it less error prone to marshal data
+// into and out of the void *opdata parameters
+#define GET_G      struct glirc * const G = ((struct my_opdata *)opdata)->G
+#define GET_us     OtrlUserState const us = ((struct my_opdata *)opdata)->us
+#define GET_opdata struct my_opdata opdata = { .G = G, .us = us }
+
+// It is useful to store a copy of the user state in the opdata
+// because some callback forget to provide it
+struct my_opdata {
+    struct glirc *G;
+    OtrlUserState us;
+};
+
 
 static void
 glirc_printf
@@ -29,15 +48,12 @@ glirc_printf
 static void print_status(struct glirc *G, ConnContext *context, const char *fmt, ...)
   __attribute__ ((format (printf, 3, 4)));
 
-
-
 static void
 glirc_vprintf
   (struct glirc *G, const char *net, const char *src, const char *tgt, const char *fmt, va_list ap)
 {
     char *msg = NULL;
-
-    int res = vasprintf(&msg, fmt, ap);
+    int res   = vasprintf(&msg, fmt, ap);
 
     if (res < 0 || !msg) abort();
 
@@ -89,7 +105,7 @@ static void handle_smp_event
   (void *opdata, OtrlSMPEvent smp_event, ConnContext *context,
    unsigned short progress_percent, char *question)
 {
-    struct glirc *G = opdata;
+    GET_G;
 
     if (smp_event >= 9) return;
 
@@ -119,15 +135,15 @@ inject_message
   (void *opdata, const char *accountname,
   const char *protocol, const char *recipient, const char *message)
 {
+    GET_G;
+
     OtrlMessageType msgtype = otrl_proto_message_type(message);
 
     // The default query message contains HTML and newlines!
     if (msgtype == OTRL_MSGTYPE_QUERY) {
-        message = "?OTRv23? This message is attempting to initiate an encrypted"
-                  " session, but your client doesn't support this protocol.";
+        message = QUERY_TEXT;
     }
 
-    struct glirc *G = opdata;
     struct glirc_string params[2] =
     { { .str = recipient, .len = strlen(recipient) },
       { .str = message  , .len = strlen(message)   },
@@ -146,7 +162,7 @@ handle_msg_event
   (void *opdata, OtrlMessageEvent msg_event, ConnContext *context,
    const char *message, gcry_error_t err)
 {
-    struct glirc *G = opdata;
+    GET_G;
 
     const char *messages[16] = {
       [OTRL_MSGEVENT_NONE                      ] = "None",
@@ -181,42 +197,22 @@ static int op_max_message(void *opdata, ConnContext *context)
     return 400; // pessmistic
 }
 
-static void
-op_create_privkey(void *opdata, const char *accountname, const char *protocol)
-{
-    const char *txt = "No private key [/extension " NAME " keygen]";
-    struct glirc *G = opdata;
-    glirc_print(G, ERROR_MESSAGE, txt, strlen(txt));
-}
-
 static int is_logged_in
   (void *opdata, const char *accountname, const char *protocol,
    const char *recipient)
 {
-    struct glirc *G = opdata;
+    GET_G;
+
     int seen = glirc_is_logged_on(G, protocol, strlen(protocol),
                                      recipient, strlen(recipient));
 
     return seen ? 1 : -1; // not seen just means we might not share a channel
 }
 
-static
-const char *
-account_name(void *opdata, const char *account, const char *protocol)
+static void gone_secure(void *opdata, ConnContext *context)
 {
-    const char *fmt = "%s:%s";
-    char *res = NULL;
-    asprintf(&res, fmt, protocol, account);
-    return res;
-}
+    GET_G;
 
-static void account_name_free(void *opdata, const char *account_name)
-{
-    free((char*)account_name);
-}
-
-static void gone_secure(void *G, ConnContext *context)
-{
     if (otrl_context_is_fingerprint_trusted(context->active_fingerprint)) {
         print_status(G, context, "Connection secured [" GREEN("trusted") "]");
     } else {
@@ -224,13 +220,17 @@ static void gone_secure(void *G, ConnContext *context)
     }
 }
 
-static void gone_insecure(void *G, ConnContext *context)
+static void gone_insecure(void *opdata, ConnContext *context)
 {
+    GET_G;
+
     print_status(G, context, "Secure session terminated");
 }
 
-static void still_secure(void *G, ConnContext *context, int is_reply)
+static void still_secure(void *opdata, ConnContext *context, int is_reply)
 {
+    GET_G;
+
     if (is_reply) {
         print_status(G, context, "Connection refreshed (by remote)");
     } else {
@@ -244,35 +244,60 @@ new_fingerprint
    const char *accountname, const char *net,
    const char *tgt, unsigned char fp[20])
 {
-
-    char *path = state_path("fingerprints");
-    otrl_privkey_write_fingerprints(us, path);
-    free(path);
+    GET_G;
 
     char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
     otrl_privkey_hash_to_human(human, fp);
 
-    struct glirc *G = opdata;
     const char *src = PLUGIN_USER;
 
     glirc_printf(G, net, src, tgt, "New fingerprint: %s", human);
 }
 
+static void write_fingerprints(void *opdata) {
+    GET_us;
+
+    char *path = state_path("fingerprints");
+    if (path) otrl_privkey_write_fingerprints(us, path);
+    free(path);
+}
+
+static void
+create_privkey(void *opdata, const char *accountname, const char *protocol)
+{
+    GET_us;
+
+    char *path = state_path("keys");
+    if (path) otrl_privkey_generate(us, path, accountname, protocol);
+    free(path);
+}
+
+
+static void create_instag(void *opdata, const char *accountname, const char *protocol)
+{
+    GET_us;
+
+    char *path = state_path("instags");
+    if (path) otrl_instag_generate(us, path, accountname, protocol);
+    free(path);
+}
+
 static OtrlMessageAppOps ops = {
     .policy            = op_policy,
-    .create_privkey    = op_create_privkey,
     .inject_message    = inject_message,
     .max_message_size  = op_max_message,
     .handle_msg_event  = handle_msg_event,
     .is_logged_in      = is_logged_in,
-    .account_name      = account_name,
-    .account_name_free = account_name_free,
 
     .gone_secure       = gone_secure,
     .gone_insecure     = gone_insecure,
     .still_secure      = still_secure,
     .handle_smp_event  = handle_smp_event,
+
+    .write_fingerprints = write_fingerprints,
     .new_fingerprint   = new_fingerprint,
+    .create_privkey    = create_privkey,
+    .create_instag     = create_instag,
 };
 
 static void *start_entrypoint(struct glirc *G, const char *libpath)
@@ -298,11 +323,6 @@ static void *start_entrypoint(struct glirc *G, const char *libpath)
 static void stop_entrypoint(struct glirc *G, void *L)
 {
     OtrlUserState us = L;
-
-    char *path = state_path("fingerprints");
-    if (path) otrl_privkey_write_fingerprints(us, path);
-    free(path);
-
     otrl_userstate_free(us);
 }
 
@@ -334,6 +354,7 @@ static enum process_result
 message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 {
     OtrlUserState us = L;
+    GET_opdata;
 
     if (0 == strncmp("PRIVMSG", msg->command.str, msg->command.len) && msg->params_n == 2) {
 
@@ -347,7 +368,7 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 
         if (glirc_is_channel(G, net, msg->network.len, target, msg->params[0].len)) return PASS_MESSAGE;
 
-        int drop = otrl_message_receiving(us, &ops, G, target, net, sender,
+        int drop = otrl_message_receiving(us, &ops, &opdata, target, net, sender,
                           message, &newmessage, &tlvs, NULL, NULL, NULL);
 
         if (newmessage) {
@@ -372,6 +393,8 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 static enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
 {
     OtrlUserState us = L;
+    GET_opdata;
+
     char * newmsg = NULL;
     char * me = NULL;
     int err = 1; // default to error unless sending runs and succeeds
@@ -385,7 +408,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     if (!me) goto chat_entrypoint_done;
 
     err = otrl_message_sending
-      (us, &ops, G, me, net, tgt, OTRL_INSTAG_BEST, msg,
+      (us, &ops, &opdata, me, net, tgt, OTRL_INSTAG_BEST, msg,
        NULL, &newmsg, OTRL_FRAGMENT_SEND_ALL, NULL, NULL, NULL);
 
     if (err) {
@@ -406,6 +429,8 @@ static void cmd_end
   (struct glirc *G, OtrlUserState us,
    const struct glirc_string *params, size_t params_n)
 {
+    GET_opdata;
+
     char *net = NULL; size_t netlen = 0;
     char *tgt = NULL; size_t tgtlen = 0;
     char *me  = NULL;
@@ -416,7 +441,7 @@ static void cmd_end
     me = glirc_my_nick(G, net, netlen);
     if (!me) goto cmd_end_done;
 
-    otrl_message_disconnect_all_instances(us, &ops, G, me, net, tgt);
+    otrl_message_disconnect_all_instances(us, &ops, &opdata, me, net, tgt);
 
     const char *src = PLUGIN_USER;
     const char *msg = "Session Terminated";
@@ -463,10 +488,12 @@ static inline void do_smp
    const unsigned char *secret, size_t secretlen,
    smp_func func)
 {
+    GET_opdata;
+
     ConnContext *context = get_current_context(G, us);
 
     if (context) {
-        func(us, &ops, G, context, secret, secretlen);
+        func(us, &ops, &opdata, context, secret, secretlen);
     }
 
 }
@@ -498,37 +525,6 @@ static void cmd_poll
    const struct glirc_string *params, size_t params_n)
 {
     otrl_message_poll(us, &ops, G);
-}
-
-/*
- * Generate keypair and instance tag for the current network and nick.
- */
-static void cmd_keygen
-  (struct glirc *G, OtrlUserState us,
-   const struct glirc_string *params, size_t params_n)
-{
-    char *net     = NULL;
-    char *me      = NULL;
-    char *path    = NULL;
-    size_t netlen = 0;
-
-    glirc_current_focus(G, &net, &netlen, NULL, NULL);
-    if (!net) goto cmd_keygen_done;
-
-    me = glirc_my_nick(G, net, netlen);
-    if (!me) goto cmd_keygen_done;
-
-    path = state_path("keys");
-    if (path) otrl_privkey_generate(us, path, me, net);
-    free(path);
-
-    path = state_path("instags");
-    if (path) otrl_instag_generate(us, path, me, net);
-    free(path);
-
-cmd_keygen_done:
-    glirc_free_string(me);
-    glirc_free_string(net);
 }
 
 /*
@@ -623,7 +619,6 @@ static struct cmd_impl cmd_impls[] = {
    { .name = "ask",     .func = cmd_ask     },
    { .name = "poll",    .func = cmd_poll    },
    { .name = "end",     .func = cmd_end     },
-   { .name = "keygen",  .func = cmd_keygen  },
    { .name = "trust",   .func = cmd_trust   },
    { .name = "untrust", .func = cmd_untrust },
    { .name = "status",  .func = cmd_status  },
