@@ -1,5 +1,4 @@
 {-|
-Module      : Main
 Description : Entry-point of executable
 Copyright   : (c) Eric Mertens, 2016
 License     : ISC
@@ -7,7 +6,6 @@ Maintainer  : emertens@gmail.com
 
 Entry point into glirc2. This module sets up VTY and launches the client.
 -}
-
 module Main where
 
 import Control.Exception
@@ -24,6 +22,8 @@ import Client.EventLoop
 import Client.Options
 import Client.State
 import Client.State.Focus
+
+import Exports ()
 
 -- | Main action for IRC client
 main :: IO ()

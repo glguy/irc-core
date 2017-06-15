@@ -1,4 +1,4 @@
-{-# Language ForeignFunctionInterface, RecordWildCards #-}
+{-# Language RecordWildCards #-}
 
 {-|
 Module      : Client.CApi.Types

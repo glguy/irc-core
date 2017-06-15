@@ -1,4 +1,4 @@
-{-# Language CPP, RecordWildCards #-}
+{-# Language RecordWildCards #-}
 {-|
 Module      : Client.CApi.Exports
 Description : Foreign exports which expose functionality for extensions
@@ -12,19 +12,49 @@ of the client.
 module Client.CApi.Exports
  ( -- * Extension API types
    Glirc_send_message
+ , glirc_send_message
+
  , Glirc_print
+ , glirc_print
+
  , Glirc_list_networks
+ , glirc_list_networks
+
  , Glirc_list_channels
+ , glirc_list_channels
+
  , Glirc_list_channel_users
+ , glirc_list_channel_users
+
  , Glirc_my_nick
+ , glirc_my_nick
+
  , Glirc_identifier_cmp
+ , glirc_identifier_cmp
+
  , Glirc_is_channel
+ , glirc_is_channel
+
  , Glirc_is_logged_on
+ , glirc_is_logged_on
+
  , Glirc_mark_seen
+ , glirc_mark_seen
+
  , Glirc_clear_window
+ , glirc_clear_window
+
  , Glirc_current_focus
+ , glirc_current_focus
+
  , Glirc_free_string
+ , glirc_free_string
+
  , Glirc_free_strings
+ , glirc_free_strings
+
+ , Glirc_inject_chat
+ , glirc_inject_chat
  ) where
 
 import           Client.CApi.Types
@@ -102,10 +132,6 @@ type Glirc_send_message =
   Ptr FgnMsg {- ^ pointer to message -} ->
   IO CInt    {- ^ 0 on success       -}
 
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall "glirc_send_message" glirc_send_message :: Glirc_send_message
-#endif
-
 glirc_send_message :: Glirc_send_message
 glirc_send_message token msgPtr =
   do mvar    <- derefToken token
@@ -128,10 +154,6 @@ type Glirc_print =
   CString {- ^ message           -} ->
   CSize   {- ^ message length    -} ->
   IO CInt {- ^ 0 on success      -}
-
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_print :: Glirc_print
-#endif
 
 glirc_print :: Glirc_print
 glirc_print stab code msgPtr msgLen =
@@ -166,10 +188,6 @@ type Glirc_inject_chat =
   CSize   {- ^ message length    -} ->
   IO CInt {- ^ 0 on success      -}
 
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_inject_chat :: Glirc_inject_chat
-#endif
-
 glirc_inject_chat :: Glirc_inject_chat
 glirc_inject_chat stab netPtr netLen srcPtr srcLen tgtPtr tgtLen msgPtr msgLen =
   do mvar <- derefToken stab
@@ -197,10 +215,6 @@ type Glirc_list_networks =
   Ptr ()           {- ^ api token                                        -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_list_networks :: Glirc_list_networks
-#endif
-
 glirc_list_networks :: Glirc_list_networks
 glirc_list_networks stab =
   do mvar <- derefToken stab
@@ -222,10 +236,6 @@ type Glirc_identifier_cmp =
   CSize   {- ^ identifier 2 len -} ->
   IO CInt
 
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_identifier_cmp :: Glirc_identifier_cmp
-#endif
-
 glirc_identifier_cmp :: Glirc_identifier_cmp
 glirc_identifier_cmp p1 n1 p2 n2 =
   do txt1 <- peekFgnStringLen (FgnStringLen p1 n1)
@@ -244,10 +254,6 @@ type Glirc_list_channels =
   CString {- ^ network     -} ->
   CSize   {- ^ network len -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
-
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_list_channels :: Glirc_list_channels
-#endif
 
 glirc_list_channels :: Glirc_list_channels
 glirc_list_channels stab networkPtr networkLen =
@@ -271,10 +277,6 @@ type Glirc_list_channel_users =
   CString {- ^ channel     -} ->
   CSize   {- ^ channel len -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
-
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_list_channel_users :: Glirc_list_channel_users
-#endif
 
 glirc_list_channel_users :: Glirc_list_channel_users
 glirc_list_channel_users stab networkPtr networkLen channelPtr channelLen =
@@ -302,10 +304,6 @@ type Glirc_my_nick =
   CSize   {- ^ network name length -} ->
   IO CString
 
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_my_nick :: Glirc_my_nick
-#endif
-
 glirc_my_nick :: Glirc_my_nick
 glirc_my_nick stab networkPtr networkLen =
   do mvar <- derefToken stab
@@ -328,10 +326,6 @@ type Glirc_mark_seen =
   CString {- ^ channel name        -} ->
   CSize   {- ^ channel name length -} ->
   IO ()
-
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_mark_seen :: Glirc_mark_seen
-#endif
 
 glirc_mark_seen :: Glirc_mark_seen
 glirc_mark_seen stab networkPtr networkLen channelPtr channelLen =
@@ -360,10 +354,6 @@ type Glirc_clear_window =
   CSize   {- ^ channel name length -} ->
   IO ()
 
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_clear_window :: Glirc_clear_window
-#endif
-
 glirc_clear_window :: Glirc_clear_window
 glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
   do network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
@@ -386,10 +376,6 @@ type Glirc_free_string =
   CString {- ^ glirc allocated string -} ->
   IO ()
 
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_free_string :: Glirc_free_string
-#endif
-
 glirc_free_string :: Glirc_free_string
 glirc_free_string = free
 
@@ -400,10 +386,6 @@ glirc_free_string = free
 type Glirc_free_strings =
   Ptr CString {- ^ glirc allocated strings, null-terminated -} ->
   IO ()
-
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_free_strings :: Glirc_free_strings
-#endif
 
 glirc_free_strings :: Glirc_free_strings
 glirc_free_strings p =
@@ -427,10 +409,6 @@ type Glirc_current_focus =
   Ptr CString {- ^ newly allocated target string  -} ->
   Ptr CSize   {- ^ target length                  -} ->
   IO ()
-
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_current_focus :: Glirc_current_focus
-#endif
 
 glirc_current_focus :: Glirc_current_focus
 glirc_current_focus stab netP netL tgtP tgtL =
@@ -463,10 +441,6 @@ type Glirc_is_channel =
   CSize   {- ^ target length   -} ->
   IO CInt {- ^ boolean         -}
 
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_is_channel :: Glirc_is_channel
-#endif
-
 glirc_is_channel :: Glirc_is_channel
 glirc_is_channel stab net netL tgt tgtL =
   do mvar    <- derefToken stab
@@ -491,10 +465,6 @@ type Glirc_is_logged_on =
   CString {- ^ target name     -} ->
   CSize   {- ^ target length   -} ->
   IO CInt {- ^ boolean         -}
-
-#ifdef EXPORT_GLIRC_CAPI
-foreign export ccall glirc_is_logged_on :: Glirc_is_channel
-#endif
 
 glirc_is_logged_on :: Glirc_is_channel
 glirc_is_logged_on stab net netL tgt tgtL =

@@ -32,26 +32,21 @@ source-repository head
   location: git://github.com/glguy/irc-core.git
   branch: v2
 
-flag ExportCApi
-  description: Export C functions used by the extension API (incompatible with GHCi)
-  default: True
-  manual: True
-
 executable glirc2
   main-is:             Main.hs
+  other-modules:       Exports
   ghc-options:         -threaded -rtsopts
 
   hs-source-dirs:      exec
   default-language:    Haskell2010
 
-  if flag(ExportCApi)
-    if os(Linux)
-      ld-options: -Wl,--dynamic-list=exec/linux_exported_symbols.txt
-    if os(Darwin)
-      ld-options: -Wl,-exported_symbols_list,exec/macos_exported_symbols.txt
-
   -- Constraints can be found on the library itself
   build-depends:       base, glirc, lens, text, vty
+
+  if os(Linux)
+      ld-options: -Wl,--dynamic-list=exec/linux_exported_symbols.txt
+  if os(Darwin)
+      ld-options: -Wl,-exported_symbols_list,exec/macos_exported_symbols.txt
 
 library
   ghc-options:         -Wall -O2
@@ -158,9 +153,6 @@ library
                        vector               >=0.11   && <0.13,
                        vty                  >=5.11.1 && <5.16,
                        hookup               >=0.1    && <0.2
-
-  if flag(ExportCApi)
-    cpp-options: -DEXPORT_GLIRC_CAPI
 
 test-suite test
   type:                exitcode-stdio-1.0
