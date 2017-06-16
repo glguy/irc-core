@@ -565,7 +565,7 @@ static void cmd_untrust (struct glirc *G, OtrlUserState us,
   ConnContext *context = get_current_context(G, us);
   if (!context || !context->active_fingerprint) return;
 
-  otrl_context_set_trust(context->active_fingerprint, NULL);
+  otrl_context_set_trust(context->active_fingerprint, "");
 
   char *path = state_path("fingerprints");
   if (path) otrl_privkey_write_fingerprints(us, path);
@@ -587,18 +587,20 @@ static void cmd_status (struct glirc *G, OtrlUserState us,
   ConnContext *context = get_current_context(G, us);
   if (!context) return;
 
-  char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN] = {0};
+  char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
+  const char *myfp =
+          otrl_privkey_fingerprint(us, human, context->accountname, context->protocol);
 
-  otrl_privkey_fingerprint(us, human, context->accountname, context->protocol);
-  print_status(G, context, "Local  fingerprint [" BOLD("%s") "]", human);
+  if (myfp) {
+    print_status(G, context, "Local  fingerprint [" BOLD("%s") "]", myfp);
+  }
 
-  const Fingerprint *fp = context->active_fingerprint;
+  Fingerprint *fp = context->active_fingerprint;
   if (fp) {
     otrl_privkey_hash_to_human(human, fp->fingerprint);
 
-    const char *trust = fp->trust;
-    if (trust) {
-      print_status(G, context, "Remote fingerprint [" BOLD("%s") "] [" GREEN("%s") "]", human, trust);
+    if (otrl_context_is_fingerprint_trusted(fp)) {
+      print_status(G, context, "Remote fingerprint [" BOLD("%s") "] [" GREEN("%s") "]", human, fp->trust);
     } else {
       print_status(G, context, "Remote fingerprint [" BOLD("%s") "] [" RED("untrusted") "]", human);
     }

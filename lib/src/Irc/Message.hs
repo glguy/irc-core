@@ -182,31 +182,33 @@ data MessageTarget
 msgTarget :: Identifier -> IrcMsg -> MessageTarget
 msgTarget me msg =
   case msg of
-    UnknownMsg{}                  -> TargetNetwork
-    Nick user _                   -> TargetUser (userNick user)
-    Mode _ tgt _ | tgt == me      -> TargetNetwork
-                 | otherwise      -> TargetWindow tgt
-    Join _ chan                   -> TargetWindow chan
-    Part _ chan _                 -> TargetWindow chan
-    Quit user _                   -> TargetUser (userNick user)
-    Kick _ chan _ _               -> TargetWindow chan
-    Topic _ chan _                -> TargetWindow chan
-    Privmsg src tgt _ | tgt == me -> TargetWindow (userNick src)
-                      | otherwise -> TargetWindow tgt
-    Ctcp src tgt _ _  | tgt == me -> TargetWindow (userNick src)
-                      | otherwise -> TargetWindow tgt
-    CtcpNotice src tgt _ _  | tgt == me -> TargetWindow (userNick src)
-                            | otherwise -> TargetWindow tgt
-    Notice  src tgt _ | tgt == me -> TargetWindow (userNick src)
-                      | otherwise -> TargetWindow tgt
-    Authenticate{}                -> TargetHidden
-    Ping{}                        -> TargetHidden
-    Pong{}                        -> TargetHidden
-    Error{}                       -> TargetNetwork
-    Cap{}                         -> TargetNetwork
-    Reply{}                       -> TargetNetwork
-    BatchStart{}                  -> TargetHidden
-    BatchEnd{}                    -> TargetHidden
+    UnknownMsg{}             -> TargetNetwork
+    Nick user _              -> TargetUser (userNick user)
+    Mode _ tgt _ | tgt == me -> TargetNetwork
+                 | otherwise -> TargetWindow tgt
+    Join _ chan              -> TargetWindow chan
+    Part _ chan _            -> TargetWindow chan
+    Quit user _              -> TargetUser (userNick user)
+    Kick _ chan _ _          -> TargetWindow chan
+    Topic _ chan _           -> TargetWindow chan
+    Privmsg src tgt _        -> directed src tgt
+    Ctcp src tgt _ _         -> directed src tgt
+    CtcpNotice src tgt _ _   -> directed src tgt
+    Notice  src tgt _        -> directed src tgt
+    Authenticate{}           -> TargetHidden
+    Ping{}                   -> TargetHidden
+    Pong{}                   -> TargetHidden
+    Error{}                  -> TargetNetwork
+    Cap{}                    -> TargetNetwork
+    Reply{}                  -> TargetNetwork
+    BatchStart{}             -> TargetHidden
+    BatchEnd{}               -> TargetHidden
+  where
+    directed src tgt
+      | tgt  == me = TargetWindow (userNick src)
+      | otherwise  = TargetWindow tgt
+      where
+        src' = userNick src
 
 -- | 'UserInfo' of the user responsible for a message.
 msgActor :: IrcMsg -> Maybe UserInfo
