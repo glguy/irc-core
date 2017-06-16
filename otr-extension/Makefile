@@ -1,7 +1,18 @@
-.PHONY: help clean macos linux
+.PHONY: help clean macos linux default
+
+UNAME:=$(shell uname -s)
+
+ifeq ($(UNAME),Darwin)
+default: macos
+else ifeq ($(UNAME),Linux)
+default: linux
+else
+default: help
+endif
 
 help:
-	@echo 'Please use "make macos" or "make linux"'
+	@echo 'Currently this Makefile only autodetects Linux and Darwin'
+	@echo 'You can force a specific build with "make macos" or "make linux"'
 
 macos: glirc-otr.dylib
 linux:  glirc-otr.so
