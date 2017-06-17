@@ -418,7 +418,7 @@ recordIrcMessage ::
   ClientMessage ->
   ClientState -> ClientState
 recordIrcMessage network target msg st =
-  updateTransientError msg $
+  updateTransientError (NetworkFocus network) msg $
   case target of
     TargetHidden      -> st
     TargetNetwork     -> recordNetworkMessage msg st
@@ -463,11 +463,15 @@ computeUserSigils network channel user =
 
 
 -- | Detect /error/ messages and add the message text to the transient
--- error display.
-updateTransientError :: ClientMessage -> ClientState -> ClientState
-updateTransientError msg =
+-- error display. The transient message will not be generated if the
+-- user is focused on the window where the message is going to be
+-- rendered, anyway.
+updateTransientError :: Focus -> ClientMessage -> ClientState -> ClientState
+updateTransientError destination msg st
+  | view clientFocus st == destination = st
+  | otherwise =
 
-  let err = set clientErrorMsg . Just in
+  let err e = set clientErrorMsg (Just e) st in
 
   case view msgBody msg of
     ErrorBody txt       -> err txt
@@ -476,12 +480,12 @@ updateTransientError msg =
       | let info = replyCodeInfo code
       , ErrorReply <- replyCodeType info ->
           err (Text.intercalate " " (replyCodeText info : drop 1 args))
-    _ -> id
+    _ -> st
 
 
 -- | Record a message on a network window
 recordNetworkMessage :: ClientMessage -> ClientState -> ClientState
-recordNetworkMessage msg st = updateTransientError msg
+recordNetworkMessage msg st = updateTransientError focus msg
                             $ recordWindowLine focus wl st
   where
     network    = view msgNetwork msg

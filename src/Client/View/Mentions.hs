@@ -69,15 +69,15 @@ addMarkers w !st (!ml : xs)
     (same,rest) = span isSame xs
 
 windowEntries ::
-  Palette {- ^ palette -} ->
-  Int         {- ^ draw columns -} ->
-  PaddingMode {- ^ nick padding -} ->
-  Bool   {- ^ detailed view -} ->
-  Char   {- ^ window name   -} ->
-  Focus  {- ^ window focus  -} ->
-  Window {- ^ window        -} ->
+  Palette     {- ^ palette       -} ->
+  Int         {- ^ draw columns  -} ->
+  PaddingMode {- ^ nick padding  -} ->
+  Bool        {- ^ detailed view -} ->
+  Char        {- ^ window name   -} ->
+  Focus       {- ^ window focus  -} ->
+  Window      {- ^ window        -} ->
   [MentionLine]
-windowEntries palette w padAmt !detailed name focus win =
+windowEntries palette w padAmt detailed name focus win =
   [ MentionLine
       { mlTimestamp  = views wlTimestamp unpackUTCTime l
       , mlWindowName = name
