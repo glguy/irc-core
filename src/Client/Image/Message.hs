@@ -236,9 +236,8 @@ ircLinePrefix !rp body =
       string (withForeColor defAttr blue) "* " <> who src
     Ctcp {} -> mempty
 
-    CtcpNotice src _dst "ACTION" _txt ->
-      string (withForeColor defAttr red) "* " <> who src
-    CtcpNotice {} -> mempty
+    CtcpNotice src _dst _cmd _txt ->
+      string (withForeColor defAttr red) "! " <> who src
 
     Error {} -> string (view palError pal) "ERROR" <> ":"
 
@@ -287,8 +286,8 @@ ircLineImage !rp body =
     Privmsg    _ _          txt -> parseIrcTextWithNicks pal myNicks nicks txt
     Ctcp       _ _ "ACTION" txt -> parseIrcTextWithNicks pal myNicks nicks txt
     Ctcp {}                     -> mempty
-    CtcpNotice _ _ "ACTION" txt -> parseIrcTextWithNicks pal myNicks nicks txt
-    CtcpNotice {}               -> mempty
+    CtcpNotice _ _ cmd      txt -> parseIrcText cmd <> " " <>
+                                   parseIrcTextWithNicks pal myNicks nicks txt
 
     Reply code params -> renderReplyCode NormalRender code params
     UnknownMsg irc ->
@@ -370,27 +369,19 @@ fullIrcLineImage !rp body =
       who src <> " " <>
       parseIrcTextWithNicks pal myNicks nicks txt
 
-    CtcpNotice src _dst "ACTION" txt ->
-      string quietAttr "actn " <>
-      string (withForeColor defAttr red) "* " <>
-      who src <> " " <>
-      parseIrcTextWithNicks pal myNicks nicks txt
-
     Ctcp src _dst cmd txt ->
       string quietAttr "ctcp " <>
       string (withForeColor defAttr blue) "! " <>
       who src <> " " <>
       parseIrcText cmd <>
-      separatorImage <>
-      parseIrcText txt
+      if Text.null txt then mempty else separatorImage <> parseIrcText txt
 
     CtcpNotice src _dst cmd txt ->
       string quietAttr "ctcp " <>
       string (withForeColor defAttr red) "! " <>
       who src <> " " <>
       parseIrcText cmd <>
-      separatorImage <>
-      parseIrcText txt
+      if Text.null txt then mempty else separatorImage <> parseIrcText txt
 
     Ping params ->
       "PING " <> separatedParams params
