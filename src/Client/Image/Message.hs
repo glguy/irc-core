@@ -24,13 +24,16 @@ module Client.Image.Message
   , cleanChar
   , nickPad
   , timeImage
+  , drawWindowLine
   ) where
 
 import           Client.Configuration (PaddingMode(..))
+import           Client.Image.LineWrap
 import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Message
+import           Client.State.Window
 import           Control.Lens
 import           Data.Char
 import           Data.Hashable (hash)
@@ -618,3 +621,19 @@ metadataImg msg =
 -- | Image used when treating ignored chat messages as metadata
 ignoreImage :: Image'
 ignoreImage = char (withForeColor defAttr yellow) 'I'
+
+
+-- | Render the normal view of a chat message line padded and wrapped.
+drawWindowLine ::
+  Palette     {- ^ palette       -} ->
+  Int         {- ^ draw columns  -} ->
+  PaddingMode {- ^ nick padding  -} ->
+  WindowLine  {- ^ window line   -} ->
+  [Image']    {- ^ wrapped lines -}
+drawWindowLine palette w padAmt wl = wrap (drawPrefix wl) (view wlImage wl)
+  where
+    drawTime = timeImage palette . unpackTimeOfDay
+    padNick = nickPad padAmt
+    wrap pfx body = reverse (lineWrapPrefix w pfx body)
+    drawPrefix = views wlTimestamp drawTime <>
+                 views wlPrefix    padNick

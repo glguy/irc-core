@@ -14,14 +14,16 @@ module Client.View.Mentions
   ( mentionsViewLines
   ) where
 
+import           Client.Configuration (PaddingMode, configNickPadding)
+import           Client.Image.Message
 import           Client.Image.PackedImage
+import           Client.Image.Palette (Palette)
 import           Client.Image.StatusLine
 import           Client.State
 import           Client.State.Focus
 import           Client.State.Window
-import qualified Data.Map as Map
 import           Control.Lens
-import           Data.Semigroup
+import qualified Data.Map as Map
 import           Data.Time (UTCTime)
 
 -- | Generate the list of message lines marked important ordered by
@@ -35,18 +37,22 @@ mentionsViewLines w st = addMarkers w st entries
 
     detail = view clientDetailView st
 
+    padAmt = view (clientConfig . configNickPadding) st
+    palette = clientPalette st
+
     entries = merge
-              [windowEntries detail n focus v
+              [windowEntries palette w padAmt detail n focus v
               | (n,(focus, v))
                 <- names `zip` Map.toList (view clientWindows st) ]
 
 data MentionLine = MentionLine
-  { mlTimestamp  :: UTCTime
-  , mlWindowName :: Char
-  , mlFocus      :: Focus
-  , mlImage      :: Image'
+  { mlTimestamp  :: UTCTime  -- ^ message timestamp for sorting
+  , mlWindowName :: Char     -- ^ window names shortcut
+  , mlFocus      :: Focus    -- ^ associated window
+  , mlImage      :: [Image'] -- ^ wrapped rendered lines
   }
 
+-- | Insert channel name markers between messages from different channels
 addMarkers ::
   Int           {- ^ draw width                        -} ->
   ClientState   {- ^ client state                      -} ->
@@ -54,7 +60,7 @@ addMarkers ::
   [Image']      {- ^ mention images and channel labels -}
 addMarkers _ _ [] = []
 addMarkers w !st (!ml : xs)
-  = map mlImage (ml:same)
+  = concatMap mlImage (ml:same)
  ++ minorStatusLineImage (mlFocus ml) w False st
   : addMarkers w st rest
   where
@@ -63,24 +69,25 @@ addMarkers w !st (!ml : xs)
     (same,rest) = span isSame xs
 
 windowEntries ::
+  Palette {- ^ palette -} ->
+  Int         {- ^ draw columns -} ->
+  PaddingMode {- ^ nick padding -} ->
   Bool   {- ^ detailed view -} ->
   Char   {- ^ window name   -} ->
   Focus  {- ^ window focus  -} ->
   Window {- ^ window        -} ->
   [MentionLine]
-windowEntries !detailed name focus w =
+windowEntries palette w padAmt !detailed name focus win =
   [ MentionLine
       { mlTimestamp  = views wlTimestamp unpackUTCTime l
       , mlWindowName = name
       , mlFocus      = focus
       , mlImage      = if detailed
-                        then view wlFullImage l
-                        else view wlPrefix l <>
-                             char mempty ' ' <>
-                             view wlImage l
+                        then [view wlFullImage l]
+                        else drawWindowLine palette w padAmt l
       }
   | let p x = WLImportant == view wlImportance x
-  , l <- toListOf (winMessages . each . filtered p) w
+  , l <- toListOf (winMessages . each . filtered p) win
   ]
 
 -- | Merge a list of sorted lists of mention lines into a single sorted list

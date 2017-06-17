@@ -87,7 +87,7 @@ windowLinesToImages ::
 windowLinesToImages st w hideMeta wwls =
   case gatherMetadataLines st wwls of
     ([], [])   -> []
-    ([], wl:wls) -> drawLine wl
+    ([], wl:wls) -> drawWindowLine palette w padAmt wl
                 ++ windowLinesToImages st w hideMeta wls
     ((img,who,mbnext):mds, wls)
 
@@ -106,16 +106,10 @@ windowLinesToImages st w hideMeta wwls =
     config  = view clientConfig st
     padAmt  = view configNickPadding config
 
-    drawTime = timeImage palette . unpackTimeOfDay
     padNick  = nickPad padAmt
     metaPad  = "      " <> padNick ""
 
-    drawPrefix = views wlTimestamp drawTime <>
-                 views wlPrefix    padNick
-
     wrap pfx body = reverse (lineWrapPrefix w pfx body)
-
-    drawLine wl = wrap (drawPrefix wl) (view wlImage wl)
 
 ------------------------------------------------------------------------
 
