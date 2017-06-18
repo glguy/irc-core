@@ -205,8 +205,9 @@ msgTarget me msg =
     BatchEnd{}               -> TargetHidden
   where
     directed src tgt
-      | tgt  == me = TargetWindow (userNick src)
-      | otherwise  = TargetWindow tgt
+      | Text.null (userHost src) = TargetNetwork -- server message
+      | tgt == me = TargetWindow (userNick src)
+      | otherwise = TargetWindow tgt
       where
         src' = userNick src
 
