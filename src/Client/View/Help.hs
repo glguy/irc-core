@@ -119,7 +119,7 @@ commandSummary ::
 commandSummary pal (cmd :| _) args  =
   char defAttr '/' <>
   text' (view palCommandReady pal) cmd <>
-  argumentsImage pal' args ""
+  argumentsImage pal' args {-draw-placeholders=-}True ""
 
   where
     pal' = set palCommandPlaceholder defAttr pal

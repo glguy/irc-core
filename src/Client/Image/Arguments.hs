@@ -30,15 +30,20 @@ import           Graphics.Vty.Attributes
 -- will be indicated by extra placeholder values appended onto the
 -- image. Parameters are rendered with 'plainText' except for
 -- the case of 'RemainingArg' which supports WYSIWYG.
-argumentsImage :: Palette -> ArgumentSpec a -> String -> Image'
-argumentsImage pal spec xs
+argumentsImage ::
+  Palette        {- ^ palette                -} ->
+  ArgumentSpec a {- ^ argument specification -} ->
+  Bool           {- ^ render placeholders    -} ->
+  String         {- ^ input text             -} ->
+  Image'         {- ^ rendered text          -}
+argumentsImage pal spec pl xs
   | all (==' ') xs = placeholders
                   <> string defAttr (drop (imageWidth placeholders) xs)
   | otherwise =
      case spec of
        NoArg           -> plainText xs
-       ReqTokenArg _ a -> plainText token <> argumentsImage pal a xs'
-       OptTokenArg _ a -> plainText token <> argumentsImage pal a xs'
+       ReqTokenArg _ a -> plainText token <> argumentsImage pal a pl xs'
+       OptTokenArg _ a -> plainText token <> argumentsImage pal a pl xs'
        RemainingArg _  -> parseIrcTextExplicit (Text.pack xs)
 
   where
@@ -46,7 +51,9 @@ argumentsImage pal spec xs
     (token1,(token2,xs')) =
          break (==' ') <$> span (==' ') xs
 
-    placeholders = mkPlaceholders pal spec
+    placeholders
+      | pl        = mkPlaceholders pal spec
+      | otherwise = mempty
 
 -- | Construct an 'Image' containing placeholders for each
 -- of the remaining arguments.

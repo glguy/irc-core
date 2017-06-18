@@ -572,10 +572,11 @@ quietIdentifier palette ident =
 -- the formatting codes. Otherwise the nicknames in the message are
 -- highlighted.
 parseIrcTextWithNicks ::
-  Palette ->
-  HashSet Identifier {- ^ my nicks    -} ->
-  HashSet Identifier {- ^ other nicks -} ->
-  Text -> Image'
+  Palette            {- ^ palette      -} ->
+  HashSet Identifier {- ^ my nicks     -} ->
+  HashSet Identifier {- ^ other nicks  -} ->
+  Text               {- ^ input text   -} ->
+  Image'             {- ^ colored text -}
 parseIrcTextWithNicks palette myNicks nicks txt
   | Text.any isControl txt = parseIrcText txt
   | otherwise              = highlightNicks palette myNicks nicks txt

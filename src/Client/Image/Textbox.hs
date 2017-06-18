@@ -92,11 +92,13 @@ renderContent macros pal c = (txt, wholeImg)
   -- ["one","two"] "three" --> "two one three"
   txt = foldl (\acc x -> x ++ ' ' : acc) leftCur as
 
+  render = renderLine macros pal
+
   wholeImg = mconcat
            $ intersperse (plainText "\n")
-           $ map renderOtherLine as
-          ++ renderLine macros pal curTxt
-           : map renderOtherLine bs
+           $ map (render False) as
+          ++ render True curTxt
+           : map (render False) bs
 
 
 -- | Version of 'wcwidth' that accounts for how control characters are
@@ -118,8 +120,13 @@ renderOtherLine = parseIrcTextExplicit . Text.pack
 
 -- | Render the active text box line using command highlighting and
 -- placeholders, and WYSIWYG mIRC formatting control characters.
-renderLine :: Recognizer MacroSpec -> Palette -> String -> Image'
-renderLine macros pal ('/':xs) =
+renderLine ::
+  Recognizer MacroSpec {- ^ commands     -} ->
+  Palette              {- ^ palette      -} ->
+  Bool                 {- ^ focused      -} ->
+  String               {- ^ input text   -} ->
+  Image'               {- ^ output image -}
+renderLine macros pal focused ('/':xs) =
   char defAttr '/' <> string attr cmd <> continue rest
   where
     specAttr spec =
@@ -133,11 +140,11 @@ renderLine macros pal ('/':xs) =
       = case recognize (Text.pack cmd) allCommands of
           Exact (Right Command{cmdArgumentSpec = spec}) ->
             ( specAttr spec
-            , argumentsImage pal spec
+            , argumentsImage pal spec focused
             )
           Exact (Left (MacroSpec spec)) ->
             ( specAttr spec
-            , argumentsImage pal spec
+            , argumentsImage pal spec focused
             )
           Prefix _ ->
             ( view palCommandPrefix pal
@@ -148,4 +155,4 @@ renderLine macros pal ('/':xs) =
             , renderOtherLine
             )
 
-renderLine _ _ xs = parseIrcTextExplicit (Text.pack xs)
+renderLine _ _ _ xs = renderOtherLine xs
