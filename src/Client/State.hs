@@ -31,7 +31,6 @@ module Client.State
   , clientDetailView
   , clientActivityBar
   , clientSubfocus
-  , clientNextConnectionId
   , clientNetworkMap
   , clientIgnores
   , clientConnection
@@ -129,6 +128,7 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import           Data.List
 import           Data.Maybe
 import           Data.Map (Map)
@@ -159,7 +159,6 @@ data ClientState = ClientState
   , _clientExtraFocus        :: ![Focus]            -- ^ extra messages windows to view
 
   , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
-  , _clientNextConnectionId  :: !NetworkId              -- ^ next available 'NetworkId'
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
 
@@ -259,7 +258,6 @@ withClientState cfg k =
         , _clientRegex             = Nothing
         , _clientLayout            = view configLayout cfg
         , _clientActivityBar       = view configActivityBar cfg
-        , _clientNextConnectionId  = 0
         , _clientBell              = False
         , _clientExtensions        = exts
         , _clientLogQueue          = []
@@ -285,8 +283,11 @@ abortNetwork ::
 abortNetwork network st =
   case preview (clientConnection network) st of
     Nothing -> return st
-    Just cs -> do abortConnection ForcedDisconnect (view csSocket cs)
+    Just cs -> do -- cancel the network thread
+                  abortConnection ForcedDisconnect (view csSocket cs)
+                  -- unassociate this network name from this network id
                   return $! over clientNetworkMap (sans network) st
+
 
 -- | Add a message to the window associated with a given channel
 recordChannelMessage ::
@@ -700,20 +701,30 @@ addConnection attempts lastTime network st =
          settings = fromMaybe defSettings
                   $ preview (clientConfig . configServers . ix network) st
 
-     let (i,st') = st & clientNextConnectionId <+~ 1
+         i = nextAvailableKey (view clientConnections st)
+
          -- don't bother delaying on the first reconnect
          delay = 15 * max 0 (attempts - 1)
+
      c <- createConnection
             delay
             i
             settings
-            (view clientEvents st')
+            (view clientEvents st)
 
      let cs = newNetworkState i network settings c (PingConnecting attempts lastTime)
      traverse_ (sendMsg cs) (initialMessages cs)
 
      return $ set (clientNetworkMap . at network) (Just i)
-            $ set (clientConnections . at i) (Just cs) st'
+            $ set (clientConnections . at i) (Just cs) st
+
+-- | Find the first unused key in the intmap starting at 0.
+nextAvailableKey :: IntMap a -> Int
+nextAvailableKey m = foldr aux id (IntMap.keys m) 0
+  where
+    aux k next i
+      | k == i    = next (i+1)
+      | otherwise = i
 
 applyMessageToClientState ::
   ZonedTime                  {- ^ timestamp                -} ->
