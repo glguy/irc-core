@@ -12,7 +12,7 @@ This module parses mIRC encoded text and generates VTY images.
 -}
 module Client.Image.MircFormatting
   ( parseIrcText
-  , parseIrcTextExplicit
+  , parseIrcText'
   , plainText
   , controlImage
   ) where
@@ -62,9 +62,6 @@ parseIrcText = parseIrcText' False
 -- | Parse mIRC encoded format characters and render the control characters
 -- explicitly. This view is useful when inputting control characters to make
 -- it clear where they are in the text.
-parseIrcTextExplicit :: Text -> Image'
-parseIrcTextExplicit = parseIrcText' True
-
 parseIrcText' :: Bool -> Text -> Image'
 parseIrcText' explicit = either plainText id
                        . parseOnly (pIrcLine explicit defaultFormatState)

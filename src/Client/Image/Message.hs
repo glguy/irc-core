@@ -25,6 +25,7 @@ module Client.Image.Message
   , nickPad
   , timeImage
   , drawWindowLine
+  , parseIrcTextWithNicks
   ) where
 
 import           Client.Configuration (PaddingMode(..))
@@ -280,14 +281,14 @@ ircLineImage !rp body =
     Authenticate{} -> "***"
 
     Error                   txt -> parseIrcText txt
-    Topic      _ _          txt -> parseIrcTextWithNicks pal myNicks nicks txt
-    Kick       _ _ _        txt -> parseIrcTextWithNicks pal myNicks nicks txt
-    Notice     _ _          txt -> parseIrcTextWithNicks pal myNicks nicks txt
-    Privmsg    _ _          txt -> parseIrcTextWithNicks pal myNicks nicks txt
-    Ctcp       _ _ "ACTION" txt -> parseIrcTextWithNicks pal myNicks nicks txt
+    Topic      _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
+    Kick       _ _ _        txt -> parseIrcTextWithNicks pal myNicks nicks False txt
+    Notice     _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
+    Privmsg    _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
+    Ctcp       _ _ "ACTION" txt -> parseIrcTextWithNicks pal myNicks nicks False txt
     Ctcp {}                     -> mempty
     CtcpNotice _ _ cmd      txt -> parseIrcText cmd <> " " <>
-                                   parseIrcTextWithNicks pal myNicks nicks txt
+                                   parseIrcTextWithNicks pal myNicks nicks False txt
 
     Reply code params -> renderReplyCode NormalRender code params
     UnknownMsg irc ->
@@ -356,18 +357,18 @@ fullIrcLineImage !rp body =
       string quietAttr "note " <>
       who src <>
       string (withForeColor defAttr red) ": " <>
-      parseIrcTextWithNicks pal myNicks nicks txt
+      parseIrcTextWithNicks pal myNicks nicks False txt
 
     Privmsg src _dst txt ->
       string quietAttr "chat " <>
       who src <> ": " <>
-      parseIrcTextWithNicks pal myNicks nicks txt
+      parseIrcTextWithNicks pal myNicks nicks False txt
 
     Ctcp src _dst "ACTION" txt ->
       string quietAttr "actp " <>
       string (withForeColor defAttr blue) "* " <>
       who src <> " " <>
-      parseIrcTextWithNicks pal myNicks nicks txt
+      parseIrcTextWithNicks pal myNicks nicks False txt
 
     Ctcp src _dst cmd txt ->
       string quietAttr "ctcp " <>
@@ -575,11 +576,12 @@ parseIrcTextWithNicks ::
   Palette            {- ^ palette      -} ->
   HashSet Identifier {- ^ my nicks     -} ->
   HashSet Identifier {- ^ other nicks  -} ->
+  Bool               {- ^ explicit controls rendering -} ->
   Text               {- ^ input text   -} ->
   Image'             {- ^ colored text -}
-parseIrcTextWithNicks palette myNicks nicks txt
-  | Text.any isControl txt = parseIrcText txt
-  | otherwise              = highlightNicks palette myNicks nicks txt
+parseIrcTextWithNicks palette myNick nicks explicit txt
+  | Text.any isControl txt = parseIrcText' explicit txt
+  | otherwise              = highlightNicks palette myNick nicks txt
 
 -- | Given a list of nicknames and a chat message, this will generate
 -- an image where all of the occurrences of those nicknames are colored.

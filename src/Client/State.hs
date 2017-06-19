@@ -52,6 +52,8 @@ module Client.State
   , clientMatcher'
   , clientActiveRegex
   , clientToggleHideMeta
+  , clientHighlightsNetwork
+  , channelUserList
 
   , consumeInput
   , currentCompletionList

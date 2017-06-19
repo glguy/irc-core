@@ -44,7 +44,7 @@ argumentsImage pal spec pl xs
        NoArg           -> plainText xs
        ReqTokenArg _ a -> plainText token <> argumentsImage pal a pl xs'
        OptTokenArg _ a -> plainText token <> argumentsImage pal a pl xs'
-       RemainingArg _  -> parseIrcTextExplicit (Text.pack xs)
+       RemainingArg _  -> parseIrcText' True (Text.pack xs)
 
   where
     token = token1 ++ token2
