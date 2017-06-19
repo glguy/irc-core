@@ -15,9 +15,9 @@
 
 // IRC formatting escape sequences
 #define PLAIN    "\17"
-#define BOLD(x)  "\2" x "\2"
-#define GREEN(x) "\3" "03" x PLAIN
-#define RED(x)   "\3" "04" x PLAIN
+#define BOLD(x)  "\002"   x "\002"
+#define GREEN(x) "\00303" x PLAIN
+#define RED(x)   "\00304" x PLAIN
 
 #define QUERY_TEXT "?OTRv23? This message is attempting to initiate an encrypted" \
                    " session, but your client doesn't support this protocol."

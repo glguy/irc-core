@@ -28,32 +28,11 @@ import           Data.Semigroup ((<>))
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 
-data FormatState = FormatState
-  { _fmtFore :: Maybe Color
-  , _fmtBack :: Maybe Color
-  , _fmtBold, _fmtItalic, _fmtUnderline, _fmtReverse :: !Bool
-  }
-
-makeLenses '' FormatState
-
-formatAttr :: FormatState -> Attr
-formatAttr fmt
-  = doStyle (view fmtBold fmt) bold
-  $ doStyle (view fmtUnderline fmt) underline
-  $ doStyle (view fmtReverse fmt) reverseVideo
-  $ doColor withForeColor (view fmtFore fmt)
-  $ doColor withBackColor (view fmtBack fmt)
-  $ defAttr
-
-  where
-    doStyle False _ attr = attr
-    doStyle True  style attr = withStyle attr style
-
-    doColor _ Nothing attr = attr
-    doColor with (Just x) attr = with attr x
-
-defaultFormatState :: FormatState
-defaultFormatState = FormatState Nothing Nothing False False False False
+makeLensesFor
+  [ ("attrForeColor", "foreColorLens")
+  , ("attrBackColor", "backColorLens")
+  , ("attrStyle"    , "styleLens"    )]
+  ''Attr
 
 -- | Parse mIRC encoded format characters and hide the control characters.
 parseIrcText :: Text -> Image'
@@ -64,7 +43,7 @@ parseIrcText = parseIrcText' False
 -- it clear where they are in the text.
 parseIrcText' :: Bool -> Text -> Image'
 parseIrcText' explicit = either plainText id
-                       . parseOnly (pIrcLine explicit defaultFormatState)
+                       . parseOnly (pIrcLine explicit defAttr)
 
 data Segment = TextSegment Text | ControlSegment Char
 
@@ -72,14 +51,14 @@ pSegment :: Parser Segment
 pSegment = TextSegment    <$> takeWhile1 (not . isControl)
        <|> ControlSegment <$> satisfy isControl
 
-pIrcLine :: Bool -> FormatState -> Parser Image'
+pIrcLine :: Bool -> Attr -> Parser Image'
 pIrcLine explicit fmt =
   do seg <- option Nothing (Just <$> pSegment)
      case seg of
        Nothing -> return mempty
        Just (TextSegment txt) ->
            do rest <- pIrcLine explicit fmt
-              return (text' (formatAttr fmt) txt <> rest)
+              return (text' fmt txt <> rest)
        Just (ControlSegment '\^C') ->
            do (numberText, colorNumbers) <- match pColorNumbers
               rest <- pIrcLine explicit (applyColors colorNumbers fmt)
@@ -96,13 +75,17 @@ pIrcLine explicit fmt =
           | otherwise -> next
           where
             mbFmt' = applyControlEffect c fmt
-            next = pIrcLine explicit (fromMaybe fmt mbFmt')
+            next   = pIrcLine explicit (fromMaybe fmt mbFmt')
 
-pColorNumbers :: Parser (Maybe Int, Maybe Int)
-pColorNumbers = option (Nothing,Nothing) $
-  do n <- pNumber
-     m <- optional (Parse.char ',' *> pNumber)
-     return (Just n,m)
+pColorNumbers :: Parser (Maybe (Color, Maybe Color))
+pColorNumbers = option Nothing $
+  do n       <- pNumber
+     Just fc <- pure (mircColor n)
+     bc      <- optional $
+                  do m       <- Parse.char ',' *> pNumber
+                     Just bc <- pure (mircColor m)
+                     pure bc
+     return (Just (fc,bc))
 
   where
     pNumber = do d1 <- digit
@@ -112,11 +95,12 @@ pColorNumbers = option (Nothing,Nothing) $
 optional :: Parser a -> Parser (Maybe a)
 optional p = option Nothing (Just <$> p)
 
-applyColors :: (Maybe Int, Maybe Int) -> FormatState -> FormatState
-applyColors (fore, back) = aux fmtFore fore . aux fmtBack back
-  where
-    aux _ Nothing  = id
-    aux l (Just x) = set l (mircColor x)
+applyColors :: (Maybe (Color, Maybe Color)) -> Attr -> Attr
+applyColors Nothing = set foreColorLens Default
+                    . set backColorLens Default
+applyColors (Just (c1, Nothing)) = set foreColorLens (SetTo c1) -- preserve background
+applyColors (Just (c1, Just c2)) = set foreColorLens (SetTo c1)
+                                 . set backColorLens (SetTo c2)
 
 mircColor :: Int -> Maybe Color
 mircColor  0 = Just (white                ) -- white
@@ -140,13 +124,19 @@ mircColor  _ = Nothing
 rgbColor' :: Int -> Int -> Int -> Color
 rgbColor' = rgbColor -- fix the type to Int
 
-applyControlEffect :: Char -> FormatState -> Maybe FormatState
-applyControlEffect '\^B' = Just . over fmtBold not
-applyControlEffect '\^O' = Just . const defaultFormatState
-applyControlEffect '\^V' = Just . over fmtReverse not
-applyControlEffect '\^]' = Just . over fmtItalic not
-applyControlEffect '\^_' = Just . over fmtUnderline not
-applyControlEffect _     = const Nothing
+applyControlEffect :: Char -> Attr -> Maybe Attr
+applyControlEffect '\^B' attr = Just $! toggleStyle bold attr
+applyControlEffect '\^V' attr = Just $! toggleStyle reverseVideo attr
+applyControlEffect '\^_' attr = Just $! toggleStyle underline attr
+applyControlEffect '\^O' _    = Just defAttr
+applyControlEffect '\^]' attr = Just attr -- italic not supported
+applyControlEffect _     _    = Nothing
+
+toggleStyle :: Style -> Attr -> Attr
+toggleStyle s1 = over styleLens $ \old ->
+  case old of
+    SetTo s2 -> SetTo (xor s1 s2)
+    _        -> SetTo s1
 
 -- | Safely render a control character.
 controlImage :: Char -> Image'
