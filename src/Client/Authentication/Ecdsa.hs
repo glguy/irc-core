@@ -20,7 +20,6 @@ module Client.Authentication.Ecdsa
   , computeResponse
   ) where
 
-import           Client.Configuration (resolveConfigurationPath)
 import           Control.Exception (displayException, try)
 import           Data.ByteString.Base64 as Enc
 import           Data.Text (Text)
@@ -52,11 +51,10 @@ computeResponse ::
   Text                    {- ^ challenge string                 -} ->
   IO (Either String Text) {- ^ error message or response string -}
 computeResponse privateKeyFile challenge =
-  do path <- resolveConfigurationPath privateKeyFile
-     res  <- try $ readProcess
-                     "ecdsatool"
-                     ["sign", path, Text.unpack challenge]
-                     "" -- stdin
+  do res <- try $ readProcess
+                    "ecdsatool"
+                    ["sign", privateKeyFile, Text.unpack challenge]
+                    "" -- stdin
      return $! case words <$> res of
                  Right [resp] -> Right $! Text.pack resp
                  Right _      -> Left "bad sasl ecdsa response message"

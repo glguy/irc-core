@@ -28,7 +28,6 @@ module Client.Configuration
   , configPalette
   , configWindowNames
   , configNickPadding
-  , configConfigPath
   , configMacros
   , configExtensions
   , configExtraHighlights
@@ -45,7 +44,6 @@ module Client.Configuration
   , loadConfiguration
 
   -- * Resolving paths
-  , resolveConfigurationPath
   , getNewConfigPath
 
   -- * Specification
@@ -92,8 +90,6 @@ data Configuration = Configuration
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
   , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
-  , _configConfigPath      :: Maybe FilePath
-        -- ^ manually specified configuration path, used for reloading
   , _configMacros          :: Recognizer Macro -- ^ command macros
   , _configExtensions      :: [FilePath] -- ^ paths to shared library
   , _configUrlOpener       :: Maybe FilePath -- ^ paths to url opening executable
@@ -214,7 +210,7 @@ loadConfiguration mbPath = try $
                 $ Text.unpack
                 $ Text.unlines
                 $ map explainLoadError (toList es)
-       Right cfg -> return (cfg mbPath def)
+       Right cfg -> resolvePaths path (cfg def)
 
 
 explainLoadError :: LoadError Position -> Text
@@ -237,7 +233,21 @@ explainLoadError (LoadError pos path problem) =
         SpecMismatch   t -> "expected "                  <> t
 
 
-configurationSpec :: ValueSpecs (Maybe FilePath -> ServerSettings -> Configuration)
+-- | Resolve all the potentially relative file paths in the configuration file
+resolvePaths :: FilePath -> Configuration -> IO Configuration
+resolvePaths file cfg =
+  do res <- resolveFilePath <$> newFilePathContext file
+     let resolveServerFilePaths = over (ssTlsClientCert . mapped) res
+                                . over (ssTlsClientKey  . mapped) res
+                                . over (ssTlsServerCert . mapped) res
+                                . over (ssSaslEcdsaFile . mapped) res
+                                . over (ssLogDir        . mapped) res
+     return $! over (configExtensions . mapped) res
+             . over (configServers    . mapped) resolveServerFilePaths
+             $ cfg
+
+configurationSpec ::
+  ValueSpecs (ServerSettings -> Configuration)
 configurationSpec = sectionsSpec "" $
 
   do let sec' def name spec info = fromMaybe def <$> optSection' name spec info
@@ -276,7 +286,7 @@ configurationSpec = sectionsSpec "" $
                                "Extra key bindings"
      _configLayout          <- sec' OneColumn "layout" layoutSpec
                                "Initial setting for window layout"
-     return (\_configConfigPath def ->
+     return (\def ->
              let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
@@ -373,7 +383,10 @@ paletteSpec = sectionsSpec "palette" $
            : [ optSection' lbl (set l <$> attrSpec) "" | (lbl, Lens l) <- paletteMap ]
 
 
-buildServerMap :: ServerSettings -> [ServerSettings -> ServerSettings] -> HashMap Text ServerSettings
+buildServerMap ::
+  ServerSettings {- ^ defaults -} ->
+  [ServerSettings -> ServerSettings] ->
+  HashMap Text ServerSettings
 buildServerMap def ups =
   HashMap.fromList [ (serverSettingName ss, ss) | up <- ups, let ss = up def ]
   where
@@ -382,10 +395,15 @@ buildServerMap def ups =
                 (view ssName ss)
 
 
--- | Resolve relative paths starting at the home directory rather than
--- the current directory of the client.
-resolveConfigurationPath :: FilePath -> IO FilePath
-resolveConfigurationPath path
-  | isAbsolute path = return path
-  | otherwise = do home <- getHomeDirectory
-                   return (home </> path)
+data FilePathContext = FilePathContext { fpBase, fpHome :: FilePath }
+
+newFilePathContext ::
+  FilePath {- ^ configuration file path -} ->
+  IO FilePathContext
+newFilePathContext base = FilePathContext (takeDirectory base) <$> getHomeDirectory
+
+resolveFilePath :: FilePathContext -> FilePath -> FilePath
+resolveFilePath fpc path
+  | isAbsolute path                   = path
+  | "~":rest <- splitDirectories path = joinPath (fpHome fpc : rest)
+  | otherwise                         = fpBase fpc </> path

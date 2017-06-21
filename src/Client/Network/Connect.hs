@@ -18,7 +18,6 @@ module Client.Network.Connect
   ( withConnection
   ) where
 
-import           Client.Configuration
 import           Client.Configuration.ServerSettings
 import           Control.Applicative
 import           Control.Exception  (bracket)
@@ -26,34 +25,31 @@ import           Control.Lens
 import           Network.Socket     (PortNumber)
 import           Hookup
 
-buildConnectionParams :: ServerSettings -> IO ConnectionParams
+buildConnectionParams :: ServerSettings -> ConnectionParams
 buildConnectionParams args =
-  do let resPath = traverse resolveConfigurationPath
+  let tlsParams = TlsParams
+                    (view ssTlsClientCert args)
+                    (view ssTlsClientKey  args <|> view ssTlsClientCert args)
+                    (view ssTlsServerCert args)
+                    (view ssTlsCiphers    args)
 
-     tlsParams <- TlsParams
-        <$> resPath (view ssTlsClientCert args)
-        <*> resPath (view ssTlsClientKey  args <|>
-                     view ssTlsClientCert args)
-        <*> resPath (view ssTlsServerCert args)
-        <*> pure    (view ssTlsCiphers    args)
+      useSecure =
+        case view ssTls args of
+          UseInsecure    -> Nothing
+          UseInsecureTls -> Just (tlsParams True)
+          UseTls         -> Just (tlsParams False)
 
-     let useSecure =
-           case view ssTls args of
-             UseInsecure    -> Nothing
-             UseInsecureTls -> Just (tlsParams True)
-             UseTls         -> Just (tlsParams False)
+      proxySettings = view ssSocksHost args <&> \host ->
+                        SocksParams
+                          host
+                          (view ssSocksPort args)
 
-         proxySettings = view ssSocksHost args <&> \host ->
-                           SocksParams
-                             host
-                             (view ssSocksPort args)
-
-     return ConnectionParams
-       { cpHost  = view ssHostName args
-       , cpPort  = ircPort args
-       , cpTls   = useSecure
-       , cpSocks = proxySettings
-       }
+  in ConnectionParams
+    { cpHost  = view ssHostName args
+    , cpPort  = ircPort args
+    , cpTls   = useSecure
+    , cpSocks = proxySettings
+    }
 
 
 ircPort :: ServerSettings -> PortNumber
@@ -70,5 +66,4 @@ ircPort args =
 -- finishes.
 withConnection :: ServerSettings -> (Connection -> IO a) -> IO a
 withConnection settings k =
-  do params <- buildConnectionParams settings
-     bracket (connect params) close k
+  bracket (connect (buildConnectionParams settings)) close k

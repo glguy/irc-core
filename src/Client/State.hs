@@ -42,6 +42,7 @@ module Client.State
   , clientErrorMsg
   , clientLayout
   , clientRtsStats
+  , clientConfigPath
 
   -- * Client operations
   , withClientState
@@ -165,6 +166,7 @@ data ClientState = ClientState
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
+  , _clientConfigPath        :: !(Maybe FilePath)         -- ^ client configuration file path
 
   , _clientTextBox           :: !Edit.EditBox             -- ^ primary text box
   , _clientTextBoxOffset     :: !Int                      -- ^ size to crop from left of text box
@@ -233,8 +235,8 @@ clientLine :: ClientState -> (Int, String) {- ^ line number, line content -}
 clientLine = views (clientTextBox . Edit.line) (\(Edit.Line n t) -> (n, t))
 
 -- | Construct an initial 'ClientState' using default values.
-withClientState :: Configuration -> (ClientState -> IO a) -> IO a
-withClientState cfg k =
+withClientState :: Maybe FilePath -> Configuration -> (ClientState -> IO a) -> IO a
+withClientState cfgPath cfg k =
 
   withExtensionState $ \exts ->
 
@@ -255,6 +257,7 @@ withClientState cfg k =
         , _clientSubfocus          = FocusMessages
         , _clientExtraFocus        = []
         , _clientConfig            = cfg
+        , _clientConfigPath        = cfgPath
         , _clientScroll            = 0
         , _clientDetailView        = False
         , _clientRegex             = Nothing
@@ -793,7 +796,7 @@ clientStartExtensions st =
   do let cfg = view clientConfig st
      st1        <- clientStopExtensions st
      (st2, res) <- clientPark st1 $ \ptr ->
-            traverse (try . activateExtension ptr <=< resolveConfigurationPath)
+            traverse (try . activateExtension ptr)
                      (view configExtensions cfg)
 
      let (errors, exts) = partitionEithers res

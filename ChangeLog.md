@@ -1,5 +1,12 @@
 # Revision history for glirc2
 
+## 2.23
+
+* CONFIGURATION FILE CHANGE: Relative paths are now resolved
+  from the directory of the configuration file. The "~" alias
+  for the home directory works for resolving paths relative
+  to $HOME. Absolute paths are unmodified.
+
 ## 2.22
 
 * Added dynanic indentation of wrapped lines. Lines now

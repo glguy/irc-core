@@ -11,7 +11,6 @@ This module provides provides logging functionality for IRC traffic.
 -}
 module Client.Log where
 
-import           Client.Configuration
 import           Client.Image.Message (cleanText)
 import           Client.Message
 import           Control.Exception
@@ -43,12 +42,11 @@ writeLogLine ::
   LogLine  {- ^ log line -} ->
   IO ()
 writeLogLine ll = ignoreProblems $
-  do dir' <- resolveConfigurationPath
-             (logBaseDir ll </> Text.unpack (logTarget ll))
-     let file = dir' </> formatTime defaultTimeLocale "%F" (logDay ll) <.> "log"
+  do let dir = logBaseDir ll </> Text.unpack (logTarget ll)
+     let file = dir </> formatTime defaultTimeLocale "%F" (logDay ll) <.> "log"
 
      let recursiveFlag = True
-     createDirectoryIfMissing recursiveFlag dir'
+     createDirectoryIfMissing recursiveFlag dir
      L.appendFile file (logLine ll)
 
 

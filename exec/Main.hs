@@ -29,9 +29,10 @@ import Exports ()
 main :: IO ()
 main =
   do opts <- getOptions
-     cfg  <- loadConfiguration' (view optConfigFile opts)
-     withClientState cfg $ \st0 ->
-       withVty             $ \vty ->
+     let mbPath = view optConfigFile opts
+     cfg  <- loadConfiguration' mbPath
+     withClientState mbPath cfg $ \st0 ->
+       withVty $ \vty ->
          do st1 <- clientStartExtensions    st0
             st2 <- initialNetworkLogic opts st1
             st3 <- updateTerminalSize vty   st2

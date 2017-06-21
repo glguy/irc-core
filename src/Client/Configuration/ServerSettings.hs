@@ -154,16 +154,20 @@ serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
 serverSpec = sectionsSpec "server-settings" $
   composeMaybe <$> sequenceA settings
   where
+
     composeMaybe :: [Maybe (a -> a)] -> a -> a
     composeMaybe = ala Endo (foldMap . foldMap)
 
-    req name l s info = optSection' name ?? info
-                      $ set l <$> s
+    req name l s info
+      = optSection' name ?? info
+      $ set l <$> s
 
-    opt name l s info = optSection' name ?? info
-                      $ set l . Just <$> s
-                    <!> set l Nothing <$ atomSpec "clear"
+    opt name l s info
+      = optSection' name ?? info
+      $ set l . Just <$> s <!>
+        set l Nothing <$ atomSpec "clear"
 
+    settings :: [SectionSpecs (Maybe (ServerSettings -> ServerSettings))]
     settings =
       [ opt "name" ssName valuesSpec
         "The name used to identify this server in the client"

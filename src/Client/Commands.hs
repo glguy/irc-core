@@ -1840,14 +1840,16 @@ cmdIgnore st rest =
 --
 -- Attempt to reload the configuration file
 cmdReload :: ClientCommand (Maybe (String, ()))
-cmdReload st mbPath =
-  do let path = fst <$> mbPath
-            <|> view (clientConfig . configConfigPath) st
+cmdReload st mbPathX =
+  do let mbPath = fst <$> mbPathX
+         path   = mbPath <|> view clientConfigPath st
      res <- loadConfiguration path
      case res of
-       Left e    -> commandFailureMsg (describeProblem e) st
+       Left e -> commandFailureMsg (describeProblem e) st
        Right cfg ->
-         do st1 <- clientStartExtensions (set clientConfig cfg st)
+         do st1 <- clientStartExtensions
+                 $ set clientConfig cfg
+                 $ set clientConfigPath mbPath st
             commandSuccess st1
 
   where
