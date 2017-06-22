@@ -403,18 +403,20 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
         return PASS_MESSAGE;
     }
 
-    char *sender = strdup(msg->prefix_nick.str);
-    char *target = strdup(msg->params[0].str);
     const char *message = msg->params[1].str;
     const char *net     = msg->network.str;
+
+    if (glirc_is_channel(G, net, msg->network.len, msg->params[0].str, msg->params[0].len)) {
+        return PASS_MESSAGE;
+    }
+
+    char *newmessage = NULL;
+    char *sender = strdup(msg->prefix_nick.str);
+    char *target = strdup(msg->params[0].str);
 
     if (!sender || !target) abort();
     normalizeCase(sender);
     normalizeCase(target);
-
-    if (glirc_is_channel(G, net, msg->network.len, target, msg->params[0].len)) return PASS_MESSAGE;
-
-    char *newmessage = NULL;
 
     int internal = otrl_message_receiving(us, &ops, &opdata, target, net, sender,
                       message, &newmessage, NULL, NULL, NULL, NULL);
@@ -442,22 +444,21 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     GET_opdata;
 
     char * newmsg = NULL;
-    char * me = NULL;
     gcry_error_t err = 1; // default to error unless sending runs and succeeds
     const char * net = chat->network.str;
     const char * msg = chat->message.str;
-    char * tgt = strdup(chat->target.str);
-
-    if (!tgt) abort();
-    normalizeCase(tgt);
 
     if (glirc_is_channel(G, net, chat->network.len, tgt, chat->target.len)) {
-        goto chat_entrypoint_done;
+        return PASS_MESSAGE;
     }
 
-    me = glirc_my_nick(G, chat->network.str, chat->network.len);
-    if (!me) goto chat_entrypoint_done;
+    char * me = glirc_my_nick(G, chat->network.str, chat->network.len);
+    if (!me) return PASS_MESSAGE;
     normalizeCase(me);
+
+    char * tgt = strdup(chat->target.str);
+    if (!tgt) abort();
+    normalizeCase(tgt);
 
     err = otrl_message_sending
       (us, &ops, &opdata, me, net, tgt, OTRL_INSTAG_BEST, msg,
@@ -467,7 +468,6 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
         glirc_printf(G, net, PLUGIN_USER, tgt, "PANIC: OTR encryption error");
     }
 
-chat_entrypoint_done:
     otrl_message_free(newmsg);
     glirc_free_string(me);
     free(tgt);
