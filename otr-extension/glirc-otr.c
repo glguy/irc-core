@@ -448,7 +448,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     const char * net = chat->network.str;
     const char * msg = chat->message.str;
 
-    if (glirc_is_channel(G, net, chat->network.len, tgt, chat->target.len)) {
+    if (glirc_is_channel(G, net, chat->network.len, chat->target.str, chat->target.len)) {
         return PASS_MESSAGE;
     }
 
