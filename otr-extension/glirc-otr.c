@@ -35,6 +35,34 @@ struct my_opdata {
     OtrlUserState us;
 };
 
+// IRC identifiers use a Swedish character encoding. The important
+// distinction from normal ASCII is that "{|}~" are the lowercased
+// forms of "[\]^". We normalize account names according to this
+// convention so that OTR account names align with the meaning of
+// IRC nicknames.
+static void normalizeCase(char *str)
+{
+  const char *casemap =
+    "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
+    "\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
+    " !\"#$%&'()*+,-./0123456789:;<=>?"
+    "@abcdefghijklmnopqrstuvwxyz{|}~_"
+    "`abcdefghijklmnopqrstuvwxyz{|}~\x7f"
+    "\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f"
+    "\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f"
+    "\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf"
+    "\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf"
+    "\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
+    "\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
+    "\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef"
+    "\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff";
+
+  while (*str) {
+    *str = casemap[*(unsigned char*)str];
+    str++;
+  }
+}
+
 void glirc_vprintf (struct glirc *G, const char *net, const char *src, const char *tgt,
                     const char *fmt, va_list ap)
 {
@@ -375,10 +403,14 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
         return PASS_MESSAGE;
     }
 
-    const char *sender  = msg->prefix_nick.str;
-    const char *target  = msg->params[0].str;
+    char *sender = strdup(msg->prefix_nick.str);
+    char *target = strdup(msg->params[0].str);
     const char *message = msg->params[1].str;
     const char *net     = msg->network.str;
+
+    if (!sender || !target) abort();
+    normalizeCase(sender);
+    normalizeCase(target);
 
     if (glirc_is_channel(G, net, msg->network.len, target, msg->params[0].len)) return PASS_MESSAGE;
 
@@ -397,6 +429,8 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
     }
 
     otrl_message_free(newmessage);
+    free(sender);
+    free(target);
 
     return (internal || newmessage) ? DROP_MESSAGE : PASS_MESSAGE;
 }
@@ -411,15 +445,19 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     char * me = NULL;
     gcry_error_t err = 1; // default to error unless sending runs and succeeds
     const char * net = chat->network.str;
-    const char * tgt = chat->target.str;
     const char * msg = chat->message.str;
+    char * tgt = strdup(chat->target.str);
+
+    if (!tgt) abort();
+    normalizeCase(tgt);
 
     if (glirc_is_channel(G, net, chat->network.len, tgt, chat->target.len)) {
-        return PASS_MESSAGE;
+        goto chat_entrypoint_done;
     }
 
     me = glirc_my_nick(G, chat->network.str, chat->network.len);
     if (!me) goto chat_entrypoint_done;
+    normalizeCase(me);
 
     err = otrl_message_sending
       (us, &ops, &opdata, me, net, tgt, OTRL_INSTAG_BEST, msg,
@@ -432,6 +470,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
 chat_entrypoint_done:
     otrl_message_free(newmsg);
     glirc_free_string(me);
+    free(tgt);
     return err || newmsg ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
@@ -447,9 +486,11 @@ static void cmd_end (struct glirc *G, OtrlUserState us,
 
   glirc_current_focus(G, &net, &netlen, &tgt, NULL);
   if (!net || !tgt) goto cmd_end_done;
+  normalizeCase(tgt);
 
   me = glirc_my_nick(G, net, netlen);
   if (!me) goto cmd_end_done;
+  normalizeCase(me);
 
   otrl_message_disconnect_all_instances(us, &ops, &opdata, me, net, tgt);
 
@@ -479,9 +520,11 @@ get_current_context(struct glirc *G, OtrlUserState us)
 
     glirc_current_focus(G, &net, &netlen, &tgt, NULL);
     if (!net || !tgt) goto get_current_context_done;
+    normalizeCase(tgt);
 
     me = glirc_my_nick(G, net, netlen);
     if (!me) goto get_current_context_done;
+    normalizeCase(me);
 
     context = otrl_context_find(us, tgt, me, net, OTRL_INSTAG_BEST, 0, NULL, NULL, NULL);
 
