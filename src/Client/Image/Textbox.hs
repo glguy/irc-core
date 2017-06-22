@@ -48,7 +48,7 @@ textboxImage width st
   where
   macros = views (clientConfig . configMacros) (fmap macroSpec) st
   (txt, content) =
-     views (clientTextBox . Edit.content) (renderContent myNick nicks macros pal) st
+     views (clientTextBox . Edit.content) (renderContent st myNick nicks macros pal) st
 
   lineImage = unpackImage (beginning <> content <> ending)
 
@@ -91,13 +91,14 @@ textboxImage width st
 -- corresponding to the rendered image which can be used for computing
 -- the logical cursor position of the cropped version of the text box.
 renderContent ::
-  HashSet Identifier ->
-  HashSet Identifier ->
+  ClientState          {- ^ client state                          -} ->
+  HashSet Identifier   {- ^ my nicknames                          -} ->
+  HashSet Identifier   {- ^ other nicknames                       -} ->
   Recognizer MacroSpec {- ^ macro completions                     -} ->
   Palette              {- ^ palette                               -} ->
   Edit.Content         {- ^ content                               -} ->
   (String, Image')     {- ^ plain text rendering, image rendering -}
-renderContent myNick nicks macros pal c = (txt, wholeImg)
+renderContent st myNick nicks macros pal c = (txt, wholeImg)
   where
   as  = reverse (view Edit.above c)
   bs  = view Edit.below c
@@ -109,7 +110,7 @@ renderContent myNick nicks macros pal c = (txt, wholeImg)
   -- ["one","two"] "three" --> "two one three"
   txt = foldl (\acc x -> x ++ ' ' : acc) leftCur as
 
-  render = renderLine pal myNick nicks macros
+  render = renderLine st pal myNick nicks macros
 
   wholeImg = mconcat
            $ intersperse (plainText "\n")
@@ -134,6 +135,7 @@ myWcswidth = sum . map myWcwidth
 -- | Render the active text box line using command highlighting and
 -- placeholders, and WYSIWYG mIRC formatting control characters.
 renderLine ::
+  ClientState ->
   Palette ->
   HashSet Identifier ->
   HashSet Identifier ->
@@ -141,11 +143,11 @@ renderLine ::
   Bool                 {- ^ focused      -} ->
   String               {- ^ input text   -} ->
   Image'               {- ^ output image -}
-renderLine pal myNick nicks macros focused ('/':xs) =
+renderLine st pal myNick nicks macros focused ('/':xs) =
   char defAttr '/' <> string attr cmd <> continue rest
   where
     specAttr spec =
-      case parseArguments spec rest of
+      case parseArguments spec st rest of
         Nothing -> view palCommand      pal
         Just{}  -> view palCommandReady pal
 
@@ -155,11 +157,11 @@ renderLine pal myNick nicks macros focused ('/':xs) =
       = case recognize (Text.pack cmd) allCommands of
           Exact (Right Command{cmdArgumentSpec = spec}) ->
             ( specAttr spec
-            , argumentsImage pal spec focused
+            , argumentsImage st pal spec focused
             )
           Exact (Left (MacroSpec spec)) ->
             ( specAttr spec
-            , argumentsImage pal spec focused
+            , argumentsImage st pal spec focused
             )
           Prefix _ ->
             ( view palCommandPrefix pal
@@ -170,4 +172,4 @@ renderLine pal myNick nicks macros focused ('/':xs) =
             , parseIrcTextWithNicks pal myNick nicks focused . Text.pack
             )
 
-renderLine pal myNick nicks _ focused xs = parseIrcTextWithNicks pal myNick nicks focused (Text.pack xs)
+renderLine _ pal myNick nicks _ focused xs = parseIrcTextWithNicks pal myNick nicks focused (Text.pack xs)

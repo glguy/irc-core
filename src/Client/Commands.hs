@@ -108,7 +108,7 @@ data Command = forall a. Command
   { -- | Names of this command, first in the list is the "primary" name
     cmdNames          :: NonEmpty Text
   -- | Specification of the arguments of the command
-  , cmdArgumentSpec   :: ArgumentSpec a
+  , cmdArgumentSpec   :: ArgumentSpec ClientState a
   -- | Multi-line IRC-formatted documentation text used for @/help@
   , cmdDocumentation  :: Text
   -- | Implementation of the command for both execution and tab completion
@@ -155,7 +155,7 @@ executeUserCommand discoTime command st = do
 
   case views (clientConfig . configMacros) (recognize key) st of
     Exact (Macro (MacroSpec spec) cmdExs) ->
-      case parseArguments spec rest *> traverse resolveMacro cmdExs of
+      case parseArguments spec st rest *> traverse resolveMacro cmdExs of
         Nothing   -> commandFailureMsg "macro expansions failed" st
         Just cmds -> process cmds st
     _ -> executeCommand Nothing command st
@@ -243,7 +243,7 @@ executeCommand tabCompleteReversed str st =
         case tabCompleteReversed of
           Just isReversed -> tab isReversed st rest
           Nothing ->
-            case parseArguments spec rest of
+            case parseArguments spec st rest of
               Nothing -> commandFailureMsg "bad command arguments" st
               Just arg -> exec st arg
   in

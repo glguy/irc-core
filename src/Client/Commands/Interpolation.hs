@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings, GADTs #-}
+{-# Language OverloadedStrings, GADTs, RankNTypes #-}
 
 {-|
 Module      : Client.Commands.Interpolation
@@ -48,7 +48,7 @@ data Macro
   } deriving Show
 
 data MacroSpec where
-  MacroSpec :: ArgumentSpec s -> MacroSpec
+  MacroSpec :: (forall r. ArgumentSpec r s) -> MacroSpec
 
 instance Show MacroSpec where
   showsPrec p (MacroSpec as)

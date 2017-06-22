@@ -31,20 +31,26 @@ import           Graphics.Vty.Attributes
 -- image. Parameters are rendered with 'plainText' except for
 -- the case of 'RemainingArg' which supports WYSIWYG.
 argumentsImage ::
-  Palette        {- ^ palette                -} ->
-  ArgumentSpec a {- ^ argument specification -} ->
-  Bool           {- ^ render placeholders    -} ->
-  String         {- ^ input text             -} ->
-  Image'         {- ^ rendered text          -}
-argumentsImage pal spec pl xs
+  r                {- ^ client state           -} ->
+  Palette          {- ^ palette                -} ->
+  ArgumentSpec r a {- ^ argument specification -} ->
+  Bool             {- ^ render placeholders    -} ->
+  String           {- ^ input text             -} ->
+  Image'           {- ^ rendered text          -}
+argumentsImage st pal spec pl xs
   | all (==' ') xs = placeholders
                   <> string defAttr (drop (imageWidth placeholders) xs)
   | otherwise =
      case spec of
        NoArg           -> plainText xs
-       ReqTokenArg _ a -> plainText token <> argumentsImage pal a pl xs'
-       OptTokenArg _ a -> plainText token <> argumentsImage pal a pl xs'
+       ReqTokenArg _ a -> plainText token <> argumentsImage st pal a pl xs'
+       OptTokenArg _ a -> plainText token <> argumentsImage st pal a pl xs'
        RemainingArg _  -> parseIrcText' True (Text.pack xs)
+       FormatArg _ k   -> plainText token <>
+                          case k st token2 of
+                            Nothing -> mempty
+                            Just (ArgumentAdaptor a _) ->
+                              argumentsImage st pal a pl xs'
 
   where
     token = token1 ++ token2
@@ -57,7 +63,7 @@ argumentsImage pal spec pl xs
 
 -- | Construct an 'Image' containing placeholders for each
 -- of the remaining arguments.
-mkPlaceholders :: Palette -> ArgumentSpec a -> Image'
+mkPlaceholders :: Palette -> ArgumentSpec r a -> Image'
 mkPlaceholders pal arg =
   case arg of
     NoArg           -> mempty
@@ -69,5 +75,7 @@ mkPlaceholders pal arg =
                     <> mkPlaceholders pal a
     RemainingArg n  -> leader
                     <> string (view palCommandPlaceholder pal) (n ++ "…")
+    FormatArg n _   -> leader
+                    <> string (view palCommandPlaceholder pal) n
   where
     leader = char defAttr ' '

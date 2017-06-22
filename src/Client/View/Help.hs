@@ -16,11 +16,11 @@ module Client.View.Help
 
 import           Client.Commands
 import           Client.Commands.Arguments
+import           Client.Commands.Recognizer
 import           Client.Image.Arguments
 import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Client.Image.Palette
-import           Client.Commands.Recognizer
 import           Control.Lens
 import           Data.Foldable (toList)
 import           Data.List (delete, intercalate)
@@ -44,9 +44,9 @@ helpImageLines mbCmd pal =
 
 -- | Generate detailed help lines for the command with the given name.
 commandHelpLines ::
-  Text     {- ^ command name -} ->
-  Palette  {- ^ palette      -} ->
-  [Image'] {- ^ lines        -}
+  Text        {- ^ command name -} ->
+  Palette     {- ^ palette      -} ->
+  [Image']    {- ^ lines        -}
 commandHelpLines cmdName pal =
   case recognize cmdName commands of
     Invalid -> [string (view palError pal) "Unknown command, try /help"]
@@ -112,14 +112,14 @@ listCommandSection pal sec
 -- | Generate the help line for the given command and its
 -- specification for use in the list of commands.
 commandSummary ::
-  Palette        {- ^ palette                  -} ->
-  NonEmpty Text  {- ^ command name and aliases -} ->
-  ArgumentSpec a {- ^ argument specification   -} ->
-  Image'         {- ^ summary help line        -}
+  Palette          {- ^ palette                  -} ->
+  NonEmpty Text    {- ^ command name and aliases -} ->
+  ArgumentSpec r a {- ^ argument specification   -} ->
+  Image'           {- ^ summary help line        -}
 commandSummary pal (cmd :| _) args  =
   char defAttr '/' <>
   text' (view palCommandReady pal) cmd <>
-  argumentsImage pal' args {-draw-placeholders=-}True ""
+  argumentsImage () pal' (forgetFormats args) {-draw-placeholders=-}True ""
 
   where
     pal' = set palCommandPlaceholder defAttr pal
