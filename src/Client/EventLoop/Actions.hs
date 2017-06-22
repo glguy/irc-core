@@ -118,7 +118,7 @@ actionInfos =
 
   HashMap.fromList
 
-  [("delete"            , (ActDelete           , [meta (KChar 'd'), norm KDel]))
+  [("delete"            , (ActDelete           , [ctrl (KChar 'd'), norm KDel]))
   ,("backspace"         , (ActBackspace        , [norm KBS]))
   ,("home"              , (ActHome             , [norm KHome, ctrl (KChar 'a')]))
   ,("end"               , (ActEnd              , [norm KEnd , ctrl (KChar 'e')]))
