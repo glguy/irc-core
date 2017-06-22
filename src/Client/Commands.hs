@@ -330,9 +330,16 @@ commandsList =
   , Command
       (pure "digraphs")
       NoArg
-      "Show the table of digraphs.\n\
+      "\^BDescription:\^B\n\
       \\n\
-      \To enter a digraph type the two-character entry and press M-k.\n"
+      \    Show the table of digraphs. A digraph is a pair of characters\n\
+      \    can be used together to represent an uncommon character. Type\n\
+      \    the two-character digraph corresponding to the desired output\n\
+      \    character and then press M-k (default binding).\n\
+      \\n\
+      \    Note that the digraphs list is searchable with /grep.\n\
+      \\n\
+      \\^BSee also:\^B grep\n"
     $ ClientCommand cmdDigraphs noClientTab
 
   , Command
