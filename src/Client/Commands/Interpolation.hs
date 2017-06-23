@@ -24,10 +24,11 @@ module Client.Commands.Interpolation
 import           Control.Applicative
 import           Data.Attoparsec.Text as P
 import           Data.Char
+import           Data.Maybe
 import qualified Data.Text as Text
 import           Data.Text (Text)
 
-import           Client.Commands.Arguments
+import           Client.Commands.Arguments.Spec
 
 -- | Parsed chunk of an expandable command
 data ExpansionChunk
@@ -48,16 +49,14 @@ data Macro
   } deriving Show
 
 data MacroSpec where
-  MacroSpec :: (forall r. ArgumentSpec r s) -> MacroSpec
+  MacroSpec :: (forall r. Args r [String]) -> MacroSpec
 
 instance Show MacroSpec where
-  showsPrec p (MacroSpec as)
-    = showParen (p >= 11)
-    $ showString "MacroSpec " . showsPrec 11 as
+  show MacroSpec{} = "MacroSpec"
 
 -- | Specification used when unspecified, no arguments.
 noMacroArguments :: MacroSpec
-noMacroArguments = MacroSpec NoArg
+noMacroArguments = MacroSpec (pure [])
 
 parseMacroSpecs :: Text -> Maybe MacroSpec
 parseMacroSpecs txt =
@@ -71,10 +70,12 @@ macroSpecs =
        <*> optional (char '?')
        <*  P.skipSpace
        <*> macroSpecs
-    <|> pure (MacroSpec NoArg)
- where
- cons desc (Just _) (MacroSpec rest) = MacroSpec (OptTokenArg (Text.unpack desc) rest)
- cons desc Nothing  (MacroSpec rest) = MacroSpec (ReqTokenArg (Text.unpack desc) rest)
+    <|> pure (MacroSpec (pure []))
+  where
+    add1 desc = liftA2 (:) (simpleToken (Text.unpack desc))
+
+    cons desc (Just _) (MacroSpec rest) = MacroSpec (fromMaybe [] <$> optionalArg (add1 desc rest))
+    cons desc Nothing  (MacroSpec rest) = MacroSpec (add1 desc rest)
 
 -- | Parse a 'Text' searching for the expansions as specified in
 -- 'ExpansionChunk'. @$$@ is used to escape a single @$@.

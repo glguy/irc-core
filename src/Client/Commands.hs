@@ -26,7 +26,8 @@ module Client.Commands
   ) where
 
 import           Client.CApi
-import           Client.Commands.Arguments
+import           Client.Commands.Arguments.Spec
+import           Client.Commands.Arguments.Parser
 import           Client.Commands.Exec
 import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
@@ -108,7 +109,7 @@ data Command = forall a. Command
   { -- | Names of this command, first in the list is the "primary" name
     cmdNames          :: NonEmpty Text
   -- | Specification of the arguments of the command
-  , cmdArgumentSpec   :: ArgumentSpec ClientState a
+  , cmdArgumentSpec   :: Args ClientState a
   -- | Multi-line IRC-formatted documentation text used for @/help@
   , cmdDocumentation  :: Text
   -- | Implementation of the command for both execution and tab completion
@@ -150,22 +151,26 @@ execute str st =
 -- | Execute command provided by user, resolve aliases if necessary.
 executeUserCommand :: Maybe Text -> String -> ClientState -> IO CommandResult
 executeUserCommand discoTime command st = do
-  let key = Text.takeWhile (/=' ') tcmd
-      rest = dropWhile (==' ') . dropWhile (/=' ') $ command
+  let key = Text.takeWhile (/=' ') (Text.pack command)
+      rest = dropWhile (==' ') (dropWhile (/=' ') command)
 
   case views (clientConfig . configMacros) (recognize key) st of
     Exact (Macro (MacroSpec spec) cmdExs) ->
-      case parseArguments spec st rest *> traverse resolveMacro cmdExs of
+      case doExpansion spec cmdExs rest of
         Nothing   -> commandFailureMsg "macro expansions failed" st
         Just cmds -> process cmds st
     _ -> executeCommand Nothing command st
   where
-    resolveMacro = resolveMacroExpansions (commandExpansion discoTime st) expandInt
+    doExpansion spec cmdExs rest =
+      do args <- parse st spec rest
+         traverse (resolveMacro (map Text.pack args)) cmdExs
 
-    tcmd = Text.pack command
-    args = Text.words tcmd
+    resolveMacro args = resolveMacroExpansions (commandExpansion discoTime st) (expandInt args)
 
-    expandInt i = preview (ix (fromInteger i)) args
+    expandInt :: [a] -> Integer -> Maybe a
+    expandInt args i = preview (ix (fromInteger i)) args
+
+
 
     process [] st0 = commandSuccess st0
     process (c:cs) st0 =
@@ -243,7 +248,7 @@ executeCommand tabCompleteReversed str st =
         case tabCompleteReversed of
           Just isReversed -> tab isReversed st rest
           Nothing ->
-            case parseArguments spec st rest of
+            case parse st spec rest of
               Nothing -> commandFailureMsg "bad command arguments" st
               Just arg -> exec st arg
   in
@@ -300,13 +305,13 @@ commandsList =
 
   [ Command
       (pure "exit")
-      NoArg
+      (pure ())
       "Exit the client immediately.\n"
     $ ClientCommand cmdExit noClientTab
 
   , Command
       (pure "reload")
-      (OptTokenArg "filename" NoArg)
+      (optionalArg (simpleToken "filename"))
       "Reload the client configuration file.\n\
       \\n\
       \If \^Bfilename\^B is provided it will be used to reload.\n\
@@ -315,7 +320,7 @@ commandsList =
 
   , Command
       (pure "extension")
-      (ReqTokenArg "extension" (RemainingArg "arguments"))
+      (liftA2 (,) (simpleToken "extension") (remainingArg "arguments"))
       "Calls the process_command callback of the given extension.\n\
       \\n\
       \\^Bextension\^B should be the name of the loaded extension.\n"
@@ -323,13 +328,13 @@ commandsList =
 
   , Command
       (pure "palette")
-      NoArg
+      (pure ())
       "Show the current palette settings and a color chart to help pick new colors.\n"
     $ ClientCommand cmdPalette noClientTab
 
   , Command
       (pure "digraphs")
-      NoArg
+      (pure ())
       "\^BDescription:\^B\n\
       \\n\
       \    Show the table of digraphs. A digraph is a pair of characters\n\
@@ -344,7 +349,7 @@ commandsList =
 
   , Command
       (pure "keymap")
-      NoArg
+      (pure ())
       "Show the key binding map.\n\
       \\n\
       \Key bindings can be changed in configuration file. See `glirc2 --config-format`.\n"
@@ -352,13 +357,13 @@ commandsList =
 
   , Command
       (pure "rtsstats")
-      NoArg
+      (pure ())
       "Show the GHC RTS statistics.\n"
     $ ClientCommand cmdRtsStats noClientTab
 
   , Command
       (pure "exec")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Execute a command synchnonously sending the to a configuration destination.\n\
       \\n\
       \\^Barguments\^B: [-n network] [-c channel] [-i input] command [command arguments...]\n\
@@ -378,7 +383,7 @@ commandsList =
 
   , Command
       (pure "url")
-      (OptTokenArg "number" NoArg)
+      (optionalArg (simpleToken "number"))
       "Open a URL seen in chat.\n\
       \\n\
       \The URL is opened using the executable configured under \^Burl-opener\^B.\n\
@@ -390,7 +395,7 @@ commandsList =
 
   , Command
       (pure "help")
-      (OptTokenArg "command" NoArg)
+      (optionalArg (simpleToken "command"))
       "Show command documentation.\n\
       \\n\
       \When \^Bcommand\^B is omitted a list of all commands is displayed.\n\
@@ -403,25 +408,25 @@ commandsList =
 
   [ Command
       (pure "toggle-detail")
-      NoArg
+      (pure ())
       "Toggle detailed message view.\n"
     $ ClientCommand cmdToggleDetail noClientTab
 
   , Command
       (pure "toggle-activity-bar")
-      NoArg
+      (pure ())
       "Toggle detailed detailed activity information in status bar.\n"
     $ ClientCommand cmdToggleActivityBar noClientTab
 
   , Command
       (pure "toggle-metadata")
-      NoArg
+      (pure ())
       "Toggle visibility of metadata in chat windows.\n"
     $ ClientCommand cmdToggleMetadata noClientTab
 
   , Command
       (pure "toggle-layout")
-      NoArg
+      (pure ())
       "Toggle multi-window layout mode.\n"
     $ ClientCommand cmdToggleLayout noClientTab
 
@@ -431,7 +436,7 @@ commandsList =
 
   [ Command
       (pure "connect")
-      (ReqTokenArg "network" NoArg)
+      (simpleToken "network")
       "Connect to \^Bnetwork\^B by name.\n\
       \\n\
       \If no name is configured the hostname is the 'name'.\n"
@@ -439,13 +444,13 @@ commandsList =
 
   , Command
       (pure "reconnect")
-      NoArg
+      (pure ())
       "Reconnect to the current network.\n"
     $ ClientCommand cmdReconnect noClientTab
 
   , Command
       (pure "disconnect")
-      NoArg
+      (pure ())
       "Immediately terminate the current network connection.\n\
       \\n\
       \See also: /quit /exit\n"
@@ -453,7 +458,7 @@ commandsList =
 
   , Command
       (pure "quit")
-      (RemainingArg "reason")
+      (remainingArg "reason")
       "Gracefully disconnect the current network connection.\n\
       \\n\
       \\^Breason\^B: optional quit reason\n\
@@ -467,7 +472,7 @@ commandsList =
 
   [ Command
       (pure "focus")
-      (ReqTokenArg "network" (OptTokenArg "target" NoArg))
+      (liftA2 (,) (simpleToken "network") (optionalArg (simpleToken "target")))
       "Change the focused window.\n\
       \\n\
       \When only \^Bnetwork\^B is specified this switches to the network status window.\n\
@@ -479,7 +484,7 @@ commandsList =
 
   , Command
       ("query" :| ["c", "channel"])
-      (ReqTokenArg "focus" NoArg)
+      (simpleToken "focus")
       "\^BParameters:\^B\n\
       \\n\
       \    focuses: Focus name\n\
@@ -509,7 +514,7 @@ commandsList =
 
   , Command
       (pure "clear")
-      (OptTokenArg "network" (OptTokenArg "channel" NoArg))
+      (optionalArg (liftA2 (,) (simpleToken "network") (optionalArg (simpleToken "channel"))))
       "Clear a window.\n\
       \\n\
       \If no arguments are provided the current window is cleared.\n\
@@ -522,7 +527,7 @@ commandsList =
 
   , Command
       (pure "windows")
-      (OptTokenArg "kind" NoArg)
+      (optionalArg (simpleToken "kind"))
       "Show a list of all windows with an optional argument to limit the kinds of windows listed.\n\
       \\n\
       \\^Bkind\^O: one of \^Bnetworks\^O, \^Bchannels\^O, \^Busers\^O\n\
@@ -531,7 +536,7 @@ commandsList =
 
   , Command
       (pure "splits")
-      (RemainingArg "focuses")
+      (remainingArg "focuses")
       "\^BParameters:\^B\n\
       \\n\
       \    focuses: List of focus names\n\
@@ -562,7 +567,7 @@ commandsList =
 
   , Command
       (pure "splits+")
-      (RemainingArg "focuses")
+      (remainingArg "focuses")
       "Add windows to the splits list. Omit the list of focuses to add the\
       \ current window.\n\
       \\n\
@@ -578,7 +583,7 @@ commandsList =
 
   , Command
       (pure "splits-")
-      (RemainingArg "focuses")
+      (remainingArg "focuses")
       "Remove windows from the splits list. Omit the list of focuses to\
       \ remove the current window.\n\
       \\n\
@@ -594,13 +599,13 @@ commandsList =
 
   , Command
       (pure "ignore")
-      (RemainingArg "nicks")
+      (remainingArg "nicks")
       "Toggle the soft-ignore on each of the space-delimited given nicknames.\n"
     $ ClientCommand cmdIgnore simpleClientTab
 
   , Command
       (pure "grep")
-      (RemainingArg "regular-expression")
+      (remainingArg "regular-expression")
       "Set the persistent regular expression.\n\
       \\n\
       \Clear the regular expression by calling this without an argument.\n\
@@ -611,7 +616,7 @@ commandsList =
 
   , Command
       (pure "grepi")
-      (RemainingArg "regular-expression")
+      (remainingArg "regular-expression")
       "Set the persistent regular expression.\n\
       \\n\
       \Clear the regular expression by calling this without an argument.\n\
@@ -622,7 +627,7 @@ commandsList =
 
   , Command
       (pure "mentions")
-      NoArg
+      (pure ())
       "Show a list of all message that were highlighted as important.\n"
     $ ClientCommand cmdMentions noClientTab
 
@@ -632,7 +637,7 @@ commandsList =
 
   [ Command
       ("join" :| ["j"])
-      (ReqTokenArg "channels" (OptTokenArg "keys" NoArg))
+      (liftA2 (,) (simpleToken "channels") (optionalArg (simpleToken "keys")))
       "\^BParameters:\^B\n\
       \\n\
       \    channels: Comma-separated list of channels\n\
@@ -654,7 +659,7 @@ commandsList =
 
   , Command
       (pure "part")
-      (RemainingArg "reason")
+      (remainingArg "reason")
       "\^BParameters:\^B\n\
       \\n\
       \    reason: Optional message sent to channel as part reason\
@@ -673,7 +678,7 @@ commandsList =
 
   , Command
       (pure "msg")
-      (ReqTokenArg "target" (RemainingArg "message"))
+      (liftA2 (,) (simpleToken "target") (remainingArg "message"))
       "\^BParameters:\^B\n\
       \\n\
       \    target:  Comma-separated list of nicknames and channels\n\
@@ -698,7 +703,7 @@ commandsList =
 
   , Command
       (pure "me")
-      (RemainingArg "message")
+      (remainingArg "message")
       "\^BParameters:\^B\n\
       \\n\
       \    message: Body of action message\n\
@@ -718,7 +723,7 @@ commandsList =
 
   , Command
       (pure "say")
-      (RemainingArg "message")
+      (remainingArg "message")
       "\^BParameters:\^B\n\
       \\n\
       \    message: Body of message\n\
@@ -738,7 +743,7 @@ commandsList =
 
   , Command
       (pure "notice")
-      (ReqTokenArg "target" (RemainingArg "message"))
+      (liftA2 (,) (simpleToken "target") (remainingArg "message"))
       "\^BParameters:\^B\n\
       \\n\
       \    target:  Comma-separated list of nicknames and channels\n\
@@ -765,7 +770,7 @@ commandsList =
 
   , Command
       (pure "ctcp")
-      (ReqTokenArg "target" (ReqTokenArg "command" (RemainingArg "arguments")))
+      (liftA3 (,,) (simpleToken "target") (simpleToken "command") (remainingArg "arguments"))
       "\^BParameters:\^B\n\
       \\n\
       \    target:    Comma-separated list of nicknames and channels\n\
@@ -788,7 +793,7 @@ commandsList =
 
   , Command
       (pure "nick")
-      (ReqTokenArg "nick" NoArg)
+      (simpleToken "nick")
       "\^BParameters:\^B\n\
       \\n\
       \    nick: New nickname\n\
@@ -805,7 +810,7 @@ commandsList =
 
   , Command
       (pure "away")
-      (RemainingArg "message")
+      (remainingArg "message")
       "\^BParameters:\^B\n\
       \\n\
       \    message: Optional away message\n\
@@ -826,7 +831,7 @@ commandsList =
 
   , Command
       ("users" :| ["names"])
-      NoArg
+      (pure ())
       "\^BDescription:\^B\n\
       \\n\
       \    Show the user list for the current channel.\n\
@@ -839,7 +844,7 @@ commandsList =
 
   , Command
       (pure "channelinfo")
-      NoArg
+      (pure ())
       "\^BDescription:\^B\n\
       \\n\
       \    Show information about the current channel.\n\
@@ -850,7 +855,7 @@ commandsList =
 
   , Command
       (pure "quote")
-      (RemainingArg "raw IRC command")
+      (remainingArg "raw IRC command")
       "Send a raw IRC command.\n"
     $ NetworkCommand cmdQuote  simpleNetworkTab
 
@@ -860,79 +865,79 @@ commandsList =
 
   [ Command
       (pure "who")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Send WHO query to server with given arguments.\n"
     $ NetworkCommand cmdWho simpleNetworkTab
 
   , Command
       (pure "whois")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Send WHOIS query to server with given arguments.\n"
     $ NetworkCommand cmdWhois simpleNetworkTab
 
   , Command
       (pure "whowas")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Send WHOWAS query to server with given arguments.\n"
     $ NetworkCommand cmdWhowas simpleNetworkTab
 
   , Command
       (pure "ison")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Send ISON query to server with given arguments.\n"
     $ NetworkCommand cmdIson   simpleNetworkTab
 
   , Command
       (pure "userhost")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Send USERHOST query to server with given arguments.\n"
     $ NetworkCommand cmdUserhost simpleNetworkTab
 
   , Command
       (pure "time")
-      (OptTokenArg "servername" NoArg)
+      (optionalArg (simpleToken "servername"))
       "Send TIME query to server with given arguments.\n"
     $ NetworkCommand cmdTime simpleNetworkTab
 
   , Command
       (pure "stats")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Send STATS query to server with given arguments.\n"
     $ NetworkCommand cmdStats simpleNetworkTab
 
   , Command
       (pure "lusers")
-      (OptTokenArg "mask" (OptTokenArg "servername" NoArg))
+      (optionalArg (liftA2 (,) (simpleToken "mask") (optionalArg (simpleToken "servername"))))
       "Send LUSERS query to server with given arguments.\n"
     $ NetworkCommand cmdLusers simpleNetworkTab
 
   , Command
-      (pure "motd") (OptTokenArg "servername" NoArg)
+      (pure "motd") (optionalArg (simpleToken "servername"))
       "Send MOTD query to server.\n"
     $ NetworkCommand cmdMotd simpleNetworkTab
 
   , Command
-      (pure "admin") (OptTokenArg "servername" NoArg)
+      (pure "admin") (optionalArg (simpleToken "servername"))
       "Send ADMIN query to server.\n"
     $ NetworkCommand cmdAdmin simpleNetworkTab
 
   , Command
-      (pure "rules") (OptTokenArg "servername" NoArg)
+      (pure "rules") (optionalArg (simpleToken "servername"))
       "Send RULES query to server.\n"
     $ NetworkCommand cmdRules simpleNetworkTab
 
   , Command
-      (pure "info") NoArg
+      (pure "info") (pure ())
       "Send INFO query to server.\n"
     $ NetworkCommand cmdInfo noNetworkTab
 
   , Command
-      (pure "list") (RemainingArg "arguments")
+      (pure "list") (remainingArg "arguments")
       "Send LIST query to server.\n"
     $ NetworkCommand cmdList simpleNetworkTab
 
   , Command
-      (pure "version") (OptTokenArg "servername" NoArg)
+      (pure "version") (optionalArg (simpleToken "servername"))
       "Send VERSION query to server.\n"
     $ NetworkCommand cmdVersion simpleNetworkTab
 
@@ -942,7 +947,7 @@ commandsList =
 
   [ Command
       (pure "mode")
-      (RemainingArg "modes and parameters")
+      (remainingArg "modes and parameters")
       "Sets IRC modes.\n\
       \\n\
       \Examples:\n\
@@ -959,7 +964,7 @@ commandsList =
 
   , Command
       (pure "masks")
-      (ReqTokenArg "mode" NoArg)
+      (simpleToken "mode")
       "Show mask lists for current channel.\n\
       \\n\
       \Common \^Bmode\^B values:\n\
@@ -973,13 +978,13 @@ commandsList =
 
   , Command
       (pure "invite")
-      (ReqTokenArg "nick" NoArg)
+      (simpleToken "nick")
       "Invite a user to the current channel.\n"
     $ ChannelCommand cmdInvite simpleChannelTab
 
   , Command
       (pure "topic")
-      (RemainingArg "message")
+      (remainingArg "message")
       "Set the topic on the current channel.\n\
       \\n\
       \Tab-completion with no \^Bmessage\^B specified will load the current topic for editing.\n"
@@ -987,15 +992,15 @@ commandsList =
 
   , Command
       (pure "kick")
-      (ReqTokenArg "nick" (RemainingArg "reason"))
+      (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
       "Kick a user from the current channel.\n\
       \\n\
       \See also: /kickban /remove\n"
-    $ ChannelCommand cmdKick   simpleChannelTab
+    $ ChannelCommand cmdKick simpleChannelTab
 
   , Command
       (pure "kickban")
-      (ReqTokenArg "nick" (RemainingArg "reason"))
+      (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
       "Ban and kick a user from the current channel.\n\
       \\n\
       \Users are banned by hostname match.\n\
@@ -1004,7 +1009,7 @@ commandsList =
 
   , Command
       (pure "remove")
-      (ReqTokenArg "nick" (RemainingArg "reason"))
+      (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
       "Remove a user from the current channel.\n\
       \\n\
       \Remove works like /kick except it results in a PART.\n\
@@ -1013,7 +1018,7 @@ commandsList =
 
   , Command
       (pure "knock")
-      (ReqTokenArg "channel" (RemainingArg "message"))
+      (liftA2 (,) (simpleToken "channel") (remainingArg "message"))
       "Request entry to an invite-only channel.\n"
     $ NetworkCommand cmdKnock simpleNetworkTab
 
@@ -1023,7 +1028,7 @@ commandsList =
 
   [ Command
       (pure "znc")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Send command directly to ZNC.\n\
       \\n\
       \The advantage of this over /msg is that responses are not broadcast to call clients.\n"
@@ -1031,7 +1036,7 @@ commandsList =
 
   , Command
       (pure "znc-playback")
-      (OptTokenArg "time" (OptTokenArg "date" NoArg))
+      (optionalArg (liftA2 (,) (simpleToken "time") (optionalArg (simpleToken "date"))))
       "Request playback from the ZNC 'playback' module.\n\
       \\n\
       \\^Btime\^B determines the time to playback since.\n\
@@ -1050,25 +1055,25 @@ commandsList =
 
   [ Command
       (pure "oper")
-      (ReqTokenArg "user" (ReqTokenArg "password" NoArg))
+      (liftA2 (,) (simpleToken "user") (simpleToken "password"))
       "Authenticate as a server operator.\n"
     $ NetworkCommand cmdOper noNetworkTab
 
   , Command
       (pure "kill")
-      (ReqTokenArg "client" (RemainingArg "reason"))
+      (liftA2 (,) (simpleToken "client") (remainingArg "reason"))
       "Kill a client connection to the server.\n"
     $ NetworkCommand cmdKill simpleNetworkTab
 
   , Command
       (pure "map")
-      NoArg
+      (pure ())
       "Display network map.\n"
     $ NetworkCommand cmdMap simpleNetworkTab
 
   , Command
       (pure "links")
-      (RemainingArg "arguments")
+      (remainingArg "arguments")
       "Send LINKS query to server with given arguments.\n"
     $ NetworkCommand cmdLinks simpleNetworkTab
 
@@ -1125,14 +1130,14 @@ cmdToggleLayout st _ = commandSuccess (set clientScroll 0 (over clientLayout aux
 -- joined to this command will clear the messages but
 -- preserve the window. When used on a window that the
 -- user is not joined to this command will delete the window.
-cmdClear :: ClientCommand (Maybe (String, Maybe (String, ())))
+cmdClear :: ClientCommand (Maybe (String, Maybe String))
 cmdClear st args =
   case args of
     Nothing                 -> clearFocus (view clientFocus st)
     Just ("*", Nothing)     -> clearFocus Unfocused
     Just (network, Nothing) -> clearFocus (NetworkFocus (Text.pack network))
-    Just (network, Just ("*", _)) -> clearNetworkWindows network
-    Just (network, Just (channel, _)) ->
+    Just (network, Just "*") -> clearNetworkWindows network
+    Just (network, Just channel) ->
         clearFocus (ChannelFocus (Text.pack network) (mkId (Text.pack channel)))
   where
     clearNetworkWindows network
@@ -1194,8 +1199,8 @@ cmdMe channelId cs st rest =
        $! recordChannelMessage network channelId entry st
 
 -- | Implementation of @/ctcp@
-cmdCtcp :: NetworkCommand (String, (String, String))
-cmdCtcp cs st (target, (cmd, args)) =
+cmdCtcp :: NetworkCommand (String, String, String)
+cmdCtcp cs st (target, cmd, args) =
   do let cmdTxt = Text.toUpper (Text.pack cmd)
          argTxt = Text.pack args
          tgtTxt = Text.pack target
@@ -1268,15 +1273,15 @@ chatCommand' con targetsTxt cs st =
                       entries
 
 
-cmdConnect :: ClientCommand (String, ())
-cmdConnect st (networkStr, _) =
+cmdConnect :: ClientCommand String
+cmdConnect st networkStr =
   do -- abort any existing connection before connecting
      let network = Text.pack networkStr
      st' <- addConnection 0 Nothing network =<< abortNetwork network st
      commandSuccess
        $ changeFocus (NetworkFocus network) st'
 
-cmdFocus :: ClientCommand (String, Maybe (String, ()))
+cmdFocus :: ClientCommand (String, Maybe String)
 cmdFocus st (network, mbChannel)
   | network == "*" = commandSuccess (changeFocus Unfocused st)
   | otherwise =
@@ -1284,7 +1289,7 @@ cmdFocus st (network, mbChannel)
        Nothing ->
          let focus = NetworkFocus (Text.pack network) in
          commandSuccess (changeFocus focus st)
-       Just (channel,_) ->
+       Just channel ->
          let focus = ChannelFocus (Text.pack network) (mkId (Text.pack channel)) in
          commandSuccess
            $ changeFocus focus st
@@ -1298,14 +1303,14 @@ tabWindows isReversed st _ =
 
 
 -- | Implementation of @/windows@ command. Set subfocus to Windows.
-cmdWindows :: ClientCommand (Maybe (String, ()))
+cmdWindows :: ClientCommand (Maybe String)
 cmdWindows st arg =
   case arg of
-    Nothing             -> success AllWindows
-    Just ("networks",_) -> success NetworkWindows
-    Just ("channels",_) -> success ChannelWindows
-    Just ("users"   ,_) -> success UserWindows
-    _                   -> commandFailureMsg errmsg st
+    Nothing         -> success AllWindows
+    Just "networks" -> success NetworkWindows
+    Just "channels" -> success ChannelWindows
+    Just "users"    -> success UserWindows
+    _               -> commandFailureMsg errmsg st
   where
     errmsg = "/windows expected networks, channels, or users"
     success x =
@@ -1338,10 +1343,10 @@ cmdRtsStats st _ =
                                  $ changeSubfocus FocusRtsStats st
 
 -- | Implementation of @/help@ command. Set subfocus to Help.
-cmdHelp :: ClientCommand (Maybe (String, ()))
+cmdHelp :: ClientCommand (Maybe String)
 cmdHelp st mb = commandSuccess (changeSubfocus focus st)
   where
-    focus = FocusHelp (fmap (Text.pack . fst) mb)
+    focus = FocusHelp (fmap Text.pack mb)
 
 -- | Tab completion for @/splits[+]@. When given no arguments this
 -- populates the current list of splits, otherwise it tab completes
@@ -1530,35 +1535,35 @@ cmdStats cs st rest =
   do sendMsg cs (ircStats (Text.pack <$> words rest))
      commandSuccess st
 
-cmdLusers :: NetworkCommand (Maybe (String, Maybe (String, ())))
+cmdLusers :: NetworkCommand (Maybe (String, Maybe String))
 cmdLusers cs st arg =
   do sendMsg cs $ ircLusers $ fmap Text.pack $
        case arg of
-         Nothing                -> []
-         Just (x, Nothing)      -> [x]
-         Just (x, (Just (y,_))) -> [x,y]
+         Nothing           -> []
+         Just (x, Nothing) -> [x]
+         Just (x, Just y)  -> [x,y]
      commandSuccess st
 
-cmdMotd :: NetworkCommand (Maybe (String, ()))
+cmdMotd :: NetworkCommand (Maybe String)
 cmdMotd cs st mbservername =
   do sendMsg cs $ ircMotd $ case mbservername of
-                              Just (s,_) -> Text.pack s
-                              Nothing    -> ""
+                              Just s  -> Text.pack s
+                              Nothing -> ""
      commandSuccess st
 
-cmdAdmin :: NetworkCommand (Maybe (String, ()))
+cmdAdmin :: NetworkCommand (Maybe String)
 cmdAdmin cs st mbservername =
   do sendMsg cs $ ircAdmin $ case mbservername of
-                              Just (s,_) -> Text.pack s
-                              Nothing    -> ""
+                              Just s  -> Text.pack s
+                              Nothing -> ""
      commandSuccess st
 
-cmdRules :: NetworkCommand (Maybe (String, ()))
+cmdRules :: NetworkCommand (Maybe String)
 cmdRules cs st mbservername =
   do sendMsg cs $ ircRules $
        case mbservername of
-         Just (s,_) -> Text.pack s
-         Nothing    -> ""
+         Just s  -> Text.pack s
+         Nothing -> ""
      commandSuccess st
 
 cmdMap :: NetworkCommand ()
@@ -1571,11 +1576,11 @@ cmdInfo cs st _ =
   do sendMsg cs ircInfo
      commandSuccess st
 
-cmdVersion :: NetworkCommand (Maybe (String, ()))
+cmdVersion :: NetworkCommand (Maybe String)
 cmdVersion cs st mbservername =
   do sendMsg cs $ ircVersion $ case mbservername of
-                                Just (s,_) -> Text.pack s
-                                Nothing    -> ""
+                                Just s  -> Text.pack s
+                                Nothing -> ""
      commandSuccess st
 
 cmdList :: NetworkCommand String
@@ -1598,12 +1603,12 @@ cmdLinks cs st rest =
   do sendMsg cs (ircLinks (Text.pack <$> words rest))
      commandSuccess st
 
-cmdTime :: NetworkCommand (Maybe (String, ()))
+cmdTime :: NetworkCommand (Maybe String)
 cmdTime cs st arg =
   do sendMsg cs $ ircTime $
        case arg of
-         Nothing    -> ""
-         Just (x,_) -> Text.pack x
+         Nothing -> ""
+         Just x  -> Text.pack x
      commandSuccess st
 
 cmdZnc :: NetworkCommand String
@@ -1611,7 +1616,7 @@ cmdZnc cs st rest =
   do sendMsg cs (ircZnc (Text.words (Text.pack rest)))
      commandSuccess st
 
-cmdZncPlayback :: NetworkCommand (Maybe (String, Maybe (String, ())))
+cmdZncPlayback :: NetworkCommand (Maybe (String, Maybe String))
 cmdZncPlayback cs st args =
   case args of
 
@@ -1620,7 +1625,7 @@ cmdZncPlayback cs st args =
 
     -- current date explicit time
     Just (timeStr, Nothing)
-       | Just tod <- parse timeFormats timeStr ->
+       | Just tod <- parseFormats timeFormats timeStr ->
           do now <- getZonedTime
              let (nowTod,t) = (zonedTimeLocalTime . localTimeTimeOfDay <<.~ tod) now
                  yesterday = over (zonedTimeLocalTime . localTimeDay) (addDays (-1))
@@ -1630,9 +1635,9 @@ cmdZncPlayback cs st args =
              successZoned (fixDay t)
 
     -- explicit date and time
-    Just (dateStr, Just (timeStr, _))
-       | Just day  <- parse dateFormats dateStr
-       , Just tod  <- parse timeFormats timeStr ->
+    Just (dateStr, Just timeStr)
+       | Just day  <- parseFormats dateFormats dateStr
+       , Just tod  <- parseFormats timeFormats timeStr ->
           do tz <- getCurrentTimeZone
              successZoned ZonedTime
                { zonedTimeZone = tz
@@ -1646,7 +1651,7 @@ cmdZncPlayback cs st args =
     -- %k doesn't require a leading 0 for times before 10AM
     timeFormats = ["%k:%M:%S","%k:%M"]
     dateFormats = ["%F"]
-    parse formats str =
+    parseFormats formats str =
       asum (map (parseTimeM False defaultTimeLocale ?? str) formats)
 
     successZoned = success . formatTime defaultTimeLocale "%s"
@@ -1658,8 +1663,8 @@ cmdZncPlayback cs st args =
 cmdMode :: NetworkCommand String
 cmdMode cs st rest = modeCommand (Text.pack <$> words rest) cs st
 
-cmdNick :: NetworkCommand (String, ())
-cmdNick cs st (nick,_) =
+cmdNick :: NetworkCommand String
+cmdNick cs st nick =
   do sendMsg cs (ircNick (Text.pack nick))
      commandSuccess st
 
@@ -1674,8 +1679,8 @@ cmdPart channelId cs st rest =
 cmdSay :: ChannelCommand String
 cmdSay _ _ st rest = executeChat rest st
 
-cmdInvite :: ChannelCommand (String, ())
-cmdInvite channelId cs st (nick,_) =
+cmdInvite :: ChannelCommand String
+cmdInvite channelId cs st nick =
   do let freeTarget = has (csChannels . ix channelId . chanModes . ix 'g') cs
          cmd = ircInvite (Text.pack nick) channelId
      cs' <- if freeTarget
@@ -1713,8 +1718,8 @@ cmdUsers _ _ st _ = commandSuccess (changeSubfocus FocusUsers st)
 cmdChannelInfo :: ChannelCommand ()
 cmdChannelInfo _ _ st _ = commandSuccess (changeSubfocus FocusInfo st)
 
-cmdMasks :: ChannelCommand (String,())
-cmdMasks channel cs st (rest,_) =
+cmdMasks :: ChannelCommand String
+cmdMasks channel cs st rest =
   case rest of
     [mode] | mode `elem` view (csModeTypes . modesLists) cs ->
 
@@ -1766,19 +1771,19 @@ cmdKnock cs st (chan,message) =
   do sendMsg cs (ircKnock (Text.pack chan) (Text.pack message))
      commandSuccess st
 
-cmdJoin :: NetworkCommand (String, Maybe (String, ()))
+cmdJoin :: NetworkCommand (String, Maybe String)
 cmdJoin cs st (channels, mbKeys) =
   do let network = view csNetwork cs
      let channelId = mkId (Text.pack (takeWhile (/=',') channels))
-     sendMsg cs (ircJoin (Text.pack channels) (Text.pack . fst <$> mbKeys))
+     sendMsg cs (ircJoin (Text.pack channels) (Text.pack <$> mbKeys))
      commandSuccess
         $ changeFocus (ChannelFocus network channelId) st
 
 
 -- | @/query@ command. Takes a channel or nickname and switches
 -- focus to that target on the current network.
-cmdQuery :: ClientCommand (String, ())
-cmdQuery st (channel, _) =
+cmdQuery :: ClientCommand String
+cmdQuery st channel =
   case parseFocus (views clientFocus focusNetwork st) channel of
     Just focus -> commandSuccess (changeFocus focus st)
     Nothing    -> commandFailureMsg "No current network" st
@@ -1846,10 +1851,9 @@ cmdIgnore st rest =
 -- | Implementation of @/reload@
 --
 -- Attempt to reload the configuration file
-cmdReload :: ClientCommand (Maybe (String, ()))
-cmdReload st mbPathX =
-  do let mbPath = fst <$> mbPathX
-         path   = mbPath <|> view clientConfigPath st
+cmdReload :: ClientCommand (Maybe String)
+cmdReload st mbPath =
+  do let path   = mbPath <|> view clientConfigPath st
      res <- loadConfiguration path
      case res of
        Left e -> commandFailureMsg (describeProblem e) st
@@ -2107,14 +2111,14 @@ recordSuccess now ste m =
     } ste
 
 
-cmdUrl :: ClientCommand (Maybe (String, ()))
+cmdUrl :: ClientCommand (Maybe String)
 cmdUrl st mbArg =
   case view (clientConfig . configUrlOpener) st of
     Nothing -> commandFailureMsg "url-opener not configured" st
     Just opener ->
       case mbArg of
         Nothing -> doUrlOpen opener 0
-        Just (arg,_) ->
+        Just arg ->
           case readMaybe arg of
             Just n | n > 0 -> doUrlOpen opener (n-1)
             _ -> commandFailureMsg "bad url number" st
@@ -2147,7 +2151,7 @@ cmdGrep sensitive st str
         Left e -> commandFailureMsg (Text.pack e) st
         Right r -> commandSuccess (set clientRegex (Just r) st)
 
-cmdOper :: NetworkCommand (String, (String, ()))
-cmdOper cs st (user, (pass, ())) =
+cmdOper :: NetworkCommand (String, String)
+cmdOper cs st (user, pass) =
   do sendMsg cs (ircOper (Text.pack user) (Text.pack pass))
      commandSuccess st

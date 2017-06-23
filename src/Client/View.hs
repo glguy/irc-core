@@ -47,7 +47,7 @@ viewLines focus subfocus w !st =
     (_, FocusPalette) -> paletteViewLines pal
     (_, FocusDigraphs) -> digraphLines w st
     (_, FocusKeyMap) -> keyMapLines st
-    (_, FocusHelp mb) -> helpImageLines mb pal
+    (_, FocusHelp mb) -> helpImageLines st mb pal
     (_, FocusRtsStats) -> rtsStatsLines (view clientRtsStats st) pal
     _ -> chatMessageImages focus w st
   where

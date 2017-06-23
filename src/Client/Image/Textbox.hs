@@ -17,10 +17,10 @@ module Client.Image.Textbox
 
 import           Client.Configuration
 import           Client.Commands
-import           Client.Commands.Arguments
+import           Client.Commands.Arguments.Renderer
+import           Client.Commands.Arguments.Parser
 import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
-import           Client.Image.Arguments
 import           Client.Image.Message
 import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
@@ -110,13 +110,13 @@ renderContent st myNick nicks macros pal c = (txt, wholeImg)
   -- ["one","two"] "three" --> "two one three"
   txt = foldl (\acc x -> x ++ ' ' : acc) leftCur as
 
-  render = renderLine st pal myNick nicks macros
+  rndr = renderLine st pal myNick nicks macros
 
   wholeImg = mconcat
            $ intersperse (plainText "\n")
-           $ map (render False) as
-          ++ render True curTxt
-           : map (render False) bs
+           $ map (rndr False) as
+          ++ rndr True curTxt
+           : map (rndr False) bs
 
 
 -- | Version of 'wcwidth' that accounts for how control characters are
@@ -147,7 +147,7 @@ renderLine st pal myNick nicks macros focused ('/':xs) =
   char defAttr '/' <> string attr cmd <> continue rest
   where
     specAttr spec =
-      case parseArguments spec st rest of
+      case parse st spec rest of
         Nothing -> view palCommand      pal
         Just{}  -> view palCommandReady pal
 
@@ -157,11 +157,11 @@ renderLine st pal myNick nicks macros focused ('/':xs) =
       = case recognize (Text.pack cmd) allCommands of
           Exact (Right Command{cmdArgumentSpec = spec}) ->
             ( specAttr spec
-            , argumentsImage st pal spec focused
+            , render pal st spec
             )
           Exact (Left (MacroSpec spec)) ->
             ( specAttr spec
-            , argumentsImage st pal spec focused
+            , render pal st spec
             )
           Prefix _ ->
             ( view palCommandPrefix pal
