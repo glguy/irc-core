@@ -2,16 +2,18 @@
 
 module Client.Commands.Arguments.Renderer (render) where
 
-import Control.Lens
-import Client.Image.PackedImage
-import Client.Image.Palette
-import Client.Commands.Arguments.Spec
-import Control.Monad.Trans.State
-import Control.Applicative.Free
-import Data.Functor.Compose
-import Graphics.Vty.Attributes
-import Graphics.Vty (wcswidth)
-import Data.Semigroup ((<>))
+import           Client.Commands.Arguments.Spec
+import           Client.Image.MircFormatting
+import           Client.Image.PackedImage
+import           Client.Image.Palette
+import           Control.Applicative.Free
+import           Control.Lens
+import           Control.Monad.Trans.State
+import           Data.Functor.Compose
+import           Data.Semigroup ((<>))
+import qualified Data.Text as Text
+import           Graphics.Vty (wcswidth)
+import           Graphics.Vty.Attributes
 
 render ::
   Palette  {- ^ palette             -} ->
@@ -57,6 +59,8 @@ renderArg pal r placeholders spec = putState $
   let placeholder name
         | placeholders = return (" " <> string (view palCommandPlaceholder pal) name)
         | otherwise    = return mempty
+
+      draw = parseIrcText' True . Text.pack
   in
 
   case spec of
@@ -70,21 +74,21 @@ renderArg pal r placeholders spec = putState $
            rest <- case ext r tok of
                      Nothing      -> return mempty
                      Just subspec -> getState (renderArgs pal r placeholders subspec)
-           return (string defAttr (lead++tok) <> rest)
+           return (draw (lead++tok) <> rest)
 
     Argument TokenArgument name _ ->
       do (lead,tok) <- state token
          if null tok then
            placeholder name
          else
-           return (string defAttr (lead++tok))
+           return (draw (lead++tok))
 
     Argument RemainingArgument name _ ->
       do rest <- state (\x -> (x,""))
          if all (' '==) rest then
            placeholder name
          else
-           return (string defAttr rest)
+           return (draw rest)
 
 token :: String -> ((String, String), String)
 token xs =
