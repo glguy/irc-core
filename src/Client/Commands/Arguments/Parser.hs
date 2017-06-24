@@ -43,7 +43,9 @@ remaining :: Parser String
 remaining =
   do xs <- get
      put ""
-     return xs
+     return $! case xs of
+                 ' ':xs' -> xs'
+                 _       -> xs
 
 token :: Parser String
 token =

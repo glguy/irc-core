@@ -4,6 +4,7 @@ module Client.Commands.Arguments.Spec where
 
 import Control.Applicative
 import Control.Applicative.Free
+import Data.Maybe (fromMaybe)
 import Text.Read (readMaybe)
 
 type Args r = Ap (Arg r)
@@ -30,11 +31,6 @@ extensionArg name parser = liftAp (Extension name parser)
 ------------------------------------------------------------------------
 -- Example
 
-modeArgs :: Args r [String]
-modeArgs = extensionArg "mode" $ \_ str ->
-        if all (=='x') str then Just ((str:) <$> tokenList (length str))
-                           else Nothing
-
 simpleToken :: String -> Args r String
 simpleToken name = tokenArg name (\_ -> Just)
 
@@ -58,10 +54,14 @@ optionalTest =
               (optionalArg numberArg)
               (simpleToken "second")
 
-tokenList :: Int -> Args r [String]
-tokenList 0 = pure []
-tokenList n = liftA2 (:) (tokenArg "param" (\_ -> Just))
-                         (tokenList (n-1))
+tokenList ::
+  [String] {- ^ required names -} ->
+  [String] {- ^ optional names -} ->
+  Args r [String]
+tokenList req opt = foldr addReq (foldr addOpt (pure []) opt) req
+  where
+    addReq name      = liftA2 (:) (simpleToken name)
+    addOpt name rest = fromMaybe [] <$> optionalArg (addReq name rest)
 
 ------------------------------------------------------------------------
 -- Docs

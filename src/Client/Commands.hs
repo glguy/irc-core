@@ -51,9 +51,10 @@ import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
+import           Data.Maybe (fromMaybe)
+import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Monoid ((<>))
 import           Data.Time
 import           Irc.Commands
 import           Irc.Identifier
@@ -857,7 +858,7 @@ commandsList =
       (pure "quote")
       (remainingArg "raw IRC command")
       "Send a raw IRC command.\n"
-    $ NetworkCommand cmdQuote  simpleNetworkTab
+    $ NetworkCommand cmdQuote simpleNetworkTab
 
   ------------------------------------------------------------------------
   ] , CommandSection "IRC queries"
@@ -947,7 +948,7 @@ commandsList =
 
   [ Command
       (pure "mode")
-      (remainingArg "modes and parameters")
+      (fromMaybe [] <$> optionalArg (extensionArg "modes" modeParamArgs))
       "Sets IRC modes.\n\
       \\n\
       \Examples:\n\
@@ -960,7 +961,7 @@ commandsList =
       \When executed in a channel window, mode changes are applied to the channel.\n\
       \\n\
       \This command has parameter sensitive tab-completion.\n"
-    $ NetworkCommand cmdMode   tabMode
+    $ NetworkCommand cmdMode tabMode
 
   , Command
       (pure "masks")
@@ -1176,7 +1177,7 @@ cmdClear st args =
 -- sends to the current network.
 cmdQuote :: NetworkCommand String
 cmdQuote cs st rest =
-  case parseRawIrcMsg (Text.pack rest) of
+  case parseRawIrcMsg (Text.pack (dropWhile (' '==) rest)) of
     Nothing  -> commandFailureMsg "failed to parse raw IRC command" st
     Just raw ->
       do sendMsg cs raw
@@ -1660,8 +1661,8 @@ cmdZncPlayback cs st args =
       do sendMsg cs (ircZnc ["*playback", "play", "*", Text.pack start])
          commandSuccess st
 
-cmdMode :: NetworkCommand String
-cmdMode cs st rest = modeCommand (Text.pack <$> words rest) cs st
+cmdMode :: NetworkCommand [String]
+cmdMode cs st xs = modeCommand (Text.pack <$> xs) cs st
 
 cmdNick :: NetworkCommand String
 cmdNick cs st nick =
@@ -1877,6 +1878,45 @@ cmdReload st mbPath =
 -- /NOT IMPLEMENTED/
 tabReload :: Bool {- ^ reversed -} -> ClientCommand String
 tabReload _ st _ = commandFailure st
+
+
+modeParamArgs :: ClientState -> String -> Maybe (Args ClientState [String])
+modeParamArgs st str =
+  case view clientFocus st of
+    Unfocused      -> Nothing
+    NetworkFocus _ -> Just (pure [str])
+    ChannelFocus net _ ->
+
+         -- determine current mode types
+      do cs <- preview (clientConnection net) st
+         let types = view csModeTypes cs
+
+         -- parse the list of modes being set
+         flags <- splitModes types (Text.pack str) []
+
+         -- generate the argument specification
+         let (req,opt) = foldr (countFlags types) ([],[]) flags
+         return ((str:) <$> tokenList req (map (++"?") opt))
+
+
+-- | This function computes the list of required and optional parameters
+-- corresponding to the flags that have been entered.
+countFlags ::
+  ModeTypes           {- ^ network's mode behaviors              -} ->
+  (Bool, Char, Text)  {- ^ polarity mode-letter unused-parameter -} ->
+  ([String],[String]) {- ^ required-names optional-names         -} ->
+  ([String],[String]) {- ^ required-names optional-names         -}
+countFlags types (pol, flag, _)
+  |        flag `elem` view modesLists       types = addOpt
+  | pol && flag `elem` view modesSetArg      types = addReq
+  |        flag `elem` view modesAlwaysArg   types = addReq
+  | elemOf (modesPrefixModes . folded . _1) flag types = addReq
+  | otherwise                                      = id
+  where
+    addReq (req,opt) = ((flag:" param"):req,opt)
+    addOpt ([] ,opt) = ([], (flag:" param"):opt)
+    addOpt (req,opt) = ((flag:" param"):req,opt)
+
 
 modeCommand ::
   [Text] {- mode parameters -} ->
