@@ -14,10 +14,11 @@ module Client.View.Help
   ( helpImageLines
   ) where
 
+import           Client.State (ClientState)
 import           Client.Commands
-import           Client.Commands.Arguments
+import           Client.Commands.Arguments.Spec
+import           Client.Commands.Arguments.Renderer
 import           Client.Commands.Recognizer
-import           Client.Image.Arguments
 import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Client.Image.Palette
@@ -34,20 +35,22 @@ import           Graphics.Vty.Attributes
 -- or when given a command name generate the detailed help text
 -- for that command.
 helpImageLines ::
-  Maybe Text {- ^ optional command name -} ->
-  Palette    {- ^ palette               -} ->
-  [Image']   {- ^ help lines            -}
-helpImageLines mbCmd pal =
+  ClientState {- ^ client state          -} ->
+  Maybe Text  {- ^ optional command name -} ->
+  Palette     {- ^ palette               -} ->
+  [Image']    {- ^ help lines            -}
+helpImageLines st mbCmd pal =
   case mbCmd of
-    Nothing  -> listAllCommands pal
-    Just cmd -> commandHelpLines cmd pal
+    Nothing  -> listAllCommands st pal
+    Just cmd -> commandHelpLines st cmd pal
 
 -- | Generate detailed help lines for the command with the given name.
 commandHelpLines ::
+  ClientState {- ^ client state -} ->
   Text        {- ^ command name -} ->
   Palette     {- ^ palette      -} ->
   [Image']    {- ^ lines        -}
-commandHelpLines cmdName pal =
+commandHelpLines st cmdName pal =
   case recognize cmdName commands of
     Invalid -> [string (view palError pal) "Unknown command, try /help"]
     Prefix sfxs ->
@@ -56,7 +59,7 @@ commandHelpLines cmdName pal =
       suggestions = Text.unpack $ Text.intercalate " " ((cmdName <>) <$> sfxs)
     Exact Command{cmdNames = names, cmdImplementation = impl,
                   cmdArgumentSpec = spec, cmdDocumentation = doc} ->
-      reverse $ heading "Syntax: " <> commandSummary pal (pure cmdName) spec
+      reverse $ heading "Syntax: " <> commandSummary st pal (pure cmdName) spec
               : emptyLine
               : aliasLines
              ++ explainContext impl
@@ -89,20 +92,22 @@ explainContext impl =
 
 -- | Generate the lines for the help window showing all commands.
 listAllCommands ::
-  Palette  {- ^ palette    -} ->
-  [Image'] {- ^ help lines -}
-listAllCommands pal
+  ClientState {- ^ client state    -} ->
+  Palette     {- ^ palette         -} ->
+  [Image']    {- ^ help lines      -}
+listAllCommands st pal
   = intercalate [emptyLine]
   $ map reverse
-  $ listCommandSection pal <$> commandsList
+  $ listCommandSection st pal <$> commandsList
 
 listCommandSection ::
+  ClientState    {- ^ client state    -} ->
   Palette        {- ^ palette         -} ->
   CommandSection {- ^ command section -} ->
   [Image']       {- ^ help lines      -}
-listCommandSection pal sec
+listCommandSection st pal sec
   = text' (withStyle defAttr bold) (cmdSectionName sec)
-  : [ commandSummary pal names spec
+  : [ commandSummary st pal names spec
     | -- pattern needed due to existential quantification
       Command { cmdNames        = names
               , cmdArgumentSpec = spec
@@ -112,14 +117,15 @@ listCommandSection pal sec
 -- | Generate the help line for the given command and its
 -- specification for use in the list of commands.
 commandSummary ::
+  r                {- ^ client state             -} ->
   Palette          {- ^ palette                  -} ->
   NonEmpty Text    {- ^ command name and aliases -} ->
-  ArgumentSpec r a {- ^ argument specification   -} ->
+  Args r a         {- ^ argument specification   -} ->
   Image'           {- ^ summary help line        -}
-commandSummary pal (cmd :| _) args  =
+commandSummary st pal (cmd :| _) args  =
   char defAttr '/' <>
   text' (view palCommandReady pal) cmd <>
-  argumentsImage () pal' (forgetFormats args) {-draw-placeholders=-}True ""
+  render pal' st True args ""
 
   where
     pal' = set palCommandPlaceholder defAttr pal
