@@ -1,5 +1,14 @@
 {-# Language OverloadedStrings, GADTs #-}
 
+{-|
+Module      : Client.Commands.Arguments.Renderer
+Description : Interpretation of argument specification as a renderer
+Copyright   : (c) Eric Mertens, 2017
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+-}
+
 module Client.Commands.Arguments.Renderer (render) where
 
 import           Client.Commands.Arguments.Spec

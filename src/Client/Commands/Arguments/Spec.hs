@@ -1,6 +1,26 @@
 {-# Language KindSignatures, GADTs #-}
 
-module Client.Commands.Arguments.Spec where
+{-|
+Module      : Client.Commands.Arguments.Spec
+Description : Argument specifications used within client commands
+Copyright   : (c) Eric Mertens, 2017
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+-}
+
+module Client.Commands.Arguments.Spec
+  ( Args
+  , simpleToken
+  , remainingArg
+  , optionalArg
+  , tokenList
+  , numberArg
+  , extensionArg
+
+  , ArgumentShape(..)
+  , Arg(..)
+  ) where
 
 import Control.Applicative
 import Control.Applicative.Free

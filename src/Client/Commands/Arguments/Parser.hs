@@ -1,5 +1,14 @@
 {-# Language GADTs #-}
 
+{-|
+Module      : Client.Commands.Arguments.Parser
+Description : Interpret argument specifications as a parser
+Copyright   : (c) Eric Mertens, 2017
+License     : ISC
+Maintainer  : emertens@gmail.com
+
+-}
+
 module Client.Commands.Arguments.Parser (parse) where
 
 import Client.Commands.Arguments.Spec
