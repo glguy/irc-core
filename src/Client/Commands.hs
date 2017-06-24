@@ -65,7 +65,6 @@ import           Irc.Modes
 import           LensUtils
 import           RtsStats (getStats)
 import           System.Process
-import           Text.Read
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
 
@@ -384,7 +383,7 @@ commandsList =
 
   , Command
       (pure "url")
-      (optionalArg (simpleToken "number"))
+      (optionalArg numberArg)
       "Open a URL seen in chat.\n\
       \\n\
       \The URL is opened using the executable configured under \^Burl-opener\^B.\n\
@@ -2151,17 +2150,11 @@ recordSuccess now ste m =
     } ste
 
 
-cmdUrl :: ClientCommand (Maybe String)
-cmdUrl st mbArg =
+cmdUrl :: ClientCommand (Maybe Int)
+cmdUrl st arg =
   case view (clientConfig . configUrlOpener) st of
-    Nothing -> commandFailureMsg "url-opener not configured" st
-    Just opener ->
-      case mbArg of
-        Nothing -> doUrlOpen opener 0
-        Just arg ->
-          case readMaybe arg of
-            Just n | n > 0 -> doUrlOpen opener (n-1)
-            _ -> commandFailureMsg "bad url number" st
+    Nothing     -> commandFailureMsg "url-opener not configured" st
+    Just opener -> doUrlOpen opener (maybe 0 (subtract 1) arg)
   where
     focus = view clientFocus st
 
