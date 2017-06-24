@@ -157,11 +157,11 @@ renderLine st pal myNick nicks macros focused ('/':xs) =
       = case recognize (Text.pack cmd) allCommands of
           Exact (Right Command{cmdArgumentSpec = spec}) ->
             ( specAttr spec
-            , render pal st spec
+            , render pal st focused spec
             )
           Exact (Left (MacroSpec spec)) ->
             ( specAttr spec
-            , render pal st spec
+            , render pal st focused spec
             )
           Prefix _ ->
             ( view palCommandPrefix pal

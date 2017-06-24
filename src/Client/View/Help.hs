@@ -125,7 +125,7 @@ commandSummary ::
 commandSummary st pal (cmd :| _) args  =
   char defAttr '/' <>
   text' (view palCommandReady pal) cmd <>
-  render pal' st args ""
+  render pal' st True args ""
 
   where
     pal' = set palCommandPlaceholder defAttr pal

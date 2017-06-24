@@ -13,18 +13,31 @@ import Graphics.Vty.Attributes
 import Graphics.Vty (wcswidth)
 import Data.Semigroup ((<>))
 
-render :: Palette -> r -> Args r a -> String -> Image'
-render pal r spec str = img2
+render ::
+  Palette  {- ^ palette             -} ->
+  r        {- ^ environment         -} ->
+  Bool     {- ^ render placeholders -} ->
+  Args r a {- ^ specification       -} ->
+  String   {- ^ user input          -} ->
+  Image'
+render pal env placeholders spec str = extend (addExcess img)
   where
-    (img, excess) = runState (getState (renderArgs pal r spec)) str
-    img1 = img <> if any (' '/=) excess then string defAttr excess else mempty
-    minLen = wcswidth str
-    img2 | imageWidth img1 < minLen = resizeImage minLen img1
-         | otherwise                = img1
+    (img, excess) = flip runState str . getState
+                  $ renderArgs pal env placeholders spec
+
+    addExcess
+      | any (' '/=) excess = (<> string defAttr excess)
+      | otherwise          = id
+
+    extend i
+      | imageWidth i < minLen = resizeImage minLen i
+      | otherwise             = i
+      where minLen = wcswidth str
 
 
-renderArgs :: Palette -> r -> Args r a -> Renderer a
-renderArgs pal r = runAp (renderArg pal r)
+
+renderArgs :: Palette -> r -> Bool -> Args r a -> Renderer a
+renderArgs pal r placeholders = runAp (renderArg pal r placeholders)
 
 ------------------------------------------------------------------------
 
@@ -38,13 +51,16 @@ putState = Compose . fmap Const
 
 ------------------------------------------------------------------------
 
-renderArg :: Palette -> r -> Arg r a -> Renderer b
-renderArg pal r spec = putState $
+renderArg :: Palette -> r -> Bool -> Arg r a -> Renderer b
+renderArg pal r placeholders spec = putState $
 
-  let placeholder name = return (" " <> string (view palCommandPlaceholder pal) name) in
+  let placeholder name
+        | placeholders = return (" " <> string (view palCommandPlaceholder pal) name)
+        | otherwise    = return mempty
+  in
 
   case spec of
-    Optional subspec -> getState (renderArgs pal r subspec)
+    Optional subspec -> getState (renderArgs pal r placeholders subspec)
 
     Extension name ext ->
       do (lead,tok) <- state token
@@ -53,7 +69,7 @@ renderArg pal r spec = putState $
          else do
            rest <- case ext r tok of
                      Nothing      -> return mempty
-                     Just subspec -> getState (renderArgs pal r subspec)
+                     Just subspec -> getState (renderArgs pal r placeholders subspec)
            return (string defAttr (lead++tok) <> rest)
 
     Argument TokenArgument name _ ->
