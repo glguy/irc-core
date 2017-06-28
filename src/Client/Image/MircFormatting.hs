@@ -15,6 +15,7 @@ module Client.Image.MircFormatting
   , parseIrcText'
   , plainText
   , controlImage
+  , mircColor
   ) where
 
 import           Client.Image.PackedImage as I

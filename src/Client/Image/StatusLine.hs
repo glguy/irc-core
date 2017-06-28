@@ -241,14 +241,16 @@ makeLines ::
 makeLines _ [] = Vty.emptyImage
 makeLines w (x:xs) = go x xs
   where
-
     go acc (y:ys)
       | let acc' = acc Vty.<|> y
       , Vty.imageWidth acc' <= w
       = go acc' ys
 
     go acc ys = makeLines w ys
-        Vty.<-> acc Vty.<|> Vty.charFill defAttr bar (max 0 (w - Vty.imageWidth acc)) 1
+        Vty.<-> Vty.cropRight w acc
+        Vty.<|> Vty.charFill defAttr bar fillsize 1
+      where
+        fillsize = max 0 (w - Vty.imageWidth acc)
 
 
 myNickImage :: ClientState -> Vty.Image
