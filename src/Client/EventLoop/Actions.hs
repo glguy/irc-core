@@ -244,6 +244,7 @@ parseKey = getCompose . go
     liftMaybe mb = Compose ((,)[] <$> mb)
     go str =
       case str of
+        "Space"     -> pure (KChar ' ')
         "Tab"       -> pure (KChar '\t')
         "BackTab"   -> pure KBackTab
         "Enter"     -> pure KEnter
@@ -276,6 +277,7 @@ prettyModifier MShift = showString "S-"
 prettyModifier MAlt   = showString "A-"
 
 prettyKey :: Key -> String
+prettyKey (KChar ' ') = "Space"
 prettyKey (KChar '\t') = "Tab"
 prettyKey (KChar c) = showLitChar c "" -- escapes anything non-ascii
 prettyKey (KFun n)  = 'F' : show n
