@@ -35,8 +35,9 @@ import qualified Graphics.Vty.Image as Vty
 import           Irc.Identifier (Identifier, idText)
 import           Numeric
 
-bar :: Char
-bar = '━'
+bar :: Image'
+bar = char (withStyle defAttr bold) '─'
+
 
 -- | Renders the status line between messages and the textbox.
 statusLineImage ::
@@ -86,7 +87,7 @@ minorStatusLineImage ::
   ClientState {- ^ client state -} ->
   Image'
 minorStatusLineImage focus w showHideMeta st =
-  content <> string defAttr (replicate fillSize bar)
+  content <> mconcat (replicate fillSize bar)
   where
     content = focusImage focus st <>
               if showHideMeta then nometaImage focus st else mempty
@@ -146,8 +147,7 @@ latencyImage st =
 -- | Wrap some text in parentheses to make it suitable for inclusion in the
 -- status line.
 infoBubble :: Image' -> Image'
-infoBubble img =
-  string defAttr (bar:"(") <> img <> ")"
+infoBubble img = bar <> "(" <> img <> ")"
 
 
 -- | Indicate that the client is in the /detailed/ view.
@@ -177,7 +177,8 @@ nometaImage focus st
 activitySummary :: ClientState -> Vty.Image
 activitySummary st
   | null indicators = Vty.emptyImage
-  | otherwise       = Vty.string defAttr (bar:"[") Vty.<|>
+  | otherwise       = unpackImage bar Vty.<|>
+                      Vty.string defAttr "[" Vty.<|>
                       Vty.horizCat indicators Vty.<|>
                       Vty.string defAttr "]"
   where
@@ -209,13 +210,14 @@ activityBarImages st
     baraux i (focus,w)
       | n == 0 = Nothing -- todo: make configurable
       | otherwise = Just
-                  $ Vty.string defAttr (bar:"[") Vty.<|>
+                  $ unpackImage bar Vty.<|>
+                    Vty.char defAttr '[' Vty.<|>
                     Vty.char (view palWindowName pal) i Vty.<|>
                     Vty.char defAttr ':' Vty.<|>
                     Vty.text' (view palLabel pal) focusText Vty.<|>
                     Vty.char defAttr ':' Vty.<|>
                     Vty.string attr (show n) Vty.<|>
-                    Vty.string defAttr "]"
+                    Vty.char defAttr ']'
       where
         n   = view winUnread w
         pal = clientPalette st
@@ -248,7 +250,7 @@ makeLines w (x:xs) = go x xs
 
     go acc ys = makeLines w ys
         Vty.<-> Vty.cropRight w acc
-        Vty.<|> Vty.charFill defAttr bar fillsize 1
+        Vty.<|> unpackImage (mconcat (replicate fillsize bar))
       where
         fillsize = max 0 (w - Vty.imageWidth acc)
 
