@@ -7,6 +7,20 @@
   for the home directory works for resolving paths relative
   to $HOME. Absolute paths are unmodified.
 
+* Support network:#channel in /query
+
+* Add an optional OTR extension. See the otr-extension/ directory
+  and the wiki for more information.
+
+* Extended the C API with `glirc_inject_chat` and `chat_entrypoint`
+
+* Smarter WYSIWYG highlighting in text edit box. Nicknames are
+  highlighted and `/mode` command parameters get correct placeholders.
+
+* Added more information to `/palette`
+
+* Added "human readable" labels to `/rtsstats`
+
 ## 2.22
 
 * Added dynanic indentation of wrapped lines. Lines now
