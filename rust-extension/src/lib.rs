@@ -25,7 +25,7 @@ impl glirc {
 
     fn write_message(&self, code: message_code, msg: &str) {
         unsafe {
-            glirc_print(mem::transmute(self), code, export_string(msg));
+            glirc_print(mem::transmute(self), code, msg.as_ptr() as *const i8, msg.len());
         }
     }
 
@@ -70,7 +70,9 @@ impl glirc {
     #[allow(dead_code)]
     fn my_nick(&self, net: &str) -> Option<String> {
         unsafe {
-            let ptr = glirc_my_nick(mem::transmute(self), export_string(net));
+            let ptr = glirc_my_nick(mem::transmute(self),
+                                    net.as_ptr() as *const i8,
+                                    net.len());
             if ptr == ptr::null_mut() {
                 None
             } else {
@@ -246,5 +248,6 @@ pub static mut extension: glirc_extension = glirc_extension {
     start: Some(start_entry),
     stop: Some(stop_entry),
     process_message: None,
+    process_chat: None,
     process_command: Some(process_command_entry),
 };
