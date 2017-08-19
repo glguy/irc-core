@@ -11,13 +11,11 @@ This module provides an example use of irc-core via an echo bot
 module Main (main) where
 
 import           Control.Exception
-import qualified Data.ByteString as B
-import           Data.Foldable (for_)
 import           Data.Traversable (for)
 import qualified Data.Text as Text
 import           Irc.Codes
-import           Irc.Commands   (ircUser, ircNick, ircPong, ircNotice, ircQuit)
-import           Irc.Identifier (idText)
+import           Irc.Commands
+import           Irc.Identifier (Identifier, idText)
 import           Irc.Message    (IrcMsg(Ping, Privmsg, Reply), cookIrcMsg)
 import           Irc.RateLimit  (RateLimit, newRateLimit, tickRateLimit)
 import           Irc.RawIrcMsg  (RawIrcMsg, parseRawIrcMsg, renderRawIrcMsg, asUtf8)
@@ -25,6 +23,24 @@ import           Irc.UserInfo   (userNick)
 import           Hookup
 import           System.Environment
 import           System.Random
+
+import           Data.HashMap.Strict (HashMap)
+import           Data.HashSet (HashSet)
+import           Data.IntMap (IntMap)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashSet as HashSet
+import qualified Data.IntMap as IntMap
+
+import           Data.Text (Text)
+import qualified Data.Text as Text
+
+import           Data.Machine
+import           Control.Monad.IO.Class
+import           Control.Arrow (Kleisli(..))
+import           Control.Monad.Trans.State
+import           Control.Monad.Trans.Class
+import           Data.Coerce
+import           Data.Foldable
 
 data Config = Config
   { configNick :: String
@@ -34,14 +50,13 @@ data Config = Config
 
 main :: IO ()
 main =
-  do config <- getConfig
+  do config <- loadConfig
      withConnection config $ \h ->
-        do sendHello config h
-           eventLoop config h
+        eventLoop config h
 
 -- | Get the hostname from the command-line arguments
-getConfig :: IO Config
-getConfig =
+loadConfig :: IO Config
+loadConfig =
   do args <- getArgs
      rate <- newRateLimit 2 8 -- safe defaults
      case args of
@@ -52,13 +67,8 @@ getConfig =
 mkParams :: Config -> ConnectionParams
 mkParams config = ConnectionParams
   { cpHost = configHost config
-  , cpPort = 6697 -- IRC over TLS
-  , cpTls = Just TlsParams
-               { tpClientCertificate = Nothing
-               , tpClientPrivateKey  = Nothing
-               , tpServerCertificate = Nothing
-               , tpCipherSuite       = "HIGH"
-               , tpInsecure          = False }
+  , cpPort = 6667
+  , cpTls = Nothing
   , cpSocks = Nothing
   }
 
@@ -91,35 +101,68 @@ sendMsg c h msg =
      send h (renderRawIrcMsg msg)
 
 -- | Send initial @USER@ and @NICK@ messages
-sendHello :: Config -> Connection -> IO ()
-sendHello config h =
-  do let botNick = Text.pack (configNick config)
+startup :: IrcPlan ()
+startup =
+  do config <- getConfig
+     let botNick = Text.pack (configNick config)
          botUser = botNick
          botReal = botNick
          mode_w  = False
          mode_i  = True
-     sendMsg config h (ircUser botUser mode_w mode_i botReal)
-     sendMsg config h (ircNick botNick)
+     yield (ircUser botUser mode_w mode_i botReal)
+     yield (ircNick botNick)
 
 eventLoop :: Config -> Connection -> IO ()
 eventLoop config h =
-  do mb <- readIrcLine h
-     for_ mb $ \msg ->
-       do print msg
-          case msg of
-            -- respond to pings
-            Ping xs -> sendMsg config h (ircPong xs)
+  flip evalStateT (BotState config mempty defaultBehaviors) $
+  runT_ $
+     starve (construct startup)
+            (construct (exhaust (liftIO (readIrcLine h))) ~> repeatedly logic) ~>
+     autoT (Kleisli (liftIO . sendMsg config h))
 
-            -- quit on request or echo message back as notices
-            Privmsg who _me txt
-              | txt == "!quit" -> sendMsg config h (ircQuit "Quit requested")
-              | otherwise      -> sendMsg config h (ircNotice (idText (userNick who)) txt)
+defaultBehaviors :: IntMap ([Text] -> IrcPlan ())
+defaultBehaviors = IntMap.fromList
+  $ map (\(ReplyCode x,y) -> (fromIntegral x, y))
+  [ (RPL_WELCOME, \_ -> yield (ircJoin "#glguy" Nothing) )
+  , (ERR_NICKNAMEINUSE, \_ ->
+         do n <- liftIO (randomRIO (1,1000::Int))
+            config <- getConfig
+            let newNick = Text.pack (configNick config ++ show n)
+            yield (ircNick newNick))
+  , (RPL_NAMREPLY, nameReply [])
+  ]
 
-            Reply ERR_NICKNAMEINUSE _ ->
-              do n <- randomRIO (1,1000::Int)
-                 let newNick = Text.pack (configNick config ++ show n)
-                 sendMsg config h (ircNick newNick)
+nameReply :: [Identifier] -> [Text] -> IrcPlan ()
+nameReply acc args =
+  case args of
+    [_me,chan,_,names] -> Text.words names
+    _ -> liftIO (putStrLn ("Unsupported name reply: " ++ show args))
 
-            _ -> return ()
+type IrcPlan = PlanT (Is IrcMsg) RawIrcMsg (StateT BotState IO)
 
-          eventLoop config h
+data BotState = BotState
+  { bsConfig :: Config
+  , bsChannels :: HashMap Identifier (HashSet Identifier)
+  , bsBehavior :: IntMap ([Text] -> IrcPlan ())
+  }
+
+getConfig :: IrcPlan Config
+getConfig = lift (gets bsConfig)
+
+logic :: IrcPlan ()
+logic =
+  do msg <- await
+     case msg of
+       -- respond to pings
+       Ping xs -> yield (ircPong xs)
+
+       -- quit on request or echo message back as notices
+       Privmsg who _me txt
+         | txt == "!quit" -> yield (ircQuit "Quit requested")
+         | otherwise      -> yield (ircNotice (idText (userNick who)) txt)
+
+       Reply (ReplyCode code) args ->
+         do mb <- lift (gets (IntMap.lookup (fromIntegral code) . bsBehavior))
+            for_ mb $ \k -> k args
+
+       _ -> liftIO (print msg)
