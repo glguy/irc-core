@@ -61,5 +61,5 @@ token =
   do xs <- get
      let (t, xs') = break (' '==) (dropWhile (' '==) xs)
      guard (not (null t))
-     put (drop 1 xs')
+     put xs'
      return t

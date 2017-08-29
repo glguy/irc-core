@@ -1,5 +1,10 @@
 # Revision history for glirc2
 
+## 2.24
+
+* `/query` now takes a message parameter and tab-completes
+  like `/msg`.
+
 ## 2.23
 
 * CONFIGURATION FILE CHANGE: Relative paths are now resolved

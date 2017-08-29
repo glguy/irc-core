@@ -483,7 +483,35 @@ commandsList =
     $ ClientCommand cmdFocus tabFocus
 
   , Command
-      ("query" :| ["c", "channel"])
+      ("query" :| ["q"])
+      (liftA2 (,) (simpleToken "target") (remainingArg "message"))
+      "\^BParameters:\^B\n\
+      \\n\
+      \    target: Focus name\n\
+      \    message: Optional message\n\
+      \\n\
+      \\^BDescription:\^B\n\
+      \\n\
+      \    This command switches the client focus to the given\n\
+      \    target and optionally sends a message to that target.\n\
+      \\n\
+      \    Channel: \^_#channel\^_\n\
+      \    Channel: \^_network\^_:\^_#channel\^_\n\
+      \    User:    \^_nick\^_\n\
+      \    User:    \^_network\^_:\^_nick\^_\n\
+      \\n\
+      \\^BExamples:\^B\n\
+      \\n\
+      \    /q fn:#haskell\n\
+      \    /q #haskell\n\
+      \    /q lambdabot @messages\n\
+      \    /q irc_friend How are you?\n\
+      \\n\
+      \\^BSee also:\^B msg channel focus\n"
+    $ ClientCommand cmdQuery simpleClientTab
+
+  , Command
+      ("c" :| ["channel"])
       (simpleToken "focus")
       "\^BParameters:\^B\n\
       \\n\
@@ -510,7 +538,7 @@ commandsList =
       \    /c *:\n\
       \\n\
       \\^BSee also:\^B focus\n"
-    $ ClientCommand cmdQuery tabQuery
+    $ ClientCommand cmdChannel tabChannel
 
   , Command
       (pure "clear")
@@ -1779,20 +1807,43 @@ cmdJoin cs st (channels, mbKeys) =
      commandSuccess
         $ changeFocus (ChannelFocus network channelId) st
 
-
 -- | @/query@ command. Takes a channel or nickname and switches
 -- focus to that target on the current network.
-cmdQuery :: ClientCommand String
-cmdQuery st channel =
+cmdQuery :: ClientCommand (String, String)
+cmdQuery st (target, msg) =
+  case parseFocus (views clientFocus focusNetwork st) target of
+    Just (ChannelFocus net tgt)
+
+      | null msg -> commandSuccess st'
+
+      | Just cs <- preview (clientConnection net) st ->
+           do let tgtTxt = idText tgt
+                  msgTxt = Text.pack msg
+              sendMsg cs (ircPrivmsg tgtTxt msgTxt)
+              chatCommand
+                 (\src tgt1 -> Privmsg src tgt1 msgTxt)
+                 tgtTxt cs st'
+      where
+       firstTgt = mkId (Text.takeWhile (','/=) (idText tgt))
+       st' = changeFocus (ChannelFocus net firstTgt) st
+
+    _ -> commandFailureMsg "Bad target" st
+
+
+-- | @/channel@ command. Takes a channel or nickname and switches
+-- focus to that target on the current network.
+cmdChannel :: ClientCommand String
+cmdChannel st channel =
   case parseFocus (views clientFocus focusNetwork st) channel of
     Just focus -> commandSuccess (changeFocus focus st)
     Nothing    -> commandFailureMsg "No current network" st
 
--- | Tab completion for @/query@
-tabQuery ::
+-- | Tab completion for @/channel@. Tab completion uses pre-existing
+-- windows.
+tabChannel ::
   Bool {- ^ reversed order -} ->
   ClientCommand String
-tabQuery isReversed st _ =
+tabChannel isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
     completions = currentNet <> allWindows
