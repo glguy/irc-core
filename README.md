@@ -16,8 +16,7 @@ glirc uses recent versions of packages, make sure you package databases are
 up-to-date:
 
 ```
-$ cabal update # if you're using cabal
-$ stack update # if you're using stack
+$ cabal update
 ```
 
 To install the latest version from Hackage using cabal-install:
@@ -32,16 +31,6 @@ Building with cabal-install from source checkout
 $ cabal install --dep
 $ cabal build
 ```
-
-Building with stack
-
-```
-$ stack init --resolver=lts-8 --solver
-$ stack build
-```
-
-Note that if you're using a *nightly* resolver that you'll need to work around a
-bug in stack by manually installing `alex` and `happy`.
 
 Client Features
 ===============
