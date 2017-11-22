@@ -14,6 +14,7 @@ module Hookup
   ConnectionParams(..),
   SocksParams(..),
   TlsParams(..),
+  defaultFamily,
 
   -- * Connections
   Connection,
@@ -97,6 +98,10 @@ instance Exception ConnectionFailure where
       intercalate ", " (map displayException xs)
   displayException (HostnameResolutionFailure x) =
     "hostname resolution failed: " ++ displayException x
+
+-- | Default 'Family' value is unspecified and allows both INET and INET6.
+defaultFamily :: Socket.Family
+defaultFamily = Socket.AF_UNSPEC
 
 ------------------------------------------------------------------------
 -- Opening sockets

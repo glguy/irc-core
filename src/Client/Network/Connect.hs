@@ -22,7 +22,7 @@ import           Client.Configuration.ServerSettings
 import           Control.Applicative
 import           Control.Exception  (bracket)
 import           Control.Lens
-import           Network.Socket     (PortNumber, Family(AF_UNSPEC))
+import           Network.Socket     (PortNumber)
 import           Hookup
 
 buildConnectionParams :: ServerSettings -> ConnectionParams
@@ -35,7 +35,7 @@ buildConnectionParams args =
 
       family =
         case view ssProtocolFamily args of
-          Nothing -> AF_UNSPEC
+          Nothing -> defaultFamily
           Just pf -> pf
 
       useSecure =

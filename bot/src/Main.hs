@@ -60,6 +60,7 @@ mkParams config = ConnectionParams
                , tpCipherSuite       = "HIGH"
                , tpInsecure          = False }
   , cpSocks = Nothing
+  , cpFamily = defaultFamily
   }
 
 -- | Open a connection which will stay open for duration of executing

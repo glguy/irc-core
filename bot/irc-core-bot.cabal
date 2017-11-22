@@ -17,7 +17,7 @@ executable irc-core-bot
   main-is:             Main.hs
   build-depends:       base       >=4.9  && <4.11,
                        bytestring >=0.10 && <0.11,
-                       hookup     >=0.1  && <0.2,
+                       hookup     >=0.2  && <0.3,
                        irc-core   >=2.3  && <2.4,
                        random     >=1.1  && <1.2,
                        text       >=1.2  && <1.3,
