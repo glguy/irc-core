@@ -34,7 +34,7 @@ import qualified Data.ByteString as B
 import           Data.Foldable
 import           Data.List (intercalate)
 import           Network (PortID(..))
-import           Network.Socket (Socket, AddrInfo, PortNumber, HostName)
+import           Network.Socket (Socket, AddrInfo, PortNumber, HostName, Family)
 import qualified Network.Socket as Socket
 import qualified Network.Socket.ByteString as SocketB
 import           Network.Socks5
@@ -50,7 +50,8 @@ import           Hookup.OpenSSL (installVerification)
 
 -- | Parameters for 'connect'.
 data ConnectionParams = ConnectionParams
-  { cpHost  :: HostName          -- ^ Destination host
+  { cpFamily :: Family           -- ^ IP Protocol family (default 'AF_UNSPEC')
+  , cpHost  :: HostName          -- ^ Destination host
   , cpPort  :: PortNumber        -- ^ Destination TCP port
   , cpSocks :: Maybe SocksParams -- ^ Optional SOCKS5 parameters
   , cpTls   :: Maybe TlsParams   -- ^ Optional TLS parameters
@@ -106,7 +107,7 @@ instance Exception ConnectionFailure where
 openSocket :: ConnectionParams -> IO Socket
 openSocket params =
   case cpSocks params of
-    Nothing -> openSocket'  (cpHost params) (cpPort params)
+    Nothing -> openSocket' (cpFamily params) (cpHost params) (cpPort params)
     Just sp -> openSocks sp (cpHost params) (cpPort params)
 
 
@@ -117,10 +118,11 @@ openSocks sp h p =
        h           (PortNumber p)
 
 
-openSocket' :: HostName -> PortNumber -> IO Socket
-openSocket' h p =
+openSocket' :: Family -> HostName -> PortNumber -> IO Socket
+openSocket' family h p =
   do let hints = Socket.defaultHints
-           { Socket.addrSocketType = Socket.Stream
+           { Socket.addrFamily     = family
+           , Socket.addrSocketType = Socket.Stream
            , Socket.addrFlags      = [Socket.AI_ADDRCONFIG
                                      ,Socket.AI_NUMERICSERV]
            }

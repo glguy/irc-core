@@ -47,6 +47,7 @@ module Client.Configuration.ServerSettings
   , ssAutoconnect
   , ssNickCompletion
   , ssLogDir
+  , ssProtocolFamily
 
   -- * Load function
   , loadDefaultServerSettings
@@ -68,7 +69,7 @@ import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Irc.Identifier (Identifier, mkId)
-import           Network.Socket (HostName, PortNumber)
+import           Network.Socket (HostName, PortNumber, Family(..))
 import           System.Environment
 
 -- | Static server-level settings
@@ -100,6 +101,7 @@ data ServerSettings = ServerSettings
   , _ssAutoconnect      :: Bool -- ^ Connect to this network on server startup
   , _ssNickCompletion   :: WordCompletionMode -- ^ Nick completion mode for this server
   , _ssLogDir           :: Maybe FilePath -- ^ Directory to save logs of chat
+  , _ssProtocolFamily   :: Maybe Family -- ^ Protocol family to connect with
   }
   deriving Show
 
@@ -148,6 +150,7 @@ loadDefaultServerSettings =
        , _ssAutoconnect      = False
        , _ssNickCompletion   = defaultNickWordCompleteMode
        , _ssLogDir           = Nothing
+       , _ssProtocolFamily   = Nothing
        }
 
 serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
@@ -249,7 +252,17 @@ serverSpec = sectionsSpec "server-settings" $
 
       , opt "log-dir" ssLogDir stringSpec
         "Path to log file directory for this server"
+
+      , opt "protocol-family" ssProtocolFamily protocolFamilySpec
+        "IP protocol family to use for this connection"
       ]
+
+
+-- | Specification for IP protocol family.
+protocolFamilySpec :: ValueSpecs Family
+protocolFamilySpec =
+      AF_INET   <$ atomSpec "inet"
+  <!> AF_INET6  <$ atomSpec "inet6"
 
 
 nicksSpec :: ValueSpecs (NonEmpty Text)

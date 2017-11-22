@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.2 -- 2017-11-22
+
+* Allow connection parameters to specify address family with `cpFamily` field
+
 ## 0.1.1.0  -- 2017-05-13
 
 * Better error message for old openssl version

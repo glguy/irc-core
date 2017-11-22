@@ -22,7 +22,7 @@ import           Client.Configuration.ServerSettings
 import           Control.Applicative
 import           Control.Exception  (bracket)
 import           Control.Lens
-import           Network.Socket     (PortNumber)
+import           Network.Socket     (PortNumber, Family(AF_UNSPEC))
 import           Hookup
 
 buildConnectionParams :: ServerSettings -> ConnectionParams
@@ -32,6 +32,11 @@ buildConnectionParams args =
                     (view ssTlsClientKey  args <|> view ssTlsClientCert args)
                     (view ssTlsServerCert args)
                     (view ssTlsCiphers    args)
+
+      family =
+        case view ssProtocolFamily args of
+          Nothing -> AF_UNSPEC
+          Just pf -> pf
 
       useSecure =
         case view ssTls args of
@@ -45,7 +50,8 @@ buildConnectionParams args =
                           (view ssSocksPort args)
 
   in ConnectionParams
-    { cpHost  = view ssHostName args
+    { cpFamily = family
+    , cpHost  = view ssHostName args
     , cpPort  = ircPort args
     , cpTls   = useSecure
     , cpSocks = proxySettings
