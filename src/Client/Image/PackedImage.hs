@@ -45,8 +45,8 @@ data Image'
   = HorizText'
       !Attr -- don't unpack, these get reused from the palette
       {-# UNPACK #-} !S.Text
-      {-# UNPACK #-} !Int
-      {-# UNPACK #-} !Int
+      {-# UNPACK #-} !Int -- terminal width
+      {-# UNPACK #-} !Int -- codepoint count
       !Image'
   | EmptyImage'
   deriving (Show)
@@ -91,6 +91,7 @@ splitImage w (HorizText' a t w' l rest)
            Nothing -> 0
            Just ix -> ix
 
+-- | Width in terms of terminal columns
 imageWidth :: Image' -> Int
 imageWidth = go 0
   where
