@@ -144,7 +144,7 @@ renderLine ::
   String               {- ^ input text   -} ->
   Image'               {- ^ output image -}
 renderLine st pal myNick nicks macros focused ('/':xs) =
-  char defAttr '/' <> string attr cmd <> continue rest
+  char defAttr '/' <> string attr cleanCmd <> continue rest
   where
     specAttr spec =
       case parse st spec rest of
@@ -152,6 +152,8 @@ renderLine st pal myNick nicks macros focused ('/':xs) =
         Just{}  -> view palCommandReady pal
 
     (cmd, rest) = break isSpace xs
+    cleanCmd = map cleanChar cmd
+
     allCommands = (Left <$> macros) <> (Right <$> commands)
     (attr, continue)
       = case recognize (Text.pack cmd) allCommands of
