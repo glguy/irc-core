@@ -108,6 +108,7 @@ servers:
     sasl-password: "somepass"
     socks-host:    "socks5.example.com"
     socks-port:    8080 -- defaults to 1080
+    log-dir:       "/home/myuser/ircLogs"
 
   * name: "example"
     hostname:      "example.com"
