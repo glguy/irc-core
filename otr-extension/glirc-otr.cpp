@@ -657,7 +657,9 @@ static void cmd_secret (OpData *opdata,
 {
     auto context = opdata->get_current_context();
 
-    if (context) {
+    // without this extra checking libotr will segfault if an exchange
+    // is not active
+    if (context && context->smstate && context->smstate->secret) {
         otrl_message_respond_smp
             (opdata->us, &ops, opdata, context,
              (unsigned char *)params[0].str, params[0].len);
