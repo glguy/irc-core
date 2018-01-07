@@ -223,20 +223,16 @@ instance Storable FgnChat where
 
 -- | @struct glirc_command@
 data FgnCmd = FgnCmd
-  { fcParams  :: Ptr FgnStringLen -- ^ array
-  , fcParamN  :: CSize            -- ^ array length
+  { fcCommand :: FgnStringLen
   }
 
 instance Storable FgnCmd where
   alignment _ = #alignment struct glirc_command
   sizeOf    _ = #size      struct glirc_command
   peek p      = FgnCmd
-            <$> (#peek struct glirc_command, params  ) p
-            <*> (#peek struct glirc_command, params_n) p
+            <$> (#peek struct glirc_command, command) p
 
-  poke p FgnCmd{..} =
-             do (#poke struct glirc_command, params  ) p fcParams
-                (#poke struct glirc_command, params_n) p fcParamN
+  poke p FgnCmd{..} = (#poke struct glirc_command, command) p fcCommand
 
 ------------------------------------------------------------------------
 

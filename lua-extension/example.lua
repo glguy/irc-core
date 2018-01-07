@@ -85,11 +85,14 @@ function commands.my_nick(network)
     glirc.print(glirc.my_nick(network))
 end
 
-function extension:process_command(cmd, ...)
+function extension:process_command(cmd)
 
-    local k = commands[cmd]
+    local params = {}
+    for w in cmd.command:gmatch("%S+") do table.insert(params, w) end
+
+    local k = commands[params[1]]
     if k then
-        k(...)
+        k(table.unpack(params, 2))
     else
         local cmds = {}
         for k,v in pairs(commands) do table.insert(cmds,k) end

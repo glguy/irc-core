@@ -357,6 +357,19 @@ static void push_glirc_chat(lua_State *L, const struct glirc_chat *chat)
 }
 
 /* Push a table onto the top of the stack containing all of the fields
+ * of the command struct
+ *
+ * [-0, +1, m]
+ * */
+static void push_glirc_command(lua_State *L, const struct glirc_command *cmd)
+{
+        lua_createtable(L, 0, 1);
+
+        push_glirc_string(L, &cmd->command);
+        lua_setfield(L,-2,"command");
+}
+
+/* Push a table onto the top of the stack containing all of the fields
  * of the message struct
  *
  * [-0, +1, m]
@@ -465,10 +478,8 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
 static void command_entrypoint(struct glirc *G, void *L, const struct glirc_command *cmd)
 {
         if (L == NULL) return;
-        for (size_t i = 0; i < cmd->params_n; i++) {
-                push_glirc_string(L, &cmd->params[i]);
-        }
-        callback(G, L, "process_command", cmd->params_n);
+        push_glirc_command(L, cmd);
+        callback(G, L, "process_command", 1);
 }
 
 struct glirc_extension extension = {

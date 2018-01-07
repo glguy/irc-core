@@ -2114,13 +2114,13 @@ nickTabCompletion isReversed st =
     mode          = currentNickCompletionMode st
 
 cmdExtension :: ClientCommand (String, String)
-cmdExtension st (name,params) =
+cmdExtension st (name,command) =
   case find (\ae -> aeName ae == Text.pack name)
             (view (clientExtensions . esActive) st) of
         Nothing -> commandFailureMsg "unknown extension" st
         Just ae ->
           do (st',_) <- clientPark st $ \ptr ->
-                          commandExtension ptr (Text.pack <$> words params) ae
+                          commandExtension ptr (Text.pack command) ae
              commandSuccess st'
 
 -- | Implementation of @/exec@ command.

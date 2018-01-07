@@ -40,8 +40,7 @@ struct glirc_chat {
 };
 
 struct glirc_command {
-        const struct glirc_string *params;
-        size_t params_n;
+        struct glirc_string command;
 };
 
 typedef void *start_type         (struct glirc *G, const char *path);

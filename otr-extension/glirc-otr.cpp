@@ -612,7 +612,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     return err || newmsg ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
-static void cmd_end (OpData *opdata, const struct glirc_string *params)
+static void cmd_end (OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -640,20 +640,19 @@ static void cmd_end (OpData *opdata, const struct glirc_string *params)
 }
 
 
-static void cmd_ask (OpData *opdata, const struct glirc_string *params)
+static void cmd_ask (OpData *opdata, const string &params)
 {
     auto context = opdata->get_current_context();
 
     if (context) {
         otrl_message_initiate_smp
             (opdata->us, &ops, opdata, context,
-             (unsigned char *)params[0].str, params[0].len);
+             (unsigned char *)params.c_str(), params.length());
     }
 }
 
 
-static void cmd_secret (OpData *opdata,
-                        const struct glirc_string *params)
+static void cmd_secret (OpData *opdata, const string &params)
 {
     auto context = opdata->get_current_context();
 
@@ -662,12 +661,12 @@ static void cmd_secret (OpData *opdata,
     if (context && context->smstate && context->smstate->secret) {
         otrl_message_respond_smp
             (opdata->us, &ops, opdata, context,
-             (unsigned char *)params[0].str, params[0].len);
+             (unsigned char *)params.c_str(), params.length());
     }
 }
 
 
-static void cmd_poll (OpData *opdata, const struct glirc_string *params)
+static void cmd_poll (OpData *opdata, const string &params)
 {
   (void)params;
   otrl_message_poll(opdata->us, &ops, opdata);
@@ -677,7 +676,7 @@ static void cmd_poll (OpData *opdata, const struct glirc_string *params)
 /*
  * Manually mark the fingerprint associated with the current window trusted.
  */
-static void cmd_trust (OpData *opdata, const struct glirc_string *params)
+static void cmd_trust (OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -698,7 +697,7 @@ static void cmd_trust (OpData *opdata, const struct glirc_string *params)
 /*
  * Manually mark the fingerprint associated with the current window untrusted.
  */
-static void cmd_untrust (OpData *opdata, const struct glirc_string *params)
+static void cmd_untrust (OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -719,7 +718,7 @@ static void cmd_untrust (OpData *opdata, const struct glirc_string *params)
 /*
  * Print status information for the current context to the chat window
  */
-static void cmd_status (OpData *opdata, const struct glirc_string *params)
+static void cmd_status (OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -761,30 +760,31 @@ static void cmd_status (OpData *opdata, const struct glirc_string *params)
 // Command metadata
 struct cmd_impl {
   const char *name; // Name of command
-  void (*func)(OpData*, const struct glirc_string *); // Implementation
-  unsigned params; // Expected number of parameters
+  void (*func)(OpData*, const string &); // Implementation
   const char *doc; // Documentation string
 };
 
-static void cmd_help(OpData *, const struct glirc_string*);
+static void cmd_help(OpData *, const string&);
 
 static struct cmd_impl cmd_impls[] = {
-  { "status" , cmd_status , 0, "Display the current window's OTR context"              },
-  { "secret" , cmd_secret , 1, "Reply to a peer verification request (1 argument)"     },
-  { "ask"    , cmd_ask    , 1, "Send a peer verification request (1 argument)"         },
-  { "end"    , cmd_end    , 0, "Close the current window's OTR context"                },
-  { "trust"  , cmd_trust  , 0, "Trust the current remote user's fingerprint"           },
-  { "untrust", cmd_untrust, 0, "Revoke trust in the current remote user's fingerprint" },
-  { "poll"   , cmd_poll   , 0, "Manually trigger an OTR poll event"                    },
-  { "help"   , cmd_help   , 0, "Show available commands"                               },
-  { NULL     , NULL       , 0, NULL                                                    },
+  { "status" , cmd_status , "Display the current window's OTR context"              },
+  { "secret" , cmd_secret , "Reply to a peer verification request (1 argument)"     },
+  { "ask"    , cmd_ask    , "Send a peer verification request (1 argument)"         },
+  { "end"    , cmd_end    , "Close the current window's OTR context"                },
+  { "trust"  , cmd_trust  , "Trust the current remote user's fingerprint"           },
+  { "untrust", cmd_untrust, "Revoke trust in the current remote user's fingerprint" },
+  { "poll"   , cmd_poll   , "Manually trigger an OTR poll event"                    },
+  { "help"   , cmd_help   , "Show available commands"                               },
 };
 
-static void cmd_help(OpData *opdata, const struct glirc_string* params)
+#define ARRAY_LEN(x) (sizeof(x)/sizeof(*x))
+
+static void cmd_help(OpData *opdata, const string &params)
 {
   (void)params;
 
-  for (struct cmd_impl *c = cmd_impls; c->name; c++) {
+  for (int i = 0; i < ARRAY_LEN(cmd_impls); i++) {
+    struct cmd_impl *c = cmd_impls+i;
     char *msg = NULL;
     int len = asprintf(&msg, "OTR: %s - %s", c->name, c->doc);
     if (len < 0 || !msg) abort();
@@ -801,18 +801,18 @@ static void command_entrypoint
   GET_opdata;
   const char *errmsg = "OTR: Unknown command";
 
-  if (cmd->params_n > 0) {
-    auto name = make_string(cmd->params[0]);
-    for (struct cmd_impl *c = cmd_impls; c->name; c++) {
+  auto input = istringstream(make_string(cmd->command));
+  string name, parameters;
+  input >> name;
+  getline(input, parameters);
+  parameters.erase(0, parameters.find_first_not_of(" "));
+
+  for (int i = 0; i < ARRAY_LEN(cmd_impls); i++) {
+      struct cmd_impl *c = cmd_impls+i;
       if (name == c->name) {
-        if (cmd->params_n == c->params + 1) {
-          c->func(opdata, cmd->params+1);
+          c->func(opdata, parameters);
           return;
-        } else {
-          errmsg = "OTR: Bad parameters";
-        }
       }
-    }
   }
 
   glirc_print(G, ERROR_MESSAGE, errmsg, strlen(errmsg));

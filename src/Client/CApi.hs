@@ -167,11 +167,11 @@ chatExtension stab net tgt msg aes
 -- | Notify an extension of a client command with the given parameters.
 commandExtension ::
   Ptr ()          {- ^ client state stableptr -} ->
-  [Text]          {- ^ parameters             -} ->
+  Text            {- ^ command                -} ->
   ActiveExtension {- ^ extension to command   -} ->
   IO ()
-commandExtension stab params ae = evalNestedIO $
-  do cmd <- withCommand params
+commandExtension stab command ae = evalNestedIO $
+  do cmd <- withCommand command
      let f = fgnCommand (aeFgn ae)
      liftIO $ unless (f == nullFunPtr)
             $ runProcessCommand f stab (aeSession ae) cmd
@@ -209,12 +209,11 @@ withChat net tgt msg =
      nest1 $ with $ FgnChat net' tgt' msg'
 
 withCommand ::
-  [Text] {- ^ parameters -} ->
+  Text {- ^ command -} ->
   NestedIO (Ptr FgnCmd)
-withCommand params =
-  do prms          <- traverse withText params
-     (prmN,prmPtr) <- nest2 $ withArrayLen prms
-     nest1 $ with $ FgnCmd prmPtr (fromIntegral prmN)
+withCommand command =
+  do cmd <- withText command
+     nest1 $ with $ FgnCmd cmd
 
 withTag :: TagEntry -> NestedIO (FgnStringLen, FgnStringLen)
 withTag (TagEntry k v) =
