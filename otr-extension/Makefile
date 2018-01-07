@@ -17,15 +17,18 @@ help:
 macos: glirc-otr.dylib
 linux:  glirc-otr.so
 
-glirc-otr.dylib: glirc-otr.c
-	cc -shared -o $@ $^ \
+glirc-otr.dylib: glirc-otr.cpp
+	c++ -shared -o $@ $^ \
+	  -std=c++14 \
+	  -Wno-c99-extensions\
 	  -pedantic -Wall \
 	  -undefined dynamic_lookup \
 	  `pkg-config --cflags --libs libotr`
 	strip -x $@
 
-glirc-otr.so: glirc-otr.c
-	cc -shared -o $@ $^ \
+glirc-otr.so: glirc-otr.cpp
+	c++ -shared -o $@ $^ \
+	  -std=c++14 \
 	  -pedantic -fpic -Wall \
 	  `pkg-config --cflags --libs libotr`
 
