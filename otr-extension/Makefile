@@ -17,7 +17,7 @@ help:
 macos: glirc-otr.dylib
 linux:  glirc-otr.so
 
-glirc-otr.dylib: glirc-otr.cpp
+glirc-otr.dylib: glirc-otr.cpp OTR.cpp
 	c++ -shared -o $@ $^ \
 	  -std=c++14 \
 	  -Wno-c99-extensions\

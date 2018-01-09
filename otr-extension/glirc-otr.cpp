@@ -8,15 +8,15 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <tuple>
+#include <iomanip>
 
-using namespace std;
+#include "OTR.hpp"
 
 extern "C" {
-    #include <libotr/proto.h>
-    #include <libotr/message.h>
-    #include <libotr/privkey.h>
     #include "glirc-api.h"
 }
+
+using namespace std;
 
 #define NAME "OTR"
 #define PLUGIN_USER "* OTR *"
@@ -72,7 +72,6 @@ static string make_string(const glirc_string &s) {
         return string(s.str, s.len);
 }
 
-
 // It is useful to store a copy of the user state in the opdata
 // because some callbacks forget to provide it
 struct OpData {
@@ -81,15 +80,14 @@ struct OpData {
     glirc *G;
 
     /* libotr session data */
-    OtrlUserState us;
+    OTR otr;
 
 private:
     /* used to track open BATCHes by network */
     unordered_map<string, unordered_set<string>> batch_reftags;
 
 public:
-    OpData(glirc *G) : G(G), us(otrl_userstate_create()) {}
-    ~OpData() { otrl_userstate_free(us); }
+    OpData(glirc *G) : G(G) {}
 
     tuple<string,string> current_focus() {
 
@@ -127,8 +125,7 @@ public:
         if (me.empty()) return NULL;
         normalizeCase(&me);
 
-        return otrl_context_find
-                (us, tgt.c_str(), me.c_str(), net.c_str(), OTRL_INSTAG_BEST, 0, NULL, NULL, NULL);
+        return otr.context_find(tgt, me, net);
     }
 
     bool is_channel(const string &net, const string &tgt) {
@@ -362,23 +359,22 @@ static void gone_secure(void *L, ConnContext *context)
 {
   GET_opdata;
 
-  if (otrl_context_is_fingerprint_trusted(context->active_fingerprint)) {
-    print_status(opdata->G, context, "Connection secured [" GREEN("trusted") "]");
-  } else {
-    print_status(opdata->G, context, "Connection secured [" RED("untrusted") "]");
-  }
+  auto trusted = otrl_context_is_fingerprint_trusted(context->active_fingerprint);
+  print_status(opdata->G, context,
+      "Connection secured [%s]",
+      trusted  ? GREEN("trusted") : RED("untrusted"));
 }
 
 static void still_secure(void *L, ConnContext *context, int is_reply)
 {
   GET_opdata;
-  (void)is_reply;
 
-  if (otrl_context_is_fingerprint_trusted(context->active_fingerprint)) {
-    print_status(opdata->G, context, "Connection refreshed [" GREEN("trusted") "]");
-  } else {
-    print_status(opdata->G, context, "Connection refreshed [" RED("untrusted") "]");
-  }
+  auto trusted = otrl_context_is_fingerprint_trusted(context->active_fingerprint);
+
+  print_status(opdata->G, context,
+      "Connection refreshed [%s] [%s]",
+      is_reply ? BOLD("remotely") : BOLD("locally"),
+      trusted  ? GREEN("trusted") : RED("untrusted"));
 }
 
 static void
@@ -400,7 +396,7 @@ static void write_fingerprints(void *L)
   GET_opdata;
 
   char *path = state_path("fingerprints");
-  if (path) otrl_privkey_write_fingerprints(opdata->us, path);
+  if (path) opdata->otr.privkey_write_fingerprints(path);
   free(path);
 }
 
@@ -409,7 +405,7 @@ static void create_privkey(void *L, const char *accountname, const char *protoco
     GET_opdata;
 
     char *path = state_path("keys");
-    if (path) otrl_privkey_generate(opdata->us, path, accountname, protocol);
+    if (path) opdata->otr.privkey_generate(path, accountname, protocol);
     free(path);
 }
 
@@ -419,7 +415,7 @@ static void create_instag(void *L, const char *accountname, const char *protocol
     GET_opdata;
 
     char *path = state_path("instags");
-    if (path) otrl_instag_generate(opdata->us, path, accountname, protocol);
+    if (path) opdata->otr.instag_generate(path, accountname, protocol);
     free(path);
 }
 
@@ -450,15 +446,15 @@ static void *start_entrypoint(struct glirc *G, const char *libpath)
   opdata->populate_networks();
 
   char *path = state_path("keys");
-  if (path) otrl_privkey_read(opdata->us, path);
+  if (path) opdata->otr.privkey_read(path);
   free(path);
 
   path = state_path("fingerprints");
-  if (path) otrl_privkey_read_fingerprints(opdata->us, path, NULL, NULL);
+  if (path) opdata->otr.privkey_read_fingerprints(path);
   free(path);
 
   path = state_path("instags");
-  if (path) otrl_instag_read(opdata->us, path);
+  if (path) opdata->otr.instag_read(path);
   free(path);
 
   return opdata;
@@ -543,7 +539,7 @@ process_privmsg(OpData *opdata, const struct glirc_message *msg)
 
     char *newmessage = NULL;
 
-    int internal = otrl_message_receiving(opdata->us, &ops, opdata, target.c_str(), net.c_str(), sender.c_str(),
+    int internal = otrl_message_receiving(opdata->otr.us, &ops, opdata, target.c_str(), net.c_str(), sender.c_str(),
                       message, &newmessage, NULL, NULL, NULL, NULL);
 
     if (!internal && newmessage) {
@@ -601,7 +597,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     char * newmsg = NULL;
 
     err = otrl_message_sending
-      (opdata->us, &ops, opdata, me.c_str(), network.c_str(), target.c_str(), OTRL_INSTAG_BEST, msg,
+      (opdata->otr.us, &ops, opdata, me.c_str(), network.c_str(), target.c_str(), OTRL_INSTAG_BEST, msg,
        NULL, &newmsg, OTRL_FRAGMENT_SEND_ALL, NULL, NULL, NULL);
 
     if (err) {
@@ -616,9 +612,6 @@ static void cmd_end (OpData *opdata, const string &params)
 {
   (void)params;
 
-  const char * const src = PLUGIN_USER;
-  const char * const msg = RED("Session terminated");
-
   string net, tgt;
   tie(net,tgt) = opdata->current_focus();
   if (net.empty() || tgt.empty()) return;
@@ -628,8 +621,10 @@ static void cmd_end (OpData *opdata, const string &params)
   if (me.empty()) return;
   normalizeCase(&me);
 
-  otrl_message_disconnect_all_instances
-          (opdata->us, &ops, opdata, me.c_str(), net.c_str(), tgt.c_str());
+  opdata->otr.message_disconnect_all_instances(&ops, opdata, me, net, tgt);
+
+  const char * const src = PLUGIN_USER;
+  const char * const msg = RED("Session terminated");
 
   glirc_inject_chat
     (opdata->G,
@@ -645,9 +640,7 @@ static void cmd_ask (OpData *opdata, const string &params)
     auto context = opdata->get_current_context();
 
     if (context) {
-        otrl_message_initiate_smp
-            (opdata->us, &ops, opdata, context,
-             (unsigned char *)params.c_str(), params.length());
+        opdata->otr.message_initiate_smp(&ops, opdata, context, params);
     }
 }
 
@@ -659,9 +652,7 @@ static void cmd_secret (OpData *opdata, const string &params)
     // without this extra checking libotr will segfault if an exchange
     // is not active
     if (context && context->smstate && context->smstate->secret) {
-        otrl_message_respond_smp
-            (opdata->us, &ops, opdata, context,
-             (unsigned char *)params.c_str(), params.length());
+        opdata->otr.message_respond_smp(&ops, opdata, context, params);
     }
 }
 
@@ -669,7 +660,7 @@ static void cmd_secret (OpData *opdata, const string &params)
 static void cmd_poll (OpData *opdata, const string &params)
 {
   (void)params;
-  otrl_message_poll(opdata->us, &ops, opdata);
+  opdata->otr.message_poll(&ops);
 }
 
 
@@ -686,7 +677,7 @@ static void cmd_trust (OpData *opdata, const string &params)
   otrl_context_set_trust(context->active_fingerprint, "manual");
 
   char *path = state_path("fingerprints");
-  if (path) otrl_privkey_write_fingerprints(opdata->us, path);
+  if (path) otrl_privkey_write_fingerprints(opdata->otr.us, path);
   free(path);
 
   char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
@@ -707,7 +698,7 @@ static void cmd_untrust (OpData *opdata, const string &params)
   otrl_context_set_trust(context->active_fingerprint, "");
 
   char *path = state_path("fingerprints");
-  if (path) otrl_privkey_write_fingerprints(opdata->us, path);
+  if (path) otrl_privkey_write_fingerprints(opdata->otr.us, path);
   free(path);
 
   char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
@@ -723,11 +714,15 @@ static void cmd_status (OpData *opdata, const string &params)
   (void)params;
 
   auto context = opdata->get_current_context();
-  if (!context) return;
+  if (!context) {
+    const char *msg = "No OTR context for current window";
+    glirc_print(opdata->G, ERROR_MESSAGE, msg, strlen(msg));
+    return;
+  }
 
   char human[OTRL_PRIVKEY_FPRINT_HUMAN_LEN];
   const char *myfp =
-          otrl_privkey_fingerprint(opdata->us, human, context->accountname, context->protocol);
+          otrl_privkey_fingerprint(opdata->otr.us, human, context->accountname, context->protocol);
 
   if (myfp) {
     print_status(opdata->G, context, "Local  fingerprint [" BOLD("%s") "]", myfp);
@@ -748,7 +743,7 @@ static void cmd_status (OpData *opdata, const string &params)
       "Local instance [" BOLD("%08X") "] Remote instance [" BOLD("%08X") "] Protocol [" BOLD("%u") "]",
       context->our_instance, context->their_instance, context->protocol_version);
 
-  const char *statuses[] = {
+  static const char * const statuses[] = {
     [OTRL_MSGSTATE_PLAINTEXT] = RED  ("plaintext"),
     [OTRL_MSGSTATE_ENCRYPTED] = GREEN("encrypted"),
     [OTRL_MSGSTATE_FINISHED ] = RED  ("finished" ),
@@ -777,45 +772,41 @@ static struct cmd_impl cmd_impls[] = {
   { "help"   , cmd_help   , "Show available commands"                               },
 };
 
-#define ARRAY_LEN(x) (sizeof(x)/sizeof(*x))
-
 static void cmd_help(OpData *opdata, const string &params)
 {
   (void)params;
 
-  for (int i = 0; i < ARRAY_LEN(cmd_impls); i++) {
-    struct cmd_impl *c = cmd_impls+i;
-    char *msg = NULL;
-    int len = asprintf(&msg, "OTR: %s - %s", c->name, c->doc);
-    if (len < 0 || !msg) abort();
-
-    glirc_print(opdata->G, NORMAL_MESSAGE, msg, len);
-
-    free(msg);
-  }
+  for_each(begin(cmd_impls), end(cmd_impls), [opdata](auto &&c) {
+      ostringstream out;
+      out << "OTR: " << left << setw(7) << c.name << " - " << c.doc;
+      auto s = out.str();
+      glirc_print(opdata->G, NORMAL_MESSAGE, s.c_str(), s.length());
+  });
 }
 
 static void command_entrypoint
   (struct glirc *G, void *L, const struct glirc_command *cmd)
 {
   GET_opdata;
-  const char *errmsg = "OTR: Unknown command";
 
   auto input = istringstream(make_string(cmd->command));
-  string name, parameters;
+
+  string name;
   input >> name;
-  getline(input, parameters);
-  parameters.erase(0, parameters.find_first_not_of(" "));
 
-  for (int i = 0; i < ARRAY_LEN(cmd_impls); i++) {
-      struct cmd_impl *c = cmd_impls+i;
-      if (name == c->name) {
-          c->func(opdata, parameters);
-          return;
-      }
+  auto entry = find_if(begin(cmd_impls), end(cmd_impls),
+                       [&name](auto &&c) { return name == c.name; });
+
+  if (entry == end(cmd_impls)) {
+      const char *errmsg = "OTR: Unknown command";
+      glirc_print(G, ERROR_MESSAGE, errmsg, strlen(errmsg));
+  } else {
+      string parameters;
+      getline(input, parameters);
+      parameters.erase(0, parameters.find_first_not_of(" "));
+
+      entry->func(opdata, parameters);
   }
-
-  glirc_print(G, ERROR_MESSAGE, errmsg, strlen(errmsg));
 }
 
 struct glirc_extension extension = {
