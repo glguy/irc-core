@@ -43,6 +43,21 @@ public:
            const std::string &secret) const;
 
         void message_poll(const OtrlMessageAppOps *ops);
+
+        std::tuple<gcry_error_t, bool>
+        message_sending(const OtrlMessageAppOps *ops, void *opdata,
+                        const std::string &accountname,
+                        const std::string &protocol,
+                        const std::string &username,
+                        const std::string &message) const;
+
+        std::tuple<int, bool>
+        message_receiving(const OtrlMessageAppOps *ops, void *opdata,
+                          const std::string &accountname,
+                          const std::string &protocol,
+                          const std::string &username,
+                          const std::string &message,
+                          std::string *newmessage) const;
 };
 
 #endif

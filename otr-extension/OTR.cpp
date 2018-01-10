@@ -9,7 +9,7 @@ OTR::context_find
 {
     return otrl_context_find
                 (us, username.c_str(), accountname.c_str(), protocol.c_str(),
-                 OTRL_INSTAG_BEST, 0, NULL, NULL, NULL);
+                 OTRL_INSTAG_BEST, 0, nullptr, nullptr, nullptr);
 }
 
 void
@@ -84,4 +84,43 @@ OTR::message_respond_smp
 void
 OTR::message_poll(const OtrlMessageAppOps *ops) {
     otrl_message_poll(us, ops, static_cast<void*>(this));
+}
+
+std::tuple<gcry_error_t, bool>
+OTR::message_sending(const OtrlMessageAppOps *ops, void *opdata,
+                     const std::string &accountname,
+                     const std::string &protocol,
+                     const std::string &username,
+                     const std::string &message) const
+{
+    char * newmsg = nullptr;
+
+    auto err = otrl_message_sending
+      (us, ops, opdata, accountname.c_str(), protocol.c_str(), username.c_str(), OTRL_INSTAG_BEST, message.c_str(),
+       nullptr, &newmsg, OTRL_FRAGMENT_SEND_ALL, nullptr, nullptr, nullptr);
+
+    otrl_message_free(newmsg);
+
+    return std::make_tuple(err, bool(newmsg));
+}
+
+std::tuple<int, bool>
+OTR::message_receiving(const OtrlMessageAppOps *ops, void *opdata,
+                       const std::string &accountname,
+                       const std::string &protocol,
+                       const std::string &username,
+                       const std::string &message,
+                       std::string *newmessage) const
+{
+    char *newmsg = nullptr;
+
+    int internal = otrl_message_receiving(us, ops, opdata, accountname.c_str(), protocol.c_str(), username.c_str(),
+                      message.c_str(), &newmsg, NULL, NULL, NULL, NULL);
+
+    if (newmsg) {
+        *newmessage = newmsg;
+        otrl_message_free(newmsg);
+    }
+
+    return std::make_tuple(internal, bool(newmsg));
 }

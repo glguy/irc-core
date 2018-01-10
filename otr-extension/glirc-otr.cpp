@@ -521,39 +521,41 @@ process_privmsg(OpData *opdata, const struct glirc_message *msg)
         return PASS_MESSAGE;
     }
 
-    auto message = msg->params[1].str;
-    auto net     = make_string(msg->network);
-    auto target  = make_string(msg->params[0]);
-
+    auto net = make_string(msg->network);
     if (opdata->in_batch(net)) {
-        return PASS_MESSAGE;
+        switch (otrl_proto_message_type(msg->params[1].str)) {
+                default: return DROP_MESSAGE;
+                case OTRL_MSGTYPE_NOTOTR:
+                case OTRL_MSGTYPE_TAGGEDPLAINTEXT:
+                    return PASS_MESSAGE;
+        }
     }
 
+    auto target  = make_string(msg->params[0]);
     if (opdata->is_channel(net, target)) {
         return PASS_MESSAGE;
     }
 
+    auto message = make_string(msg->params[1]);
     auto sender = make_string(msg->prefix_nick);
     normalizeCase(&sender);
     normalizeCase(&target);
 
-    char *newmessage = NULL;
+    string newmessage;
+    int internal;
+    bool has_newmsg;
+    tie(internal, has_newmsg) = opdata->otr.message_receiving(&ops, opdata, target, net, sender, message, &newmessage);
 
-    int internal = otrl_message_receiving(opdata->otr.us, &ops, opdata, target.c_str(), net.c_str(), sender.c_str(),
-                      message, &newmessage, NULL, NULL, NULL, NULL);
-
-    if (!internal && newmessage) {
+    if (!internal && has_newmsg) {
         auto userinfo = rebuild_userinfo(msg);
         glirc_inject_chat(opdata->G,
                              msg->network.str    , msg->network.len,
                              userinfo.c_str()    , userinfo.length(),
                              msg->prefix_nick.str, msg->prefix_nick.len,
-                             newmessage          , strlen(newmessage));
+                             newmessage.c_str()  , newmessage.length());
     }
 
-    otrl_message_free(newmessage);
-
-    return (internal || newmessage) ? DROP_MESSAGE : PASS_MESSAGE;
+    return (internal || has_newmsg) ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
 static enum process_result
@@ -562,12 +564,12 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
     GET_opdata;
     auto cmd = make_string(msg->command);
 
-    if (cmd == "001") {
-        return process_welcome(opdata, msg);
-    } else if (cmd == "PRIVMSG") {
+    if (cmd == "PRIVMSG") {
         return process_privmsg(opdata, msg);
     } else if (cmd == "BATCH") {
         return process_batch(opdata, msg);
+    } else if (cmd == "001") {
+        return process_welcome(opdata, msg);
     } else {
         return PASS_MESSAGE;
     }
@@ -579,33 +581,30 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     (void)G;
     GET_opdata;
 
-    gcry_error_t err = 1; // default to error unless sending runs and succeeds
     auto network = make_string(chat->network);
-    auto target = make_string(chat->target);
-    const char * msg = chat->message.str;
+    auto target  = make_string(chat->target);
+    auto msg     = make_string(chat->message);
 
     if (opdata->is_channel(network, target)) {
         return PASS_MESSAGE;
     }
 
     auto me = opdata->my_nick(network);
-    if (me.empty()) return PASS_MESSAGE;
+    if (me.empty()) return DROP_MESSAGE;
     normalizeCase(&me);
 
     normalizeCase(&target);
 
-    char * newmsg = NULL;
+    gcry_error_t err;
+    bool has_newmsg;
 
-    err = otrl_message_sending
-      (opdata->otr.us, &ops, opdata, me.c_str(), network.c_str(), target.c_str(), OTRL_INSTAG_BEST, msg,
-       NULL, &newmsg, OTRL_FRAGMENT_SEND_ALL, NULL, NULL, NULL);
+    tie(err,has_newmsg) = opdata->otr.message_sending(&ops, opdata, me, network, target, msg);
 
     if (err) {
         glirc_printf(opdata->G, network.c_str(), PLUGIN_USER, target.c_str(), "PANIC: OTR encryption error");
     }
 
-    otrl_message_free(newmsg);
-    return err || newmsg ? DROP_MESSAGE : PASS_MESSAGE;
+    return err || has_newmsg ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
 static void cmd_end (OpData *opdata, const string &params)
