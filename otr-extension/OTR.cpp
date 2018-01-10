@@ -104,23 +104,23 @@ OTR::message_sending(const OtrlMessageAppOps *ops, void *opdata,
     return std::make_tuple(err, bool(newmsg));
 }
 
-std::tuple<int, bool>
+std::tuple<int, bool, std::string>
 OTR::message_receiving(const OtrlMessageAppOps *ops, void *opdata,
                        const std::string &accountname,
                        const std::string &protocol,
                        const std::string &username,
-                       const std::string &message,
-                       std::string *newmessage) const
+                       const std::string &message) const
 {
     char *newmsg = nullptr;
+    std::string newmessage;
 
     int internal = otrl_message_receiving(us, ops, opdata, accountname.c_str(), protocol.c_str(), username.c_str(),
                       message.c_str(), &newmsg, NULL, NULL, NULL, NULL);
 
     if (newmsg) {
-        *newmessage = newmsg;
+        newmessage = newmsg;
         otrl_message_free(newmsg);
     }
 
-    return std::make_tuple(internal, bool(newmsg));
+    return std::make_tuple(internal, bool(newmsg), std::move(newmessage));
 }

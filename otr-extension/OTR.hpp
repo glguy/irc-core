@@ -51,13 +51,12 @@ public:
                         const std::string &username,
                         const std::string &message) const;
 
-        std::tuple<int, bool>
+        std::tuple<int, bool, std::string>
         message_receiving(const OtrlMessageAppOps *ops, void *opdata,
                           const std::string &accountname,
                           const std::string &protocol,
                           const std::string &username,
-                          const std::string &message,
-                          std::string *newmessage) const;
+                          const std::string &message) const;
 };
 
 #endif

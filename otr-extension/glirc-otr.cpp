@@ -541,10 +541,11 @@ process_privmsg(OpData *opdata, const struct glirc_message *msg)
     normalizeCase(&sender);
     normalizeCase(&target);
 
-    string newmessage;
     int internal;
     bool has_newmsg;
-    tie(internal, has_newmsg) = opdata->otr.message_receiving(&ops, opdata, target, net, sender, message, &newmessage);
+    string newmessage;
+    tie(internal, has_newmsg, newmessage) =
+        opdata->otr.message_receiving(&ops, opdata, target, net, sender, message);
 
     if (!internal && has_newmsg) {
         auto userinfo = rebuild_userinfo(msg);
