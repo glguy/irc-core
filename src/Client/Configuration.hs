@@ -93,7 +93,7 @@ data Configuration = Configuration
   , _configMacros          :: Recognizer Macro -- ^ command macros
   , _configExtensions      :: [FilePath] -- ^ paths to shared library
   , _configUrlOpener       :: Maybe FilePath -- ^ paths to url opening executable
-  , _configIgnores         :: HashSet Identifier -- ^ initial ignore list
+  , _configIgnores         :: [Text] -- ^ initial ignore mask list
   , _configActivityBar     :: Bool -- ^ initially visibility of the activity bar
   , _configBellOnMention   :: Bool -- ^ notify terminal on mention
   , _configHideMeta        :: Bool -- ^ default setting for hidemeta on new windows
@@ -273,7 +273,7 @@ configurationSpec = sectionsSpec "" $
                                "Extra words to highlight in chat messages"
      _configNickPadding     <- sec' NoPadding "nick-padding" nickPaddingSpec
                                "Amount of space to reserve for nicknames in chat messages"
-     _configIgnores         <- sec' mempty "ignores" identifierSetSpec
+     _configIgnores         <- sec' [] "ignores" valuesSpec
                                "Set of nicknames to ignore on startup"
      _configActivityBar     <- sec' False  "activity-bar" yesOrNoSpec
                                "Show channel names and message counts for activity on\

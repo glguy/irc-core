@@ -89,6 +89,7 @@ library
                        Client.Image.StatusLine
                        Client.Image.Textbox
                        Client.Log
+                       Client.Mask
                        Client.Message
                        Client.Network.Async
                        Client.Network.Connect
@@ -104,6 +105,7 @@ library
                        Client.View.ChannelInfo
                        Client.View.Digraphs
                        Client.View.Help
+                       Client.View.IgnoreList
                        Client.View.KeyMap
                        Client.View.MaskList
                        Client.View.Mentions

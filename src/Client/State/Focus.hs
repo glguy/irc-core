@@ -54,6 +54,7 @@ data Subfocus
   | FocusKeyMap      -- ^ Show key bindings
   | FocusHelp (Maybe Text) -- ^ Show help window with optional command
   | FocusRtsStats    -- ^ Show GHC RTS statistics
+  | FocusIgnoreList    -- ^ Show ignored masks
   deriving (Eq,Show)
 
 -- | Unfocused first, followed by focuses sorted by network.

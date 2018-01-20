@@ -33,6 +33,7 @@ import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
 import           Client.Commands.WordCompletion
 import           Client.Configuration
+import           Client.Mask
 import           Client.Message
 import           Client.State
 import           Client.State.Channel
@@ -627,9 +628,29 @@ commandsList =
 
   , Command
       (pure "ignore")
-      (remainingArg "nicks")
-      "Toggle the soft-ignore on each of the space-delimited given nicknames.\n"
-    $ ClientCommand cmdIgnore simpleClientTab
+      (remainingArg "masks")
+      "\^BParameters:\^B\n\
+      \\n\
+      \    masks: List of masks\n\
+      \\n\
+      \\^BDescription:\^B\n\
+      \\n\
+      \    Toggle the soft-ignore on each of the space-delimited given\n\
+      \    nicknames. Ignores can use \^B*\^B (many) and \^B?\^B (one) wildcards.\n\
+      \    Masks can be of the form: nick[[!user]@host]\n\
+      \    Masks use a case-insensitive comparison.\n\
+      \\n\
+      \    If no masks are specified the current ignore list is displayed.\n\
+      \\n\
+      \\^BExamples:\^B\n\
+      \\n\
+      \    /ignore\n\
+      \    /ignore nick1 nick2 nick3\n\
+      \    /ignore nick@host\n\
+      \    /ignore nick!user@host\n\
+      \    /ignore *@host\n\
+      \    /ignore *!baduser@*\n"
+    $ ClientCommand cmdIgnore tabIgnore
 
   , Command
       (pure "grep")
@@ -1890,14 +1911,27 @@ cmdReconnect st _
 
 cmdIgnore :: ClientCommand String
 cmdIgnore st rest =
-  case mkId . Text.pack <$> words rest of
-    [] -> commandFailureMsg "bad arguments" st
-    xs -> commandSuccess
-            $ over clientIgnores updateIgnores st
+  case mkId <$> Text.words (Text.pack rest) of
+    [] -> commandSuccess (changeSubfocus FocusIgnoreList st)
+    xs -> commandSuccess st2
       where
+        (newIgnores, st1) = (clientIgnores <%~ updateIgnores) st
+        st2 = set clientIgnoreMask (buildMask (toList newIgnores)) st1
+
         updateIgnores :: HashSet Identifier -> HashSet Identifier
         updateIgnores s = foldl' updateIgnore s xs
+
         updateIgnore s x = over (contains x) not s
+
+-- | Complete the nickname at the current cursor position using the
+-- userlist for the currently focused channel (if any)
+tabIgnore :: Bool {- ^ reversed -} -> ClientCommand String
+tabIgnore isReversed st _ =
+  simpleTabCompletion mode hint completions isReversed st
+  where
+    hint          = activeNicks st
+    completions   = currentCompletionList st ++ views clientIgnores toList st
+    mode          = currentNickCompletionMode st
 
 -- | Implementation of @/reload@
 --
@@ -2054,7 +2088,7 @@ activeNicks st =
     -- the window line when that action was significant enough to
     -- be considered a hint for tab completion.
     summaryActor :: IrcSummary -> Maybe Identifier
-    summaryActor (ChatSummary who) = Just who
+    summaryActor (ChatSummary who) = Just $! userNick who
     summaryActor _                 = Nothing
 
 -- | Use the *!*@host masks of users for channel lists when setting list modes

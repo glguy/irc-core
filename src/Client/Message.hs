@@ -61,7 +61,7 @@ data IrcSummary
   | PartSummary {-# UNPACK #-} !Identifier
   | NickSummary {-# UNPACK #-} !Identifier {-# UNPACK #-} !Identifier
   | ReplySummary {-# UNPACK #-} !ReplyCode
-  | ChatSummary {-# UNPACK #-} !Identifier
+  | ChatSummary {-# UNPACK #-} !UserInfo
   | CtcpSummary {-# UNPACK #-} !Identifier
   | NoSummary
   deriving (Eq, Show)
@@ -87,10 +87,10 @@ ircSummary msg =
     Part who _ _    -> PartSummary (userNick who)
     Quit who _      -> QuitSummary (userNick who)
     Nick who who'   -> NickSummary (userNick who) who'
-    Privmsg who _ _ -> ChatSummary (userNick who)
-    Notice who _ _  -> ChatSummary (userNick who)
-    Ctcp who _ "ACTION" _ -> ChatSummary (userNick who)
+    Privmsg who _ _ -> ChatSummary who
+    Notice who _ _  -> ChatSummary who
+    Ctcp who _ "ACTION" _ -> ChatSummary who
     Ctcp who _ _ _ -> CtcpSummary (userNick who)
-    CtcpNotice who _ _ _ -> ChatSummary (userNick who)
+    CtcpNotice who _ _ _ -> ChatSummary who
     Reply code _    -> ReplySummary code
     _               -> NoSummary

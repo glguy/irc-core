@@ -31,6 +31,7 @@ import           Data.List
 import           Data.Semigroup
 import           Irc.Identifier
 import           Irc.Message
+import           Irc.UserInfo
 
 
 chatMessageImages :: Focus -> Int -> ClientState -> [Image']
@@ -169,5 +170,5 @@ metadataWindowLine ::
         {- ^ Image, incoming identifier, outgoing identifier if changed -}
 metadataWindowLine st wl =
   case view wlSummary wl of
-    ChatSummary who -> (ignoreImage, who, Nothing) <$ guard (identIgnored who st)
+    ChatSummary who -> (ignoreImage, userNick who, Nothing) <$ guard (identIgnored who st)
     summary         -> metadataImg summary
