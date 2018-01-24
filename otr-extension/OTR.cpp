@@ -1,6 +1,8 @@
 #include "OTR.hpp"
 
-OTR::OTR() : us(otrl_userstate_create()) {}
+OTR::OTR(const OtrlMessageAppOps *ops, void *opdata)
+         : ops(ops), opdata(opdata), us(otrl_userstate_create()) {}
+
 OTR::~OTR() { otrl_userstate_free(us); }
 
 ConnContext *
@@ -13,7 +15,7 @@ OTR::context_find
 }
 
 void
-OTR::message_disconnect_all_instances(const OtrlMessageAppOps *ops, void *opdata,
+OTR::message_disconnect_all_instances(
                 const std::string &accountname, const std::string &protocol,
                 const std::string &username) const
 {
@@ -60,9 +62,7 @@ OTR::privkey_read_fingerprints(const char *path) const
 }
 
 void
-OTR::message_initiate_smp
-  (const OtrlMessageAppOps *ops, void *opdata, ConnContext *context,
-   const std::string &secret) const
+OTR::message_initiate_smp (ConnContext *context, const std::string &secret) const
 {
     otrl_message_initiate_smp
         (us, ops, opdata, context,
@@ -71,9 +71,7 @@ OTR::message_initiate_smp
 }
 
 void
-OTR::message_respond_smp
-  (const OtrlMessageAppOps *ops, void *opdata, ConnContext *context,
-   const std::string &secret) const
+OTR::message_respond_smp (ConnContext *context, const std::string &secret) const
 {
     otrl_message_respond_smp
         (us, ops, opdata, context,
@@ -82,13 +80,12 @@ OTR::message_respond_smp
 }
 
 void
-OTR::message_poll(const OtrlMessageAppOps *ops) {
-    otrl_message_poll(us, ops, static_cast<void*>(this));
+OTR::message_poll() {
+    otrl_message_poll(us, ops, opdata);
 }
 
 std::tuple<gcry_error_t, bool>
-OTR::message_sending(const OtrlMessageAppOps *ops, void *opdata,
-                     const std::string &accountname,
+OTR::message_sending(const std::string &accountname,
                      const std::string &protocol,
                      const std::string &username,
                      const std::string &message) const
@@ -105,8 +102,7 @@ OTR::message_sending(const OtrlMessageAppOps *ops, void *opdata,
 }
 
 std::tuple<int, bool, std::string>
-OTR::message_receiving(const OtrlMessageAppOps *ops, void *opdata,
-                       const std::string &accountname,
+OTR::message_receiving(const std::string &accountname,
                        const std::string &protocol,
                        const std::string &username,
                        const std::string &message) const
