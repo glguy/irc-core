@@ -18,11 +18,12 @@ macos: glirc-otr.dylib
 linux:  glirc-otr.so
 
 glirc-otr.dylib: glirc-otr.cpp OTR.cpp
-	c++ -shared -o $@ $^ \
+	c++ -O -shared -o $@ $^ \
 	  -std=c++14 \
 	  -Wno-c99-extensions\
 	  -pedantic -Wall \
 	  -undefined dynamic_lookup \
+	  -fvisibility=hidden \
 	  `pkg-config --cflags --libs libotr`
 	strip -x $@
 

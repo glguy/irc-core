@@ -11,10 +11,13 @@ extern "C" {
 }
 
 class OTR {
+        const OtrlMessageAppOps *ops;
+        void *opdata;
+
 public:
         OtrlUserState us;
 
-        OTR();
+        OTR(const OtrlMessageAppOps *, void *);
         ~OTR();
         OTR(const OTR &) = delete;
         OTR &operator=(const OTR &) = delete;
@@ -22,7 +25,7 @@ public:
         ConnContext * context_find
           (const std::string &username, const std::string &accountname, const std::string &protocol) const;
 
-        void message_disconnect_all_instances(const OtrlMessageAppOps *ops, void *opdata,
+        void message_disconnect_all_instances(
                         const std::string &accountname, const std::string &protocol,
                         const std::string &username) const;
 
@@ -34,26 +37,20 @@ public:
         gcry_error_t privkey_read_fingerprints(const char *path) const;
 
 
-        void message_initiate_smp
-          (const OtrlMessageAppOps *ops, void *opdata, ConnContext *context,
-           const std::string &secret) const;
+        void message_initiate_smp (ConnContext *context, const std::string &secret) const;
 
-        void message_respond_smp
-          (const OtrlMessageAppOps *ops, void *opdata, ConnContext *context,
-           const std::string &secret) const;
+        void message_respond_smp (ConnContext *context, const std::string &secret) const;
 
-        void message_poll(const OtrlMessageAppOps *ops);
+        void message_poll();
 
         std::tuple<gcry_error_t, bool>
-        message_sending(const OtrlMessageAppOps *ops, void *opdata,
-                        const std::string &accountname,
+        message_sending(const std::string &accountname,
                         const std::string &protocol,
                         const std::string &username,
                         const std::string &message) const;
 
         std::tuple<int, bool, std::string>
-        message_receiving(const OtrlMessageAppOps *ops, void *opdata,
-                          const std::string &accountname,
+        message_receiving(const std::string &accountname,
                           const std::string &protocol,
                           const std::string &username,
                           const std::string &message) const;

@@ -33,6 +33,7 @@ module Client.State
   , clientSubfocus
   , clientNetworkMap
   , clientIgnores
+  , clientIgnoreMask
   , clientConnection
   , clientBell
   , clientExtensions
@@ -111,6 +112,7 @@ import           Client.Configuration.ServerSettings
 import           Client.Image.Message
 import           Client.Image.Palette
 import           Client.Log
+import           Client.Mask
 import           Client.Message
 import           Client.Network.Async
 import           Client.State.Channel
@@ -181,7 +183,8 @@ data ClientState = ClientState
 
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
-  , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored nicknames
+  , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored masks
+  , _clientIgnoreMask        :: Mask                      -- ^ precomputed ignore regular expression (lazy)
 
   , _clientExtensions        :: !ExtensionState           -- ^ state of loaded extensions
   , _clientLogQueue          :: ![LogLine]                -- ^ log lines ready to write
@@ -240,11 +243,13 @@ withClientState cfgPath cfg k =
 
   withExtensionState $ \exts ->
 
-  do events         <- atomically newTQueue
+  do events <- atomically newTQueue
+     let ignoreIds = map mkId (view configIgnores cfg)
      k ClientState
         { _clientWindows           = _Empty # ()
         , _clientNetworkMap        = _Empty # ()
-        , _clientIgnores           = view configIgnores cfg
+        , _clientIgnores           = HashSet.fromList ignoreIds
+        , _clientIgnoreMask        = buildMask ignoreIds
         , _clientConnections       = _Empty # ()
         , _clientTextBox           = Edit.defaultEditBox
         , _clientTextBoxOffset     = 0
@@ -404,17 +409,17 @@ ircIgnorable msg !st =
     _                    -> Nothing
   where
     checkUser !who
-      | identIgnored (userNick who) st = Just (userNick who)
-      | otherwise                      = Nothing
+      | identIgnored who st = Just (userNick who)
+      | otherwise           = Nothing
 
 
 
 -- | Predicate for nicknames to determine if messages should be ignored.
 identIgnored ::
-  Identifier  {- ^ nickname     -} ->
+  UserInfo    {- ^ target user  -} ->
   ClientState {- ^ client state -} ->
   Bool        {- ^ is ignored   -}
-identIgnored who st = HashSet.member who (view clientIgnores st)
+identIgnored who st = matchMask (view clientIgnoreMask st) who
 
 
 -- | Record a message in the windows corresponding to the given target

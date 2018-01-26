@@ -36,8 +36,41 @@ using namespace std;
 // into and out of the void *opdata parameters
 #define GET_opdata auto opdata = static_cast<OpData*>(L)
 
+namespace {
 
-static const char *casemap =
+OtrlPolicy op_policy(void *, ConnContext *);
+void inject_message (void *, const char *, const char *, const char *, const char *);
+int max_message_size(void *, ConnContext *);
+void handle_msg_event (void *, OtrlMessageEvent, ConnContext *, const char *, gcry_error_t);
+int is_logged_in (void *, const char *, const char *, const char *);
+void gone_secure(void *, ConnContext *);
+void still_secure(void *, ConnContext *, int);
+void handle_smp_event (void *, OtrlSMPEvent, ConnContext *, unsigned short, char *);
+void write_fingerprints(void *);
+void new_fingerprint (void *, OtrlUserState, const char *, const char *, const char *, unsigned char[20]);
+void create_privkey(void *, const char *, const char *);
+void create_instag(void *, const char *, const char *);
+
+OtrlMessageAppOps ops = {
+    .policy            = op_policy,
+    .inject_message    = inject_message,
+    .max_message_size  = max_message_size,
+    .handle_msg_event  = handle_msg_event,
+    .is_logged_in      = is_logged_in,
+
+    .gone_secure       = gone_secure,
+    .still_secure      = still_secure,
+    .handle_smp_event  = handle_smp_event,
+
+    .write_fingerprints = write_fingerprints,
+    .new_fingerprint   = new_fingerprint,
+    .create_privkey    = create_privkey,
+    .create_instag     = create_instag,
+};
+
+
+
+const char *casemap =
     "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
     "\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
     " !\"#$%&'()*+,-./0123456789:;<=>?"
@@ -58,17 +91,17 @@ static const char *casemap =
 // forms of "[\]^". We normalize account names according to this
 // convention so that OTR account names align with the meaning of
 // IRC nicknames.
-static void normalizeCase(string *str) {
+void normalizeCase(string *str) {
    for (auto &x : *str) { x = casemap[(unsigned char)x]; }
 }
 
 /* Construct a glirc_string from a null-terminated C string */
-static inline struct glirc_string mk_glirc_string(const char * str) {
+inline struct glirc_string mk_glirc_string(const char * str) {
         return (struct glirc_string) { .str = str, .len = strlen(str) };
 }
 
 /* Construct a C++ string from a glirc_string */
-static string make_string(const glirc_string &s) {
+string make_string(const glirc_string &s) {
         return string(s.str, s.len);
 }
 
@@ -87,7 +120,7 @@ private:
     unordered_map<string, unordered_set<string>> batch_reftags;
 
 public:
-    OpData(glirc *G) : G(G) {}
+    OpData(glirc *G) : G(G), otr(&ops, this) {}
 
     tuple<string,string> current_focus() {
 
@@ -188,7 +221,7 @@ void glirc_vprintf (struct glirc *G, const char *net, const char *src, const cha
   free(msg);
 }
 
-static void glirc_printf(struct glirc *, const char *, const char *, const char *, const char *, ...)
+void glirc_printf(struct glirc *, const char *, const char *, const char *, const char *, ...)
 __attribute__ ((format (printf, 5, 6)));
 
 void glirc_printf (struct glirc *G, const char *net, const char *src,
@@ -200,7 +233,7 @@ void glirc_printf (struct glirc *G, const char *net, const char *src,
   va_end(ap);
 }
 
-static void print_status(struct glirc *, ConnContext *, const char *, ...)
+void print_status(struct glirc *, ConnContext *, const char *, ...)
 __attribute__ ((format (printf, 3, 4)));
 
 void print_status(struct glirc *G, ConnContext *context, const char *fmt, ...)
@@ -216,7 +249,7 @@ void print_status(struct glirc *G, ConnContext *context, const char *fmt, ...)
 }
 
 
-static char *state_path(const char *what)
+char *state_path(const char *what)
 {
   const char *home = getenv("HOME");
   char *res = NULL;
@@ -226,14 +259,14 @@ static char *state_path(const char *what)
   return res;
 }
 
-static OtrlPolicy op_policy(void *L, ConnContext *context)
+OtrlPolicy op_policy(void *L, ConnContext *context)
 {
   (void)L; (void)context;
 
   return OTRL_POLICY_DEFAULT & ~OTRL_POLICY_SEND_WHITESPACE_TAG;
 }
 
-static void handle_smp_event
+void handle_smp_event
   (void *L, OtrlSMPEvent smp_event, ConnContext *context,
    unsigned short progress_percent, char *question)
 {
@@ -266,7 +299,7 @@ static void handle_smp_event
   }
 }
 
-static void
+void
 inject_message
   (void *L, const char *accountname,
   const char *protocol, const char *recipient, const char *message)
@@ -296,7 +329,7 @@ inject_message
   glirc_send_message(opdata->G, &m);
 }
 
-static void
+void
 handle_msg_event
   (void *L, OtrlMessageEvent msg_event, ConnContext *context,
    const char *message, gcry_error_t err)
@@ -334,14 +367,14 @@ handle_msg_event
   }
 }
 
-static int max_message_size(void *L, ConnContext *context)
+int max_message_size(void *L, ConnContext *context)
 {
   (void)L, (void)context;
 
   return 400; // pessimistic
 }
 
-static int is_logged_in
+int is_logged_in
   (void *L, const char *accountname, const char *protocol,
    const char *recipient)
 {
@@ -355,7 +388,7 @@ static int is_logged_in
   return seen ? 1 : -1; // not seen just means we might not share a channel
 }
 
-static void gone_secure(void *L, ConnContext *context)
+void gone_secure(void *L, ConnContext *context)
 {
   GET_opdata;
 
@@ -365,7 +398,7 @@ static void gone_secure(void *L, ConnContext *context)
       trusted  ? GREEN("trusted") : RED("untrusted"));
 }
 
-static void still_secure(void *L, ConnContext *context, int is_reply)
+void still_secure(void *L, ConnContext *context, int is_reply)
 {
   GET_opdata;
 
@@ -377,7 +410,7 @@ static void still_secure(void *L, ConnContext *context, int is_reply)
       trusted  ? GREEN("trusted") : RED("untrusted"));
 }
 
-static void
+void
 new_fingerprint
   (void *L, OtrlUserState us, const char *accountname, const char *net,
    const char *tgt, unsigned char fp[20])
@@ -391,7 +424,7 @@ new_fingerprint
   glirc_printf(opdata->G, net, PLUGIN_USER, tgt, "New fingerprint: [" BOLD("%s") "]", human);
 }
 
-static void write_fingerprints(void *L)
+void write_fingerprints(void *L)
 {
   GET_opdata;
 
@@ -400,7 +433,7 @@ static void write_fingerprints(void *L)
   free(path);
 }
 
-static void create_privkey(void *L, const char *accountname, const char *protocol)
+void create_privkey(void *L, const char *accountname, const char *protocol)
 {
     GET_opdata;
 
@@ -410,7 +443,7 @@ static void create_privkey(void *L, const char *accountname, const char *protoco
 }
 
 
-static void create_instag(void *L, const char *accountname, const char *protocol)
+void create_instag(void *L, const char *accountname, const char *protocol)
 {
     GET_opdata;
 
@@ -419,24 +452,7 @@ static void create_instag(void *L, const char *accountname, const char *protocol
     free(path);
 }
 
-static OtrlMessageAppOps ops = {
-    .policy            = op_policy,
-    .inject_message    = inject_message,
-    .max_message_size  = max_message_size,
-    .handle_msg_event  = handle_msg_event,
-    .is_logged_in      = is_logged_in,
-
-    .gone_secure       = gone_secure,
-    .still_secure      = still_secure,
-    .handle_smp_event  = handle_smp_event,
-
-    .write_fingerprints = write_fingerprints,
-    .new_fingerprint   = new_fingerprint,
-    .create_privkey    = create_privkey,
-    .create_instag     = create_instag,
-};
-
-static void *start_entrypoint(struct glirc *G, const char *libpath)
+void *start_entrypoint(struct glirc *G, const char *libpath)
 {
   (void)libpath;
 
@@ -460,7 +476,7 @@ static void *start_entrypoint(struct glirc *G, const char *libpath)
   return opdata;
 }
 
-static void stop_entrypoint(struct glirc *G, void *L)
+void stop_entrypoint(struct glirc *G, void *L)
 {
   (void)G;
   GET_opdata;
@@ -470,7 +486,7 @@ static void stop_entrypoint(struct glirc *G, void *L)
 
 // Rebuild the userinfo "nick!user@host" from the prefix
 // fields of a glirc message
-static string
+string
 rebuild_userinfo(const struct glirc_message *msg)
 {
     ostringstream out;
@@ -487,13 +503,13 @@ rebuild_userinfo(const struct glirc_message *msg)
     return out.str();
 }
 
-static enum process_result
+enum process_result
 process_welcome(OpData *opdata, const struct glirc_message *msg) {
         opdata->add_network(make_string(msg->network));
         return PASS_MESSAGE;
 }
 
-static enum process_result
+enum process_result
 process_batch(OpData *opdata, const struct glirc_message *msg) {
 
         if (msg->params_n < 1) return PASS_MESSAGE;
@@ -514,7 +530,7 @@ process_batch(OpData *opdata, const struct glirc_message *msg) {
         return PASS_MESSAGE;
 }
 
-static enum process_result
+enum process_result
 process_privmsg(OpData *opdata, const struct glirc_message *msg)
 {
     if (msg->params_n != 2) {
@@ -545,7 +561,7 @@ process_privmsg(OpData *opdata, const struct glirc_message *msg)
     bool has_newmsg;
     string newmessage;
     tie(internal, has_newmsg, newmessage) =
-        opdata->otr.message_receiving(&ops, opdata, target, net, sender, message);
+        opdata->otr.message_receiving(target, net, sender, message);
 
     if (!internal && has_newmsg) {
         auto userinfo = rebuild_userinfo(msg);
@@ -559,7 +575,7 @@ process_privmsg(OpData *opdata, const struct glirc_message *msg)
     return (internal || has_newmsg) ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
-static enum process_result
+enum process_result
 message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 {
     GET_opdata;
@@ -577,7 +593,7 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 }
 
 
-static enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
+enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
 {
     (void)G;
     GET_opdata;
@@ -599,7 +615,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     gcry_error_t err;
     bool has_newmsg;
 
-    tie(err,has_newmsg) = opdata->otr.message_sending(&ops, opdata, me, network, target, msg);
+    tie(err,has_newmsg) = opdata->otr.message_sending(me, network, target, msg);
 
     if (err) {
         glirc_printf(opdata->G, network.c_str(), PLUGIN_USER, target.c_str(), "PANIC: OTR encryption error");
@@ -608,7 +624,7 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
     return err || has_newmsg ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
-static void cmd_end (OpData *opdata, const string &params)
+void cmd_end (OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -621,7 +637,7 @@ static void cmd_end (OpData *opdata, const string &params)
   if (me.empty()) return;
   normalizeCase(&me);
 
-  opdata->otr.message_disconnect_all_instances(&ops, opdata, me, net, tgt);
+  opdata->otr.message_disconnect_all_instances(me, net, tgt);
 
   const char * const src = PLUGIN_USER;
   const char * const msg = RED("Session terminated");
@@ -635,39 +651,39 @@ static void cmd_end (OpData *opdata, const string &params)
 }
 
 
-static void cmd_ask (OpData *opdata, const string &params)
+void cmd_ask (OpData *opdata, const string &params)
 {
     auto context = opdata->get_current_context();
 
     if (context) {
-        opdata->otr.message_initiate_smp(&ops, opdata, context, params);
+        opdata->otr.message_initiate_smp(context, params);
     }
 }
 
 
-static void cmd_secret (OpData *opdata, const string &params)
+void cmd_secret (OpData *opdata, const string &params)
 {
     auto context = opdata->get_current_context();
 
     // without this extra checking libotr will segfault if an exchange
     // is not active
     if (context && context->smstate && context->smstate->secret) {
-        opdata->otr.message_respond_smp(&ops, opdata, context, params);
+        opdata->otr.message_respond_smp(context, params);
     }
 }
 
 
-static void cmd_poll (OpData *opdata, const string &params)
+void cmd_poll (OpData *opdata, const string &params)
 {
   (void)params;
-  opdata->otr.message_poll(&ops);
+  opdata->otr.message_poll();
 }
 
 
 /*
  * Manually mark the fingerprint associated with the current window trusted.
  */
-static void cmd_trust (OpData *opdata, const string &params)
+void cmd_trust (OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -688,7 +704,7 @@ static void cmd_trust (OpData *opdata, const string &params)
 /*
  * Manually mark the fingerprint associated with the current window untrusted.
  */
-static void cmd_untrust (OpData *opdata, const string &params)
+void cmd_untrust (OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -709,7 +725,7 @@ static void cmd_untrust (OpData *opdata, const string &params)
 /*
  * Print status information for the current context to the chat window
  */
-static void cmd_status (OpData *opdata, const string &params)
+void cmd_status (OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -759,9 +775,9 @@ struct cmd_impl {
   const char *doc; // Documentation string
 };
 
-static void cmd_help(OpData *, const string&);
+void cmd_help(OpData *, const string&);
 
-static struct cmd_impl cmd_impls[] = {
+struct cmd_impl cmd_impls[] = {
   { "status" , cmd_status , "Display the current window's OTR context"              },
   { "secret" , cmd_secret , "Reply to a peer verification request (1 argument)"     },
   { "ask"    , cmd_ask    , "Send a peer verification request (1 argument)"         },
@@ -772,7 +788,7 @@ static struct cmd_impl cmd_impls[] = {
   { "help"   , cmd_help   , "Show available commands"                               },
 };
 
-static void cmd_help(OpData *opdata, const string &params)
+void cmd_help(OpData *opdata, const string &params)
 {
   (void)params;
 
@@ -784,7 +800,7 @@ static void cmd_help(OpData *opdata, const string &params)
   });
 }
 
-static void command_entrypoint
+void command_entrypoint
   (struct glirc *G, void *L, const struct glirc_command *cmd)
 {
   GET_opdata;
@@ -809,7 +825,9 @@ static void command_entrypoint
   }
 }
 
-struct glirc_extension extension = {
+} /* end namespace */
+
+struct glirc_extension extension __attribute__ ((visibility ("default"))) = {
         .name            = NAME,
         .major_version   = MAJOR,
         .minor_version   = MINOR,

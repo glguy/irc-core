@@ -31,6 +31,7 @@ import           Data.Semigroup
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
+import           Irc.UserInfo (userNick)
 import           Text.Read (readMaybe)
 
 
@@ -76,7 +77,7 @@ summaryActor s =
     QuitSummary who   -> Just who
     PartSummary who   -> Just who
     NickSummary who _ -> Just who
-    ChatSummary who   -> Just who
+    ChatSummary who   -> Just (userNick who)
     CtcpSummary who   -> Just who
     ReplySummary {}   -> Nothing
     NoSummary         -> Nothing
