@@ -1,5 +1,12 @@
 # Revision history for glirc2
 
+## 2.25
+* `/ignore` can list ignores and supports full wildcard masks
+* Updated C extension API
+* Improved OTR extension to avoid interacting with ZNC replays
+* Added `protocol-family` configuration option. Set to `inet` or
+  `inet6` to force a particular IP protocol.
+
 ## 2.24
 
 * `/query` now takes a message parameter and tab-completes
