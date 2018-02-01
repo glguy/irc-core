@@ -38,6 +38,7 @@ module Client.Configuration
   , configHideMeta
   , configKeyMap
   , configLayout
+  , configShowPing
   , configJumpModifier
 
   -- * Loading configuration
@@ -99,6 +100,7 @@ data Configuration = Configuration
   , _configHideMeta        :: Bool -- ^ default setting for hidemeta on new windows
   , _configKeyMap          :: KeyMap -- ^ keyboard bindings
   , _configLayout          :: LayoutMode -- ^ Default layout on startup
+  , _configShowPing        :: Bool -- ^ visibility of ping time
   , _configJumpModifier    :: [Modifier] -- ^ Modifier used for jumping windows
   }
   deriving Show
@@ -286,6 +288,8 @@ configurationSpec = sectionsSpec "" $
                                "Extra key bindings"
      _configLayout          <- sec' OneColumn "layout" layoutSpec
                                "Initial setting for window layout"
+     _configShowPing        <- sec' True "show-ping" yesOrNoSpec
+                               "Initial setting for visibility of ping times"
      return (\def ->
              let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates

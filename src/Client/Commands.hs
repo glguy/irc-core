@@ -420,6 +420,12 @@ commandsList =
     $ ClientCommand cmdToggleActivityBar noClientTab
 
   , Command
+      (pure "toggle-show-ping")
+      (pure ())
+      "Toggle visibility of ping round-trip time.\n"
+    $ ClientCommand cmdToggleShowPing noClientTab
+
+  , Command
       (pure "toggle-metadata")
       (pure ())
       "Toggle visibility of metadata in chat windows.\n"
@@ -1165,6 +1171,9 @@ cmdToggleDetail st _ = commandSuccess (over clientDetailView not st)
 
 cmdToggleActivityBar :: ClientCommand ()
 cmdToggleActivityBar st _ = commandSuccess (over clientActivityBar not st)
+
+cmdToggleShowPing :: ClientCommand ()
+cmdToggleShowPing st _ = commandSuccess (over clientShowPing not st)
 
 cmdToggleMetadata :: ClientCommand ()
 cmdToggleMetadata st _ = commandSuccess (clientToggleHideMeta st)

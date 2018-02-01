@@ -30,6 +30,7 @@ module Client.State
   , clientScroll
   , clientDetailView
   , clientActivityBar
+  , clientShowPing
   , clientSubfocus
   , clientNetworkMap
   , clientIgnores
@@ -178,6 +179,7 @@ data ClientState = ClientState
   , _clientScroll            :: !Int                      -- ^ buffer scroll lines
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
   , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
+  , _clientShowPing          :: !Bool                     -- ^ visible ping time
   , _clientRegex             :: Maybe Regex               -- ^ optional persistent filter
   , _clientLayout            :: !LayoutMode               -- ^ layout mode for split screen
 
@@ -268,6 +270,7 @@ withClientState cfgPath cfg k =
         , _clientRegex             = Nothing
         , _clientLayout            = view configLayout cfg
         , _clientActivityBar       = view configActivityBar cfg
+        , _clientShowPing          = view configShowPing cfg
         , _clientBell              = False
         , _clientExtensions        = exts
         , _clientLogQueue          = []

@@ -56,8 +56,12 @@ statusLineImage w st =
       , nometaImage (view clientFocus st) st
       , scrollImage st
       , filterImage st
-      , latencyImage st
+      , latency
       ]
+
+    latency
+      | view clientShowPing st = latencyImage st
+      | otherwise              = mempty
 
     activity
       | view clientActivityBar st = activityBarImages st
