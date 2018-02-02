@@ -283,6 +283,12 @@ Client commands
 * `/exec [-n network] [-c channel] <command> <arguments...>` - Execute a command, If no network or channel are provided send output to client window, if network and channel are provided send output as messages, if network is provided send output as raw IRC messages.
 * `/url [n]` - Execute url-opener on the nth URL in the current window (defaults to first)
 
+View toggles
+* `/toggle-detail` - toggle full detail view of messages
+* `/toggle-activity-bar` - toggle channel names in activity bar
+* `/toggle-metadata` - toggle visibility of channel metadata
+* `/toggle-layout` - toggle split-screen layout between 1 and 2 column view
+
 Connection commands
 
 * `/nick <nick>` - Change nickname
@@ -294,7 +300,8 @@ Window management
 * `/focus <server>` - Change focus to server window
 * `/focus <server> <channel>` - Change focus to channel window
 * `/clear [network] [channel]` - Clear contents of current or specified window
-* `/ignore <nick>` - Toggle ignore of a user
+* `/ignore` - Show all ignore masks
+* `/ignore <mask>...` - Toggle ignore status on a list of masks
 * `/channel <channel>` - Change focus to channel on current network (alias: `/c`)
 * `/splits [focuses...]` - Enable split-screen view. Focuses should be space delimited list of NETWORK:CHANNEL
 * `/splits+ [focuses...]` - Incremental addition to splits
@@ -307,6 +314,7 @@ Channel membership
 
 Chat commands
 
+* `/query <target> [<msg>]` - Switch focus to target window on current server, optionally send message
 * `/msg <target> <msg>` - Send a message on the current server to target
 * `/notice <target> <msg>` - Send a notice message on the current server to target
 * `/ctcp <target> <command> <args>` - Send a ctcp command on the current server to target

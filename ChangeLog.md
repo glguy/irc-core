@@ -1,5 +1,9 @@
 # Revision history for glirc2
 
+## 2.26
+* Added `/toggle-show-ping` and `show-ping` configuration setting
+  to toggle visibility of the ping roundtrip times.
+
 ## 2.25
 * `/ignore` can list ignores and supports full wildcard masks
 * Updated C extension API
