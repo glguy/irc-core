@@ -35,6 +35,10 @@ import           Distribution.Simple.BuildPaths (autogenComponentModulesDir)
 import           Distribution.Simple.BuildPaths (autogenModulesDir)
 #endif
 
+#if MIN_VERSION_Cabal(2,2,0)
+import qualified Distribution.SPDX               as SPDX
+#endif
+
 
 -- | Default Setup main extended to generate a Build module and to validate
 -- the licenses of transitive dependencies.
@@ -148,15 +152,27 @@ validateLicenses ::
   [InstalledPackageInfo] {- ^ transitive package dependencies -} ->
   IO ()
 validateLicenses pkgs =
-  do let p pkg   = license pkg `notElem` freeLicenses
+  do let p pkg   = toLicense (license pkg) `notElem` freeLicenses
          badPkgs = filter p pkgs
 
      unless (null badPkgs) $
-       do mapM_ print badPkgs
+       do mapM_ print [ toLicense (license p) | p <- badPkgs ]
           fail "BAD LICENSE"
+
+class ToLicense a where toLicense :: a -> License
+instance ToLicense License where toLicense = id
+
+#if MIN_VERSION_Cabal(2,2,0)
+instance (ToLicense a, ToLicense b) => ToLicense (Either a b) where
+  toLicense (Right x) = toLicense x
+  toLicense (Left  x) = toLicense x
+instance ToLicense SPDX.License where
+  toLicense = licenseFromSPDX
+#endif
+
 
 
 -- | The set of permissive licenses that are acceptable for transitive dependencies
 -- of this package: BSD2, BSD3, ISC, MIT, PublicDomain
 freeLicenses :: [License]
-freeLicenses = [BSD2, BSD3, ISC, MIT, PublicDomain]
+freeLicenses = [BSD2, BSD3, ISC, MIT, PublicDomain, UnknownLicense "LicenseRefPublicDomain"]

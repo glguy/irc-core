@@ -129,10 +129,10 @@ data NetworkState = NetworkState
 
 -- | State of the authentication transaction
 data AuthenticateState
-  = AS_None -- ^ no active transaction
-  | AS_PlainStarted -- ^ PLAIN mode initiated
-  | AS_EcdsaStarted -- ^ ECDSA-NIST mode initiated
-  | AS_EcdsaWaitChallenge -- ^ ECDSA_NIST user sent waiting for challenge
+  = AS_None               -- ^ no active transaction
+  | AS_PlainStarted       -- ^ PLAIN mode initiated
+  | AS_EcdsaStarted       -- ^ ECDSA-NIST mode initiated
+  | AS_EcdsaWaitChallenge -- ^ ECDSA-NIST user sent waiting for challenge
   deriving Show
 
 -- | Pair of username and hostname. Empty strings represent missing information.
