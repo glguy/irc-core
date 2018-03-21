@@ -1,6 +1,7 @@
 # Revision history for glirc2
 
 ## 2.26
+* Updates for GHC 8.4.1
 * Added `/toggle-show-ping` and `show-ping` configuration setting
   to toggle visibility of the ping roundtrip times.
 
