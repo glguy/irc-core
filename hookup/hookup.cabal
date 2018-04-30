@@ -27,7 +27,7 @@ library
   extra-libraries:     ssl
   build-depends:       base                  >=4.9  && <4.12,
                        socks                 >=0.5  && <0.6,
-                       network               >=2.6  && <2.7,
+                       network               >=2.6  && <2.8,
                        bytestring            >=0.10 && <0.11,
                        HsOpenSSL             >=0.11.2.3 && <0.12,
                        HsOpenSSL-x509-system >=0.1  && <0.2
