@@ -87,7 +87,7 @@ import           System.IO.Error
 data Configuration = Configuration
   { _configDefaults        :: ServerSettings -- ^ Default connection settings
   , _configServers         :: (HashMap Text ServerSettings) -- ^ Host-specific settings
-  , _configPalette         :: Palette
+  , _configPalette         :: Palette -- ^ User-customized color palette
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
   , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
@@ -137,16 +137,19 @@ data ConfigurationFailure
 -- | default instance
 instance Exception ConfigurationFailure
 
+-- | The default client behavior for naming windows is to use the first two
+-- rows of a QWERTY keyboard followed by the first two rows combined with
+-- SHIFT.
 defaultWindowNames :: Text
 defaultWindowNames = "1234567890qwertyuiop!@#$%^&*()QWERTYUIOP"
 
--- | Uses 'getAppUserDataDirectory' to find @.glirc/config@
+-- | Uses 'getAppUserDataDirectory' to find @~/.glirc/config@
 getOldConfigPath :: IO FilePath
 getOldConfigPath =
   do dir <- getAppUserDataDirectory "glirc"
      return (dir </> "config")
 
--- | Uses 'getXdgDirectory' 'XdgConfig' to find @.config/glirc/config@
+-- | Uses 'getXdgDirectory' 'XdgConfig' to find @~/.config/glirc/config@
 getNewConfigPath :: IO FilePath
 getNewConfigPath =
   do dir <- getXdgDirectory XdgConfig "glirc"
@@ -215,6 +218,8 @@ loadConfiguration mbPath = try $
        Right cfg -> resolvePaths path (cfg def)
 
 
+-- | Generate a human-readable explanation of an error arising from
+-- an attempt to load a configuration file.
 explainLoadError :: LoadError Position -> Text
 explainLoadError (LoadError pos path problem) =
   Text.concat [ positionText, " at ", pathText, ": ", problemText]
@@ -327,6 +332,8 @@ fullNickPaddingSpec = sectionsSpec "nick-padding" (sideSec <*> amtSec)
     amtSec  = reqSection' "width" nonnegativeSpec "Field width"
 
 
+-- | Parse either a single modifier key or a list of modifier keys:
+-- @meta@, @alt@, @ctrl@
 modifierSpec :: ValueSpecs [Modifier]
 modifierSpec = toList <$> oneOrNonemptySpec modifier1Spec
   where
@@ -335,13 +342,22 @@ modifierSpec = toList <$> oneOrNonemptySpec modifier1Spec
                 <!> MAlt  <$ atomSpec "alt"
                 <!> MCtrl <$ atomSpec "ctrl"
 
+-- | Parse either @one-column@ or @two-column@ and return the corresponding
+-- 'LayoutMode' value.
 layoutSpec :: ValueSpecs LayoutMode
 layoutSpec = OneColumn <$ atomSpec "one-column"
          <!> TwoColumn <$ atomSpec "two-column"
 
+-- | Parse a single key binding. This can be an action binding, command
+-- binding, or an unbinding specification.
 keyBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
 keyBindingSpec = actBindingSpec <!> cmdBindingSpec <!> unbindingSpec
 
+-- | Parse a single action key binding. Action bindings are a map specifying
+-- a binding using 'keySpec' and an action:
+--
+-- > bind: "M-a"
+-- > action: jump-to-activity
 actBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
 actBindingSpec = sectionsSpec "action-binding" $
   do ~(m,k) <- reqSection' "bind" keySpec

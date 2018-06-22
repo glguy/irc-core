@@ -422,11 +422,15 @@ static void push_glirc_message(lua_State *L, const struct glirc_message *msg)
 static int callback_worker(lua_State *L)
 {       int n = lua_gettop(L);                                   // args... name
         lua_getfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY); // args... name ext
-        lua_rotate(L, 1, 1);                                     // ext args... name
-        lua_gettable(L, 1);                                      // ext args... callback
-        lua_rotate(L, 1, 1);                                     // callback ext args...
-        lua_call(L, n, 1);                                       //
-        return 1;
+        lua_rotate(L, 1, 1);                             // ext args... name
+        int ty = lua_gettable(L, 1);                     // ext args... callback
+        if (ty == LUA_TNIL) {
+            lua_pushboolean(L, 0); // skipped callbacks don't drop messages
+        } else {
+            lua_rotate(L, 1, 1);                             // callback ext args...
+            lua_call(L, n, 1);                               // result
+        }
+        return 1; // return boolean result from callback
 }
 
 static int callback(struct glirc *G, lua_State *L, const char *callback_name, int args)

@@ -141,8 +141,9 @@ commandFailureMsg e st =
 -- command. Otherwise if a channel or user query is focused a chat message
 -- will be sent.
 execute ::
-  String {- ^ chat or command -} ->
-  ClientState -> IO CommandResult
+  String           {- ^ chat or command -} ->
+  ClientState      {- ^ client state    -} ->
+  IO CommandResult {- ^ command result  -}
 execute str st =
   case str of
     []          -> commandFailure st
@@ -150,7 +151,15 @@ execute str st =
     msg         -> executeChat msg st
 
 -- | Execute command provided by user, resolve aliases if necessary.
-executeUserCommand :: Maybe Text -> String -> ClientState -> IO CommandResult
+--
+-- The last disconnection time is stored in text form and is available
+-- for substitutions in macros. It is only provided when running startup
+-- commands during a reconnect event.
+executeUserCommand ::
+  Maybe Text       {- ^ disconnection time -} ->
+  String           {- ^ command            -} ->
+  ClientState      {- ^ client state       -} ->
+  IO CommandResult {- ^ command result     -}
 executeUserCommand discoTime command st = do
   let key = Text.takeWhile (/=' ') (Text.pack command)
       rest = dropWhile (==' ') (dropWhile (/=' ') command)
@@ -201,14 +210,20 @@ commandExpansion discoTime st v =
 -- | Respond to the TAB key being pressed. This can dispatch to a command
 -- specific completion mode when relevant. Otherwise this will complete
 -- input based on the users of the channel related to the current buffer.
-tabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO CommandResult
+tabCompletion ::
+  Bool             {- ^ reversed       -} ->
+  ClientState      {- ^ client state   -} ->
+  IO CommandResult {- ^ command result -}
 tabCompletion isReversed st =
   case snd $ clientLine st of
     '/':command -> executeCommand (Just isReversed) command st
     _           -> nickTabCompletion isReversed st
 
 -- | Treat the current text input as a chat message and send it.
-executeChat :: String -> ClientState -> IO CommandResult
+executeChat ::
+  String           {- ^ chat message   -} ->
+  ClientState      {- ^ client state   -} ->
+  IO CommandResult {- ^ command result -}
 executeChat msg st =
   case view clientFocus st of
     ChannelFocus network channel
@@ -236,7 +251,11 @@ executeChat msg st =
 -- | Parse and execute the given command. When the first argument is Nothing
 -- the command is executed, otherwise the first argument is the cursor
 -- position for tab-completion
-executeCommand :: Maybe Bool -> String -> ClientState -> IO CommandResult
+executeCommand ::
+  Maybe Bool       {- ^ tab-completion direction -} ->
+  String           {- ^ command                  -} ->
+  ClientState      {- ^ client state             -} ->
+  IO CommandResult {- ^ command result           -}
 
 executeCommand (Just isReversed) _ st
   | Just st' <- commandNameCompletion isReversed st = commandSuccess st'
@@ -389,9 +408,11 @@ commandsList =
       \\n\
       \The URL is opened using the executable configured under \^Burl-opener\^B.\n\
       \\n\
-      \When this command is active in the textbox, chat messages are filtered to only show ones with URLs.\n\
+      \When this command is active in the textbox, chat messages are filtered to\
+      \ only show ones with URLs.\n\
       \\n\
-      \When \^Bnumber\^B is omitted it defaults to \^B1\^B. The number selects the URL to open counting back from the most recent.\n"
+      \When \^Bnumber\^B is omitted it defaults to \^B1\^B. The number selects the\
+      \ URL to open counting back from the most recent.\n"
     $ ClientCommand cmdUrl noClientTab
 
   , Command
