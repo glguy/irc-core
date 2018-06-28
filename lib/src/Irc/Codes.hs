@@ -206,7 +206,7 @@ pattern RPL_ENDOFINFO               = ReplyCode 374
 pattern RPL_MOTDSTART               = ReplyCode 375
 pattern RPL_ENDOFMOTD               = ReplyCode 376
 pattern RPL_WHOISHOST               = ReplyCode 378
-pattern RPL_KICKLINKED              = ReplyCode 379
+pattern RPL_WHOISMODES              = ReplyCode 379
 pattern RPL_YOUREOPER               = ReplyCode 381
 pattern RPL_REHASHING               = ReplyCode 382
 pattern RPL_YOURESERVICE            = ReplyCode 383
@@ -633,7 +633,7 @@ replyCodeInfoTable
   , (RPL_MOTDSTART             , ReplyCodeInfo CommandReply "motd-start")
   , (RPL_ENDOFMOTD             , ReplyCodeInfo CommandReply "end-of-motd")
   , (RPL_WHOISHOST             , ReplyCodeInfo CommandReply "whois-host")
-  , (RPL_KICKLINKED            , ReplyCodeInfo CommandReply "kick-linked")
+  , (RPL_WHOISMODES            , ReplyCodeInfo CommandReply "whois-modes")
   , (RPL_YOUREOPER             , ReplyCodeInfo CommandReply "youre-oper")
   , (RPL_REHASHING             , ReplyCodeInfo CommandReply "rehashing")
   , (RPL_YOURESERVICE          , ReplyCodeInfo CommandReply "youre-service")
