@@ -166,10 +166,9 @@ data NetworkHandle = SSL SSL | Socket Socket
 
 openNetworkHandle :: ConnectionParams -> IO NetworkHandle
 openNetworkHandle params =
-  do s <- openSocket params
-     case cpTls params of
-       Nothing -> return (Socket s)
-       Just tp -> SSL <$> startTls (cpHost params) tp s
+  case cpTls params of
+    Nothing -> Socket <$> openSocket params
+    Just _  -> SSL <$> startTls params
 
 
 closeNetworkHandle :: NetworkHandle -> IO ()
@@ -263,18 +262,18 @@ send (Connection _ h) = networkSend h
 -- | Initiate a TLS session on the given socket destined for
 -- the given hostname. When successful an active TLS connection
 -- is returned with certificate verification successful when
--- requested.
+-- requested. This function requires that the TLSParams component
+-- of 'ConnectionParams' is set.
 startTls ::
-  HostName  {- ^ server hostname  -} ->
-  TlsParams {- ^ parameters       -} ->
-  Socket    {- ^ connected socket -} ->
-  IO SSL    {- ^ connected TLS    -}
-startTls host tp s = SSL.withOpenSSL $
-  do ctx <- SSL.context
+  ConnectionParams {- ^ connection params -} ->
+  IO SSL           {- ^ connected TLS    -}
+startTls params = SSL.withOpenSSL $
+  do let Just tp = cpTls params
+     ctx <- SSL.context
 
      -- configure context
      SSL.contextSetCiphers          ctx (tpCipherSuite tp)
-     installVerification            ctx host
+     installVerification            ctx (cpHost params)
      SSL.contextSetVerificationMode ctx (verificationMode (tpInsecure tp))
      SSL.contextAddOption           ctx SSL.SSL_OP_ALL
      SSL.contextRemoveOption        ctx SSL.SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
@@ -285,8 +284,13 @@ startTls host tp s = SSL.withOpenSSL $
      traverse_ (setupPrivateKey  ctx) (tpClientPrivateKey  tp)
 
      -- add socket to context
-     ssl <- SSL.connection ctx s
-     SSL.setTlsextHostName ssl host
+     -- creation of the socket is delayed until this point to avoid
+     -- leaking the file descriptor in the cases of exceptions above.
+     ssl <- SSL.connection ctx =<< openSocket params
+
+     -- configure hostname used for certificate validation
+     SSL.setTlsextHostName ssl (cpHost params)
+
      SSL.connect ssl
 
      return ssl
