@@ -463,8 +463,13 @@ renderReplyCode rm code@(ReplyCode w) params =
     DetailedRender -> string attr (shows w " ") <> rawParamsImage
     NormalRender   ->
       case code of
-        RPL_WHOISIDLE -> whoisIdleParamsImage
-        _             -> rawParamsImage
+        RPL_WHOISIDLE    -> whoisIdleParamsImage
+        RPL_TOPIC        -> topicParamsImage
+        RPL_TOPICWHOTIME -> topicWhoTimeParamsImage
+        RPL_CHANNEL_URL  -> channelUrlParamsImage
+        RPL_CREATIONTIME -> creationTimeParamsImage
+        RPL_INVITING     -> invitingParamsImage
+        _                -> rawParamsImage
   where
     rawParamsImage = separatedParams params'
 
@@ -482,9 +487,38 @@ renderReplyCode rm code@(ReplyCode w) params =
 
     attr = withForeColor defAttr color
 
+    invitingParamsImage =
+      case params of
+        [_, user, _] -> text' defAttr user
+        _ -> rawParamsImage
+
+    topicParamsImage =
+      case params of
+        [_, _, topic] -> text' defAttr topic
+        _ -> rawParamsImage
+
+    topicWhoTimeParamsImage =
+      case params of
+        [_, _, who, time] ->
+          text' defAttr "set by " <>
+          text' defAttr who <>
+          text' defAttr " at " <>
+          string defAttr (prettyUnixTime (Text.unpack time))
+        _ -> rawParamsImage
+
+    channelUrlParamsImage =
+      case params of
+        [_, _, url] -> text' defAttr url
+        _ -> rawParamsImage
+
+    creationTimeParamsImage =
+      case params of
+        [_, _, time, _] -> string defAttr (prettyUnixTime (Text.unpack time))
+        _ -> rawParamsImage
+
     whoisIdleParamsImage =
-      case params' of
-        [name, idle, signon, _txt] ->
+      case params of
+        [_, name, idle, signon, _txt] ->
           text' defAttr name <>
           text' defAttr " idle: " <>
           string defAttr (prettySeconds (Text.unpack idle)) <>

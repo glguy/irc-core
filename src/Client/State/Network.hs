@@ -526,11 +526,6 @@ squelchReply rpl =
     RPL_QUIETLIST       -> True
     RPL_ENDOFQUIETLIST  -> True
     RPL_CHANNELMODEIS   -> True
-    RPL_TOPIC           -> True
-    RPL_TOPICWHOTIME    -> True
-    RPL_CREATIONTIME    -> True
-    RPL_CHANNEL_URL     -> True
-    RPL_NOTOPIC         -> True
     RPL_UMODEIS         -> True
     RPL_WHOREPLY        -> True
     RPL_ENDOFWHO        -> True
