@@ -41,6 +41,7 @@ module Client.State.Network
   , csNetwork
   , csNextPingTime
   , csPingStatus
+  , csLatency
   , csLastReceived
   , csMessageHooks
   , csAuthenticationState
@@ -119,11 +120,14 @@ data NetworkState = NetworkState
   , _csUsers        :: !(HashMap Identifier UserAndHost) -- ^ user and hostname for other nicks
   , _csModeCount    :: !Int -- ^ maximum mode changes per MODE command
   , _csNetwork      :: !Text -- ^ name of network connection
-  , _csNextPingTime :: !(Maybe UTCTime) -- ^ time for next ping event
-  , _csPingStatus   :: !PingStatus -- ^ state of ping timer
-  , _csLastReceived :: !(Maybe UTCTime) -- ^ time of last message received
   , _csMessageHooks :: ![Text] -- ^ names of message hooks to apply to this connection
   , _csAuthenticationState :: !AuthenticateState
+
+  -- Timing information
+  , _csNextPingTime :: !(Maybe UTCTime) -- ^ time for next ping event
+  , _csLatency      :: !(Maybe NominalDiffTime) -- ^ latency calculated from previous pong
+  , _csPingStatus   :: !PingStatus      -- ^ state of ping timer
+  , _csLastReceived :: !(Maybe UTCTime) -- ^ time of last message received
   }
   deriving Show
 
@@ -143,9 +147,8 @@ data UserAndHost =
 
 -- | Status of the ping timer
 data PingStatus
-  = PingSent    !UTCTime -- ^ ping sent waiting for pong
-  | PingLatency !Double -- ^ latency in seconds for last ping
-  | PingNever -- ^ no ping sent
+  = PingSent !UTCTime -- ^ ping sent at given time, waiting for pong
+  | PingNone          -- ^ not waiting for a pong
   | PingConnecting !Int !(Maybe UTCTime) -- ^ number of attempts, last known connection time
   deriving Show
 
@@ -235,11 +238,12 @@ newNetworkState networkId network settings sock ping = NetworkState
   , _csModeCount    = 3
   , _csUsers        = HashMap.empty
   , _csNetwork      = network
-  , _csPingStatus   = ping
-  , _csNextPingTime = Nothing
-  , _csLastReceived = Nothing
   , _csMessageHooks = view ssMessageHooks settings
   , _csAuthenticationState = AS_None
+  , _csPingStatus   = ping
+  , _csLatency      = Nothing
+  , _csNextPingTime = Nothing
+  , _csLastReceived = Nothing
   }
 
 
@@ -324,7 +328,7 @@ doWelcome msgWhen me
   = noReply
   . set csNick me
   . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
-  . set csPingStatus PingNever
+  . set csPingStatus PingNone
 
 -- | Handle 'ERR_NICKNAMEINUSE' errors when connecting.
 doBadNick ::
@@ -840,17 +844,17 @@ nextTimedAction cs =
   where
     action =
       case view csPingStatus cs of
-        PingSent{}    -> TimedDisconnect
-        PingLatency{} -> TimedSendPing
-        PingNever     -> TimedSendPing
+        PingSent{}       -> TimedDisconnect
+        PingNone         -> TimedSendPing
         PingConnecting{} -> TimedSendPing
 
 doPong :: ZonedTime -> NetworkState -> NetworkState
-doPong when cs = set csPingStatus (PingLatency delta) cs
+doPong when cs = set csPingStatus PingNone
+               $ set csLatency (Just delta) cs
   where
     delta =
       case view csPingStatus cs of
-        PingSent sent -> realToFrac (diffUTCTime (zonedTimeToUTC when) sent)
+        PingSent sent -> diffUTCTime (zonedTimeToUTC when) sent
         _             -> 0
 
 -- | Apply the given 'TimedAction' to a connection state.

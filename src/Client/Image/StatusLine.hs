@@ -133,12 +133,14 @@ latencyImage st =
         Nothing -> infoBubble (string (view palError pal) "offline")
         Just cs ->
           case view csPingStatus cs of
-            PingNever          -> mempty
             PingSent {}        -> latency "ping sent"
-            PingLatency delta  -> latency (showFFloat (Just 2) delta "s")
             PingConnecting n _ ->
               infoBubble (string (view palLatency pal) "connecting" <>
                           retryImage n)
+            PingNone ->
+              case view csLatency cs of
+                Nothing    -> mempty
+                Just delta -> latency (showFFloat (Just 2) (realToFrac delta :: Double) "s")
   where
     pal     = clientPalette st
     latency = infoBubble . string (view palLatency pal)

@@ -29,8 +29,7 @@ ignoreListLines ::
   [Image']
 ignoreListLines ignores pal =
   summaryLine ignores pal :
-  [ text' defAttr (cleanText (idText mask))
-  | mask <- toList ignores ]
+  [ text' defAttr (cleanText (idText mask)) | mask <- toList ignores ]
 
 
 -- | Render a summary describing the number of ignore masks.
