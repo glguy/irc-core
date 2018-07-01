@@ -1,5 +1,11 @@
 # Revision history for glirc2
 
+## 2.27
+* Requires GHC 8.4
+* Show channel topic in channel on join
+* Fix socket leak when failing to load TLS certificates
+* Add delay when indicating sent ping to reduce noise
+
 ## 2.26
 * Updates for GHC 8.4.1
 * Added `/toggle-show-ping` and `show-ping` configuration setting
