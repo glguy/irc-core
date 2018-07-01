@@ -23,7 +23,6 @@ module Client.Hook
   ) where
 
 import Control.Lens
-import Data.Semigroup
 import Data.Text
 
 import Irc.Message

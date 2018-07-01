@@ -25,7 +25,6 @@ import qualified Data.Map.Strict as Map
 import           Data.List
 import           Data.Maybe
 import           Data.Ord
-import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText

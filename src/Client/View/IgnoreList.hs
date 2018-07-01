@@ -19,7 +19,6 @@ import           Graphics.Vty.Attributes
 import           Irc.Identifier
 import           Data.HashSet (HashSet)
 import           Data.Foldable
-import           Data.Semigroup
 import           Control.Lens
 
 -- | Render the lines used in a channel mask list.

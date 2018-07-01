@@ -27,7 +27,6 @@ import           Client.State.Window
 import           Control.Lens
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
-import           Data.Semigroup
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 import           Irc.Identifier

@@ -26,7 +26,6 @@ module Client.Image.PackedImage
 import           Data.List (findIndex)
 import qualified Data.Text as S
 import qualified Data.Text.Lazy as L
-import           Data.Semigroup
 import           Data.String
 import           Graphics.Vty.Attributes
 import           Graphics.Vty.Image ((<|>), wcswidth, wcwidth)

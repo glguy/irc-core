@@ -25,7 +25,6 @@ import           Client.State.Channel
 import           Client.State.Network
 import           Control.Lens
 import           Data.HashSet (HashSet)
-import           Data.Semigroup
 import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Attributes

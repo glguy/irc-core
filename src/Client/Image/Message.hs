@@ -41,7 +41,6 @@ import           Data.Hashable (hash)
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.List
-import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time

@@ -18,7 +18,6 @@ module Client.View.RtsStats
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Control.Lens
-import           Data.Semigroup
 import           Graphics.Vty.Attributes
 import           RtsStats
 

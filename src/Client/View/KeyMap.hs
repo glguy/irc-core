@@ -17,7 +17,6 @@ import           Client.Image.PackedImage
 import           Client.State
 import           Control.Lens
 import           Data.List
-import           Data.Semigroup
 import           Data.Ord
 import           Graphics.Vty.Attributes
 import           Graphics.Vty.Input

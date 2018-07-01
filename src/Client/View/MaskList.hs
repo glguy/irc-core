@@ -24,7 +24,6 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Ord
 import           Data.Maybe
-import           Data.Semigroup
 import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Attributes

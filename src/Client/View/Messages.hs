@@ -28,7 +28,6 @@ import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
 import           Data.List
-import           Data.Semigroup
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.UserInfo

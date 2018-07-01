@@ -43,7 +43,6 @@ import           Data.ByteString (ByteString)
 import           Data.Foldable
 import           Data.List
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Ord
 import           Data.Text (Text)
 import qualified Data.Text as Text

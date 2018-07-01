@@ -15,7 +15,6 @@ import           Client.Image.Message (cleanText)
 import           Client.Message
 import           Control.Exception
 import           Control.Lens hiding ((<.>))
-import           Data.Monoid
 import           Data.Time
 import           Data.Text (Text)
 import qualified Data.Text as Text

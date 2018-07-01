@@ -33,7 +33,6 @@ import           Data.Char
 import qualified Data.HashSet as HashSet
 import           Data.HashSet (HashSet)
 import           Data.List
-import           Data.Semigroup
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
 import qualified Graphics.Vty.Image as Vty

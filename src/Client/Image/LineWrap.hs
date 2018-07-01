@@ -16,7 +16,6 @@ module Client.Image.LineWrap
   ) where
 
 import           Client.Image.PackedImage
-import           Data.Semigroup
 import qualified Graphics.Vty.Image as Vty
 import           Graphics.Vty.Attributes
 import qualified Data.Text.Lazy as L
