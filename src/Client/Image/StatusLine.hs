@@ -25,9 +25,9 @@ import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Control.Lens
+import           Data.Foldable (for_)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
-import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
@@ -125,25 +125,34 @@ filterImage st =
 -- that the connection is being established or that a ping has been
 -- sent or long the previous ping round-trip was.
 latencyImage :: ClientState -> Image'
-latencyImage st =
-  case views clientFocus focusNetwork st of
-    Nothing      -> mempty
-    Just network ->
-      case preview (clientConnection network) st of
-        Nothing -> infoBubble (string (view palError pal) "offline")
-        Just cs ->
-          case view csPingStatus cs of
-            PingSent {}        -> latency "ping sent"
-            PingConnecting n _ ->
-              infoBubble (string (view palLatency pal) "connecting" <>
-                          retryImage n)
-            PingNone ->
-              case view csLatency cs of
-                Nothing    -> mempty
-                Just delta -> latency (showFFloat (Just 2) (realToFrac delta :: Double) "s")
+latencyImage st = either id id $
+
+  do network <- -- no network -> no image
+       case views clientFocus focusNetwork st of
+         Nothing  -> Left mempty
+         Just net -> Right net
+
+     cs <- -- detect when offline
+       case preview (clientConnection network) st of
+         Nothing -> Left (infoBubble (string (view palError pal) "offline"))
+         Just cs -> Right cs
+
+     -- render latency if one is stored
+     for_ (view csLatency cs) $ \latency ->
+       Left (latencyBubble (showFFloat (Just 2) (realToFrac latency :: Double) "s"))
+
+     Right $ case view csPingStatus cs of
+
+       PingSent {} -> latencyBubble "wait"
+
+       PingConnecting n _ ->
+         infoBubble (string (view palLatency pal) "connecting" <> retryImage n)
+
+       PingNone -> mempty -- just connected no ping sent yet
+
   where
-    pal     = clientPalette st
-    latency = infoBubble . string (view palLatency pal)
+    pal           = clientPalette st
+    latencyBubble = infoBubble . string (view palLatency pal)
 
     retryImage n
       | n > 0     = ": " <> string (view palLabel pal) ("retry " ++ show n)

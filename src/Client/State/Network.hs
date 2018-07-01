@@ -152,6 +152,12 @@ data PingStatus
   | PingConnecting !Int !(Maybe UTCTime) -- ^ number of attempts, last known connection time
   deriving Show
 
+-- | Timer-based events
+data TimedAction
+  = TimedDisconnect    -- ^ terminate the connection due to timeout
+  | TimedSendPing      -- ^ transmit a ping to the server
+  | TimedForgetLatency -- ^ erase latency (when it is outdated)
+  deriving (Eq, Ord, Show)
 
 data Transaction
   = NoTransaction
@@ -163,6 +169,7 @@ data Transaction
 makeLenses ''NetworkState
 makePrisms ''Transaction
 makePrisms ''PingStatus
+makePrisms ''TimedAction
 
 defaultChannelTypes :: String
 defaultChannelTypes = "#&"
@@ -830,15 +837,27 @@ massRegistration cs
               HashMap.insert nick (UserAndHost user host) users
       | otherwise = users
 
--- | Timer-based events
-data TimedAction
-  = TimedDisconnect -- ^ terminate the connection due to timeout
-  | TimedSendPing -- ^ transmit a ping to the server
-  deriving (Eq, Ord, Show)
-
 -- | Compute the earliest timed action for a connection, if any
 nextTimedAction :: NetworkState -> Maybe (UTCTime, TimedAction)
-nextTimedAction cs =
+nextTimedAction ns = minimumOf (folded.folded) actions
+  where
+    actions = [nextPingAction ns, nextForgetAction ns]
+
+-- | Compute the timed action for forgetting the ping latency.
+-- The client will wait for a multiple of the current latency
+-- for the next pong response in order to reduce jitter in
+-- the rendered latency when everything is fine.
+nextForgetAction :: NetworkState -> Maybe (UTCTime, TimedAction)
+nextForgetAction ns =
+  do sentAt  <- preview (csPingStatus . _PingSent) ns
+     latency <- view csLatency ns
+     let delay = max 0.1 (3 * latency) -- wait at least 0.1s (ensure positive waits)
+         eventAt = addUTCTime delay sentAt
+     return (eventAt, TimedForgetLatency)
+
+-- | Compute the next action needed for the client ping logic.
+nextPingAction :: NetworkState -> Maybe (UTCTime, TimedAction)
+nextPingAction cs =
   do runAt <- view csNextPingTime cs
      return (runAt, action)
   where
@@ -860,7 +879,11 @@ doPong when cs = set csPingStatus PingNone
 -- | Apply the given 'TimedAction' to a connection state.
 applyTimedAction :: TimedAction -> NetworkState -> IO NetworkState
 applyTimedAction action cs =
+
   case action of
+    TimedForgetLatency ->
+      do return $! set csLatency Nothing cs
+
     TimedDisconnect ->
       do abortConnection PingTimeout (view csSocket cs)
          return $! set csNextPingTime Nothing cs
