@@ -159,7 +159,7 @@ import           Text.Regex.TDFA.String (compile)
 data ClientState = ClientState
   { _clientWindows           :: !(Map Focus Window) -- ^ client message buffers
   , _clientPrevFocus         :: !Focus              -- ^ previously focused buffer
-  , _clientActivityReturn    :: !Focus              -- ^ focus prior to jumping to activity
+  , _clientActivityReturn    :: !(Maybe Focus)      -- ^ focus prior to jumping to activity
   , _clientFocus             :: !Focus              -- ^ currently focused buffer
   , _clientSubfocus          :: !Subfocus           -- ^ current view mode
   , _clientExtraFocus        :: ![Focus]            -- ^ extra messages windows to view
@@ -259,7 +259,7 @@ withClientState cfgPath cfg k =
         , _clientHeight            = 25
         , _clientEvents            = events
         , _clientPrevFocus         = Unfocused
-        , _clientActivityReturn    = Unfocused
+        , _clientActivityReturn    = Nothing
         , _clientFocus             = Unfocused
         , _clientSubfocus          = FocusMessages
         , _clientExtraFocus        = []
@@ -858,15 +858,17 @@ clientExtraFocuses st =
 -- Some events like errors or chat messages mentioning keywords are
 -- considered important and will be jumped to first.
 jumpToActivity :: ClientState -> ClientState
-jumpToActivity st = changeFocus newFocus st
+jumpToActivity st =
+  case mplus highPriority lowPriority of
+    Just (focus,_) -> changeFocus focus st
+    Nothing ->
+      case view clientActivityReturn st of
+        Just focus -> changeFocus focus st
+        Nothing    -> st
   where
     windowList   = views clientWindows Map.toAscList st
     highPriority = find (\x -> WLImportant == view winMention (snd x)) windowList
     lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
-    newFocus =
-      case mplus highPriority lowPriority of
-        Just (focus,_) -> focus
-        Nothing        -> view clientActivityReturn st
 
 -- | Jump the focus directly to a window based on its zero-based index.
 jumpFocus ::

@@ -418,8 +418,11 @@ doAction ::
 doAction vty action st =
 
   let continue !out -- detect when chains of M-a are broken
-        | action == ActJumpToActivity = return (Just out)
-        | otherwise = return $! Just $! set clientActivityReturn (view clientFocus out) out
+        | action == ActJumpToActivity =
+            let upd Nothing = Just $! view clientFocus st
+                upd x       = x
+            in return $! Just $! over clientActivityReturn upd out
+        | otherwise = return (Just out)
 
       changeEditor  f = continue (over clientTextBox f st)
       changeContent f = changeEditor
@@ -427,7 +430,7 @@ doAction vty action st =
                       . set  Edit.lastOperation Edit.OtherOperation
 
       mbChangeEditor f =
-        case clientTextBox f st of
+        case traverseOf clientTextBox f st of
           Nothing -> continue $! set clientBell True st
           Just st' -> continue st'
   in
