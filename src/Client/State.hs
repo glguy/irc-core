@@ -391,11 +391,21 @@ msgImportance msg st =
         Kick _ _ kicked _ | isMe kicked -> WLImportant
                           | otherwise   -> WLNormal
         Error{} -> WLImportant
+
+        -- channel information
+        Reply RPL_TOPIC _        -> WLBoring
+        Reply RPL_TOPICWHOTIME _ -> WLBoring
+        Reply RPL_NOTOPIC _      -> WLBoring
+        Reply RPL_CHANNEL_URL _  -> WLBoring
+        Reply RPL_CREATIONTIME _ -> WLBoring
+        Reply RPL_INVITING _     -> WLBoring
+
+        -- remaining replies go to network window
         Reply cmd _ ->
           case replyCodeType (replyCodeInfo cmd) of
             ErrorReply -> WLImportant
             _          -> WLNormal
-        _               -> WLBoring
+        _              -> WLBoring
 
 
 -- | Predicate for messages that should be ignored based on the
