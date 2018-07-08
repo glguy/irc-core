@@ -386,7 +386,7 @@ commandsList =
       (remainingArg "arguments")
       "Execute a command synchnonously sending the to a configuration destination.\n\
       \\n\
-      \\^Barguments\^B: [-n network] [-c channel] [-i input] command [command arguments...]\n\
+      \\^Barguments\^B: [-n[network]] [-c[channel]] [-i input] command [arguments...]\n\
       \\n\
       \When \^Binput\^B is specified it is sent to the stdin.\n\
       \\n\
@@ -2206,19 +2206,36 @@ cmdExec st rest =
     buildTransmitter now ec =
       case (Text.pack <$> view execOutputNetwork ec,
             Text.pack <$> view execOutputChannel ec) of
-        (Nothing, Nothing) -> Right (sendToClient now)
-        (Just network, Nothing) ->
+
+        (Unspecified, Unspecified) -> Right (sendToClient now)
+
+        (Specified network, Specified channel) ->
           case preview (clientConnection network) st of
             Nothing -> Left ["Unknown network"]
-            Just cs -> Right (sendToNetwork now cs)
-        (Nothing , Just channel) ->
+            Just cs -> Right (sendToChannel cs channel)
+
+        (_ , Specified channel) ->
           case currentNetworkState of
             Nothing -> Left ["No current network"]
             Just cs -> Right (sendToChannel cs channel)
-        (Just network, Just channel) ->
+
+        (Specified network, _) ->
           case preview (clientConnection network) st of
             Nothing -> Left ["Unknown network"]
-            Just cs -> Right (sendToChannel cs channel)
+            Just cs -> Right (sendToNetwork now cs)
+
+        (_, Current) ->
+          case currentNetworkState of
+            Nothing -> Left ["No current network"]
+            Just cs ->
+              case view clientFocus st of
+                ChannelFocus _ channel -> Right (sendToChannel cs (idText channel))
+                _                      -> Left ["No current channel"]
+
+        (Current, _) ->
+          case currentNetworkState of
+            Nothing -> Left ["No current network"]
+            Just cs -> Right (sendToNetwork now cs)
 
     sendToClient now msgs = commandSuccess $! foldl' (recordSuccess now) st msgs
 

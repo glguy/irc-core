@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE DeriveFunctor, TemplateHaskell, BangPatterns, OverloadedStrings #-}
 
 {-|
 Module      : Client.Commands
@@ -14,6 +14,7 @@ can show channel bans, quiets, invites, and exceptions.
 module Client.Commands.Exec
   ( -- * Exec command configuration
     ExecCmd(..)
+  , Target(..)
 
   -- * Lenses
   , execOutputNetwork
@@ -44,21 +45,24 @@ import           System.Process
 -- When the network and channel are specified the output is sent as messages
 -- to the given channel on the given network.
 data ExecCmd = ExecCmd
-  { _execOutputNetwork :: Maybe String -- ^ output network
-  , _execOutputChannel :: Maybe String -- ^ output channel
-  , _execCommand       :: String       -- ^ command filename
-  , _execStdIn         :: String       -- ^ stdin source
-  , _execArguments     :: [String]     -- ^ command arguments
+  { _execOutputNetwork :: Target String -- ^ output network
+  , _execOutputChannel :: Target String -- ^ output channel
+  , _execCommand       :: String        -- ^ command filename
+  , _execStdIn         :: String        -- ^ stdin source
+  , _execArguments     :: [String]      -- ^ command arguments
   }
   deriving (Read,Show)
+
+data Target a = Unspecified | Current | Specified a
+  deriving (Show, Read, Eq, Ord, Functor)
 
 makeLenses ''ExecCmd
 
 -- | Default values for @/exec@ to be overridden by flags.
 emptyExecCmd :: ExecCmd
 emptyExecCmd = ExecCmd
-  { _execOutputNetwork = Nothing
-  , _execOutputChannel = Nothing
+  { _execOutputNetwork = Unspecified
+  , _execOutputChannel = Unspecified
   , _execCommand       = error "no default command"
   , _execStdIn         = ""
   , _execArguments     = []
@@ -66,11 +70,12 @@ emptyExecCmd = ExecCmd
 
 options :: [OptDescr (ExecCmd -> ExecCmd)]
 options =
+  let specified = maybe Current Specified in
   [ Option "n" ["network"]
-        (ReqArg (set execOutputNetwork . Just) "NETWORK")
+        (OptArg (set execOutputNetwork . specified) "NETWORK")
         "Set network target"
   , Option "c" ["channel"]
-        (ReqArg (set execOutputChannel . Just) "CHANNEL")
+        (OptArg (set execOutputChannel . specified) "CHANNEL")
         "Set channel target"
   , Option "i" ["input"]
         (ReqArg (set execStdIn) "INPUT")
