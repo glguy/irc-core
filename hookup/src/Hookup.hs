@@ -19,9 +19,12 @@ module Hookup
   -- * Connections
   Connection,
   connect,
+  connectWithSocket,
+  recv,
   recvLine,
   send,
   close,
+  putBuf,
 
   -- * Errors
   ConnectionFailure(..),
@@ -164,11 +167,14 @@ socket' ai =
 data NetworkHandle = SSL SSL | Socket Socket
 
 
-openNetworkHandle :: ConnectionParams -> IO NetworkHandle
-openNetworkHandle params =
+openNetworkHandle ::
+  ConnectionParams {- ^ parameters             -} ->
+  IO Socket        {- ^ socket creation action -} ->
+  IO NetworkHandle {- ^ open network handle    -}
+openNetworkHandle params mkSocket =
   case cpTls params of
-    Nothing -> Socket <$> openSocket params
-    Just _  -> SSL <$> startTls params
+    Nothing  -> Socket <$> mkSocket
+    Just tls -> SSL <$> startTls tls (cpHost params) mkSocket
 
 
 closeNetworkHandle :: NetworkHandle -> IO ()
@@ -199,17 +205,47 @@ data Connection = Connection (MVar ByteString) NetworkHandle
 -- the given parameters.
 --
 -- Throws 'IOError', 'SocksError', 'SSL.ProtocolError', 'ConnectionFailure'
-connect :: ConnectionParams -> IO Connection
+connect ::
+  ConnectionParams {- ^ parameters      -} ->
+  IO Connection    {- ^ open connection -}
 connect params =
-  do h <- openNetworkHandle params
+  do h <- openNetworkHandle params (openSocket params)
      b <- newMVar B.empty
      return (Connection b h)
 
+-- | Create a new 'Connection' using an already connected socket.
+-- This will attempt to start TLS if configured but will ignore
+-- any SOCKS server settings as it is assumed that the socket
+-- is already actively connected to the intended service.
+--
+-- Throws 'SSL.ProtocolError'
+connectWithSocket ::
+  ConnectionParams {- ^ parameters       -} ->
+  Socket           {- ^ connected socket -} ->
+  IO Connection    {- ^ open connection  -}
+connectWithSocket params sock =
+  do h <- openNetworkHandle params (return sock)
+     b <- newMVar B.empty
+     return (Connection b h)
 
 -- | Close network connection.
-close :: Connection -> IO ()
+close ::
+  Connection {- ^ open connection -} ->
+  IO ()
 close (Connection _ h) = closeNetworkHandle h
 
+-- | Receive the next chunk from the stream. This operation will first
+-- return the buffer if it contains a non-empty chunk. Otherwise it will
+-- request up to the requested number of bytes from the stream.
+recv ::
+  Connection    {- ^ open connection              -} ->
+  Int           {- ^ maximum underlying recv size -} ->
+  IO ByteString {- ^ next chunk from stream       -}
+recv (Connection buf h) n =
+  do bufChunk <- swapMVar buf B.empty
+     if B.null bufChunk
+       then networkRecv h n
+       else return bufChunk
 
 -- | Receive a line from the network connection. Both
 -- @"\\r\\n"@ and @"\\n"@ are recognized.
@@ -222,7 +258,10 @@ close (Connection _ h) = closeNetworkHandle h
 -- without transmitting a line terminator.
 --
 -- Throws: 'ConnectionAbruptlyTerminated', 'ConnectionFailure', 'IOError'
-recvLine :: Connection -> Int -> IO (Maybe ByteString)
+recvLine ::
+  Connection            {- ^ open connection            -} ->
+  Int                   {- ^ maximum line length        -} ->
+  IO (Maybe ByteString) {- ^ next line or end-of-stream -}
 recvLine (Connection buf h) n =
   modifyMVar buf $ \bs ->
     go (B.length bs) bs []
@@ -242,6 +281,18 @@ recvLine (Connection buf h) n =
                else go (bsn + B.length more) more (bs:bss)
 
 
+-- | Push a 'ByteString' onto the buffer so that it will be the first
+-- bytes to be read on the next receive operation. This could perhaps
+-- be useful for putting the unused portion of a 'recv' back into the
+-- buffer for future 'recvLine' or 'recv' operations.
+putBuf ::
+  Connection {- ^ connection         -} ->
+  ByteString {- ^ new head of buffer -} ->
+  IO ()
+putBuf (Connection buf h) bs =
+  modifyMVar_ buf (\old -> return $! B.append bs old)
+
+
 -- | Remove the trailing @'\\r'@ if one is found.
 cleanEnd :: ByteString -> ByteString
 cleanEnd bs
@@ -249,10 +300,14 @@ cleanEnd bs
   | otherwise                    = B.init bs
 
 
--- | Send bytes on the network connection.
+-- | Send bytes on the network connection. This ensures the whole chunk is
+-- transmitted, which might take multiple underlying sends.
 --
 -- Throws: 'IOError', 'ProtocolError'
-send :: Connection -> ByteString -> IO ()
+send ::
+  Connection {- ^ open connection -} ->
+  ByteString {- ^ chunk           -} ->
+  IO ()
 send (Connection _ h) = networkSend h
 
 
@@ -265,15 +320,16 @@ send (Connection _ h) = networkSend h
 -- requested. This function requires that the TLSParams component
 -- of 'ConnectionParams' is set.
 startTls ::
-  ConnectionParams {- ^ connection params -} ->
-  IO SSL           {- ^ connected TLS    -}
-startTls params = SSL.withOpenSSL $
-  do let Just tp = cpTls params
-     ctx <- SSL.context
+  TlsParams {- ^ connection params      -} ->
+  String    {- ^ hostname               -} ->
+  IO Socket {- ^ socket creation action -} ->
+  IO SSL    {- ^ connected TLS          -}
+startTls tp hostname mkSocket = SSL.withOpenSSL $
+  do ctx <- SSL.context
 
      -- configure context
      SSL.contextSetCiphers          ctx (tpCipherSuite tp)
-     installVerification            ctx (cpHost params)
+     installVerification            ctx hostname
      SSL.contextSetVerificationMode ctx (verificationMode (tpInsecure tp))
      SSL.contextAddOption           ctx SSL.SSL_OP_ALL
      SSL.contextRemoveOption        ctx SSL.SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
@@ -286,10 +342,10 @@ startTls params = SSL.withOpenSSL $
      -- add socket to context
      -- creation of the socket is delayed until this point to avoid
      -- leaking the file descriptor in the cases of exceptions above.
-     ssl <- SSL.connection ctx =<< openSocket params
+     ssl <- SSL.connection ctx =<< mkSocket
 
      -- configure hostname used for certificate validation
-     SSL.setTlsextHostName ssl (cpHost params)
+     SSL.setTlsextHostName ssl hostname
 
      SSL.connect ssl
 

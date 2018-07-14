@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.2.1 -- 2018-07
+
+* Added `connectWithSocket`, `recv`, `putBuf`
+
 ## 0.2 -- 2017-11-22
 
 * Allow connection parameters to specify address family with `cpFamily` field
