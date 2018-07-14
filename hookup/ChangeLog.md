@@ -2,7 +2,7 @@
 
 ## 0.2.1 -- 2018-07
 
-* Added `connectWithSocket`, `recv`, `putBuf`
+* Added `connectWithSocket`, `recv`, `putBuf`, `defaultTlsParams`
 
 ## 0.2 -- 2017-11-22
 

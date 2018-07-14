@@ -15,6 +15,7 @@ module Hookup
   SocksParams(..),
   TlsParams(..),
   defaultFamily,
+  defaultTlsParams,
 
   -- * Connections
   Connection,
@@ -53,6 +54,19 @@ import           Hookup.OpenSSL (installVerification)
 
 
 -- | Parameters for 'connect'.
+--
+-- Common defaults for fields: 'defaultFamily', 'defaultTlsParams'
+--
+-- The address family can be specified in order to force only
+-- IPv4 or IPv6 to be used. The default behavior is to support both.
+-- It can be useful to specify exactly one of these in the case that
+-- the other is misconfigured and a hostname is resolving to both.
+--
+-- When a 'SocksParams' is provided the connection will be established
+-- using a SOCKS5 proxy.
+--
+-- When a 'TlsParams' is provided the connection negotiate TLS at connect
+-- time in order to protect the stream.
 data ConnectionParams = ConnectionParams
   { cpFamily :: Family           -- ^ IP Protocol family (default 'AF_UNSPEC')
   , cpHost  :: HostName          -- ^ Destination host
@@ -76,9 +90,8 @@ data TlsParams = TlsParams
   , tpClientPrivateKey   :: Maybe FilePath -- ^ Path to client private key
   , tpServerCertificate  :: Maybe FilePath -- ^ Path to CA certificate bundle
   , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. "HIGH")
-  , tpInsecure           :: Bool -- ^ Disables certificate checking
+  , tpInsecure           :: Bool -- ^ Disables certificate checking when 'True'
   }
-
 
 -- | Type for errors that can be thrown by this package.
 data ConnectionFailure
@@ -105,6 +118,17 @@ instance Exception ConnectionFailure where
 -- | Default 'Family' value is unspecified and allows both INET and INET6.
 defaultFamily :: Socket.Family
 defaultFamily = Socket.AF_UNSPEC
+
+-- | Default values for TLS that use no client certificates, use
+-- system CA root, @HIGH@ cipher suite, and which validate hostnames.
+defaultTlsParams :: TlsParams
+defaultTlsParams = TlsParams
+  { tpClientCertificate  = Nothing
+  , tpClientPrivateKey   = Nothing
+  , tpServerCertificate  = Nothing -- use system provided CAs
+  , tpCipherSuite        = "HIGH"
+  , tpInsecure           = False
+  }
 
 ------------------------------------------------------------------------
 -- Opening sockets
