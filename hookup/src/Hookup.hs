@@ -36,6 +36,7 @@ import           Control.Exception
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B8
 import           Data.Foldable
 import           Data.List (intercalate)
 import           Network (PortID(..))
@@ -164,16 +165,28 @@ openSocket' family h p =
        Left  ioe -> throwIO (HostnameResolutionFailure ioe)
 
 
-attemptConnections :: [IOError] -> [Socket.AddrInfo] -> IO Socket
+-- | Try establishing a connection to the services indicated by
+-- a given list of 'AddrInfo' values. Either return a socket that
+-- has successfully connected to one of the candidate 'AddrInfo's
+-- or throw a 'ConnectionFailure' exception will all of the
+-- encountered errors.
+attemptConnections ::
+  [IOError]         {- ^ accumulated errors  -} ->
+  [Socket.AddrInfo] {- ^ candidate AddrInfos -} ->
+  IO Socket         {- ^ connected socket    -}
 attemptConnections exs [] = throwIO (ConnectionFailure exs)
 attemptConnections exs (ai:ais) =
-  do s <- socket' ai
-     res <- try (Socket.connect s (Socket.addrAddress ai))
+  do res <- try (connectToAddrInfo ai)
      case res of
-       Left ex -> do Socket.close s
-                     attemptConnections (ex:exs) ais
-       Right{} -> return s
+       Left ex -> attemptConnections (ex:exs) ais
+       Right s -> return s
 
+-- | Create a socket and connect to the service identified
+-- by the given 'AddrInfo' and return the connected socket.
+connectToAddrInfo :: AddrInfo -> IO Socket
+connectToAddrInfo info
+  = bracketOnError (socket' info) Socket.close
+  $ \s -> s <$ Socket.connect s (Socket.addrAddress info)
 
 -- | Open a 'Socket' using the parameters from an 'AddrInfo'
 socket' :: AddrInfo -> IO Socket
@@ -227,6 +240,9 @@ data Connection = Connection (MVar ByteString) NetworkHandle
 
 -- | Open network connection to TCP service specified by
 -- the given parameters.
+--
+-- The resulting connection MUST be closed with 'close' to avoid leaking
+-- resources.
 --
 -- Throws 'IOError', 'SocksError', 'SSL.ProtocolError', 'ConnectionFailure'
 connect ::
@@ -290,18 +306,21 @@ recvLine (Connection buf h) n =
   modifyMVar buf $ \bs ->
     go (B.length bs) bs []
   where
+    -- bsn: cached length of concatenation of (bs:bss)
+    -- bs : most recent chunk
+    -- bss: other chunks ordered from most to least recent
     go bsn bs bss =
-      case B.elemIndex 10 bs of
-        Just i -> return (B.tail b,
+      case B8.elemIndex '\n' bs of
+        Just i -> return (B.tail b, -- tail drops newline
                           Just (cleanEnd (B.concat (reverse (a:bss)))))
           where
             (a,b) = B.splitAt i bs
         Nothing ->
           do when (bsn >= n) (throwIO LineTooLong)
              more <- networkRecv h n
-             if B.null more
-               then if B.null bs then return (B.empty, Nothing)
-                                 else throwIO LineTruncated
+             if B.null more -- connection closed
+               then if bsn == 0 then return (B.empty, Nothing)
+                                else throwIO LineTruncated
                else go (bsn + B.length more) more (bs:bss)
 
 
@@ -320,8 +339,8 @@ putBuf (Connection buf h) bs =
 -- | Remove the trailing @'\\r'@ if one is found.
 cleanEnd :: ByteString -> ByteString
 cleanEnd bs
-  | B.null bs || B.last bs /= 13 = bs
-  | otherwise                    = B.init bs
+  | B.null bs || B8.last bs /= '\r' = bs
+  | otherwise                       = B.init bs
 
 
 -- | Send bytes on the network connection. This ensures the whole chunk is
@@ -393,7 +412,7 @@ setupCertificate ctx path
 setupPrivateKey :: SSLContext -> FilePath -> IO ()
 setupPrivateKey ctx path =
   do str <- readFile path -- EX
-     key <- PEM.readPrivateKey str PEM.PwNone -- add password support
+     key <- PEM.readPrivateKey str PEM.PwNone -- TODO: add password support
      SSL.contextSetPrivateKey ctx key
 
 
