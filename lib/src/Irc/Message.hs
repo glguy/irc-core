@@ -211,13 +211,9 @@ msgTarget me msg =
       where
         src' = userNick src
 
-    replyTarget RPL_TOPIC        (_:chan:_) = TargetWindow (mkId chan)
-    replyTarget RPL_TOPICWHOTIME (_:chan:_) = TargetWindow (mkId chan)
-    replyTarget RPL_CREATIONTIME (_:chan:_) = TargetWindow (mkId chan)
-    replyTarget RPL_CHANNEL_URL  (_:chan:_) = TargetWindow (mkId chan)
-    replyTarget RPL_NOTOPIC      (_:chan:_) = TargetWindow (mkId chan)
-    replyTarget RPL_INVITING     (_:_:chan:_) = TargetWindow (mkId chan)
-    replyTarget _                _          = TargetNetwork
+    replyTarget RPL_TOPIC    (_:chan:_)   = TargetWindow (mkId chan)
+    replyTarget RPL_INVITING (_:_:chan:_) = TargetWindow (mkId chan)
+    replyTarget _                _        = TargetNetwork
 
 -- | 'UserInfo' of the user responsible for a message.
 msgActor :: IrcMsg -> Maybe UserInfo

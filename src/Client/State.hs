@@ -394,10 +394,6 @@ msgImportance msg st =
 
         -- channel information
         Reply RPL_TOPIC _        -> WLBoring
-        Reply RPL_TOPICWHOTIME _ -> WLBoring
-        Reply RPL_NOTOPIC _      -> WLBoring
-        Reply RPL_CHANNEL_URL _  -> WLBoring
-        Reply RPL_CREATIONTIME _ -> WLBoring
         Reply RPL_INVITING _     -> WLBoring
 
         -- remaining replies go to network window
