@@ -16,7 +16,6 @@ module Client.EventLoop.Errors
 
 import           Control.Exception
 import           Data.List.NonEmpty (NonEmpty(..))
-import           Network.Socks5
 import           OpenSSL.Session
 import           Hookup
 
@@ -45,9 +44,6 @@ exceptionToLines' ex
   | Just (ProtocolError e) <- fromException ex =
      ("TLS protocol error: " ++ e) :| []
 
-  -- socks package errors
-  | Just err <- fromException ex = explainSocksError err :| []
-
   -- IOErrors, typically network package.
   | Just ioe <- fromException ex =
      explainIOError ioe :| []
@@ -74,17 +70,3 @@ explainHookupError e =
       "IRC message incomplete" :| []
 
     SocksError{} -> displayException e :| []
-
-
-explainSocksError :: SocksError -> String
-explainSocksError ex =
-  case ex of
-    SocksErrorGeneralServerFailure       -> "SOCKS: General server failure"
-    SocksErrorConnectionNotAllowedByRule -> "SOCKS: Connection not allowed by rule"
-    SocksErrorNetworkUnreachable         -> "SOCKS: Network unreachable"
-    SocksErrorHostUnreachable            -> "SOCKS: Host unreachable"
-    SocksErrorConnectionRefused          -> "SOCKS: Connection refused"
-    SocksErrorTTLExpired                 -> "SOCKS: TTL Expired"
-    SocksErrorCommandNotSupported        -> "SOCKS: Command not supported"
-    SocksErrorAddrTypeNotSupported       -> "SOCKS: Address type not supported"
-    SocksErrorOther n                    -> "SOCKS: Unknown error " ++ show n
