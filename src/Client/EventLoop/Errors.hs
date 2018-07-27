@@ -73,6 +73,8 @@ explainHookupError e =
     LineTruncated ->
       "IRC message incomplete" :| []
 
+    SocksError{} -> displayException e :| []
+
 
 explainSocksError :: SocksError -> String
 explainSocksError ex =

@@ -39,19 +39,20 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import           Data.Foldable
 import           Data.List (intercalate)
-import           Network (PortID(..))
 import           Network.Socket (Socket, AddrInfo, PortNumber, HostName, Family)
 import qualified Network.Socket as Socket
 import qualified Network.Socket.ByteString as SocketB
-import           Network.Socks5
 import           OpenSSL.Session (SSL, SSLContext)
 import qualified OpenSSL as SSL
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509 as SSL
 import           OpenSSL.X509.SystemStore
 import qualified OpenSSL.PEM as PEM
+import           Data.Attoparsec.ByteString (Parser)
+import qualified Data.Attoparsec.ByteString as Parser
 
 import           Hookup.OpenSSL (installVerification)
+import           Hookup.Socks5
 
 
 -- | Parameters for 'connect'.
@@ -104,6 +105,8 @@ data ConnectionFailure
   | LineTooLong
   -- | Incomplete line during 'recvLine'
   | LineTruncated
+  -- | Socks connection problem
+  | SocksError Reply
   deriving Show
 
 -- | 'displayException' implemented for prettier messages
@@ -115,6 +118,19 @@ instance Exception ConnectionFailure where
       intercalate ", " (map displayException xs)
   displayException (HostnameResolutionFailure x) =
     "hostname resolution failed: " ++ displayException x
+  displayException (SocksError reply) =
+    "socks protocol error: " ++
+    case reply of
+      Succeeded         -> "succeeded"
+      GeneralFailure    -> "general SOCKS server failure"
+      NotAllowed        -> "connection not allowed by ruleset"
+      NetUnreachable    -> "network unreachable"
+      HostUnreachable   -> "host unreachable"
+      ConnectionRefused -> "connection refused"
+      TTLExpired        -> "TTL expired"
+      CmdNotSupported   -> "command not supported"
+      AddrNotSupported  -> "address type not supported"
+      Reply n           -> "unknown reply " ++ show n
 
 -- | Default 'Family' value is unspecified and allows both INET and INET6.
 defaultFamily :: Socket.Family
@@ -141,14 +157,57 @@ openSocket :: ConnectionParams -> IO Socket
 openSocket params =
   case cpSocks params of
     Nothing -> openSocket' (cpFamily params) (cpHost params) (cpPort params)
-    Just sp -> openSocks sp (cpHost params) (cpPort params)
+    Just sp ->
+      do sock <- openSocket' (cpFamily params) (spHost sp) (spPort sp)
+         (sock <$ socksConnect sock (cpHost params) (cpPort params))
+           `onException` Socket.close sock
 
 
-openSocks :: SocksParams -> HostName -> PortNumber -> IO Socket
-openSocks sp h p =
-  do socksConnectTo'
-       (spHost sp) (PortNumber (spPort sp))
-       h           (PortNumber p)
+netParse :: Show a => Socket -> Parser a -> IO a
+netParse sock parser =
+  do -- receiving 1 byte at a time is not efficient, but these messages
+     -- are very short and we don't want to read any more from the socket
+     -- than is necessary
+     result <- Parser.parseWith
+                 (SocketB.recv sock 1)
+                 parser
+                 B.empty
+     case result of
+       Parser.Done _ x -> return x
+       _ -> throwIO (SocksError GeneralFailure)
+
+
+socksConnect :: Socket -> HostName -> PortNumber -> IO ()
+socksConnect sock host port =
+  do SocketB.sendAll sock $
+       buildClientHello ClientHello
+         { cHelloVersion = Version5
+         , cHelloMethods = [AuthNoAuthenticationRequired]}
+
+     hello <- netParse sock parseServerHello
+
+     unless (sHelloVersion hello == Version5)
+       (throwIO (SocksError GeneralFailure))
+
+     unless (sHelloMethod hello == AuthNoAuthenticationRequired)
+       (throwIO (SocksError GeneralFailure))
+
+     SocketB.sendAll sock $
+       buildRequest Request
+         { reqVerion   = Version5
+         , reqCommand  = Connect
+         , reqReserved = reserved0
+         , reqAddress  = DomainName (B8.pack host)
+         , reqPort     = port
+         }
+
+     response <- netParse sock parseResponse
+
+     unless (rspVersion response == Version5)
+       (throwIO (SocksError GeneralFailure))
+
+     unless (rspReply response == Succeeded)
+       (throwIO (SocksError (rspReply response)))
 
 
 openSocket' :: Family -> HostName -> PortNumber -> IO Socket
@@ -424,3 +483,21 @@ verificationMode insecure
                   , SSL.vpClientOnce       = True
                   , SSL.vpCallback         = Nothing
                   }
+
+demo =
+  do h <- connect ConnectionParams
+            { cpFamily = defaultFamily
+            , cpHost   = "erics-imac.local"
+            , cpPort   = 8000
+            , cpSocks  = Just SocksParams
+               { spHost = "localhost"
+               , spPort = 1080
+               }
+            , cpTls    = Nothing
+            }
+
+     send h (B8.pack "hello\n")
+     ln <- recvLine h 1024
+     print ln
+
+     close h

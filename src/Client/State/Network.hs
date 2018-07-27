@@ -540,6 +540,10 @@ squelchReply rpl =
     RPL_UMODEIS         -> True
     RPL_WHOREPLY        -> True
     RPL_ENDOFWHO        -> True
+    RPL_TOPICWHOTIME    -> True
+    RPL_CREATIONTIME    -> True
+    RPL_CHANNEL_URL     -> True
+    RPL_NOTOPIC         -> True
     _                   -> False
 
 -- | Return 'True' for messages that should be hidden outside of
