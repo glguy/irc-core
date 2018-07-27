@@ -483,21 +483,3 @@ verificationMode insecure
                   , SSL.vpClientOnce       = True
                   , SSL.vpCallback         = Nothing
                   }
-
-demo =
-  do h <- connect ConnectionParams
-            { cpFamily = defaultFamily
-            , cpHost   = "erics-imac.local"
-            , cpPort   = 8000
-            , cpSocks  = Just SocksParams
-               { spHost = "localhost"
-               , spPort = 1080
-               }
-            , cpTls    = Nothing
-            }
-
-     send h (B8.pack "hello\n")
-     ln <- recvLine h 1024
-     print ln
-
-     close h
