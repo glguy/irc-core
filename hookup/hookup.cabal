@@ -23,7 +23,8 @@ source-repository head
 
 library
   exposed-modules:     Hookup
-  other-modules:       Hookup.OpenSSL, Hookup.Socks5
+  other-modules:       Hookup.OpenSSL,
+                       Hookup.Socks5
   extra-libraries:     ssl
   build-depends:       base                  >=4.9  && <4.12,
                        network               >=2.6  && <2.8,

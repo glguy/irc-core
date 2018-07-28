@@ -173,7 +173,7 @@ netParse sock parser =
                  parser
                  B.empty
      case result of
-       Parser.Done _ x -> return x
+       Parser.Done i x | B.null i -> return x
        _ -> throwIO (SocksError GeneralFailure)
 
 
@@ -182,14 +182,13 @@ socksConnect sock host port =
   do SocketB.sendAll sock $
        buildClientHello ClientHello
          { cHelloVersion = Version5
-         , cHelloMethods = [AuthNoAuthenticationRequired]}
+         , cHelloMethods = [AuthNoAuthenticationRequired]
+         }
 
-     hello <- netParse sock parseServerHello
+     validateHello =<< netParse sock parseServerHello
+     let dnBytes = B8.pack host
 
-     unless (sHelloVersion hello == Version5)
-       (throwIO (SocksError GeneralFailure))
-
-     unless (sHelloMethod hello == AuthNoAuthenticationRequired)
+     unless (B.length dnBytes < 256)
        (throwIO (SocksError GeneralFailure))
 
      SocketB.sendAll sock $
@@ -197,17 +196,24 @@ socksConnect sock host port =
          { reqVerion   = Version5
          , reqCommand  = Connect
          , reqReserved = reserved0
-         , reqAddress  = DomainName (B8.pack host)
+         , reqAddress  = DomainName dnBytes
          , reqPort     = port
          }
 
-     response <- netParse sock parseResponse
+     validateResponse =<< netParse sock parseResponse
 
-     unless (rspVersion response == Version5)
-       (throwIO (SocksError GeneralFailure))
 
-     unless (rspReply response == Succeeded)
-       (throwIO (SocksError (rspReply response)))
+validateHello :: ServerHello -> IO ()
+validateHello hello
+  | sHelloVersion hello /= Version5 = throwIO (SocksError GeneralFailure)
+  | sHelloMethod  hello /= AuthNoAuthenticationRequired = throwIO (SocksError GeneralFailure)
+  | otherwise = return ()
+
+validateResponse :: Response -> IO ()
+validateResponse response
+  | rspVersion response /= Version5 = throwIO (SocksError GeneralFailure)
+  | rspReply response /= Succeeded = throwIO (SocksError (rspReply response))
+  | otherwise = return ()
 
 
 openSocket' :: Family -> HostName -> PortNumber -> IO Socket
