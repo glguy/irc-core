@@ -155,7 +155,7 @@ library
                        unix                 >=2.7    && <2.8,
                        unordered-containers >=0.2.7  && <0.3,
                        vector               >=0.11   && <0.13,
-                       vty                  >=5.11.1 && <5.24
+                       vty                  >=5.23   && <5.24
 
 test-suite test
   type:                exitcode-stdio-1.0

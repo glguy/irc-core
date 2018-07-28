@@ -129,8 +129,8 @@ applyControlEffect :: Char -> Attr -> Maybe Attr
 applyControlEffect '\^B' attr = Just $! toggleStyle bold attr
 applyControlEffect '\^V' attr = Just $! toggleStyle reverseVideo attr
 applyControlEffect '\^_' attr = Just $! toggleStyle underline attr
+applyControlEffect '\^]' attr = Just $! toggleStyle italic attr
 applyControlEffect '\^O' _    = Just defAttr
-applyControlEffect '\^]' attr = Just attr -- italic not supported
 applyControlEffect _     _    = Nothing
 
 toggleStyle :: Style -> Attr -> Attr
