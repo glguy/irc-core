@@ -105,8 +105,14 @@ data ConnectionFailure
   | LineTooLong
   -- | Incomplete line during 'recvLine'
   | LineTruncated
-  -- | Socks connection problem
+  -- | Socks command rejected by server by given reply code
   | SocksError Reply
+  -- | Socks authentication method was not accepted
+  | SocksAuthenticationError
+  -- | Socks server sent an invalid message or no message.
+  | SocksProtocolError
+  -- | Domain name was too long for SOCKS protocol
+  | SocksBadDomainName
   deriving Show
 
 -- | 'displayException' implemented for prettier messages
@@ -114,12 +120,18 @@ instance Exception ConnectionFailure where
   displayException LineTruncated = "connection closed while reading line"
   displayException LineTooLong   = "line length exceeded maximum"
   displayException (ConnectionFailure xs) =
-    "connection attempts failed due to: " ++
+    "connection attempt failed due to: " ++
       intercalate ", " (map displayException xs)
   displayException (HostnameResolutionFailure x) =
     "hostname resolution failed: " ++ displayException x
+  displayException SocksAuthenticationError =
+    "SOCKS authentication method rejected"
+  displayException SocksProtocolError =
+    "SOCKS server protocol error"
+  displayException SocksBadDomainName =
+    "SOCKS domain name length limit exceeded"
   displayException (SocksError reply) =
-    "socks protocol error: " ++
+    "SOCKS command rejected: " ++
     case reply of
       Succeeded         -> "succeeded"
       GeneralFailure    -> "general SOCKS server failure"
@@ -174,7 +186,7 @@ netParse sock parser =
                  B.empty
      case result of
        Parser.Done i x | B.null i -> return x
-       _ -> throwIO (SocksError GeneralFailure)
+       _ -> throwIO SocksProtocolError
 
 
 socksConnect :: Socket -> HostName -> PortNumber -> IO ()
@@ -187,7 +199,7 @@ socksConnect sock host port =
 
      let dnBytes = B8.pack host
      unless (B.length dnBytes < 256)
-       (throwIO (SocksError GeneralFailure))
+       (throwIO SocksBadDomainName)
 
      SocketB.sendAll sock $
        buildRequest Request
@@ -201,7 +213,7 @@ socksConnect sock host port =
 validateHello :: ServerHello -> IO ()
 validateHello hello =
   unless (sHelloMethod hello == AuthNoAuthenticationRequired)
-    (throwIO (SocksError GeneralFailure))
+    (throwIO SocksAuthenticationError)
 
 validateResponse :: Response -> IO ()
 validateResponse response =

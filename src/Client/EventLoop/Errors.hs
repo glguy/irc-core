@@ -57,9 +57,6 @@ explainIOError ioe = "IO error: " ++ displayException ioe
 explainHookupError :: ConnectionFailure -> NonEmpty String
 explainHookupError e =
   case e of
-    HostnameResolutionFailure ioe ->
-      ("Host not resolved: " ++ displayException ioe) :| []
-
     ConnectionFailure exs ->
       "Connect failed" :| map explainIOError exs
 
@@ -69,4 +66,5 @@ explainHookupError e =
     LineTruncated ->
       "IRC message incomplete" :| []
 
-    SocksError{} -> displayException e :| []
+    -- the remaining messages can be used as is and on one line
+    _ -> displayException e :| []
