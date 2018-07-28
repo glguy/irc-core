@@ -181,39 +181,32 @@ socksConnect :: Socket -> HostName -> PortNumber -> IO ()
 socksConnect sock host port =
   do SocketB.sendAll sock $
        buildClientHello ClientHello
-         { cHelloVersion = Version5
-         , cHelloMethods = [AuthNoAuthenticationRequired]
-         }
+         { cHelloMethods = [AuthNoAuthenticationRequired] }
 
      validateHello =<< netParse sock parseServerHello
-     let dnBytes = B8.pack host
 
+     let dnBytes = B8.pack host
      unless (B.length dnBytes < 256)
        (throwIO (SocksError GeneralFailure))
 
      SocketB.sendAll sock $
        buildRequest Request
-         { reqVerion   = Version5
-         , reqCommand  = Connect
-         , reqReserved = reserved0
-         , reqAddress  = DomainName dnBytes
-         , reqPort     = port
+         { reqCommand  = Connect
+         , reqAddress  = Address (DomainName dnBytes) port
          }
 
      validateResponse =<< netParse sock parseResponse
 
 
 validateHello :: ServerHello -> IO ()
-validateHello hello
-  | sHelloVersion hello /= Version5 = throwIO (SocksError GeneralFailure)
-  | sHelloMethod  hello /= AuthNoAuthenticationRequired = throwIO (SocksError GeneralFailure)
-  | otherwise = return ()
+validateHello hello =
+  unless (sHelloMethod hello == AuthNoAuthenticationRequired)
+    (throwIO (SocksError GeneralFailure))
 
 validateResponse :: Response -> IO ()
-validateResponse response
-  | rspVersion response /= Version5 = throwIO (SocksError GeneralFailure)
-  | rspReply response /= Succeeded = throwIO (SocksError (rspReply response))
-  | otherwise = return ()
+validateResponse response =
+  unless (rspReply response == Succeeded )
+    (throwIO (SocksError (rspReply response)))
 
 
 openSocket' :: Family -> HostName -> PortNumber -> IO Socket
