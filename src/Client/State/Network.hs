@@ -633,8 +633,8 @@ doMyModes changes = over csModes $ \modes -> sort (foldl' applyOne modes changes
 
 supportedCaps :: NetworkState -> [Text]
 supportedCaps cs =
-  sasl ++ ["multi-prefix", "znc.in/batch", "znc.in/playback",
-           "znc.in/server-time-iso", "znc.in/self-message"]
+  sasl ++ ["multi-prefix", "batch", "znc.in/playback",
+           "server-time", "echo-message"]
   where
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslUsername ss)
