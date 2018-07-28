@@ -29,6 +29,7 @@ module Hookup
 
   -- * Errors
   ConnectionFailure(..),
+  CommandReply(..)
   ) where
 
 import           Control.Concurrent
@@ -106,7 +107,7 @@ data ConnectionFailure
   -- | Incomplete line during 'recvLine'
   | LineTruncated
   -- | Socks command rejected by server by given reply code
-  | SocksError Reply
+  | SocksError CommandReply
   -- | Socks authentication method was not accepted
   | SocksAuthenticationError
   -- | Socks server sent an invalid message or no message.
@@ -142,7 +143,7 @@ instance Exception ConnectionFailure where
       TTLExpired        -> "TTL expired"
       CmdNotSupported   -> "command not supported"
       AddrNotSupported  -> "address type not supported"
-      Reply n           -> "unknown reply " ++ show n
+      CommandReply n    -> "unknown reply " ++ show n
 
 -- | Default 'Family' value is unspecified and allows both INET and INET6.
 defaultFamily :: Socket.Family

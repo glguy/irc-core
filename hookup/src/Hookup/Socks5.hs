@@ -50,8 +50,8 @@ module Hookup.Socks5
       , UdpAssociate )
 
   -- * Command reply codes
-  , Reply
-      ( Reply
+  , CommandReply
+      ( CommandReply
       , Succeeded
       , GeneralFailure
       , NotAllowed
@@ -78,7 +78,7 @@ import qualified Data.ByteString            as B
 import qualified Data.ByteString.Builder    as Builder
 import qualified Data.ByteString.Lazy       as L
 
--- | Authentication methods
+-- | SOCKS authentication methods
 newtype AuthMethod                      = AuthMethod Word8 deriving (Eq, Show)
 pattern AuthNoAuthenticationRequired    = AuthMethod 0x00
 pattern AuthGssApi                      = AuthMethod 0x01
@@ -97,17 +97,17 @@ pattern IPv4Tag                         = HostTag 1
 pattern DomainNameTag                   = HostTag 3
 pattern IPv6Tag                         = HostTag 4
 
--- | Command reply codes
-newtype Reply                           = Reply Word8 deriving (Eq, Show)
-pattern Succeeded                       = Reply 0
-pattern GeneralFailure                  = Reply 1
-pattern NotAllowed                      = Reply 2
-pattern NetUnreachable                  = Reply 3
-pattern HostUnreachable                 = Reply 4
-pattern ConnectionRefused               = Reply 5
-pattern TTLExpired                      = Reply 6
-pattern CmdNotSupported                 = Reply 7
-pattern AddrNotSupported                = Reply 8
+-- | SOCKS command reply codes
+newtype CommandReply                    = CommandReply Word8 deriving (Eq, Show)
+pattern Succeeded                       = CommandReply 0
+pattern GeneralFailure                  = CommandReply 1
+pattern NotAllowed                      = CommandReply 2
+pattern NetUnreachable                  = CommandReply 3
+pattern HostUnreachable                 = CommandReply 4
+pattern ConnectionRefused               = CommandReply 5
+pattern TTLExpired                      = CommandReply 6
+pattern CmdNotSupported                 = CommandReply 7
+pattern AddrNotSupported                = CommandReply 8
 
 -- | Network host and port number
 data Address = Address Host PortNumber
@@ -142,7 +142,7 @@ data Request = Request
 
 -- | Server message used to indicate result of client's request.
 data Response = Response
-  { rspReply   :: Reply
+  { rspReply   :: CommandReply
   , rspAddress :: Address
   }
   deriving Show
@@ -255,11 +255,11 @@ parseAuthMethod = AuthMethod <$> Parser.anyWord8
 
 ------------------------------------------------------------------------
 
-buildReply :: Reply -> Builder
-buildReply (Reply x) = Builder.word8 x
+buildReply :: CommandReply -> Builder
+buildReply (CommandReply x) = Builder.word8 x
 
-parseReply :: Parser Reply
-parseReply = Reply <$> Parser.anyWord8
+parseReply :: Parser CommandReply
+parseReply = CommandReply <$> Parser.anyWord8
 
 ------------------------------------------------------------------------
 

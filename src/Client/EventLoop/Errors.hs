@@ -17,7 +17,7 @@ module Client.EventLoop.Errors
 import           Control.Exception
 import           Data.List.NonEmpty (NonEmpty(..))
 import           OpenSSL.Session
-import           Hookup
+import           Hookup (ConnectionFailure(..))
 
 -- | Compute the message message text to be used for a connection error
 exceptionToLines ::
