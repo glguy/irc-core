@@ -367,7 +367,7 @@ close (Connection _ h) = closeNetworkHandle h
 -- return the buffer if it contains a non-empty chunk. Otherwise it will
 -- request up to the requested number of bytes from the stream.
 --
--- Throws: 'IOError', 'SSL.ProtocolError'
+-- Throws: 'IOError', 'SSL.ConnectionAbruptlyTerminated', 'SSL.ProtocolError'
 recv ::
   Connection    {- ^ open connection              -} ->
   Int           {- ^ maximum underlying recv size -} ->
@@ -388,7 +388,7 @@ recv (Connection buf h) n =
 -- can happen if the peer transmits some data and closes its end
 -- without transmitting a line terminator.
 --
--- Throws: 'ConnectionAbruptlyTerminated', 'ConnectionFailure', 'IOError'
+-- Throws: 'SSL.ConnectionAbruptlyTerminated', 'SSL.ProtocolError', 'ConnectionFailure', 'IOError'
 recvLine ::
   Connection            {- ^ open connection            -} ->
   Int                   {- ^ maximum line length        -} ->
