@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.4.0
+
+* Change TOPIC and INVITING replies to channel target
+
 ## 2.3.0 -- 2017-06-02
 
 * Change type of `idDenote` to save a bit of memory
