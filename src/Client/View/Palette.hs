@@ -42,17 +42,23 @@ columns = mconcat . intersperse (char defAttr ' ')
 paletteViewLines :: Palette -> [Image']
 paletteViewLines pal = reverse $
 
-  [ "Current client palette"
+  [ "Current client palette:"
   , ""
   , columns (paletteEntries pal)
   , ""
 
-  , "Current client palette nick highlight colors"
+  , "Current client palette nick highlight colors:"
   , ""
   , columns (nickHighlights pal)
   , ""
 
-  , "Chat formatting colors: ^C[foreground[,background]]"
+  , "Chat formatting modes:"
+  , ""
+  , "   C-b  C-_       C-]    C-v     C-o"
+  , parseIrcText "   \^Bbold\^B \^_underline\^_ \^]italic\^] \^Vreverse\^V reset"
+  , ""
+
+  , "Chat formatting colors: C-c[foreground[,background]]"
   , ""
   , columns ("   " : map decimalImage [0..15])
   , columns mircColors
