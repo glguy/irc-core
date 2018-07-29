@@ -7,9 +7,36 @@ Maintainer  : emertens@gmail.com
 
 This module provides a uniform interface to network connections
 with optional support for TLS and SOCKS.
+
+This library is careful to support both IPv4 and IPv6. It will attempt to
+all of the addresses that a domain name resolves to until one the first
+successful connection.
+
+Use 'connect' and 'close' to establish and close network connections.
+
+Use 'recv', 'recvLine', and 'send' to receive and transmit data on an
+open network connection.
+
+TLS and SOCKS parameters can be provided. When both are provided a connection
+will first be established to the SOCKS server and then the TLS connection will
+be established through that proxy server. This is most useful when connecting
+through a dynamic port forward of an SSH client via the @-D@ flag.
+
 -}
 module Hookup
   (
+  -- * Connections
+  Connection,
+  connect,
+  connectWithSocket,
+  close,
+
+  -- * Reading and writing data
+  recv,
+  recvLine,
+  send,
+  putBuf,
+
   -- * Configuration
   ConnectionParams(..),
   SocksParams(..),
@@ -17,15 +44,6 @@ module Hookup
   defaultFamily,
   defaultTlsParams,
 
-  -- * Connections
-  Connection,
-  connect,
-  connectWithSocket,
-  recv,
-  recvLine,
-  send,
-  close,
-  putBuf,
 
   -- * Errors
   ConnectionFailure(..),
@@ -66,7 +84,7 @@ import           Hookup.Socks5
 -- the other is misconfigured and a hostname is resolving to both.
 --
 -- When a 'SocksParams' is provided the connection will be established
--- using a SOCKS5 proxy.
+-- using a SOCKS (version 5) proxy.
 --
 -- When a 'TlsParams' is provided the connection negotiate TLS at connect
 -- time in order to protect the stream.
@@ -74,12 +92,12 @@ data ConnectionParams = ConnectionParams
   { cpFamily :: Family           -- ^ IP Protocol family (default 'AF_UNSPEC')
   , cpHost  :: HostName          -- ^ Destination host
   , cpPort  :: PortNumber        -- ^ Destination TCP port
-  , cpSocks :: Maybe SocksParams -- ^ Optional SOCKS5 parameters
+  , cpSocks :: Maybe SocksParams -- ^ Optional SOCKS parameters
   , cpTls   :: Maybe TlsParams   -- ^ Optional TLS parameters
   }
 
 
--- | SOCKS5 connection parameters
+-- | SOCKS connection parameters
 data SocksParams = SocksParams
   { spHost :: HostName   -- ^ SOCKS server host
   , spPort :: PortNumber -- ^ SOCKS server port
@@ -92,7 +110,7 @@ data TlsParams = TlsParams
   { tpClientCertificate  :: Maybe FilePath -- ^ Path to client certificate
   , tpClientPrivateKey   :: Maybe FilePath -- ^ Path to client private key
   , tpServerCertificate  :: Maybe FilePath -- ^ Path to CA certificate bundle
-  , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. "HIGH")
+  , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. @\"HIGH\"@)
   , tpInsecure           :: Bool -- ^ Disables certificate checking when 'True'
   }
 
@@ -150,7 +168,7 @@ defaultFamily :: Socket.Family
 defaultFamily = Socket.AF_UNSPEC
 
 -- | Default values for TLS that use no client certificates, use
--- system CA root, @HIGH@ cipher suite, and which validate hostnames.
+-- system CA root, @\"HIGH\"@ cipher suite, and which validate hostnames.
 defaultTlsParams :: TlsParams
 defaultTlsParams = TlsParams
   { tpClientCertificate  = Nothing
@@ -348,6 +366,8 @@ close (Connection _ h) = closeNetworkHandle h
 -- | Receive the next chunk from the stream. This operation will first
 -- return the buffer if it contains a non-empty chunk. Otherwise it will
 -- request up to the requested number of bytes from the stream.
+--
+-- Throws: 'IOError', 'SSL.ProtocolError'
 recv ::
   Connection    {- ^ open connection              -} ->
   Int           {- ^ maximum underlying recv size -} ->
@@ -417,7 +437,7 @@ cleanEnd bs
 -- | Send bytes on the network connection. This ensures the whole chunk is
 -- transmitted, which might take multiple underlying sends.
 --
--- Throws: 'IOError', 'ProtocolError'
+-- Throws: 'IOError', 'SSL.ProtocolError'
 send ::
   Connection {- ^ open connection -} ->
   ByteString {- ^ chunk           -} ->
