@@ -13,16 +13,24 @@ a nickname and optionally a username and hostname.
 -}
 
 module Irc.UserInfo
-  ( UserInfo(..)
+  (
+  -- * Type
+    UserInfo(..)
+
+  -- * Parser and printer
   , renderUserInfo
   , parseUserInfo
+
+  -- * Lenses
   , uiNick
+  , uiName
+  , uiHost
   ) where
 
-import           Data.Text      (Text)
-import qualified Data.Text      as Text
+import           Data.Text (Text)
+import qualified Data.Text as Text
+
 import           Irc.Identifier
-import           Data.Monoid ((<>))
 
 -- | 'UserInfo' packages a nickname along with the username and hsotname
 -- if they are known in the current context.
@@ -33,9 +41,17 @@ data UserInfo = UserInfo
   }
   deriving (Eq, Read, Show)
 
--- | 'Lens' into 'userNick' field.
+-- | Lens into 'userNick' field.
 uiNick :: Functor f => (Identifier -> f Identifier) -> UserInfo -> f UserInfo
 uiNick f ui@UserInfo{userNick = n} = (\n' -> ui{userNick = n'}) <$> f n
+
+-- | Lens into 'userName' field.
+uiName :: Functor f => (Text -> f Text) -> UserInfo -> f UserInfo
+uiName f ui@UserInfo{userName = n} = (\n' -> ui{userName = n'}) <$> f n
+
+-- | Lens into 'userHost' field.
+uiHost :: Functor f => (Text -> f Text) -> UserInfo -> f UserInfo
+uiHost f ui@UserInfo{userHost = n} = (\n' -> ui{userHost = n'}) <$> f n
 
 -- | Render 'UserInfo' as @nick!username\@hostname@
 renderUserInfo :: UserInfo -> Text

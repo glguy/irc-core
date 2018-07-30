@@ -68,8 +68,8 @@ import           View
 data RawIrcMsg = RawIrcMsg
   { _msgTags       :: [TagEntry]     -- ^ IRCv3.2 message tags
   , _msgPrefix     :: Maybe UserInfo -- ^ Optional sender of message
-  , _msgCommand    :: !Text          -- ^ command
-  , _msgParams     :: [Text]         -- ^ command parameters
+  , _msgCommand    :: !Text          -- ^ Command
+  , _msgParams     :: [Text]         -- ^ Command parameters
   }
   deriving (Eq, Read, Show)
 

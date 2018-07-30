@@ -302,6 +302,8 @@ applyMessage' msgWhen msg cs =
     Reply RPL_SASLFAIL _ -> ([ircCapEnd], cs)
     Reply ERR_NICKNAMEINUSE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
+    Reply RPL_HOSTHIDDEN (_:host:_) ->
+        noReply (set (csUserInfo . uiHost) host cs)
     Reply code args        -> noReply (doRpl code msgWhen args cs)
     Cap cmd params         -> doCap cmd params cs
     Authenticate param     -> doAuthenticate param cs
