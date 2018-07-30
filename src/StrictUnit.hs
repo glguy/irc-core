@@ -15,7 +15,7 @@ module StrictUnit
   ( StrictUnit(..)
   ) where
 
-import           Data.Semigroup
+import           Data.Semigroup (stimes, stimesIdempotent)
 
 -- | Unit data type with a strict 'Semigroup' and 'Monoid' instances.
 data StrictUnit = StrictUnit

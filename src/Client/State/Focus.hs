@@ -28,7 +28,6 @@ module Client.State.Focus
   ) where
 
 import           Control.Lens
-import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import           Irc.Identifier
 

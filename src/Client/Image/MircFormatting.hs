@@ -25,7 +25,6 @@ import           Data.Attoparsec.Text as Parse
 import           Data.Bits
 import           Data.Char
 import           Data.Maybe
-import           Data.Semigroup ((<>))
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 

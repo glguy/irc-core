@@ -19,7 +19,6 @@ import           Control.Applicative.Free
 import           Control.Lens
 import           Control.Monad.Trans.State
 import           Data.Functor.Compose
-import           Data.Semigroup ((<>))
 import qualified Data.Text as Text
 import           Graphics.Vty (wcswidth)
 import           Graphics.Vty.Attributes

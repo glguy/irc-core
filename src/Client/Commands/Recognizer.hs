@@ -25,7 +25,6 @@ import Control.Monad
 import Control.Applicative hiding (empty)
 
 import           Data.HashMap.Strict (lookup,insertWith,HashMap,empty,unionWith,fromList,toList)
-import           Data.Semigroup
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Maybe

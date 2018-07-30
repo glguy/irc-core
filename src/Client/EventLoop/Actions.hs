@@ -34,7 +34,6 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
-import           Data.Semigroup ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Text.Read
