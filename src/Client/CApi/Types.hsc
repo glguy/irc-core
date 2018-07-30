@@ -20,6 +20,7 @@ module Client.CApi.Types
   , StopExtension
   , ProcessMessage
   , ProcessCommand
+  , ProcessChat
 
   -- * Strings
   , FgnStringLen(..)
@@ -45,7 +46,7 @@ module Client.CApi.Types
   , MessageCode(..), normalMessage, errorMessage
 
   -- * process message results
-  , MessageResult(..), passMessage, dropMessage
+  , ProcessResult(..), passMessage, dropMessage
 
   -- * Marshaling helpers
   , withText0
@@ -56,72 +57,93 @@ module Client.CApi.Types
 import           Control.Monad
 import           Data.Text (Text)
 import qualified Data.Text.Foreign as Text
+import           Data.Word
 import           Foreign.C
 import           Foreign.Marshal.Array
 import           Foreign.Ptr
 import           Foreign.Storable
 
 -- | Tag for describing the kind of message to display in the client
--- as used in `glirc_print`.
+-- as used in `glirc_print`. See 'normalMessage' and 'errorMessage'.
 --
 -- @enum message_code;@
-newtype MessageCode = MessageCode CInt deriving Eq
-#enum MessageCode, MessageCode, NORMAL_MESSAGE, ERROR_MESSAGE
+newtype MessageCode = MessageCode (#type enum message_code) deriving Eq
+
+-- | Normal client message. Unread counter increments, but no client
+-- bell or error status update.
+normalMessage :: MessageCode
+normalMessage = MessageCode (#const NORMAL_MESSAGE)
+
+-- | Important client message. Unread counter increments, bell rings,
+-- and error status updates.
+errorMessage :: MessageCode
+errorMessage = MessageCode (#const ERROR_MESSAGE)
 
 -- | Result used to determine what to do after processing a message with
 -- the 'ProcessMessage' callback.
 --
--- @enum process_result;@
-newtype MessageResult = MessageResult CInt deriving Eq
-#enum MessageResult, MessageResult, PASS_MESSAGE, DROP_MESSAGE
+-- | @enum process_result@
+newtype ProcessResult = ProcessResult (#type enum process_result) deriving Eq
 
---
+-- | Allow the message to proceed through the client logic.
+passMessage :: ProcessResult
+passMessage = ProcessResult (#const PASS_MESSAGE)
 
--- | @typedef void *start(void *glirc, const char *path);@
+-- | Drop the message from further processing.
+dropMessage :: ProcessResult
+dropMessage = ProcessResult (#const DROP_MESSAGE)
+
+-- | @typedef void *start(void *glirc, const char *path)@
 type StartExtension =
   Ptr ()      {- ^ api token                   -} ->
   CString     {- ^ path to extension           -} ->
   IO (Ptr ()) {- ^ initialized extension state -}
 
--- | @typedef void stop(void *glirc, void *S);@
+-- | @typedef void stop(void *glirc, void *S)@
 type StopExtension =
   Ptr () {- ^ api token       -} ->
   Ptr () {- ^ extension state -} ->
   IO ()
 
--- | @typedef enum process_result process_message(void *glirc, void *S, const struct glirc_message *);@
+-- | @typedef enum process_result process_message(void *glirc, void *S, const struct glirc_message *)@
 type ProcessMessage =
   Ptr ()     {- ^ api token       -} ->
   Ptr ()     {- ^ extention state -} ->
   Ptr FgnMsg {- ^ message to send -} ->
-  IO MessageResult
+  IO ProcessResult
 
--- | @typedef void process_command(void *glirc, void *S, const struct glirc_command *);@
+-- | @typedef void process_command(void *glirc, void *S, const struct glirc_command *)@
 type ProcessCommand =
   Ptr ()     {- ^ api token       -} ->
   Ptr ()     {- ^ extension state -} ->
   Ptr FgnCmd {- ^ command         -} ->
   IO ()
 
--- | @typedef void process_chat(void *glirc, void *S, const struct glirc_chat *);@
+-- | @typedef void process_chat(void *glirc, void *S, const struct glirc_chat *)@
 type ProcessChat =
   Ptr ()      {- ^ api token       -} ->
   Ptr ()      {- ^ extension state -} ->
   Ptr FgnChat {- ^ chat info       -} ->
-  IO MessageResult
+  IO ProcessResult
 
--- | Type of dynamic function pointer wrappers.
+-- | Type of dynamic function pointer wrappers. These convert C
+-- function-pointers into Haskell functions.
 type Dynamic a = FunPtr a -> a
 
+-- | Dynamic import for 'StartExtension'.
 foreign import ccall "dynamic" runStartExtension :: Dynamic StartExtension
+-- | Dynamic import for 'StopExtension'.
 foreign import ccall "dynamic" runStopExtension  :: Dynamic StopExtension
+-- | Dynamic import for 'ProcessMessage'.
 foreign import ccall "dynamic" runProcessMessage :: Dynamic ProcessMessage
+-- | Dynamic import for 'ProcessCommand'.
 foreign import ccall "dynamic" runProcessCommand :: Dynamic ProcessCommand
+-- | Dynamic import for 'ProcessChat'.
 foreign import ccall "dynamic" runProcessChat    :: Dynamic ProcessChat
 
 ------------------------------------------------------------------------
 
--- | @struct glirc_extension;@
+-- | Information describing an extension's entry-points and metadata.
 data FgnExtension = FgnExtension
   { fgnStart   :: FunPtr StartExtension -- ^ Optional startup callback
   , fgnStop    :: FunPtr StopExtension  -- ^ Optional shutdown callback
@@ -132,6 +154,7 @@ data FgnExtension = FgnExtension
   , fgnMajorVersion, fgnMinorVersion :: CInt -- ^ extension version
   }
 
+-- | @struct glirc_extension@
 instance Storable FgnExtension where
   alignment _ = #alignment struct glirc_extension
   sizeOf    _ = #size      struct glirc_extension
@@ -199,13 +222,15 @@ instance Storable FgnMsg where
 
 ------------------------------------------------------------------------
 
--- | @struct glirc_message@
+-- | Chat message data containing the source network, window target,
+-- and message body.
 data FgnChat = FgnChat
   { fhNetwork    :: FgnStringLen
   , fhTarget     :: FgnStringLen
   , fhMessage    :: FgnStringLen
   }
 
+-- | @struct glirc_message@
 instance Storable FgnChat where
   alignment _ = #alignment struct glirc_chat
   sizeOf    _ = #size      struct glirc_chat
@@ -221,11 +246,13 @@ instance Storable FgnChat where
 
 ------------------------------------------------------------------------
 
--- | @struct glirc_command@
+-- | Used to pass arguments from @/extension EXT_NAME@ client command into
+-- an extension.
 data FgnCmd = FgnCmd
   { fcCommand :: FgnStringLen
   }
 
+-- | @struct glirc_command@
 instance Storable FgnCmd where
   alignment _ = #alignment struct glirc_command
   sizeOf    _ = #size      struct glirc_command
@@ -236,9 +263,11 @@ instance Storable FgnCmd where
 
 ------------------------------------------------------------------------
 
--- | @struct glirc_string@
+-- | Pointer to UTF-8 encoded string and as string length. Strings are
+-- null-terminated. The null-terminator is not counted in the length.
 data FgnStringLen = FgnStringLen !CString !CSize
 
+-- | @struct glirc_string@
 instance Storable FgnStringLen where
   alignment _ = #alignment struct glirc_string
   sizeOf    _ = #size      struct glirc_string

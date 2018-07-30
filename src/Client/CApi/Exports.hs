@@ -8,9 +8,11 @@ Maintainer  : emertens@gmail.com
 
 This module exports the C functions that extensions can used to query the state
 of the client.
+
+C Extensions can include @glirc-api.h@
 -}
 module Client.CApi.Exports
- ( -- * Extension API types
+ ( -- * Extension entry-points
    Glirc_send_message
  , glirc_send_message
 
@@ -126,12 +128,14 @@ peekFgnStringLen (FgnStringLen ptr len) =
 
 ------------------------------------------------------------------------
 
--- | Network, command, and parameters are used when transmitting a message.
+-- | Type of 'glirc_send_message' extension entry-point
 type Glirc_send_message =
   Ptr ()     {- ^ api token          -} ->
   Ptr FgnMsg {- ^ pointer to message -} ->
   IO CInt    {- ^ 0 on success       -}
 
+-- | Entry-point into the client when an extern extension wants send an IRC
+-- command to a connected server.
 glirc_send_message :: Glirc_send_message
 glirc_send_message token msgPtr =
   do mvar    <- derefToken token
@@ -147,14 +151,17 @@ glirc_send_message token msgPtr =
 
 ------------------------------------------------------------------------
 
--- | Print a message or error to the client window
+-- | Type of 'glirc_print' extension entry-point
 type Glirc_print =
-  Ptr ()  {- ^ api token         -} ->
+  Ptr ()      {- ^ api token         -} ->
   MessageCode {- ^ enum message_code -} ->
-  CString {- ^ message           -} ->
-  CSize   {- ^ message length    -} ->
-  IO CInt {- ^ 0 on success      -}
+  CString     {- ^ message           -} ->
+  CSize       {- ^ message length    -} ->
+  IO CInt     {- ^ 0 on success      -}
 
+-- | Entry-point for extensions to append a message to the client buffer.
+-- The @message_code@ can be used to render the message normally or to
+-- cause the client to draw attention to the message as an error.
 glirc_print :: Glirc_print
 glirc_print stab code msgPtr msgLen =
   do mvar <- derefToken stab
@@ -175,7 +182,7 @@ glirc_print stab code msgPtr msgLen =
 
 ------------------------------------------------------------------------
 
--- | Print a message or error to the client window
+-- | Type of 'glirc_inject_chat' extension entry-point.
 type Glirc_inject_chat =
   Ptr ()  {- ^ api token         -} ->
   CString {- ^ network           -} ->
@@ -188,6 +195,10 @@ type Glirc_inject_chat =
   CSize   {- ^ message length    -} ->
   IO CInt {- ^ 0 on success      -}
 
+-- | Add a message to a chat window as if it was received
+-- directly from the IRC server. This is useful when implementing
+-- extensions that intercept incoming chat messages and transform
+-- them before showing the user.
 glirc_inject_chat :: Glirc_inject_chat
 glirc_inject_chat stab netPtr netLen srcPtr srcLen tgtPtr tgtLen msgPtr msgLen =
   do mvar <- derefToken stab
@@ -209,12 +220,15 @@ glirc_inject_chat stab netPtr netLen srcPtr srcLen tgtPtr tgtLen msgPtr msgLen =
 
 ------------------------------------------------------------------------
 
--- | The resulting strings and array of strings are malloc'd and the
--- caller must free them. NULL returned on failure.
+-- | Type of 'glirc_list_networks' extension entry-point
 type Glirc_list_networks =
   Ptr ()           {- ^ api token                                        -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
+-- | This extension entry-point allocates a list of all the identifiers for
+-- the active networks on the client. @NULL@ returned on failure.
+-- The caller is responsible for freeing successful result with
+-- @glirc_free_strings@.
 glirc_list_networks :: Glirc_list_networks
 glirc_list_networks stab =
   do mvar <- derefToken stab
@@ -225,10 +239,7 @@ glirc_list_networks stab =
 
 ------------------------------------------------------------------------
 
--- | Case insensitive comparison suitable for use on channels and nicknames.
--- Returns -1 if the first identifier is less than the second
--- Returns 0 if the first identifier is equal to the second
--- Returns 1 if the first identifier is greater than the second
+-- | Type of 'glirc_identifier_cmp' extension entry-point
 type Glirc_identifier_cmp =
   CString {- ^ identifier 1     -} ->
   CSize   {- ^ identifier 1 len -} ->
@@ -236,6 +247,10 @@ type Glirc_identifier_cmp =
   CSize   {- ^ identifier 2 len -} ->
   IO CInt
 
+-- | Case insensitive comparison suitable for use on channels and nicknames.
+-- Returns -1 if the first identifier is less than the second
+-- Returns 0 if the first identifier is equal to the second
+-- Returns 1 if the first identifier is greater than the second
 glirc_identifier_cmp :: Glirc_identifier_cmp
 glirc_identifier_cmp p1 n1 p2 n2 =
   do txt1 <- peekFgnStringLen (FgnStringLen p1 n1)
@@ -247,14 +262,16 @@ glirc_identifier_cmp p1 n1 p2 n2 =
 
 ------------------------------------------------------------------------
 
--- | The resulting strings and array of strings are malloc'd and the
--- caller must free them. NULL returned on failure.
+-- | Type of 'glirc_list_channels' extension entry-point
 type Glirc_list_channels =
   Ptr ()  {- ^ api token   -} ->
   CString {- ^ network     -} ->
   CSize   {- ^ network len -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
+-- | Generate a list of connected channels for the network identified in
+-- the arguments. @NULL@ returned on failure. Caller is responsible for
+-- freeing successful result with @glirc_free_strings@.
 glirc_list_channels :: Glirc_list_channels
 glirc_list_channels stab networkPtr networkLen =
   do mvar <- derefToken stab
@@ -268,8 +285,7 @@ glirc_list_channels stab networkPtr networkLen =
 
 ------------------------------------------------------------------------
 
--- | The resulting strings and array of strings are malloc'd and the
--- caller must free them.  NULL returned on failure.
+-- | Type of 'glirc_list_channel_users' extension entry-point
 type Glirc_list_channel_users =
   Ptr ()  {- ^ api token   -} ->
   CString {- ^ network     -} ->
@@ -278,6 +294,10 @@ type Glirc_list_channel_users =
   CSize   {- ^ channel len -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
+-- | Generate a list of IRC nicknames currently connected to the identified
+-- channel on the identified network. @NULL@ returned on failure.
+-- Caller is responsible for freeing successful result with
+-- @glirc_free_strings@.
 glirc_list_channel_users :: Glirc_list_channel_users
 glirc_list_channel_users stab networkPtr networkLen channelPtr channelLen =
   do mvar <- derefToken stab
@@ -296,14 +316,17 @@ glirc_list_channel_users stab networkPtr networkLen channelPtr channelLen =
 
 ------------------------------------------------------------------------
 
--- | The resulting string is malloc'd and the caller must free it.
--- NULL returned on failure.
+-- | Type of 'glirc_my_nick' extension entry-point
 type Glirc_my_nick =
   Ptr ()  {- ^ api token           -} ->
   CString {- ^ network name        -} ->
   CSize   {- ^ network name length -} ->
   IO CString
 
+-- | Return the IRC nickname associated with the active network
+-- connection identified in the arguments. @NULL@ returned on failure.
+-- Caller is responsible for freeing successful result with
+-- @glirc_free_string@.
 glirc_my_nick :: Glirc_my_nick
 glirc_my_nick stab networkPtr networkLen =
   do mvar <- derefToken stab
@@ -316,9 +339,7 @@ glirc_my_nick stab networkPtr networkLen =
 
 ------------------------------------------------------------------------
 
--- | Mark a window as being seen clearing the new message counter.
--- To clear the client window send an empty network name.
--- To clear a network window send an empty channel name.
+-- | Type of 'glirc_mark_seen' extension entry-point
 type Glirc_mark_seen =
   Ptr ()  {- ^ api token           -} ->
   CString {- ^ network name        -} ->
@@ -327,6 +348,9 @@ type Glirc_mark_seen =
   CSize   {- ^ channel name length -} ->
   IO ()
 
+-- | Mark a window as being seen, clearing the new message counter.
+-- To specify the client window send an empty network name.
+-- To specify a network window send an empty channel name.
 glirc_mark_seen :: Glirc_mark_seen
 glirc_mark_seen stab networkPtr networkLen channelPtr channelLen =
   do network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
@@ -343,9 +367,7 @@ glirc_mark_seen stab networkPtr networkLen channelPtr channelLen =
 
 ------------------------------------------------------------------------
 
--- | Mark a window as being seen clearing the new message counter.
--- To clear the client window send an empty network name.
--- To clear a network window send an empty channel name.
+-- | Type of 'glirc_clear_window' extension entry-point
 type Glirc_clear_window =
   Ptr ()  {- ^ api token           -} ->
   CString {- ^ network name        -} ->
@@ -354,6 +376,9 @@ type Glirc_clear_window =
   CSize   {- ^ channel name length -} ->
   IO ()
 
+-- | Clear contents of a specified window.
+-- To specify the client window send an empty network name.
+-- To specify a network window send an empty channel name.
 glirc_clear_window :: Glirc_clear_window
 glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
   do network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
@@ -370,23 +395,25 @@ glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
 
 ------------------------------------------------------------------------
 
--- | Free one of the heap allocated strings found as a return value
--- from the extension API. If argument is NULL, nothing happens.
+-- | Type of 'glirc_free_string' extension entry-point
 type Glirc_free_string =
   CString {- ^ glirc allocated string -} ->
   IO ()
 
+-- | Free one of the heap allocated strings found as a return value
+-- from the extension API. If argument is @NULL@, nothing happens.
 glirc_free_string :: Glirc_free_string
 glirc_free_string = free
 
 ------------------------------------------------------------------------
 
--- | Free an array of heap allocated strings found as a return value
--- from the extension API. If argument is NULL, nothing happens.
+-- | Type of 'glirc_free_strings' extension entry-point
 type Glirc_free_strings =
   Ptr CString {- ^ glirc allocated strings, null-terminated -} ->
   IO ()
 
+-- | Free an array of heap allocated strings found as a return value
+-- from the extension API. If argument is @NULL@, nothing happens.
 glirc_free_strings :: Glirc_free_strings
 glirc_free_strings p =
   unless (p == nullPtr) $
@@ -395,13 +422,7 @@ glirc_free_strings p =
 
 ------------------------------------------------------------------------
 
--- | Free an array of heap allocated strings found as a return value
--- from the extension API. If argument is NULL, nothing happens.
---
--- Free the allocated strings with @glirc_free_string@
---
--- Strings set to NULL if there is no current network or no
--- current target.
+-- | Type of 'glirc_current_focus' extension entry-point
 type Glirc_current_focus =
   Ptr ()      {- ^ api token                      -} ->
   Ptr CString {- ^ newly allocated network string -} ->
@@ -410,6 +431,13 @@ type Glirc_current_focus =
   Ptr CSize   {- ^ target length                  -} ->
   IO ()
 
+-- | Find the network and target identifier associated with the
+-- currently focused window.
+--
+-- Free the allocated strings with @glirc_free_string@.
+--
+-- Strings set to @NULL@ if there is no current network or no
+-- current target.
 glirc_current_focus :: Glirc_current_focus
 glirc_current_focus stab netP netL tgtP tgtL =
   do mvar <- derefToken stab
@@ -429,10 +457,7 @@ glirc_current_focus stab netP netL tgtP tgtL =
 
 ------------------------------------------------------------------------
 
--- | Returns @1@ when the given target on the given network is a channel
--- name, otherwise returns @0@.
---
--- If the given network is not currently active this returns @0@.
+-- | Type of 'glirc_is_channel' extension entry-point
 type Glirc_is_channel =
   Ptr ()  {- ^ api token       -} ->
   CString {- ^ network name    -} ->
@@ -441,6 +466,10 @@ type Glirc_is_channel =
   CSize   {- ^ target length   -} ->
   IO CInt {- ^ boolean         -}
 
+-- | Returns @1@ when the given target on the given network is a channel
+-- name, otherwise returns @0@.
+--
+-- If the given network is not currently active this returns @0@.
 glirc_is_channel :: Glirc_is_channel
 glirc_is_channel stab net netL tgt tgtL =
   do mvar    <- derefToken stab
@@ -454,10 +483,7 @@ glirc_is_channel stab net netL tgt tgtL =
 
 ------------------------------------------------------------------------
 
--- | Returns @1@ when the given target on the given network shares a
--- channel with the user, @0@ otherwise.
---
--- If the given network is not currently active this returns @0@.
+-- | Type of 'glirc_is_logged_on' extension entry-point
 type Glirc_is_logged_on =
   Ptr ()  {- ^ api token       -} ->
   CString {- ^ network name    -} ->
@@ -466,6 +492,10 @@ type Glirc_is_logged_on =
   CSize   {- ^ target length   -} ->
   IO CInt {- ^ boolean         -}
 
+-- | Returns @1@ when the given target on the given network shares a
+-- channel with the user, @0@ otherwise.
+--
+-- If the given network is not currently active this returns @0@.
 glirc_is_logged_on :: Glirc_is_channel
 glirc_is_logged_on stab net netL tgt tgtL =
   do mvar    <- derefToken stab
