@@ -1,8 +1,8 @@
-{-# Language OverloadedStrings, CPP #-}
+{-# Language OverloadedStrings #-}
 
 {-|
 Module      : RtsStats
-Description : Compatibility layer for GHC RTS statistics across versions
+Description : Human readable interface to GHC RTS statistics
 Copyright   : (c) Eric Mertens, 2017
 License     : ISC
 Maintainer  : emertens@gmail.com
@@ -15,12 +15,12 @@ module RtsStats
   , statsToEntries
   ) where
 
-import           Data.Int
-import           Data.List (intercalate)
+import           Data.Int        (Int64)
+import           Data.List       (intercalate)
 import           Data.List.Split (chunksOf)
-import           Data.Text (Text)
+import           Data.Text       (Text)
 import qualified Data.Text as Text
-import           Data.Word
+import           Data.Word       (Word32, Word64)
 import           GHC.Stats
 
 class    Render a      where render :: a -> Text
@@ -37,8 +37,6 @@ prettyNum n = Text.pack (addSign (addCommas (show (abs n))))
 addCommas :: String -> String
 addCommas = reverse . intercalate "," . chunksOf 3 . reverse
 
-#if MIN_VERSION_base(4,10,0)
-
 newtype Stats = Stats RTSStats
 
 getStats :: IO (Maybe Stats)
@@ -48,7 +46,8 @@ getStats =
                 else pure Nothing
 
 statsToEntries :: Stats -> [(Text, Text)]
-statsToEntries (Stats rts) = seq rgc
+statsToEntries (Stats rts) =
+  let rgc = gc rts in seq rgc
   [ ("GCs"                                 , render $ gcs                             rts)
   , ("Major GCs"                           , render $ major_gcs                       rts)
   , ("Allocated bytes"                     , render $ allocated_bytes                 rts)
@@ -84,42 +83,3 @@ statsToEntries (Stats rts) = seq rgc
   , ("Elapsed ns"                          , render $ gcdetails_elapsed_ns            rgc)
   , ("==[Last GC]=="                       , ""                                          )
   ]
-  where
-    rgc = gc rts
-
-#else
-
-statsToEntries :: Stats -> [(Text, Text)]
-statsToEntries (Stats rts) = seq rts
-  [ ("Allocated bytes"            , render $ bytesAllocated         rts)
-  , ("GCs"                        , render $ numGcs                 rts)
-  , ("Major GCs"                  , render $ numByteUsageSamples    rts)
-  , ("Cumulative allocated bytes" , render $ maxBytesUsed           rts)
-  , ("Cumulative live bytes"      , render $ cumulativeBytesUsed    rts)
-  , ("Cumulative copied  bytes"   , render $ bytesCopied            rts)
-  , ("Max slop bytes"             , render $ maxBytesSlop           rts)
-  , ("Maximum allocated megabytes", render $ peakMegabytesAllocated rts)
-  , ("Mutator CPU seconds"        , render $ mutatorCpuSeconds      rts)
-  , ("Mutator elapsed seconds"    , render $ mutatorWallSeconds     rts)
-  , ("GC CPU seconds"             , render $ gcCpuSeconds           rts)
-  , ("GC elapsed seconds"         , render $ gcWallSeconds          rts)
-  , ("CPU seconds"                , render $ cpuSeconds             rts)
-  , ("Elapsed seconds"            , render $ wallSeconds            rts)
-  , ("Total bytes copied"         , render $ parTotBytesCopied      rts)
-  , ("Max parallel bytes copied"  , render $ parMaxBytesCopied      rts)
-  , ("==[Totals]=="               , ""                                 )
-  , (""                           , ""                                 )
-  , ("(last) Live bytes"          , render $ currentBytesUsed       rts)
-  , ("(last) Slop bytes"          , render $ currentBytesSlop       rts)
-  , ("==[Last GC]=="              , ""                                 )
-  ]
-
-newtype Stats = Stats GCStats
-
-getStats :: IO (Maybe Stats)
-getStats =
-  do enabled <- getGCStatsEnabled
-     if enabled then Just . Stats <$> getGCStats
-                else pure Nothing
-
-#endif

@@ -1,4 +1,4 @@
-{-# Language CPP, OverloadedStrings #-}
+{-# Language OverloadedStrings #-}
 {-|
 Module      : Client.View.RtsStats
 Description : View current GHC RTS statistics
@@ -6,8 +6,7 @@ Copyright   : (c) Eric Mertens, 2017
 License     : ISC
 Maintainer  : emertens@gmail.com
 
-Lines for the @/rtsstats@ command. This module depends
-on GHC 8.2.1 API.
+Lines for the @/rtsstats@ command.
 
 -}
 
@@ -26,7 +25,7 @@ rtsStatsLines :: Maybe Stats -> Palette -> [Image']
 rtsStatsLines Nothing pal = [text' (view palError pal) "Statistics not available"]
 rtsStatsLines (Just stats) pal
   | null entries = [text' (view palError pal) "Statistics empty"]
-  | otherwise    = zipWith (\v l -> padV wv v <> " " <> l) valueImages labelImages 
+  | otherwise    = zipWith (\v l -> padV wv v <> " " <> l) valueImages labelImages
   where
     entries     = statsToEntries stats
     labelImages = map (text' (view palLabel pal) . fst) entries
