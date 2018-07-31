@@ -633,11 +633,23 @@ doMyModes changes = over csModes $ \modes -> sort (foldl' applyOne modes changes
       | otherwise         = mode:modes
     applyOne modes (False, mode, _) = delete mode modes
 
-supportedCaps :: NetworkState -> [Text]
-supportedCaps cs =
-  sasl ++ ["multi-prefix", "batch", "znc.in/playback",
-           "server-time", "znc.in/self-message"]
+selectCaps ::
+  NetworkState {- ^ network state  -} ->
+  [Text]       {- ^ server caps    -} ->
+  [Text]       {- ^ caps to enable -}
+selectCaps cs offered = supported `intersect` offered
   where
+    supported =
+      sasl ++ serverTime ++
+      ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"]
+
+    -- logic for using IRCv3.2 server-time if available and falling back
+    -- to ZNC's specific extension otherwise.
+    serverTime
+      | "server-item"            `elem` offered = ["server-time"]
+      | "znc.in/server-time-iso" `elem` offered = ["znc.in/server-time-iso"]
+      | otherwise                               = []
+
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslUsername ss)
                    , isJust (view ssSaslPassword ss) ||
@@ -675,7 +687,7 @@ doCap cmd args cs =
       | otherwise -> ([ircCapReq reqCaps], cs)
       where
         caps = Text.words capsTxt
-        reqCaps = intersect (supportedCaps cs) caps
+        reqCaps = selectCaps cs caps
 
     (CapAck,[capsTxt])
       | "sasl" `elem` caps ->
