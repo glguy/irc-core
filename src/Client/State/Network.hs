@@ -646,7 +646,7 @@ selectCaps cs offered = supported `intersect` offered
     -- logic for using IRCv3.2 server-time if available and falling back
     -- to ZNC's specific extension otherwise.
     serverTime
-      | "server-item"            `elem` offered = ["server-time"]
+      | "server-time"            `elem` offered = ["server-time"]
       | "znc.in/server-time-iso" `elem` offered = ["znc.in/server-time-iso"]
       | otherwise                               = []
 
