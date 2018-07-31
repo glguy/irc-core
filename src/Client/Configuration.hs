@@ -21,6 +21,7 @@ module Client.Configuration
   , ConfigurationFailure(..)
   , LayoutMode(..)
   , PaddingMode(..)
+  , ExtensionConfiguration(..)
 
   -- * Lenses
   , configDefaults
@@ -40,6 +41,9 @@ module Client.Configuration
   , configLayout
   , configShowPing
   , configJumpModifier
+
+  , extensionPath
+  , extensionRtldFlags
 
   -- * Loading configuration
   , loadConfiguration
@@ -80,6 +84,7 @@ import           Irc.Identifier                      (Identifier)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Error
+import           System.Posix.DynamicLinker          (RTLDFlags(..))
 
 -- | Top-level client configuration information. When connecting to a
 -- server configuration from '_configServers' is used where possible,
@@ -92,7 +97,7 @@ data Configuration = Configuration
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
   , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
   , _configMacros          :: Recognizer Macro -- ^ command macros
-  , _configExtensions      :: [FilePath] -- ^ paths to shared library
+  , _configExtensions      :: [ExtensionConfiguration] -- ^ extensions to load
   , _configUrlOpener       :: Maybe FilePath -- ^ paths to url opening executable
   , _configIgnores         :: [Text] -- ^ initial ignore mask list
   , _configActivityBar     :: Bool -- ^ initially visibility of the activity bar
@@ -119,7 +124,6 @@ data LayoutMode
   | TwoColumn
   deriving Show
 
-makeLenses ''Configuration
 
 -- | Failure cases when loading a configuration file.
 data ConfigurationFailure
@@ -136,6 +140,17 @@ data ConfigurationFailure
 
 -- | default instance
 instance Exception ConfigurationFailure
+
+-- | Configuration information for run-time loaded dynamic
+-- library extensions.
+data ExtensionConfiguration = ExtensionConfiguration
+  { _extensionPath      :: FilePath -- ^ path to shared object
+  , _extensionRtldFlags :: [RTLDFlags] -- ^ dynamic linker flags
+  }
+  deriving Show
+
+makeLenses ''Configuration
+makeLenses ''ExtensionConfiguration
 
 -- | The default client behavior for naming windows is to use the first two
 -- rows of a QWERTY keyboard followed by the first two rows combined with
@@ -249,7 +264,7 @@ resolvePaths file cfg =
                                 . over (ssTlsServerCert . mapped) res
                                 . over (ssSaslEcdsaFile . mapped) res
                                 . over (ssLogDir        . mapped) res
-     return $! over (configExtensions . mapped) res
+     return $! over (configExtensions . mapped . extensionPath) res
              . over (configServers    . mapped) resolveServerFilePaths
              $ cfg
 
@@ -272,8 +287,8 @@ configurationSpec = sectionsSpec "" $
                                "Modifier used to jump to a window by name. Defaults to `meta`."
      _configMacros          <- sec' mempty "macros" macroMapSpec
                                "Programmable macro commands"
-     _configExtensions      <- sec' [] "extensions" (listSpec stringSpec)
-                               "Filenames of extension libraries to load at startup"
+     _configExtensions      <- sec' [] "extensions" (listSpec extensionSpec)
+                               "extension libraries to load at startup"
      _configUrlOpener       <- optSection' "url-opener" stringSpec
                                "External command used by /url command"
      _configExtraHighlights <- sec' mempty "extra-highlights" identifierSetSpec
@@ -402,6 +417,38 @@ paletteSpec = sectionsSpec "palette" $
              "Colors used to highlight nicknames"
            : [ optSection' lbl (set l <$> attrSpec) "" | (lbl, Lens l) <- paletteMap ]
 
+extensionSpec :: ValueSpecs ExtensionConfiguration
+extensionSpec = simpleExtensionSpec <!> fullExtensionSpec
+
+-- | Default dynamic linker flags: @RTLD_LOCAL@ and @RTLD_NOW@
+defaultRtldFlags :: [RTLDFlags]
+defaultRtldFlags = [RTLD_LOCAL, RTLD_NOW]
+
+-- | Given only a filepath build an extension configuration that
+-- loads the extension using the 'defaultRtldFlags'.
+simpleExtensionSpec :: ValueSpecs ExtensionConfiguration
+simpleExtensionSpec =
+  do _extensionPath <- stringSpec
+     pure ExtensionConfiguration { _extensionRtldFlags = defaultRtldFlags, .. }
+
+-- | Full extension configuration allows the RTLD flags to be manually
+-- specified. This can be useful if the extension defines symbols that
+-- need to be visible to libraries that the extension is linked against.
+fullExtensionSpec :: ValueSpecs ExtensionConfiguration
+fullExtensionSpec =
+  sectionsSpec "extension" $
+  do _extensionPath      <- reqSection' "path"       stringSpec
+                            "Path to shared object"
+     _extensionRtldFlags <- reqSection' "rtld-flags" (listSpec rtldFlagSpec)
+                            "Runtime dynamic linker flags"
+     pure ExtensionConfiguration {..}
+
+rtldFlagSpec :: ValueSpecs RTLDFlags
+rtldFlagSpec = namedSpec "rtld-flag"
+             $ RTLD_LOCAL  <$ atomSpec "local"
+           <!> RTLD_GLOBAL <$ atomSpec "global"
+           <!> RTLD_NOW    <$ atomSpec "now"
+           <!> RTLD_LAZY   <$ atomSpec "lazy"
 
 buildServerMap ::
   ServerSettings {- ^ defaults -} ->

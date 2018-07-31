@@ -2,6 +2,9 @@
 
 ## 2.28
 * Add formatting reference to `/palette`
+* Make RTLD flags configurable when loading an extension
+* Update client's internal hostname on `RPL_HOSTHIDDEN`
+* Support IRCv3.2 `server-time` extension over ZNC-specific one
 
 ## 2.27
 * Requires GHC 8.4

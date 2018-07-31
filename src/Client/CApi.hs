@@ -24,7 +24,10 @@ module Client.CApi
   , chatExtension
   ) where
 
+import           Client.Configuration
+                   (ExtensionConfiguration, extensionPath, extensionRtldFlags)
 import           Client.CApi.Types
+import           Control.Lens (view)
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.Codensity
@@ -67,17 +70,19 @@ data ActiveExtension = ActiveExtension
 -- passed to any subsequent calls into the extension.
 activateExtension ::
   Ptr () ->
-  FilePath {- ^ path to extension -} ->
+  ExtensionConfiguration {- ^ extension configuration -} ->
   IO ActiveExtension
-activateExtension stab path =
-  do dl   <- dlopen path [RTLD_NOW, RTLD_LOCAL]
+activateExtension stab config =
+  do dl   <- dlopen (view extensionPath config)
+                    (view extensionRtldFlags config)
      p    <- dlsym dl extensionSymbol
      fgn  <- peek (castFunPtrToPtr p)
      name <- peekCString (fgnName fgn)
      let f = fgnStart fgn
      s  <- if nullFunPtr == f
              then return nullPtr
-             else withCString path (runStartExtension f stab)
+             else withCString (view extensionPath config)
+                              (runStartExtension f stab)
      return $! ActiveExtension
        { aeFgn     = fgn
        , aeDL      = dl
