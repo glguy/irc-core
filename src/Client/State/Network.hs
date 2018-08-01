@@ -141,8 +141,8 @@ data AuthenticateState
 
 -- | Pair of username and hostname. Empty strings represent missing information.
 data UserAndHost =
-  UserAndHost {-# UNPACK #-} !Text {-# UNPACK #-} !Text
-  -- ^ username hostname
+  UserAndHost {-# UNPACK #-}!Text {-# UNPACK #-}!Text {-# UNPACK #-}!Text
+  -- ^ username hostname accountname
   deriving Show
 
 -- | Status of the ping timer
@@ -164,6 +164,7 @@ data Transaction
   | NamesTransaction [Text]
   | BanTransaction [(Text,MaskListEntry)]
   | WhoTransaction [UserInfo]
+  | CapTransaction
   deriving Show
 
 makeLenses ''NetworkState
@@ -238,7 +239,7 @@ newNetworkState networkId network settings sock ping = NetworkState
   , _csSocket       = sock
   , _csChannelTypes = defaultChannelTypes
   , _csModeTypes    = defaultModeTypes
-  , _csTransaction  = NoTransaction
+  , _csTransaction  = CapTransaction
   , _csModes        = ""
   , _csStatusMsg    = ""
   , _csSettings     = settings
@@ -276,11 +277,15 @@ applyMessage' msgWhen msg cs =
   case msg of
     Ping args -> ([ircPong args], cs)
     Pong _    -> noReply $ doPong msgWhen cs
-    Join user chan ->
+    Join user chan ext ->
            noReply
-         $ recordUser user
+         $ recordUser user (fst =<< ext)
          $ overChannel chan (joinChannel (userNick user))
          $ createOnJoin user chan cs
+
+    Account user mbAcct ->
+           noReply
+         $ recordUser user mbAcct cs
 
     Quit user _reason ->
            noReply
@@ -298,8 +303,8 @@ applyMessage' msgWhen msg cs =
          $ overChannels (nickChange (userNick oldNick) newNick) cs
 
     Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
-    Reply RPL_SASLSUCCESS _ -> ([ircCapEnd], cs)
-    Reply RPL_SASLFAIL _ -> ([ircCapEnd], cs)
+    Reply RPL_SASLSUCCESS _ -> endCapTransaction cs
+    Reply RPL_SASLFAIL _ -> endCapTransaction cs
     Reply ERR_NICKNAMEINUSE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
     Reply RPL_HOSTHIDDEN (_:host:_) ->
@@ -338,6 +343,7 @@ doWelcome msgWhen me
   . set csNick me
   . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
   . set csPingStatus PingNone
+  . set csTransaction NoTransaction -- wipe out CapTransaction if it was active
 
 -- | Handle 'ERR_NICKNAMEINUSE' errors when connecting.
 doBadNick ::
@@ -641,7 +647,8 @@ selectCaps cs offered = supported `intersect` offered
   where
     supported =
       sasl ++ serverTime ++
-      ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"]
+      ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"
+      , "cap-notify", "extended-join", "account-notify" ]
 
     -- logic for using IRCv3.2 server-time if available and falling back
     -- to ZNC's specific extension otherwise.
@@ -683,25 +690,41 @@ doCap :: CapCmd -> [Text] -> NetworkState -> ([RawIrcMsg], NetworkState)
 doCap cmd args cs =
   case (cmd,args) of
     (CapLs,[capsTxt])
-      | null reqCaps -> ([ircCapEnd], cs)
+      | null reqCaps -> endCapTransaction cs
       | otherwise -> ([ircCapReq reqCaps], cs)
       where
         caps = Text.words capsTxt
         reqCaps = selectCaps cs caps
 
+    (CapNew,[capsTxt])
+      | null reqCaps -> ([], cs)
+      | otherwise -> ([ircCapReq reqCaps], cs)
+      where
+        caps = Text.words capsTxt
+        reqCaps = selectCaps cs caps
+
+    (CapDel,_) -> ([],cs)
+
     (CapAck,[capsTxt])
       | "sasl" `elem` caps ->
           if isJust (view ssSaslEcdsaFile ss)
-            then ([ircAuthenticate Ecdsa.authenticationMode], set csAuthenticationState AS_EcdsaStarted cs)
+            then ( [ircAuthenticate Ecdsa.authenticationMode]
+                 , set csAuthenticationState AS_EcdsaStarted cs)
           else if isJust (view ssSaslUsername ss)
-            then ([ircAuthenticate plainAuthenticationMode], set csAuthenticationState AS_PlainStarted cs)
-          else ([ircCapEnd], cs)
+            then ( [ircAuthenticate plainAuthenticationMode]
+                 , set csAuthenticationState AS_PlainStarted cs)
+          else endCapTransaction cs
       where
         ss   = view csSettings cs
         caps = Text.words capsTxt
 
-    _ -> ([ircCapEnd], cs)
+    _ -> endCapTransaction cs
 
+endCapTransaction :: NetworkState -> ([RawIrcMsg], NetworkState)
+endCapTransaction cs =
+  case view csTransaction cs of
+    CapTransaction -> ([ircCapEnd], set csTransaction NoTransaction cs)
+    _              -> ([], cs)
 
 initialMessages :: NetworkState -> [RawIrcMsg]
 initialMessages cs
@@ -814,11 +837,11 @@ isChannelIdentifier cs ident =
 csUser :: Functor f => Identifier -> LensLike' f NetworkState (Maybe UserAndHost)
 csUser i = csUsers . at i
 
-recordUser :: UserInfo -> NetworkState -> NetworkState
-recordUser (UserInfo nick user host)
+recordUser :: UserInfo -> Maybe Text -> NetworkState -> NetworkState
+recordUser (UserInfo nick user host) mbAcct
   | Text.null user || Text.null host = id
   | otherwise = set (csUsers . at nick)
-                    (Just (UserAndHost user host))
+                    (Just $! UserAndHost user host (fromMaybe "" mbAcct))
 
 forgetUser :: Identifier -> NetworkState -> NetworkState
 forgetUser = over csUsers . sans
@@ -852,7 +875,11 @@ massRegistration cs
       | not (Text.null user)
       , not (Text.null host)
       , HashSet.member nick channelUsers =
-              HashMap.insert nick (UserAndHost user host) users
+            HashMap.alter
+                (\mb -> case mb of
+                          Nothing                     -> Just $! UserAndHost user host ""
+                          Just (UserAndHost _ _ acct) -> Just $! UserAndHost user host acct
+                ) nick users
       | otherwise = users
 
 -- | Compute the earliest timed action for a connection, if any

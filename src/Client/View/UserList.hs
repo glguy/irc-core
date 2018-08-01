@@ -114,21 +114,22 @@ userInfoImages' cs channel st = countImage : map renderEntry usersList
 
     pal = clientPalette st
 
-    renderEntry (info, sigils) =
+    renderEntry ((info, acct), sigils) =
       string (view palSigil pal) sigils <>
-      coloredUserInfo pal DetailedRender myNicks info
+      coloredUserInfo pal DetailedRender myNicks info <>
+      " " <> text' defAttr (cleanText acct)
 
-    matcher' (info,sigils) =
-      matcher (LText.fromChunks [Text.pack sigils, renderUserInfo info])
+    matcher' ((info, acct),sigils) =
+      matcher (LText.fromChunks [Text.pack sigils, renderUserInfo info, " ", acct])
 
     userInfos = view csUsers cs
 
     toInfo nick =
       case view (at nick) userInfos of
-        Just (UserAndHost n h) -> UserInfo nick n h
-        Nothing                -> UserInfo nick "" ""
+        Just (UserAndHost n h a) -> (UserInfo nick n h, a)
+        Nothing                  -> (UserInfo nick "" "", "")
 
-    usersList = sortBy (flip (comparing (userNick . fst)))
+    usersList = sortBy (flip (comparing (userNick . fst . fst)))
               $ filter matcher'
               $ map (over _1 toInfo)
               $ HashMap.toList usersHashMap

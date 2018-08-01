@@ -83,7 +83,7 @@ msgSummary (NormalBody _  ) = NoSummary
 ircSummary :: IrcMsg -> IrcSummary
 ircSummary msg =
   case msg of
-    Join who _      -> JoinSummary (userNick who)
+    Join who _ _    -> JoinSummary (userNick who)
     Part who _ _    -> PartSummary (userNick who)
     Quit who _      -> QuitSummary (userNick who)
     Nick who who'   -> NickSummary (userNick who) who'

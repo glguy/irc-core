@@ -1834,8 +1834,8 @@ cmdKickBan channelId cs st (who,reason) =
 computeBanUserInfo :: Identifier -> NetworkState    -> UserInfo
 computeBanUserInfo who cs =
   case view (csUser who) cs of
-    Nothing                   -> UserInfo who "*" "*"
-    Just (UserAndHost _ host) -> UserInfo "*" "*" host
+    Nothing                     -> UserInfo who "*" "*"
+    Just (UserAndHost _ host _) -> UserInfo "*" "*" host
 
 cmdRemove :: ChannelCommand (String, String)
 cmdRemove channelId cs st (who,reason) =
@@ -2145,7 +2145,7 @@ computeModeCompletion pol mode channel cs st
     usermasks =
       [ mkId ("*!*@" <> host)
         | nick <- HashMap.keys (view (csChannels . ix channel . chanUsers) cs)
-        , UserAndHost _ host <- toListOf (csUsers . ix nick) cs
+        , UserAndHost _ host _ <- toListOf (csUsers . ix nick) cs
         ]
 
 -- | Predicate for mode commands that can be performed without ops

@@ -257,6 +257,9 @@ ircLinePrefix !rp body =
     BatchStart{}   -> mempty
     BatchEnd{}     -> mempty
 
+    Account user Nothing -> who user <> " unauthenticated"
+    Account user Just {} -> who user <> " authenticated: "
+
 
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
@@ -297,6 +300,9 @@ ircLineImage !rp body =
     Cap _ args        -> separatedParams args
     Mode _ _ params   -> ircWords params
 
+    Account _ (Just acct) -> text' defAttr (cleanText acct)
+    Account _ Nothing     -> mempty
+
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
 fullIrcLineImage ::
@@ -320,9 +326,15 @@ fullIrcLineImage !rp body =
       " is now known as " <>
       coloredIdentifier pal NormalIdentifier myNicks new
 
-    Join nick _chan ->
+    Join nick _chan extJoin ->
       string quietAttr "join " <>
-      coloredUserInfo pal rm myNicks nick
+      coloredUserInfo pal rm myNicks nick <>
+      case extJoin of
+        Nothing -> mempty
+        Just (Nothing, real) -> " * " <> parseIrcText real
+        Just (Just acct, real) ->
+          " " <> text' defAttr (cleanText acct) <>
+          " " <> parseIrcText real
 
     Part nick _chan mbreason ->
       string quietAttr "part " <>
@@ -417,16 +429,23 @@ fullIrcLineImage !rp body =
     BatchStart{}   -> "BATCH +"
     BatchEnd{}     -> "BATCH -"
 
+    Account src mb ->
+      string quietAttr "acct " <>
+      who src <> ": " <>
+      maybe "*" (text' defAttr . cleanText) mb
+
 
 renderCapCmd :: CapCmd -> Text
 renderCapCmd cmd =
   case cmd of
-    CapLs   -> "caps available"
-    CapList -> "caps active"
-    CapAck  -> "caps acknowledged"
-    CapNak  -> "caps rejected"
-    CapEnd  -> "caps finished" -- server shouldn't send this
-    CapReq  -> "caps requested" -- server shouldn't send this
+    CapLs   -> "caps-available"
+    CapList -> "caps-active"
+    CapAck  -> "caps-acknowledged"
+    CapNak  -> "caps-rejected"
+    CapEnd  -> "caps-finished" -- server shouldn't send this
+    CapReq  -> "caps-requested" -- server shouldn't send this
+    CapNew  -> "caps-offered"
+    CapDel  -> "caps-withdrawn"
 
 separatorImage :: Image'
 separatorImage = char (withForeColor defAttr blue) '·'

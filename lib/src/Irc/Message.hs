@@ -47,7 +47,7 @@ data IrcMsg
   = UnknownMsg !RawIrcMsg -- ^ pass-through for unhandled messages
   | Reply !ReplyCode [Text] -- ^ code arguments
   | Nick !UserInfo !Identifier -- ^ old new
-  | Join !UserInfo !Identifier -- ^ user channel
+  | Join !UserInfo !Identifier (Maybe (Maybe Text, Text)) -- ^ user channel extended-join
   | Part !UserInfo !Identifier (Maybe Text) -- ^ user channel reason
   | Quit !UserInfo (Maybe Text) -- ^ user reason
   | Kick !UserInfo !Identifier !Identifier !Text -- ^ kicker channel kickee comment
@@ -63,7 +63,8 @@ data IrcMsg
   | Pong [Text] -- ^ parameters
   | Error !Text -- ^ message
   | BatchStart Text Text [Text] -- ^ reference-id type parameters
-  | BatchEnd   Text             -- ^ reference-id
+  | BatchEnd Text -- ^ reference-id
+  | Account !UserInfo (Maybe Text) -- ^ user account name changed (account-notify extension)
   deriving Show
 
 -- | Sub-commands of the CAP command
@@ -74,6 +75,8 @@ data CapCmd
   | CapAck -- ^ request accepted
   | CapNak -- ^ request denied
   | CapEnd -- ^ end negotiation
+  | CapNew -- ^ new capability available (cap-notify extension)
+  | CapDel -- ^ capability removed (cap-notify extension)
   deriving (Show, Eq, Ord)
 
 -- | Match command text to structured cap sub-command
@@ -84,6 +87,8 @@ cookCapCmd "ACK"  = Just CapAck
 cookCapCmd "NAK"  = Just CapNak
 cookCapCmd "END"  = Just CapEnd
 cookCapCmd "REQ"  = Just CapReq
+cookCapCmd "NEW"  = Just CapNew
+cookCapCmd "DEL"  = Just CapDel
 cookCapCmd _      = Nothing
 
 -- | Interpret a low-level 'RawIrcMsg' as a high-level 'IrcMsg'.
@@ -118,9 +123,13 @@ cookIrcMsg msg =
              Nothing         -> Notice user (mkId chan) txt
 
     "JOIN" | Just user <- view msgPrefix msg
-           , chan:_    <- view msgParams msg ->
+           , chan:rest <- view msgParams msg ->
 
-           Join user (mkId chan)
+           Join user (mkId chan) $
+           case rest of
+             ["*", real]  -> Just (Nothing, real)
+             [acct, real] -> Just (Just acct, real)
+             _            -> Nothing
 
     "QUIT" | Just user <- view msgPrefix msg
            , reasons   <- view msgParams msg ->
@@ -157,6 +166,10 @@ cookIrcMsg msg =
             , Just ('-',refid') <- Text.uncons refid ->
             BatchEnd refid'
 
+    "ACCOUNT" | Just user <- view msgPrefix msg
+              , [acct] <- view msgParams msg ->
+      Account user (if acct == "*" then Nothing else Just acct)
+
     _      -> UnknownMsg msg
 
 -- | Parse a CTCP encoded message:
@@ -186,7 +199,7 @@ msgTarget me msg =
     Nick user _              -> TargetUser (userNick user)
     Mode _ tgt _ | tgt == me -> TargetNetwork
                  | otherwise -> TargetWindow tgt
-    Join _ chan              -> TargetWindow chan
+    Join _ chan _            -> TargetWindow chan
     Part _ chan _            -> TargetWindow chan
     Quit user _              -> TargetUser (userNick user)
     Kick _ chan _ _          -> TargetWindow chan
@@ -203,6 +216,7 @@ msgTarget me msg =
     Reply code args          -> replyTarget code args
     BatchStart{}             -> TargetHidden
     BatchEnd{}               -> TargetHidden
+    Account{}                -> TargetHidden
   where
     directed src tgt
       | Text.null (userHost src) = TargetNetwork -- server message
@@ -222,7 +236,7 @@ msgActor msg =
     UnknownMsg{}  -> Nothing
     Reply{}       -> Nothing
     Nick x _      -> Just x
-    Join x _      -> Just x
+    Join x _ _    -> Just x
     Part x _ _    -> Just x
     Quit x _      -> Just x
     Kick x _ _ _  -> Just x
@@ -232,6 +246,7 @@ msgActor msg =
     CtcpNotice x _ _ _ -> Just x
     Notice x _ _  -> Just x
     Mode x _ _    -> Just x
+    Account x _   -> Just x
     Authenticate{}-> Nothing
     Ping{}        -> Nothing
     Pong{}        -> Nothing
@@ -248,7 +263,7 @@ ircMsgText msg =
     UnknownMsg raw -> Text.unwords (view msgCommand raw : view msgParams raw)
     Reply (ReplyCode n) xs -> Text.unwords (Text.pack (show n) : xs)
     Nick x y       -> Text.unwords [renderUserInfo x, idText y]
-    Join x _       -> renderUserInfo x
+    Join x _ _     -> renderUserInfo x
     Part x _ mb    -> Text.unwords (renderUserInfo x : maybeToList mb)
     Quit x mb      -> Text.unwords (renderUserInfo x : maybeToList mb)
     Kick x _ z r   -> Text.unwords [renderUserInfo x, idText z, r]
@@ -262,6 +277,7 @@ ircMsgText msg =
     Pong xs        -> Text.unwords xs
     Cap _ xs       -> Text.unwords xs
     Error t        -> t
+    Account _ a    -> fromMaybe "" a
     Authenticate{} -> ""
     BatchStart{}   -> ""
     BatchEnd{}     -> ""

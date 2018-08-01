@@ -51,7 +51,7 @@ prefixedParser :: Identifier -> Parser IrcMsg
 prefixedParser chan = do
     pfx <- prefixParser
     choice
-      [ Join pfx chan <$ skipToken "joined"
+      [ Join pfx chan Nothing <$ skipToken "joined"
       , Quit pfx . filterEmpty <$ skipToken "quit with message:" <*> parseReason
       , Part pfx chan . filterEmpty <$ skipToken "parted with message:" <*> parseReason
       , Nick pfx . mkId <$ skipToken "is now known as" <*> simpleTokenParser
