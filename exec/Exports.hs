@@ -6,6 +6,7 @@ License     : ISC
 Maintainer  : emertens@gmail.com
 
 Entry point into glirc2 from the C API
+
 -}
 module Exports () where
 
@@ -23,6 +24,8 @@ foreign export ccall glirc_is_logged_on       :: Glirc_is_channel
 foreign export ccall glirc_list_channels      :: Glirc_list_channels
 foreign export ccall glirc_list_channel_users :: Glirc_list_channel_users
 foreign export ccall glirc_my_nick            :: Glirc_my_nick
+foreign export ccall glirc_user_account       :: Glirc_user_account
+foreign export ccall glirc_user_channel_modes :: Glirc_user_channel_modes
 foreign export ccall glirc_mark_seen          :: Glirc_mark_seen
 foreign export ccall glirc_clear_window       :: Glirc_clear_window
 foreign export ccall glirc_free_string        :: Glirc_free_string

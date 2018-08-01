@@ -195,6 +195,51 @@ static int glirc_lua_list_channel_users(lua_State *L)
 }
 
 /* Lua Function:
+ * Arguments: Network (string), Nickname (string)
+ * Returns: Account (string) or nil
+ */
+static int glirc_lua_user_account(lua_State *L)
+{
+        size_t netlen = 0, nicklen = 0;
+        const char *net = luaL_checklstring(L, 1, &netlen);
+        const char *nick = luaL_checklstring(L, 2, &nicklen);
+        luaL_checktype(L, 3, LUA_TNONE);
+
+        char *acct = glirc_user_account(get_glirc(L), net, netlen, nick, nicklen);
+        if (acct == NULL) {
+                lua_pushnil(L);
+        } else {
+                lua_pushstring(L, acct);
+                glirc_free_string(acct);
+        }
+
+        return 1;
+}
+
+/* Lua Function:
+ * Arguments: Network (string), Channel (string), Nickname (string)
+ * Returns: Sigils (string) or nil
+ */
+static int glirc_lua_user_channel_modes(lua_State *L)
+{
+        size_t netlen = 0, chanlen = 0, nicklen = 0;
+        const char *net = luaL_checklstring(L, 1, &netlen);
+        const char *chan = luaL_checklstring(L, 2, &chanlen);
+        const char *nick = luaL_checklstring(L, 3, &nicklen);
+        luaL_checktype(L, 4, LUA_TNONE);
+
+        char *sigils = glirc_user_channel_modes(get_glirc(L), net, netlen, chan, chanlen, nick, nicklen);
+        if (sigils == NULL) {
+                lua_pushnil(L);
+        } else {
+                lua_pushstring(L, sigils);
+                glirc_free_string(sigils);
+        }
+
+        return 1;
+}
+
+/* Lua Function:
  * Arguments: Network (string)
  * Returns: Nick (string)
  */
@@ -268,6 +313,8 @@ static luaL_Reg glirc_lib[] =
   , { "list_channels"     , glirc_lua_list_channels      }
   , { "list_channel_users", glirc_lua_list_channel_users }
   , { "my_nick"           , glirc_lua_my_nick            }
+  , { "user_account"      , glirc_lua_user_account       }
+  , { "user_channel_modes", glirc_lua_user_channel_modes }
   , { "mark_seen"         , glirc_lua_mark_seen          }
   , { "clear_window"      , glirc_lua_clear_window       }
   , { NULL                , NULL                         }

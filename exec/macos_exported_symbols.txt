@@ -6,6 +6,8 @@ _glirc_list_networks
 _glirc_list_channels
 _glirc_list_channel_users
 _glirc_my_nick
+_glirc_user_account
+_glirc_user_channel_modes
 _glirc_mark_seen
 _glirc_is_channel
 _glirc_is_logged_on

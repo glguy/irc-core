@@ -31,6 +31,12 @@ module Client.CApi.Exports
  , Glirc_my_nick
  , glirc_my_nick
 
+ , Glirc_user_account
+ , glirc_user_account
+
+ , Glirc_user_channel_modes
+ , glirc_user_channel_modes
+
  , Glirc_identifier_cmp
  , glirc_identifier_cmp
 
@@ -336,6 +342,65 @@ glirc_my_nick stab networkPtr networkLen =
      case mb of
        Nothing -> return nullPtr
        Just me -> newCString (Text.unpack (idText me))
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_user_account' extension entry-point
+type Glirc_user_account =
+  Ptr ()  {- ^ api token           -} ->
+  CString {- ^ network name        -} ->
+  CSize   {- ^ network name length -} ->
+  CString {- ^ nickname            -} ->
+  CSize   {- ^ nickname length     -} ->
+  IO CString
+
+-- | Return the services account name associated with a nickname on
+-- a server as tracked by the client. Caller is responsible for freeing
+-- successful result with @glirc_free_string@. If no account is
+-- known, @NULL@ is returned.
+glirc_user_account :: Glirc_user_account
+glirc_user_account stab networkPtr networkLen nickPtr nickLen =
+  do mvar    <- derefToken stab
+     st      <- readMVar mvar
+     network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
+     nick    <- peekFgnStringLen (FgnStringLen nickPtr    nickLen   )
+     let mb = preview ( clientConnection network
+                      . csUsers . ix (mkId nick)
+                      . uhAccount . filtered (not . Text.null)) st
+     case mb of
+       Just acct -> newCString (Text.unpack acct)
+       _         -> return nullPtr
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_user_account' extension entry-point
+type Glirc_user_channel_modes =
+  Ptr ()  {- ^ api token           -} ->
+  CString {- ^ network name        -} ->
+  CSize   {- ^ network name length -} ->
+  CString {- ^ channel             -} ->
+  CSize   {- ^ channel length      -} ->
+  CString {- ^ nickname            -} ->
+  CSize   {- ^ nickname length     -} ->
+  IO CString
+
+-- | Return the sigils associated with a nickname on a particular channel.
+-- Caller is responsible for freeing successful result with
+-- @glirc_free_string@. If user is on channel without any sigils an empty
+-- string is returned. If user is not on channel @NULL@ is returned.
+glirc_user_channel_modes :: Glirc_user_channel_modes
+glirc_user_channel_modes stab netPtr netLen chanPtr chanLen nickPtr nickLen =
+  do mvar    <- derefToken stab
+     st      <- readMVar mvar
+     network <- peekFgnStringLen (FgnStringLen netPtr  netLen)
+     chan    <- peekFgnStringLen (FgnStringLen chanPtr chanLen   )
+     nick    <- peekFgnStringLen (FgnStringLen nickPtr nickLen   )
+     let mb = preview ( clientConnection network
+                      . csChannels . ix (mkId chan)
+                      . chanUsers  . ix (mkId nick) ) st
+     case mb of
+       Just sigils -> newCString sigils
+       _           -> return nullPtr
 
 ------------------------------------------------------------------------
 

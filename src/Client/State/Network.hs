@@ -48,6 +48,9 @@ module Client.State.Network
 
   -- * User information
   , UserAndHost(..)
+  , uhUser
+  , uhHost
+  , uhAccount
 
   -- * Cross-message state
   , Transaction(..)
@@ -140,9 +143,11 @@ data AuthenticateState
   deriving Show
 
 -- | Pair of username and hostname. Empty strings represent missing information.
-data UserAndHost =
-  UserAndHost {-# UNPACK #-}!Text {-# UNPACK #-}!Text {-# UNPACK #-}!Text
-  -- ^ username hostname accountname
+data UserAndHost = UserAndHost
+  { _uhUser    :: {-# UNPACK #-}!Text -- ^ username
+  , _uhHost    :: {-# UNPACK #-}!Text -- ^ hostname
+  , _uhAccount :: {-# UNPACK #-}!Text -- ^ services account
+  }
   deriving Show
 
 -- | Status of the ping timer
@@ -168,6 +173,7 @@ data Transaction
   deriving Show
 
 makeLenses ''NetworkState
+makeLenses ''UserAndHost
 makePrisms ''Transaction
 makePrisms ''PingStatus
 makePrisms ''TimedAction
