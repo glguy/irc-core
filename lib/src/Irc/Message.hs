@@ -47,7 +47,7 @@ data IrcMsg
   = UnknownMsg !RawIrcMsg -- ^ pass-through for unhandled messages
   | Reply !ReplyCode [Text] -- ^ code arguments
   | Nick !UserInfo !Identifier -- ^ old new
-  | Join !UserInfo !Identifier (Maybe (Maybe Text, Text)) -- ^ user channel extended-join
+  | Join !UserInfo !Identifier !Text -- ^ user channel account(extended-join)
   | Part !UserInfo !Identifier (Maybe Text) -- ^ user channel reason
   | Quit !UserInfo (Maybe Text) -- ^ user reason
   | Kick !UserInfo !Identifier !Identifier !Text -- ^ kicker channel kickee comment
@@ -64,7 +64,7 @@ data IrcMsg
   | Error !Text -- ^ message
   | BatchStart Text Text [Text] -- ^ reference-id type parameters
   | BatchEnd Text -- ^ reference-id
-  | Account !UserInfo (Maybe Text) -- ^ user account name changed (account-notify extension)
+  | Account !UserInfo Text -- ^ user account name changed (account-notify extension)
   deriving Show
 
 -- | Sub-commands of the CAP command
@@ -125,11 +125,11 @@ cookIrcMsg msg =
     "JOIN" | Just user <- view msgPrefix msg
            , chan:rest <- view msgParams msg ->
 
-           Join user (mkId chan) $
-           case rest of
-             ["*", real]  -> Just (Nothing, real)
-             [acct, real] -> Just (Just acct, real)
-             _            -> Nothing
+           let acct = case rest of
+                 ["*" , _real] -> ""
+                 [acct, _real] -> acct
+                 _             -> ""
+           in Join user (mkId chan) acct
 
     "QUIT" | Just user <- view msgPrefix msg
            , reasons   <- view msgParams msg ->
@@ -168,7 +168,7 @@ cookIrcMsg msg =
 
     "ACCOUNT" | Just user <- view msgPrefix msg
               , [acct] <- view msgParams msg ->
-      Account user (if acct == "*" then Nothing else Just acct)
+      Account user (if acct == "*" then "" else acct)
 
     _      -> UnknownMsg msg
 
@@ -277,7 +277,7 @@ ircMsgText msg =
     Pong xs        -> Text.unwords xs
     Cap _ xs       -> Text.unwords xs
     Error t        -> t
-    Account _ a    -> fromMaybe "" a
+    Account x a    -> Text.unwords [renderUserInfo x, a]
     Authenticate{} -> ""
     BatchStart{}   -> ""
     BatchEnd{}     -> ""

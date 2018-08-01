@@ -277,15 +277,15 @@ applyMessage' msgWhen msg cs =
   case msg of
     Ping args -> ([ircPong args], cs)
     Pong _    -> noReply $ doPong msgWhen cs
-    Join user chan ext ->
+    Join user chan acct ->
            noReply
-         $ recordUser user (fst =<< ext)
+         $ recordUser user acct
          $ overChannel chan (joinChannel (userNick user))
          $ createOnJoin user chan cs
 
-    Account user mbAcct ->
+    Account user acct ->
            noReply
-         $ recordUser user mbAcct cs
+         $ recordUser user acct cs
 
     Quit user _reason ->
            noReply
@@ -309,6 +309,12 @@ applyMessage' msgWhen msg cs =
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
     Reply RPL_HOSTHIDDEN (_:host:_) ->
         noReply (set (csUserInfo . uiHost) host cs)
+
+    -- /who <#channel> %tuhna,616
+    Reply RPL_WHOSPCRPL [_me,"616",user,host,nick,acct] ->
+       let acct' = if acct == "0" then "" else acct
+       in noReply (recordUser (UserInfo (mkId nick) user host) acct' cs)
+
     Reply code args        -> noReply (doRpl code msgWhen args cs)
     Cap cmd params         -> doCap cmd params cs
     Authenticate param     -> doAuthenticate param cs
@@ -548,6 +554,7 @@ squelchReply rpl =
     RPL_UMODEIS         -> True
     RPL_WHOREPLY        -> True
     RPL_ENDOFWHO        -> True
+    RPL_WHOSPCRPL       -> True
     RPL_TOPICWHOTIME    -> True
     RPL_CREATIONTIME    -> True
     RPL_CHANNEL_URL     -> True
@@ -837,11 +844,11 @@ isChannelIdentifier cs ident =
 csUser :: Functor f => Identifier -> LensLike' f NetworkState (Maybe UserAndHost)
 csUser i = csUsers . at i
 
-recordUser :: UserInfo -> Maybe Text -> NetworkState -> NetworkState
-recordUser (UserInfo nick user host) mbAcct
+recordUser :: UserInfo -> Text -> NetworkState -> NetworkState
+recordUser (UserInfo nick user host) acct
   | Text.null user || Text.null host = id
   | otherwise = set (csUsers . at nick)
-                    (Just $! UserAndHost user host (fromMaybe "" mbAcct))
+                    (Just $! UserAndHost user host acct)
 
 forgetUser :: Identifier -> NetworkState -> NetworkState
 forgetUser = over csUsers . sans

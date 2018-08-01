@@ -117,7 +117,7 @@ userInfoImages' cs channel st = countImage : map renderEntry usersList
     renderEntry ((info, acct), sigils) =
       string (view palSigil pal) sigils <>
       coloredUserInfo pal DetailedRender myNicks info <>
-      " " <> text' defAttr (cleanText acct)
+      " " <> text' (view palMeta pal) (cleanText acct)
 
     matcher' ((info, acct),sigils) =
       matcher (LText.fromChunks [Text.pack sigils, renderUserInfo info, " ", acct])

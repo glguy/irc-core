@@ -257,8 +257,7 @@ ircLinePrefix !rp body =
     BatchStart{}   -> mempty
     BatchEnd{}     -> mempty
 
-    Account user Nothing -> who user <> " unauthenticated"
-    Account user Just {} -> who user <> " authenticated: "
+    Account user _ -> who user <> " account:"
 
 
 -- | Render a chat message given a rendering mode, the sigils of the user
@@ -300,8 +299,7 @@ ircLineImage !rp body =
     Cap _ args        -> separatedParams args
     Mode _ _ params   -> ircWords params
 
-    Account _ (Just acct) -> text' defAttr (cleanText acct)
-    Account _ Nothing     -> mempty
+    Account _ acct -> if Text.null acct then "*" else text' defAttr (cleanText acct)
 
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
@@ -326,15 +324,12 @@ fullIrcLineImage !rp body =
       " is now known as " <>
       coloredIdentifier pal NormalIdentifier myNicks new
 
-    Join nick _chan extJoin ->
+    Join nick _chan acct ->
       string quietAttr "join " <>
       coloredUserInfo pal rm myNicks nick <>
-      case extJoin of
-        Nothing -> mempty
-        Just (Nothing, real) -> " * " <> parseIrcText real
-        Just (Just acct, real) ->
-          " " <> text' defAttr (cleanText acct) <>
-          " " <> parseIrcText real
+      if Text.null acct
+        then mempty
+        else " " <> text' quietAttr (cleanText acct)
 
     Part nick _chan mbreason ->
       string quietAttr "part " <>
@@ -429,10 +424,10 @@ fullIrcLineImage !rp body =
     BatchStart{}   -> "BATCH +"
     BatchEnd{}     -> "BATCH -"
 
-    Account src mb ->
+    Account src acct ->
       string quietAttr "acct " <>
       who src <> ": " <>
-      maybe "*" (text' defAttr . cleanText) mb
+      if Text.null acct then "*" else text' defAttr (cleanText acct)
 
 
 renderCapCmd :: CapCmd -> Text
