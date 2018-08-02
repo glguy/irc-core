@@ -1,3 +1,12 @@
+/// Extension API for glirc
+// This module provides extension functionality for the glirc IRC client.
+// Extensions are expected to be implemented as Lua modules that return
+// a single table with callbacks that the client can dispatch events to.
+// @module glirc
+// @author Eric Mertens
+// @license ISC
+// @copyright Eric Mertens 2018
+
 #include <string.h>
 #include <lua.h>
 #include <lauxlib.h>
@@ -25,10 +34,12 @@ static inline struct glirc *get_glirc(lua_State *L)
         return G;
 }
 
-/* Lua Function:
- * Arguments: Message (table with .command (string) .network (string) .params (array of string))
- * Returns:
- */
+/***
+Send an IRC command on a connected network. Message tags are ignored
+when sending a message.
+@function send_message
+@tparam message message IRC message to send on network
+*/
 static int glirc_lua_send_message(lua_State *L)
 {
         /* This module is careful to leave strings on the stack
@@ -99,10 +110,11 @@ int compute_script_path(const char *libpath, char *scriptpath)
         return 0;
 }
 
-/* Lua Function:
- * Arguments: Message (string)
- * Returns:
- */
+/***
+Print a message to the client console
+@function print
+@tparam string message Message to print to console
+*/
 static int glirc_lua_print(lua_State *L)
 {
         size_t msglen = 0;
@@ -113,10 +125,11 @@ static int glirc_lua_print(lua_State *L)
         return 0;
 }
 
-/* Lua Function:
- * Arguments: Message (string)
- * Returns:
- */
+/***
+Print an error message to the client console
+@function error
+@tparam string message Message to print to console
+*/
 static int glirc_lua_error(lua_State *L)
 {
         size_t msglen = 0;
@@ -141,10 +154,11 @@ static void import_string_array(lua_State *L, char **list)
         glirc_free_strings(list);
 }
 
-/* Lua Function:
- * Arguments:
- * Returns: Networks (array of string)
- */
+/***
+Generate a list of names of connected networks.
+@function list_networks
+@treturn {string,...} A table of network names
+*/
 static int glirc_lua_list_networks(lua_State *L)
 {
         luaL_checktype(L, 1, LUA_TNONE);
@@ -157,10 +171,12 @@ static int glirc_lua_list_networks(lua_State *L)
         return 1;
 }
 
-/* Lua Function:
- * Arguments: Network (string)
- * Returns: Channels (array of string)
- */
+/***
+List the connected channels for a given network
+@function list_channels
+@tparam string network Network name
+@treturn {string,...} A table of channel names
+*/
 static int glirc_lua_list_channels(lua_State *L)
 {
         struct glirc_string network;
@@ -175,10 +191,13 @@ static int glirc_lua_list_channels(lua_State *L)
         return 1;
 }
 
-/* Lua Function:
- * Arguments: Network (string), Channel (string)
- * Returns: Users (array of string)
- */
+/***
+List the users in a channel
+@function list_channel_users
+@tparam string network Network name
+@tparam string channel Channel name
+@treturn {string,...} A table of nicknames
+*/
 static int glirc_lua_list_channel_users(lua_State *L)
 {
         struct glirc_string network, channel;
@@ -194,10 +213,13 @@ static int glirc_lua_list_channel_users(lua_State *L)
         return 1;
 }
 
-/* Lua Function:
- * Arguments: Network (string), Nickname (string)
- * Returns: Account (string) or nil
- */
+/***
+Determine the services account for a given nickname
+@function user_account
+@tparam string network Network name
+@tparam string nick    User nickname
+@treturn ?string Account name if known, otherwise nil
+*/
 static int glirc_lua_user_account(lua_State *L)
 {
         size_t netlen = 0, nicklen = 0;
@@ -216,10 +238,14 @@ static int glirc_lua_user_account(lua_State *L)
         return 1;
 }
 
-/* Lua Function:
- * Arguments: Network (string), Channel (string), Nickname (string)
- * Returns: Sigils (string) or nil
- */
+/***
+Return the mode sigils for a user on a channel (e.g. + or @)
+@function user_channel_modes
+@tparam string network Network name
+@tparam string channel Channel name
+@tparam string nick User nickname
+@treturn ?string Sigils if on channel, nil otherwise
+*/
 static int glirc_lua_user_channel_modes(lua_State *L)
 {
         size_t netlen = 0, chanlen = 0, nicklen = 0;
@@ -239,10 +265,12 @@ static int glirc_lua_user_channel_modes(lua_State *L)
         return 1;
 }
 
-/* Lua Function:
- * Arguments: Network (string)
- * Returns: Nick (string)
- */
+/***
+Return the client's nickname on a particular network
+@function my_nick
+@tparam string network Network name
+@treturn ?string Client user's nickname if connected, otherwise nil
+*/
 static int glirc_lua_my_nick(lua_State *L)
 {
         size_t netlen = 0;
@@ -250,17 +278,23 @@ static int glirc_lua_my_nick(lua_State *L)
         luaL_checktype(L, 2, LUA_TNONE);
 
         char *nick = glirc_my_nick(get_glirc(L), net, netlen);
-        if (nick == NULL) { luaL_error(L, "no such network"); }
-        lua_pushstring(L, nick);
-        glirc_free_string(nick);
+        if (nick == NULL) {
+            lua_pushnil(L);
+        } else {
+            lua_pushstring(L, nick);
+            glirc_free_string(nick);
+        }
 
         return 1;
 }
 
-/* Lua Function:
- * Arguments: Network (string), Channel (string)
- * Returns:
- */
+/***
+Mark a client window seen cleaning the unread message counter. The
+window name should be either a channel name or a user nickname.
+@function mark_seen
+@tparam string network Network name
+@tparam string channel Window name
+*/
 static int glirc_lua_mark_seen(lua_State *L)
 {
         struct glirc_string network, channel;
@@ -272,10 +306,13 @@ static int glirc_lua_mark_seen(lua_State *L)
         return 0;
 }
 
-/* Lua Function:
- * Arguments: Network (string), Channel (string)
- * Returns:
- */
+/***
+Clear all message from a client window. The window name should be
+either a channel name or a user nickname.
+@function clear_window
+@tparam string network Network name
+@tparam string channel Window name
+*/
 static int glirc_lua_clear_window(lua_State *L)
 {
         struct glirc_string network, channel;
@@ -287,10 +324,16 @@ static int glirc_lua_clear_window(lua_State *L)
         return 0;
 }
 
-/* Lua Function:
- * Arguments: Identifier (string), Identifier (string)
- * Returns: Comparison (integer)
- */
+/***
+Case-insensitive comparison of two identifiers using IRC case map.
+Return -1 when first identifier is "greater than" the second.
+Return 0 when first identifier is "equal to" the second.
+Return 1 when first identifier is "less than" the second.
+@function identifier_cmp
+@tparam string identifier1 First identifier
+@tparam string identifier2 Second identifier
+@treturn integer Comparison result
+*/
 static int glirc_lua_identifier_cmp(lua_State *L)
 {
         struct glirc_string str1, str2;
@@ -532,6 +575,53 @@ static void command_entrypoint(struct glirc *G, void *L, const struct glirc_comm
         push_glirc_command(L, cmd);
         callback(G, L, "process_command", 1);
 }
+
+/***
+When scripting glirc, the glirc.lua file should return a table with these
+fields. Any omitted field will be ignored during its corresponding event.
+
+process_message is called with a message argument.
+
+process_comand is called with a command argument.
+
+@table extension
+@tfield func process_message Function called to process a message
+@tfield func process_command Function called to process a client /extension command
+@tfield func process_chat Function called to process client sending a chat message
+@tfield func stop Function called when unloading this extension
+*/
+
+/***
+Table used with process_command
+@table command
+@tfield string command Argument to the /extension client command
+*/
+
+/***
+Table used with process_chat
+@table command
+@tfield string network Network name
+@tfield string target Window name
+@tfield string message Message body
+*/
+
+/***
+Table used with send_message and process_message.
+@table message
+@tfield {[string]=string,...} tags Message tags
+@tfield string network Network name
+@tfield prefix prefix Sender information
+@tfield string command IRC command
+@tfield {string,...} params Command parameters
+*/
+
+/***
+Prefix information for messages being sent or received
+@table prefix
+@tfield string nick Nickname
+@tfield string user Username
+@tfield string host Hostname
+*/
 
 struct glirc_extension extension = {
         .name            = "Lua",
