@@ -17,7 +17,6 @@ module Client.Hook.Znc.Buffextras
   ( buffextrasHook
   ) where
 
-import           Control.Monad
 import           Data.Attoparsec.Text as P
 import           Data.Text as Text hiding (head)
 
@@ -52,11 +51,11 @@ prefixedParser chan = do
     pfx <- prefixParser
     choice
       [ Join pfx chan "" <$ skipToken "joined"
-      , Quit pfx . filterEmpty <$ skipToken "quit with message:" <*> parseReason
-      , Part pfx chan . filterEmpty <$ skipToken "parted with message:" <*> parseReason
+      , Quit pfx . filterEmpty <$ skipToken "quit:" <*> P.takeText
+      , Part pfx chan . filterEmpty <$ skipToken "parted:" <*> P.takeText
       , Nick pfx . mkId <$ skipToken "is now known as" <*> simpleTokenParser
       , Mode pfx chan <$ skipToken "set mode:" <*> allTokens
-      , Kick pfx chan <$ skipToken "kicked" <*> parseId <* skipToken "Reason:" <*> parseReason
+      , Kick pfx chan <$ skipToken "kicked" <*> parseId <* skipToken "with reason:" <*> P.takeText
       , Topic pfx chan <$ skipToken "changed the topic to:" <*> P.takeText
       ]
 
@@ -73,9 +72,3 @@ filterEmpty :: Text -> Maybe Text
 filterEmpty txt
   | Text.null txt = Nothing
   | otherwise     = Just txt
-
-parseReason :: Parser Text
-parseReason =
-  do txt <- char '[' *> P.takeText
-     guard (not (Text.null txt) && Text.last txt == ']')
-     return (Text.init txt)
