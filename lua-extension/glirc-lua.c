@@ -20,7 +20,7 @@
 #define MINOR 0
 
 /* Helper
- * Pushes a the string represented by the argument to the top of the stack
+ * Pushes the string represented by the argument to the top of the stack
  */
 static void get_glirc_string(lua_State *L, int i, struct glirc_string *s)
 {
@@ -582,7 +582,7 @@ fields. Any omitted field will be ignored during its corresponding event.
 
 process_message is called with a message argument.
 
-process_comand is called with a command argument.
+process_command is called with a command argument.
 
 @table extension
 @tfield func process_message Function called to process a message
@@ -599,7 +599,7 @@ Table used with process_command
 
 /***
 Table used with process_chat
-@table command
+@table chat
 @tfield string network Network name
 @tfield string target Window name
 @tfield string message Message body
@@ -613,6 +613,7 @@ Table used with send_message and process_message.
 @tfield prefix prefix Sender information
 @tfield string command IRC command
 @tfield {string,...} params Command parameters
+@see send_message
 */
 
 /***
