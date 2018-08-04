@@ -382,6 +382,44 @@ static void glirc_install_lib(lua_State *L)
         lua_setglobal(L, "glirc");
 }
 
+
+/* This function actually initialized the Lua state and
+ * runs the user's script. It is allowed to raise errors
+ * which will be caught by the use of lua_pcall in start.
+ */
+static int initialize_lua(lua_State *L)
+{
+        // Validate dynamic library Lua version
+        luaL_checkversion(L);
+
+        // Load function argument
+        const char *scriptpath = luaL_checkstring(L, 1);
+        luaL_checktype(L, 2, LUA_TNONE);
+
+        // Store script path in arg table
+        lua_newtable(L);         // create arg table
+        lua_pushvalue(L, 1);     // duplicate scriptpath
+        lua_rawseti(L, -2, 0);   // set arg[0] = scriptpath
+        lua_setglobal(L, "arg"); // store arg in globals
+
+        // Initialize libraries
+        luaL_openlibs(L);
+        glirc_install_lib(L);
+
+        // Load user script
+        if (luaL_loadfile(L, scriptpath)) {
+                lua_error(L);
+        }
+
+        // Execute user script
+        lua_call(L, 0, 1);
+
+        lua_setfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
+        lua_settop(L, 0);
+
+        return 0;
+}
+
 /* Start the Lua interpreter, run glirc.lua in current directory,
  * register the first returned result of running the file as
  * the callback for message processing.
@@ -395,28 +433,25 @@ static void *start(struct glirc *G, const char *path)
         }
 
         lua_State *L = luaL_newstate();
-        if (L == NULL) return NULL;
+        if (L == NULL) {
+                const char * const err = "Failed to allocate Lua interpreter";
+                glirc_print(G, ERROR_MESSAGE, err, strlen(err));
+                return NULL;
+        }
+
+        // Store glirc token in extra space, used for re-entry into glirc
         memcpy(lua_getextraspace(L), &G, sizeof(G));
 
-
-        luaL_openlibs(L);
-        glirc_install_lib(L);
-
-        lua_newtable(L);
+        lua_pushcfunction(L, initialize_lua);
         lua_pushstring(L, scriptpath);
-        lua_rawseti(L, -2, 0);
-        lua_setglobal(L, "arg");
 
-        if (luaL_dofile(L, scriptpath)) {
+        if (lua_pcall(L, 1, 0, 0)) {
                 size_t msglen = 0;
                 const char *msg = lua_tolstring(L, -1, &msglen);
                 glirc_print(G, ERROR_MESSAGE, msg, msglen);
 
                 lua_close(L);
                 L = NULL;
-        } else {
-                lua_setfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
-                lua_settop(L, 0);
         }
 
         return L;
