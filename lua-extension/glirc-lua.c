@@ -15,7 +15,8 @@
 
 #include "glirc-api.h"
 
-#define CALLBACK_MODULE_KEY "glirc-callback-module"
+static char glirc_callback_module_key;
+
 #define MAJOR 1
 #define MINOR 0
 
@@ -414,7 +415,7 @@ static int initialize_lua(lua_State *L)
         // Execute user script
         lua_call(L, 0, 1);
 
-        lua_setfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key);
         lua_settop(L, 0);
 
         return 0;
@@ -551,7 +552,7 @@ static void push_glirc_message(lua_State *L, const struct glirc_message *msg)
 
 static int callback_worker(lua_State *L)
 {       int n = lua_gettop(L);                                   // args... name
-        lua_getfield(L, LUA_REGISTRYINDEX, CALLBACK_MODULE_KEY); // args... name ext
+        lua_rawgetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // args... name ext
         lua_rotate(L, 1, 1);                             // ext args... name
         int ty = lua_gettable(L, 1);                     // ext args... callback
         if (ty == LUA_TNIL) {
