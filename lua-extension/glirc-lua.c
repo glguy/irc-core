@@ -402,6 +402,11 @@ static void *start(struct glirc *G, const char *path)
         luaL_openlibs(L);
         glirc_install_lib(L);
 
+        lua_newtable(L);
+        lua_pushstring(L, scriptpath);
+        lua_rawseti(L, -2, 0);
+        lua_setglobal(L, "arg");
+
         if (luaL_dofile(L, scriptpath)) {
                 size_t msglen = 0;
                 const char *msg = lua_tolstring(L, -1, &msglen);
