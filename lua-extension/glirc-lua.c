@@ -59,16 +59,21 @@ static int glirc_lua_send_message(lua_State *L)
 
         struct glirc_message msg = { {0} };
 
-        lua_getfield(L, 1, "command");
+        if (lua_getfield(L, 1, "command") != LUA_TSTRING) {
+                luaL_error(L, "bad command field");
+        }
         get_glirc_string(L, -1, &msg.command);
 
-        lua_getfield(L, 1, "network");
+        if (lua_getfield(L, 1, "network") != LUA_TSTRING) {
+                luaL_error(L, "bad network field");
+        }
         get_glirc_string(L, -1, &msg.network);
 
-        lua_getfield(L, 1, "params");
-        lua_len(L, -1);
-        lua_Integer n = lua_tointeger(L,-1);
-        lua_settop(L, -2);
+        if (lua_getfield(L, 1, "params") != LUA_TTABLE) {
+                luaL_error(L, "bad params field");
+        }
+
+        lua_Integer n = luaL_len(L,-1);
 
         if (n > 15) luaL_error(L, "too many command parameters");
 
@@ -76,9 +81,11 @@ static int glirc_lua_send_message(lua_State *L)
         msg.params   = params;
         msg.params_n = n;
 
-        for (int i = 0; i < n; i++) {
-                lua_geti(L, 4, i+1);
-                get_glirc_string(L, -1, &params[i]);
+        for (lua_Integer i = 1; i <= n; i++) {
+                if (lua_geti(L, 4, i) != LUA_TSTRING) {
+                        luaL_error(L, "bad command parameter[%d]", i);
+                }
+                get_glirc_string(L, -1, &params[i-1]);
         }
 
         if (glirc_send_message(get_glirc(L), &msg)) {
@@ -88,26 +95,19 @@ static int glirc_lua_send_message(lua_State *L)
         return 0;
 }
 
-/* Populate scriptpath by computing the filename glirc.lua
- * in the same directory as the file in libpath.
+/* Push path to glirc.lua which should be in the same directory
+ * as the given path to the extension shared library.
  *
- * scriptpath must be a character array able to hold up to
- * PATH_MAX characters.
+ * Returns 0 on success, non-zero on failure.
  */
-int compute_script_path(const char *libpath, char *scriptpath)
-{
-        if (libpath == NULL) { return -1; }
-        if (strlen(libpath) >= PATH_MAX) { return -2; }
-
-        /* dirname is documented to be allowed to alter the input string
-         * so first it's copied into the output buffer */
-        strcpy(scriptpath, libpath);
-        char * dirpart = dirname(scriptpath);
-        if (dirpart == NULL) { return -3; }
-
-        int res = snprintf(scriptpath, PATH_MAX, "%s/glirc.lua", dirpart);
-        if (res < 0 || res >= PATH_MAX) { return -4; }
-
+int push_scriptname(lua_State *L, const char *path) {
+        char *path_copy = strdup(path);
+        if (path_copy == NULL) {
+                return 1;
+        }
+        char *dir_part = dirname(path_copy);
+        lua_pushfstring(L, "%s/glirc.lua", dir_part);
+        free(path_copy);
         return 0;
 }
 
@@ -229,12 +229,8 @@ static int glirc_lua_user_account(lua_State *L)
         luaL_checktype(L, 3, LUA_TNONE);
 
         char *acct = glirc_user_account(get_glirc(L), net, netlen, nick, nicklen);
-        if (acct == NULL) {
-                lua_pushnil(L);
-        } else {
-                lua_pushstring(L, acct);
-                glirc_free_string(acct);
-        }
+        lua_pushstring(L, acct);
+        glirc_free_string(acct);
 
         return 1;
 }
@@ -256,12 +252,8 @@ static int glirc_lua_user_channel_modes(lua_State *L)
         luaL_checktype(L, 4, LUA_TNONE);
 
         char *sigils = glirc_user_channel_modes(get_glirc(L), net, netlen, chan, chanlen, nick, nicklen);
-        if (sigils == NULL) {
-                lua_pushnil(L);
-        } else {
-                lua_pushstring(L, sigils);
-                glirc_free_string(sigils);
-        }
+        lua_pushstring(L, sigils);
+        glirc_free_string(sigils);
 
         return 1;
 }
@@ -279,12 +271,8 @@ static int glirc_lua_my_nick(lua_State *L)
         luaL_checktype(L, 2, LUA_TNONE);
 
         char *nick = glirc_my_nick(get_glirc(L), net, netlen);
-        if (nick == NULL) {
-            lua_pushnil(L);
-        } else {
-            lua_pushstring(L, nick);
-            glirc_free_string(nick);
-        }
+        lua_pushstring(L, nick);
+        glirc_free_string(nick);
 
         return 1;
 }
@@ -397,20 +385,20 @@ static int initialize_lua(lua_State *L)
         const char *scriptpath = luaL_checkstring(L, 1);
         luaL_checktype(L, 2, LUA_TNONE);
 
+        // Load user script
+        if (luaL_loadfile(L, scriptpath)) {
+                lua_error(L);
+        }
+
         // Store script path in arg table
         lua_newtable(L);         // create arg table
-        lua_pushvalue(L, 1);     // duplicate scriptpath
+        lua_rotate(L, 1, -1);       // move scriptpath to top
         lua_rawseti(L, -2, 0);   // set arg[0] = scriptpath
         lua_setglobal(L, "arg"); // store arg in globals
 
         // Initialize libraries
         luaL_openlibs(L);
         glirc_install_lib(L);
-
-        // Load user script
-        if (luaL_loadfile(L, scriptpath)) {
-                lua_error(L);
-        }
 
         // Execute user script
         lua_call(L, 0, 1);
@@ -428,10 +416,6 @@ static int initialize_lua(lua_State *L)
  */
 static void *start(struct glirc *G, const char *path)
 {
-        char scriptpath[PATH_MAX];
-        if (compute_script_path(path, scriptpath)) {
-                return NULL;
-        }
 
         lua_State *L = luaL_newstate();
         if (L == NULL) {
@@ -444,7 +428,7 @@ static void *start(struct glirc *G, const char *path)
         memcpy(lua_getextraspace(L), &G, sizeof(G));
 
         lua_pushcfunction(L, initialize_lua);
-        lua_pushstring(L, scriptpath);
+        if (push_scriptname(L, path)) { return NULL; }
 
         if (lua_pcall(L, 1, 0, 0)) {
                 size_t msglen = 0;
@@ -551,70 +535,73 @@ static void push_glirc_message(lua_State *L, const struct glirc_message *msg)
 }
 
 static int callback_worker(lua_State *L)
-{       int n = lua_gettop(L);                                   // args... name
-        lua_rawgetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // args... name ext
-        lua_rotate(L, 1, 1);                             // ext args... name
-        int ty = lua_gettable(L, 1);                     // ext args... callback
+{       int n = lua_gettop(L);                                         // name args...
+        lua_rawgetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // name args... ext
+        lua_insert(L, 1);                                              // ext name args...
+        lua_rotate(L, 2, -1);                                          // ext args... name
+        int ty = lua_gettable(L, 1);                                   // ext args... callback
         if (ty == LUA_TNIL) {
             lua_pushboolean(L, 0); // skipped callbacks don't drop messages
         } else {
-            lua_rotate(L, 1, 1);                             // callback ext args...
-            lua_call(L, n, 1);                               // result
+            lua_insert(L, 1);                                          // callback ext args...
+            lua_call(L, n, 1);                                         // result
         }
         return 1; // return boolean result from callback
 }
 
-static int callback(struct glirc *G, lua_State *L, const char *callback_name, int args)
+static enum process_result callback(struct glirc *G, lua_State *L, int nargs)
 {
         // remember glirc handle
         memcpy(lua_getextraspace(L), &G, sizeof(G));
 
-                                               // STACK: arguments...
-        lua_pushcfunction(L, callback_worker); // STACK: arguments... worker
-        lua_rotate(L, 1, 1);                   // STACK: worker arguments...
-        lua_pushstring(L, callback_name);      // STACK: worker arguments... name
-        int res = lua_pcall(L, 1+args, 1, 0);  // STACK:
+                                               // STACK: name arguments...
+        lua_pushcfunction(L, callback_worker); // STACK: name arguments... worker
+        lua_insert(L, 1);                      // STACK: worker name arguments...
+        int res = lua_pcall(L, 1+nargs, 1, 0); // STACK: result
 
         if (res != LUA_OK) {
                 size_t msglen = 0;
                 const char *msg = lua_tolstring(L, -1, &msglen);
                 glirc_print(G, ERROR_MESSAGE, msg, msglen);
                 lua_settop(L, 0); // discard error message
+                return PASS_MESSAGE;
         }
 
         res = lua_toboolean(L, 1);
         lua_settop(L, 0);
-        return res;
+        return res ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
 static void stop_entrypoint(struct glirc *G, void *L)
 {
         if (L == NULL) return;
-        callback(G, L, "stop", 0);
+        lua_pushliteral(L, "stop");
+        callback(G, L, 0);
         lua_close(L);
 }
 
 static enum process_result message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 {
         if (L == NULL) return PASS_MESSAGE;
+        lua_pushliteral(L, "process_message");
         push_glirc_message(L, msg);
-        int res = callback(G, L, "process_message", 1);
-        return res ? DROP_MESSAGE : PASS_MESSAGE;
+        return callback(G, L, 1);
 }
 
 static enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
 {
         if (L == NULL) return PASS_MESSAGE;
+        lua_pushliteral(L, "process_chat");
         push_glirc_chat(L, chat);
-        int res = callback(G, L, "process_chat", 1);
-        return res ? DROP_MESSAGE : PASS_MESSAGE;
+        return callback(G, L, 1);
 }
 
 static void command_entrypoint(struct glirc *G, void *L, const struct glirc_command *cmd)
 {
         if (L == NULL) return;
+        lua_pushliteral(L, "process_command");
         push_glirc_command(L, cmd);
-        callback(G, L, "process_command", 1);
+        callback(G, L, 1);
 }
 
 /***
