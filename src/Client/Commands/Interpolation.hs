@@ -10,6 +10,13 @@ Maintainer  : emertens@gmail.com
 This module is able to parse commands with inline variables and then
 to evaluate those variables to produce a complete command that varies
 by the current context.
+
+Variables are built from 1 or more letters.
+
+Optional arguments are suffixed with a @?@
+
+Remaining text arguments are suffixed with a @*@
+
 -}
 module Client.Commands.Interpolation
   ( ExpansionChunk(..)
@@ -66,16 +73,19 @@ parseMacroSpecs txt =
 
 macroSpecs :: Parser MacroSpec
 macroSpecs =
-  cons <$> P.takeWhile1 isAlpha
-       <*> optional (char '?')
-       <*  P.skipSpace
-       <*> macroSpecs
-    <|> pure (MacroSpec (pure []))
+  do var <- P.takeWhile1 isAlpha
+     mode <- optional (True <$ char '?' <|> False <$ char '*')
+     P.skipSpace
+     case mode of
+       Nothing    -> addReq var <$> macroSpecs
+       Just True  -> addOpt var <$> macroSpecs
+       Just False -> MacroSpec (pure <$> remainingArg (Text.unpack var)) <$ P.endOfInput
+  <|> noMacroArguments <$ P.endOfInput
   where
     add1 desc = liftA2 (:) (simpleToken (Text.unpack desc))
 
-    cons desc (Just _) (MacroSpec rest) = MacroSpec (fromMaybe [] <$> optionalArg (add1 desc rest))
-    cons desc Nothing  (MacroSpec rest) = MacroSpec (add1 desc rest)
+    addOpt var (MacroSpec rest) = MacroSpec (fromMaybe [] <$> optionalArg (add1 var rest))
+    addReq var (MacroSpec rest) = MacroSpec (add1 var rest)
 
 -- | Parse a 'Text' searching for the expansions as specified in
 -- 'ExpansionChunk'. @$$@ is used to escape a single @$@.
@@ -111,13 +121,14 @@ parseVariable = IntegerChunk  <$> P.decimal
 -- the two expansion functions. If the expansion of any chunk
 -- fails the whole expansion fails.
 resolveMacroExpansions ::
-  (Text    -> Maybe Text) {- ^ variable resolution       -} ->
-  (Integer -> Maybe Text) {- ^ argument index resolution -} ->
-  [ExpansionChunk]        {- ^ chunks                    -} ->
-  Maybe Text              {- ^ concatenated, expanded chunks -}
+  Alternative f =>
+  (Text    -> f Text) {- ^ variable resolution           -} ->
+  (Integer -> f Text) {- ^ argument index resolution     -} ->
+  [ExpansionChunk]    {- ^ chunks                        -} ->
+  f Text              {- ^ concatenated, expanded chunks -}
 resolveMacroExpansions var arg xs = Text.concat <$> traverse resolve1 xs
   where
-    resolve1 (LiteralChunk lit) = Just lit
+    resolve1 (LiteralChunk lit) = pure lit
     resolve1 (VariableChunk v)  = var v
     resolve1 (IntegerChunk i)   = arg i
-    resolve1 (DefaultChunk p d) = resolve1 p <|> Just d
+    resolve1 (DefaultChunk p d) = resolve1 p <|> pure d
