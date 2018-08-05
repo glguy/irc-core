@@ -28,11 +28,11 @@ macroValueSpecs = sectionsSpec "macro" $
   do name     <- reqSection "name" ""
      spec     <- fromMaybe noMacroArguments
              <$> optSection' "arguments" macroArgumentsSpec ""
-     commands <- reqSection' "commands" (listSpec macroCommandSpec) ""
+     commands <- reqSection' "commands" (oneOrList macroCommandSpec) ""
      return (name, Macro spec commands)
 
 macroArgumentsSpec :: ValueSpecs MacroSpec
-macroArgumentsSpec = customSpec "macro arguments" valuesSpec parseMacroSpecs
+macroArgumentsSpec = customSpec "macro-arguments" valuesSpec parseMacroSpecs
 
 macroCommandSpec :: ValueSpecs [ExpansionChunk]
-macroCommandSpec = customSpec "macro command" valuesSpec parseExpansion
+macroCommandSpec = customSpec "macro-command" valuesSpec parseExpansion
