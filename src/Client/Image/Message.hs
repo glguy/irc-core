@@ -149,8 +149,8 @@ bodyImage rm params body =
   case body of
     IrcBody irc | NormalRender   <- rm -> ircLineImage     params irc
                 | DetailedRender <- rm -> fullIrcLineImage params irc
-    ErrorBody  txt                     -> text' defAttr (cleanText txt)
-    NormalBody txt                     -> text' defAttr (cleanText txt)
+    ErrorBody  txt                     -> parseIrcText txt
+    NormalBody txt                     -> parseIrcText txt
 
 -- | Render a 'ZonedTime' as time using quiet attributes
 --

@@ -336,6 +336,44 @@ static int glirc_lua_identifier_cmp(lua_State *L)
         return 1;
 }
 
+void new_formatting_table(lua_State *L) {
+        lua_createtable(L, 0, 21);
+
+        lua_pushliteral(L, "\x0f");
+        lua_setfield(L, -2, "reset");
+
+        lua_pushliteral(L, "\x1f"); \
+        lua_setfield(L, -2, "underline");
+        lua_pushliteral(L, "\x1d"); \
+        lua_setfield(L, -2, "italic");
+        lua_pushliteral(L, "\x02"); \
+        lua_setfield(L, -2, "bold");
+        lua_pushliteral(L, "\x16"); \
+        lua_setfield(L, -2, "reverse");
+
+#define COLOR(name, code) \
+        lua_pushstring(L, "\x03" code); \
+        lua_setfield(L, -2, name);
+
+        COLOR("white"      , "00")
+        COLOR("black"      , "01")
+        COLOR("blue"       , "02")
+        COLOR("green"      , "03")
+        COLOR("red"        , "04")
+        COLOR("brown"      , "05")
+        COLOR("purple"     , "06")
+        COLOR("orange"     , "07")
+        COLOR("yellow"     , "08")
+        COLOR("light_green", "09")
+        COLOR("cyan"       , "10")
+        COLOR("light_cyan" , "11")
+        COLOR("light_blue" , "12")
+        COLOR("pink"       , "13")
+        COLOR("gray"       , "14")
+        COLOR("light_gray" , "15")
+#undef COLOR
+}
+
 static luaL_Reg glirc_lib[] =
   { { "send_message"      , glirc_lua_send_message       }
   , { "print"             , glirc_lua_print              }
@@ -367,6 +405,9 @@ static void glirc_install_lib(lua_State *L)
         lua_pushinteger(L, MINOR);
         lua_setfield   (L, -2, "minor");
         lua_setfield   (L, -2, "version");
+
+        new_formatting_table(L);
+        lua_setfield   (L, -2, "format");
 
         lua_setglobal(L, "glirc");
 }
