@@ -15,7 +15,7 @@ help:
 	@echo 'You can force a specific build with "make macos" or "make linux"'
 
 macos: glirc-otr.dylib
-linux:  glirc-otr.so
+linux: glirc-otr.so
 
 glirc-otr.dylib: glirc-otr.cpp OTR.cpp
 	c++ -O -shared -o $@ $^ \

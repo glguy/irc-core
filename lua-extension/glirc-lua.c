@@ -100,15 +100,12 @@ static int glirc_lua_send_message(lua_State *L)
  *
  * Returns 0 on success, non-zero on failure.
  */
-int push_scriptname(lua_State *L, const char *path) {
-        char *path_copy = strdup(path);
-        if (path_copy == NULL) {
-                return 1;
-        }
+void push_scriptname(lua_State *L, const char *path) {
+        char path_copy[strlen(path)+1];
+        strcpy(path_copy, path);
+
         char *dir_part = dirname(path_copy);
         lua_pushfstring(L, "%s/glirc.lua", dir_part);
-        free(path_copy);
-        return 0;
 }
 
 /***
@@ -422,30 +419,29 @@ static int initialize_lua(lua_State *L)
         // Validate dynamic library Lua version
         luaL_checkversion(L);
 
-        // Load function argument
-        const char *scriptpath = luaL_checkstring(L, 1);
+        // Validate function arguments
+        const char *scriptpath = luaL_checkstring(L, 1); // STACK: scriptpath
         luaL_checktype(L, 2, LUA_TNONE);
 
         // Load user script
-        if (luaL_loadfile(L, scriptpath)) {
+        if (luaL_loadfile(L, scriptpath)) { // STACK: scriptpath script
                 lua_error(L);
         }
 
         // Store script path in arg table
-        lua_newtable(L);         // create arg table
-        lua_rotate(L, 1, -1);       // move scriptpath to top
-        lua_rawseti(L, -2, 0);   // set arg[0] = scriptpath
-        lua_setglobal(L, "arg"); // store arg in globals
+        lua_newtable(L);         // STACK: scriptpath script arg
+        lua_rotate(L, 1, -1);    // STACK: script arg scriptpath
+        lua_rawseti(L, -2, 0);   // STACK: script arg
+        lua_setglobal(L, "arg"); // STACK: script
 
         // Initialize libraries
         luaL_openlibs(L);
         glirc_install_lib(L);
 
         // Execute user script
-        lua_call(L, 0, 1);
+        lua_call(L, 0, 1);       // STACK: module
 
-        lua_rawsetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key);
-        lua_settop(L, 0);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // STACK:
 
         return 0;
 }
@@ -457,6 +453,11 @@ static int initialize_lua(lua_State *L)
  */
 static void *start(struct glirc *G, const char *path)
 {
+        if (LUA_EXTRASPACE < sizeof(struct glirc *)) {
+                const char * const err = "Lua extraspace too small";
+                glirc_print(G, ERROR_MESSAGE, err, strlen(err));
+                return NULL;
+        }
 
         lua_State *L = luaL_newstate();
         if (L == NULL) {
@@ -469,7 +470,7 @@ static void *start(struct glirc *G, const char *path)
         memcpy(lua_getextraspace(L), &G, sizeof(G));
 
         lua_pushcfunction(L, initialize_lua);
-        if (push_scriptname(L, path)) { return NULL; }
+        push_scriptname(L, path);
 
         if (lua_pcall(L, 1, 0, 0)) {
                 size_t msglen = 0;
@@ -580,21 +581,15 @@ static int callback_worker(lua_State *L)
         lua_rawgetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // name args... ext
         lua_insert(L, 1);                                              // ext name args...
         lua_rotate(L, 2, -1);                                          // ext args... name
-        int ty = lua_gettable(L, 1);                                   // ext args... callback
-        if (ty == LUA_TNIL) {
-            lua_pushboolean(L, 0); // skipped callbacks don't drop messages
-        } else {
+        if (lua_gettable(L, 1) != LUA_TNIL) {                          // ext args... callback
             lua_insert(L, 1);                                          // callback ext args...
             lua_call(L, n, 1);                                         // result
         }
-        return 1; // return boolean result from callback
+        return 1; // return boolean result from callback or nil if lookup failed
 }
 
 static enum process_result callback(struct glirc *G, lua_State *L, int nargs)
 {
-        // remember glirc handle
-        memcpy(lua_getextraspace(L), &G, sizeof(G));
-
                                                // STACK: name arguments...
         lua_pushcfunction(L, callback_worker); // STACK: name arguments... worker
         lua_insert(L, 1);                      // STACK: worker name arguments...

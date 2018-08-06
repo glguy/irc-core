@@ -1,10 +1,21 @@
 .PHONY: help clean macos linux
 
+UNAME:=$(shell uname -s)
+
+ifeq ($(UNAME),Darwin)
+default: macos
+else ifeq ($(UNAME),Linux)
+default: linux
+else
+default: help
+endif
+
 help:
-	@echo 'Please use "make macos" or "make linux"'
+	@echo 'Currently this Makefile only autodetects Linux and Darwin'
+	@echo 'You can force a specific build with "make macos" or "make linux"'
 
 macos: glirc-lua.dylib
-linux:  glirc-lua.so
+linux: glirc-lua.so
 
 glirc-lua.dylib: glirc-lua.c
 	cc -shared -o $@ $^ -I../include \
