@@ -311,6 +311,77 @@ static int glirc_lua_clear_window(lua_State *L)
 }
 
 /***
+Find the name of the currently focused window
+either a channel name or a user nickname.
+@function current_focus
+@treturn ?string Network name
+@treturn ?string Target name
+*/
+static int glirc_lua_current_focus(lua_State *L)
+{
+        luaL_checktype(L, 1, LUA_TNONE);
+
+        size_t network_len = 0, target_len = 0;
+        char *network = NULL, *target = NULL;
+        glirc_current_focus(get_glirc(L), &network, &network_len,
+                                          &target,  &target_len);
+
+        lua_pushlstring(L, network, network_len);
+        lua_pushlstring(L, target, target_len);
+
+        glirc_free_string(network);
+        glirc_free_string(target);
+
+        return 2;
+}
+
+/***
+Determine if we are sure that the given user on the given network is
+currently connected.
+@function is_logged_on
+@tparam string network Network name
+@tparam string nickname Nickname
+@treturn boolean User known to be connected
+*/
+static int glirc_lua_is_logged_on(lua_State *L)
+{
+        size_t network_len = 0, target_len = 0;
+        const char *network = NULL, *target = NULL;
+        network = luaL_checklstring(L, 1, &network_len);
+        target  = luaL_checklstring(L, 2, &target_len);
+        luaL_checktype(L, 3, LUA_TNONE);
+
+        int res = glirc_is_logged_on(get_glirc(L), network, network_len,
+                                                   target, target_len);
+        lua_pushboolean(L, res);
+
+        return 1;
+}
+
+/***
+Determine if the given target is the name of a channel
+currently connected.
+@function is_channel
+@tparam string network Network name
+@tparam string target Target name
+@treturn boolean Target is a channel name
+*/
+static int glirc_lua_is_channel(lua_State *L)
+{
+        size_t network_len = 0, target_len = 0;
+        const char *network = NULL, *target = NULL;
+        network = luaL_checklstring(L, 1, &network_len);
+        target  = luaL_checklstring(L, 2, &target_len);
+        luaL_checktype(L, 3, LUA_TNONE);
+
+        int res = glirc_is_channel(get_glirc(L), network, network_len,
+                                                 target, target_len);
+        lua_pushboolean(L, res);
+
+        return 1;
+}
+
+/***
 Case-insensitive comparison of two identifiers using IRC case map.
 Return -1 when first identifier is "greater than" the second.
 Return 0 when first identifier is "equal to" the second.
@@ -384,6 +455,9 @@ static luaL_Reg glirc_lib[] =
   , { "user_channel_modes", glirc_lua_user_channel_modes }
   , { "mark_seen"         , glirc_lua_mark_seen          }
   , { "clear_window"      , glirc_lua_clear_window       }
+  , { "current_focus"     , glirc_lua_current_focus      }
+  , { "is_logged_on"      , glirc_lua_is_logged_on       }
+  , { "is_channel"        , glirc_lua_is_channel         }
   , { NULL                , NULL                         }
   };
 
@@ -581,11 +655,11 @@ static int callback_worker(lua_State *L)
         lua_rawgetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // name args... ext
         lua_insert(L, 1);                                              // ext name args...
         lua_rotate(L, 2, -1);                                          // ext args... name
-        if (lua_gettable(L, 1) != LUA_TNIL) {                          // ext args... callback
+        if (lua_gettable(L, 1) != LUA_TNIL) {                          // ext args... callback/nil
             lua_insert(L, 1);                                          // callback ext args...
             lua_call(L, n, 1);                                         // result
         }
-        return 1; // return boolean result from callback or nil if lookup failed
+        return 1; // result/nil
 }
 
 static enum process_result callback(struct glirc *G, lua_State *L, int nargs)
