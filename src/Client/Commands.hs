@@ -1967,14 +1967,14 @@ tabIgnore isReversed st _ =
 -- Attempt to reload the configuration file
 cmdReload :: ClientCommand (Maybe String)
 cmdReload st mbPath =
-  do let path   = mbPath <|> view clientConfigPath st
+  do let path = mbPath <|> Just (view clientConfigPath st)
      res <- loadConfiguration path
      case res of
        Left e -> commandFailureMsg (describeProblem e) st
-       Right cfg ->
+       Right (path',cfg) ->
          do st1 <- clientStartExtensions
                  $ set clientConfig cfg
-                 $ set clientConfigPath mbPath st
+                 $ set clientConfigPath path' st
             commandSuccess st1
 
   where

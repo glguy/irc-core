@@ -30,8 +30,8 @@ main :: IO ()
 main =
   do opts <- getOptions
      let mbPath = view optConfigFile opts
-     cfg  <- loadConfiguration' mbPath
-     withClientState mbPath cfg $ \st0 ->
+     (path,cfg) <- loadConfiguration' mbPath
+     withClientState path cfg $ \st0 ->
        withVty $ \vty ->
          do st1 <- clientStartExtensions    st0
             st2 <- initialNetworkLogic opts st1
@@ -46,11 +46,11 @@ initialNetworkLogic opts st = addInitialNetworks (nub networks) st
       | otherwise              = view optInitialNetworks opts ++ clientAutoconnects st
 
 -- | Load configuration and handle errors along the way.
-loadConfiguration' :: Maybe FilePath -> IO Configuration
-loadConfiguration' path =
-  do cfgRes <- loadConfiguration path
+loadConfiguration' :: Maybe FilePath -> IO (FilePath, Configuration)
+loadConfiguration' mbPath =
+  do cfgRes <- loadConfiguration mbPath
      case cfgRes of
-       Right cfg -> return cfg
+       Right x -> return x
        Left (ConfigurationReadFailed e) ->
          report "Failed to open configuration:" e
        Left (ConfigurationParseFailed p e) ->

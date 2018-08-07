@@ -390,6 +390,27 @@ static int glirc_lua_is_channel(lua_State *L)
 }
 
 /***
+Resolve file path relative to configuration file and expand
+home directory if needed.
+@function resolve_path
+@tparam string path Path
+@treturn string Absolute file path
+*/
+static int glirc_lua_resolve_path(lua_State *L)
+{
+        size_t path_len;
+        const char *path;
+        path = luaL_checklstring(L, 1, &path_len);
+        luaL_checktype(L, 2, LUA_TNONE);
+
+        char * res = glirc_resolve_path(get_glirc(L), path, path_len);
+        lua_pushstring(L, res);
+        glirc_free_string(res);
+
+        return 1;
+}
+
+/***
 Case-insensitive comparison of two identifiers using IRC case map.
 Return -1 when first identifier is "greater than" the second.
 Return 0 when first identifier is "equal to" the second.
@@ -467,6 +488,7 @@ static luaL_Reg glirc_lib[] =
   , { "current_focus"     , glirc_lua_current_focus      }
   , { "is_logged_on"      , glirc_lua_is_logged_on       }
   , { "is_channel"        , glirc_lua_is_channel         }
+  , { "resolve_path"      , glirc_lua_resolve_path       }
   , { NULL                , NULL                         }
   };
 

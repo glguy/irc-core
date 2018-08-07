@@ -63,9 +63,14 @@ module Client.CApi.Exports
 
  , Glirc_inject_chat
  , glirc_inject_chat
+
+ , Glirc_resolve_path
+ , glirc_resolve_path
+
  ) where
 
 import           Client.CApi.Types
+import           Client.Configuration
 import           Client.Message
 import           Client.State
 import           Client.State.Channel
@@ -570,3 +575,27 @@ glirc_is_logged_on stab net netL tgt tgtL =
 
      let online = has (clientConnection network . csUsers . ix (mkId target)) st
      return $! if online then 1 else 0
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_resolve_path' extension entry-point
+type Glirc_resolve_path =
+  Ptr ()     {- ^ api token     -} ->
+  CString    {- ^ path          -} ->
+  CSize      {- ^ path length   -} ->
+  IO CString {- ^ resolved path -}
+
+-- | Resolve the given string to an absolute path. This expands @~@ for
+-- the home directory and computes paths relative to the configuration
+-- file.
+--
+-- Free the allocated string with @glirc_free_string@.
+glirc_resolve_path :: Glirc_resolve_path
+glirc_resolve_path stab pathP pathL =
+  do mvar    <- derefToken stab
+     st      <- readMVar mvar
+     path    <- peekFgnStringLen (FgnStringLen pathP pathL)
+
+     let cfgPath = view clientConfigPath st
+     cxt <- newFilePathContext cfgPath
+     newCString (resolveFilePath cxt (Text.unpack path))

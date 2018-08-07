@@ -53,6 +53,11 @@ module Client.Configuration
 
   -- * Specification
   , configurationSpec
+
+  -- * FilePath resolution
+  , FilePathContext
+  , newFilePathContext
+  , resolveFilePath
   ) where
 
 import           Client.Commands.Interpolation
@@ -212,9 +217,12 @@ readConfigurationFile mbPath =
 
 
 -- | Load the configuration file defaulting to @~/.glirc/config@.
+--
+-- Given configuration path is optional and actual path used will
+-- be returns on success
 loadConfiguration ::
   Maybe FilePath {- ^ path to configuration file -} ->
-  IO (Either ConfigurationFailure Configuration)
+  IO (Either ConfigurationFailure (FilePath, Configuration))
 loadConfiguration mbPath = try $
   do (path,txt) <- readConfigurationFile mbPath
      def  <- loadDefaultServerSettings
@@ -230,7 +238,9 @@ loadConfiguration mbPath = try $
                 $ Text.unpack
                 $ Text.unlines
                 $ map explainLoadError (toList es)
-       Right cfg -> resolvePaths path (cfg def)
+       Right cfg ->
+         do cfg' <- resolvePaths path (cfg def)
+            return (path, cfg')
 
 
 -- | Generate a human-readable explanation of an error arising from

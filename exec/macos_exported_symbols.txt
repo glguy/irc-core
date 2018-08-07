@@ -13,5 +13,6 @@ _glirc_is_channel
 _glirc_is_logged_on
 _glirc_clear_window
 _glirc_current_focus
+_glirc_resolve_path
 _glirc_free_string
 _glirc_free_strings

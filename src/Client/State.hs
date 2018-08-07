@@ -169,7 +169,7 @@ data ClientState = ClientState
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
-  , _clientConfigPath        :: !(Maybe FilePath)         -- ^ client configuration file path
+  , _clientConfigPath        :: !FilePath                 -- ^ client configuration file path
 
   , _clientTextBox           :: !Edit.EditBox             -- ^ primary text box
   , _clientTextBoxOffset     :: !Int                      -- ^ size to crop from left of text box
@@ -240,7 +240,7 @@ clientLine :: ClientState -> (Int, String) {- ^ line number, line content -}
 clientLine = views (clientTextBox . Edit.line) (\(Edit.Line n t) -> (n, t))
 
 -- | Construct an initial 'ClientState' using default values.
-withClientState :: Maybe FilePath -> Configuration -> (ClientState -> IO a) -> IO a
+withClientState :: FilePath -> Configuration -> (ClientState -> IO a) -> IO a
 withClientState cfgPath cfg k =
 
   withExtensionState $ \exts ->
