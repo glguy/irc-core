@@ -177,11 +177,12 @@ List the connected channels for a given network
 */
 static int glirc_lua_list_channels(lua_State *L)
 {
-        struct glirc_string network;
-        network.str = luaL_checklstring(L, 1, &network.len);
+        size_t network_len;
+        const char *network;
+        network = luaL_checklstring(L, 1, &network_len);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        char **channels = glirc_list_channels(get_glirc(L), network);
+        char **channels = glirc_list_channels(get_glirc(L), network, network_len);
         if (channels == NULL) { luaL_error(L, "no such network"); }
 
         import_string_array(L, channels);
@@ -198,12 +199,15 @@ List the users in a channel
 */
 static int glirc_lua_list_channel_users(lua_State *L)
 {
-        struct glirc_string network, channel;
-        network.str = luaL_checklstring(L, 1, &network.len);
-        channel.str = luaL_checklstring(L, 2, &channel.len);
+        size_t network_len, channel_len;
+        const char *network, *channel;
+        network = luaL_checklstring(L, 1, &network_len);
+        channel = luaL_checklstring(L, 2, &channel_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
-        char **users = glirc_list_channel_users (get_glirc(L), network, channel);
+        char **users = glirc_list_channel_users
+                        (get_glirc(L), network, network_len,
+                                       channel, channel_len);
         if (users == NULL) { luaL_error(L, "no such channel"); }
 
         import_string_array(L, users);
@@ -283,12 +287,14 @@ window name should be either a channel name or a user nickname.
 */
 static int glirc_lua_mark_seen(lua_State *L)
 {
-        struct glirc_string network, channel;
-        network.str = luaL_optlstring(L, 1, NULL, &network.len);
-        channel.str = luaL_optlstring(L, 2, NULL, &channel.len);
+        size_t network_len, channel_len;
+        const char *network, *channel;
+        network = luaL_optlstring(L, 1, NULL, &network_len);
+        channel = luaL_optlstring(L, 2, NULL, &channel_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
-        glirc_mark_seen(get_glirc(L), network, channel);
+        glirc_mark_seen(get_glirc(L), network, network_len,
+                                      channel, channel_len);
         return 0;
 }
 
@@ -301,12 +307,14 @@ either a channel name or a user nickname.
 */
 static int glirc_lua_clear_window(lua_State *L)
 {
-        struct glirc_string network, channel;
-        network.str = luaL_optlstring(L, 1, NULL, &network.len);
-        channel.str = luaL_optlstring(L, 2, NULL, &channel.len);
+        size_t network_len, channel_len;
+        const char *network, *channel;
+        network = luaL_optlstring(L, 1, NULL, &network_len);
+        channel = luaL_optlstring(L, 2, NULL, &channel_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
-        glirc_clear_window(get_glirc(L), network, channel);
+        glirc_clear_window(get_glirc(L), network, network_len,
+                                         channel, channel_len);
         return 0;
 }
 
@@ -393,12 +401,13 @@ Return 1 when first identifier is "less than" the second.
 */
 static int glirc_lua_identifier_cmp(lua_State *L)
 {
-        struct glirc_string str1, str2;
-        str1.str = luaL_checklstring(L, 1, &str1.len);
-        str2.str = luaL_checklstring(L, 2, &str2.len);
+        size_t str1_len, str2_len;
+        const char *str1, *str2;
+        str1 = luaL_checklstring(L, 1, &str1_len);
+        str2 = luaL_checklstring(L, 2, &str2_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
-        int res = glirc_identifier_cmp(str1, str2);
+        int res = glirc_identifier_cmp(str1, str1_len, str2, str2_len);
         lua_pushinteger(L, res);
 
         return 1;
