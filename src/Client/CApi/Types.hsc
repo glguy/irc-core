@@ -95,9 +95,11 @@ dropMessage = ProcessResult (#const DROP_MESSAGE)
 
 -- | @typedef void *start(void *glirc, const char *path)@
 type StartExtension =
-  Ptr ()      {- ^ api token                   -} ->
-  CString     {- ^ path to extension           -} ->
-  IO (Ptr ()) {- ^ initialized extension state -}
+  Ptr ()           {- ^ api token                   -} ->
+  CString          {- ^ path to extension           -} ->
+  Ptr FgnStringLen {- ^ array of arguments          -} ->
+  CSize            {- ^ number of arguments         -} ->
+  IO (Ptr ())      {- ^ initialized extension state -}
 
 -- | @typedef void stop(void *glirc, void *S)@
 type StopExtension =

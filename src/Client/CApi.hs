@@ -25,7 +25,8 @@ module Client.CApi
   ) where
 
 import           Client.Configuration
-                   (ExtensionConfiguration, extensionPath, extensionRtldFlags)
+                   (ExtensionConfiguration,
+                    extensionPath, extensionRtldFlags, extensionArgs)
 import           Client.CApi.Types
 import           Control.Lens (view)
 import           Control.Monad
@@ -81,8 +82,13 @@ activateExtension stab config =
      let f = fgnStart fgn
      s  <- if nullFunPtr == f
              then return nullPtr
-             else withCString (view extensionPath config)
-                              (runStartExtension f stab)
+             else evalNestedIO $
+                  do extPath <- nest1 (withCString (view extensionPath config))
+                     args <- traverse withText
+                           $ view extensionArgs config
+                     argsArray <- nest1 (withArray args)
+                     let len = fromIntegral (length args)
+                     liftIO (runStartExtension f stab extPath argsArray len)
      return $! ActiveExtension
        { aeFgn     = fgn
        , aeDL      = dl

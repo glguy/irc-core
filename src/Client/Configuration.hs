@@ -44,6 +44,7 @@ module Client.Configuration
 
   , extensionPath
   , extensionRtldFlags
+  , extensionArgs
 
   -- * Loading configuration
   , loadConfiguration
@@ -151,6 +152,7 @@ instance Exception ConfigurationFailure
 data ExtensionConfiguration = ExtensionConfiguration
   { _extensionPath      :: FilePath -- ^ path to shared object
   , _extensionRtldFlags :: [RTLDFlags] -- ^ dynamic linker flags
+  , _extensionArgs      :: [Text] -- ^ arguments to the extension on startup
   }
   deriving Show
 
@@ -435,11 +437,14 @@ defaultRtldFlags :: [RTLDFlags]
 defaultRtldFlags = [RTLD_LOCAL, RTLD_NOW]
 
 -- | Given only a filepath build an extension configuration that
--- loads the extension using the 'defaultRtldFlags'.
+-- loads the extension using the 'defaultRtldFlags' and no arguments.
 simpleExtensionSpec :: ValueSpecs ExtensionConfiguration
 simpleExtensionSpec =
   do _extensionPath <- stringSpec
-     pure ExtensionConfiguration { _extensionRtldFlags = defaultRtldFlags, .. }
+     pure ExtensionConfiguration
+       { _extensionRtldFlags = defaultRtldFlags
+       , _extensionArgs      = []
+       , .. }
 
 -- | Full extension configuration allows the RTLD flags to be manually
 -- specified. This can be useful if the extension defines symbols that
@@ -449,8 +454,11 @@ fullExtensionSpec =
   sectionsSpec "extension" $
   do _extensionPath      <- reqSection' "path"       stringSpec
                             "Path to shared object"
-     _extensionRtldFlags <- reqSection' "rtld-flags" (listSpec rtldFlagSpec)
+     _extensionRtldFlags <- fromMaybe defaultRtldFlags <$>
+                            optSection' "rtld-flags" (listSpec rtldFlagSpec)
                             "Runtime dynamic linker flags"
+     _extensionArgs      <- fromMaybe [] <$> optSection "args"
+                            "Extension-specific configuration arguments"
      pure ExtensionConfiguration {..}
 
 rtldFlagSpec :: ValueSpecs RTLDFlags

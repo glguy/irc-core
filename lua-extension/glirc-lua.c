@@ -35,6 +35,16 @@ static inline struct glirc *get_glirc(lua_State *L)
         return G;
 }
 
+/* Push the string contained in s on the top of the stack
+ *
+ * [-0, +1, m]
+ * */
+
+static void push_glirc_string(lua_State *L, const struct glirc_string *s)
+{
+        lua_pushlstring(L, s->str, s->len);
+}
+
 /***
 Send an IRC command on a connected network. Message tags are ignored
 when sending a message.
@@ -100,12 +110,23 @@ static int glirc_lua_send_message(lua_State *L)
  *
  * Returns 0 on success, non-zero on failure.
  */
-void push_scriptname(lua_State *L, const char *path) {
-        char path_copy[strlen(path)+1];
-        strcpy(path_copy, path);
-
-        char *dir_part = dirname(path_copy);
-        lua_pushfstring(L, "%s/glirc.lua", dir_part);
+void push_scriptname
+  (lua_State *L,
+   const char *path,
+   const struct glirc_string *args,
+   size_t args_n)
+{
+        // When no arguments are provided, default to glirc.lua
+        if (args_n == 0) {
+                char path_copy[strlen(path)+1];
+                strcpy(path_copy, path);
+                char *dir_part = dirname(path_copy);
+                lua_pushfstring(L, "%s/glirc.lua", dir_part);
+        } else {
+                char * script = glirc_resolve_path(get_glirc(L), args[0].str, args[0].len);
+                lua_pushstring(L, script);
+                glirc_free_string(script);
+        }
 }
 
 /***
@@ -525,17 +546,15 @@ static int initialize_lua(lua_State *L)
         luaL_checkversion(L);
 
         // Validate function arguments
-        const char *scriptpath = luaL_checkstring(L, 1); // STACK: scriptpath
-        luaL_checktype(L, 2, LUA_TNONE);
+        luaL_checktype(L, 1, LUA_TTABLE);
+        const char *scriptpath = luaL_checkstring(L, 2);
+        luaL_checktype(L, 3, LUA_TNONE); // STACK: arg scriptpath
 
         // Load user script
-        if (luaL_loadfile(L, scriptpath)) { // STACK: scriptpath script
+        if (luaL_loadfile(L, scriptpath)) { // STACK: arg scriptpath script
                 lua_error(L);
         }
-
-        // Store script path in arg table
-        lua_newtable(L);         // STACK: scriptpath script arg
-        lua_rotate(L, 1, -1);    // STACK: script arg scriptpath
+        lua_insert(L, 1);        // STACK script arg scriptpath
         lua_rawseti(L, -2, 0);   // STACK: script arg
         lua_setglobal(L, "arg"); // STACK: script
 
@@ -556,7 +575,8 @@ static int initialize_lua(lua_State *L)
  * the callback for message processing.
  *
  */
-static void *start(struct glirc *G, const char *path)
+static void *start
+  (struct glirc *G, const char *path, const struct glirc_string *args, size_t args_len)
 {
         if (LUA_EXTRASPACE < sizeof(struct glirc *)) {
                 const char * const err = "Lua extraspace too small";
@@ -575,9 +595,14 @@ static void *start(struct glirc *G, const char *path)
         memcpy(lua_getextraspace(L), &G, sizeof(G));
 
         lua_pushcfunction(L, initialize_lua);
-        push_scriptname(L, path);
+        lua_createtable(L, args_len, 1);
+        for (size_t i = 1; i < args_len; i++) {
+                push_glirc_string(L, args+i);
+                lua_rawseti(L, -2, 1);
+        }
+        push_scriptname(L, path, args, args_len);
 
-        if (lua_pcall(L, 1, 0, 0)) {
+        if (lua_pcall(L, 2, 0, 0)) {
                 size_t msglen = 0;
                 const char *msg = lua_tolstring(L, -1, &msglen);
                 glirc_print(G, ERROR_MESSAGE, msg, msglen);
@@ -587,16 +612,6 @@ static void *start(struct glirc *G, const char *path)
         }
 
         return L;
-}
-
-/* Push the string contained in s on the top of the stack
- *
- * [-0, +1, m]
- * */
-
-static void push_glirc_string(lua_State *L, const struct glirc_string *s)
-{
-        lua_pushlstring(L, s->str, s->len);
 }
 
 /* Push a table onto the top of the stack containing all of the fields

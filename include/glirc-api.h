@@ -43,7 +43,7 @@ struct glirc_command {
         struct glirc_string command;
 };
 
-typedef void *start_type         (struct glirc *G, const char *path);
+typedef void *start_type         (struct glirc *G, const char *path, const struct glirc_string *args, size_t args_len);
 typedef void stop_type           (struct glirc *G, void *S);
 typedef enum process_result process_message_type(struct glirc *G, void *S, const struct glirc_message *);
 typedef enum process_result process_chat_type(struct glirc *G, void *S, const struct glirc_chat *);

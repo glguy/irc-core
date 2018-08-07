@@ -452,9 +452,14 @@ void create_instag(void *L, const char *accountname, const char *protocol)
     free(path);
 }
 
-void *start_entrypoint(struct glirc *G, const char *libpath)
+void *start_entrypoint
+  (struct glirc *G,
+   const char *lib_path,
+   const struct glirc_string *args, size_t args_len)
 {
-  (void)libpath;
+  (void)lib_path;
+  (void)args;
+  (void)args_len;
 
   OTRL_INIT;
   auto opdata = new OpData(G);
