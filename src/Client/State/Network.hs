@@ -196,12 +196,26 @@ sendMsg cs msg =
   where
     transmit = send (view csSocket cs) . renderRawIrcMsg
 
+    actionPrefix = "\^AACTION "
+    actionSuffix = "\^A"
+
+    -- Special case for splitting a single CTCP ACTION into
+    -- multiple actions
+    multiline cmd tgt txt
+      | Just txt1 <- Text.stripPrefix actionPrefix txt
+      , Just txt2 <- Text.stripSuffix actionSuffix txt1 =
+      let txtChunks     = utf8ChunksOf maxContentLen txt2
+          maxContentLen = computeMaxMessageLength (view csUserInfo cs) tgt
+                        - Text.length actionPrefix - Text.length actionSuffix
+      in for_ txtChunks $ \txtChunk ->
+           transmit $ rawIrcMsg cmd [tgt, actionPrefix <> txtChunk <> actionSuffix]
+
+    -- Normal case
     multiline cmd tgt txt =
-      for_ txtChunks $ \txtChunk ->
-        transmit $ rawIrcMsg cmd [tgt, txtChunk]
-      where
-        txtChunks = utf8ChunksOf maxContentLen txt
-        maxContentLen = computeMaxMessageLength (view csUserInfo cs) tgt
+      let txtChunks     = utf8ChunksOf maxContentLen txt
+          maxContentLen = computeMaxMessageLength (view csUserInfo cs) tgt
+      in for_ txtChunks $ \txtChunk ->
+           transmit $ rawIrcMsg cmd [tgt, txtChunk]
 
 -- This is an approximation for splitting the text. It doesn't
 -- understand combining characters. A correct implementation
