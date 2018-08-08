@@ -18,7 +18,7 @@ macos: glirc-lua.dylib
 linux: glirc-lua.so
 
 glirc-lua.dylib: glirc-lua.c
-	cc -shared -o $@ $^ -I../include \
+	cc -dynamiclib -o $@ $^ -I../include \
 	  -pedantic -Wall \
 	  -undefined dynamic_lookup \
 	  `pkg-config --cflags --libs lua-5.3`

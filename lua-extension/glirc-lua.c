@@ -110,7 +110,7 @@ static int glirc_lua_send_message(lua_State *L)
  *
  * Returns 0 on success, non-zero on failure.
  */
-void push_scriptname
+static void push_scriptname
   (lua_State *L,
    const char *path,
    const struct glirc_string *args,
@@ -455,7 +455,7 @@ static int glirc_lua_identifier_cmp(lua_State *L)
         return 1;
 }
 
-void new_formatting_table(lua_State *L) {
+static void new_formatting_table(lua_State *L) {
         lua_createtable(L, 0, 21);
 
         lua_pushliteral(L, "\x0f");
@@ -595,7 +595,7 @@ static void *start
         memcpy(lua_getextraspace(L), &G, sizeof(G));
 
         lua_pushcfunction(L, initialize_lua);
-        lua_createtable(L, args_len, 1);
+        lua_createtable(L, args_len > 1 ? args_len - 1 : 0, 1);
         for (size_t i = 1; i < args_len; i++) {
                 push_glirc_string(L, args+i);
                 lua_rawseti(L, -2, 1);
