@@ -31,10 +31,11 @@ import Irc.Message
 -- handle a message ('PassMessage'), filter out a message ('OmitMessage'),
 -- or change a message into an arbitrary other message ('RemapMessage').
 data MessageResult
-  = PassMessage
-  | OmitMessage
-  | RemapMessage IrcMsg
+  = PassMessage -- ^ continue processing
+  | OmitMessage -- ^ stop processing and drop message
+  | RemapMessage IrcMsg -- ^ stop processing and return new message
 
+-- 'PassMessage' is an identity element
 instance Semigroup MessageResult where
   PassMessage <> r = r
   l           <> _ = l
