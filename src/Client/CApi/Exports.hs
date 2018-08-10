@@ -560,7 +560,7 @@ type Glirc_is_logged_on =
 -- channel with the user, @0@ otherwise.
 --
 -- If the given network is not currently active this returns @0@.
-glirc_is_logged_on :: Glirc_is_channel
+glirc_is_logged_on :: Glirc_is_logged_on
 glirc_is_logged_on stab net netL tgt tgtL =
   do mvar    <- derefToken stab
      st      <- readMVar mvar

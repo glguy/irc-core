@@ -20,7 +20,7 @@ foreign export ccall glirc_inject_chat        :: Glirc_inject_chat
 foreign export ccall glirc_list_networks      :: Glirc_list_networks
 foreign export ccall glirc_identifier_cmp     :: Glirc_identifier_cmp
 foreign export ccall glirc_is_channel         :: Glirc_is_channel
-foreign export ccall glirc_is_logged_on       :: Glirc_is_channel
+foreign export ccall glirc_is_logged_on       :: Glirc_is_logged_on
 foreign export ccall glirc_list_channels      :: Glirc_list_channels
 foreign export ccall glirc_list_channel_users :: Glirc_list_channel_users
 foreign export ccall glirc_my_nick            :: Glirc_my_nick
