@@ -10,7 +10,7 @@ when sending a message.
 @function send_message
 @tparam string network Network name
 @tparam string command IRC Command
-@tparam string... parameters Command parameters (max 15)
+@tparam string ... Command parameters (max 15)
 */
 static int glirc_lua_send_message(lua_State *L)
 {
@@ -40,6 +40,14 @@ static int glirc_lua_send_message(lua_State *L)
         return 0;
 }
 
+/***
+Add a message to a chat window as though it was said by the given user.
+@function inject_chat
+@tparam string network Network name
+@tparam string source Message source
+@tparam string target Target message window name
+@tparam string message Chat message body
+*/
 static int glirc_lua_inject_chat(lua_State *L) {
         size_t netlen, srclen, tgtlen, msglen;
         const char *net = luaL_checklstring(L, 1, &netlen);

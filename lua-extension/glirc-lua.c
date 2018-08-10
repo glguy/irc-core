@@ -7,6 +7,7 @@
 // @license ISC
 // @copyright Eric Mertens 2018
 
+#include <assert.h>
 #include <string.h>
 #include <libgen.h>
 
@@ -18,6 +19,15 @@
 #include "glirc-marshal.h"
 #include "glirc-lib.h"
 
+/* The Lua extraspace is used to store the glirc client
+ * handle for reentry into the client
+ */
+static_assert(LUA_EXTRASPACE >= sizeof(struct glirc *),
+              "Lua extraspace too small");
+
+/* This global variable provides a unique key for storing
+ * information in the Lua registry.
+ */
 static char glirc_callback_module_key;
 
 /* This function actually initialized the Lua state and
@@ -49,7 +59,8 @@ static int initialize_lua(lua_State *L)
         // Execute user script
         lua_call(L, 0, 1);       // STACK: module
 
-        lua_rawsetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // STACK:
+        lua_rawsetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key);
+        // STACK:
 
         return 0;
 }
@@ -72,7 +83,8 @@ static void push_scriptname
                 char *dir_part = dirname(path_copy);
                 lua_pushfstring(L, "%s/glirc.lua", dir_part);
         } else {
-                char * script = glirc_resolve_path(get_glirc(L), args[0].str, args[0].len);
+                char * script = glirc_resolve_path
+                                  (get_glirc(L), args[0].str, args[0].len);
                 lua_pushstring(L, script);
                 glirc_free_string(script);
         }
@@ -84,15 +96,13 @@ static void push_scriptname
  *
  */
 static void *start
-  (struct glirc *G, const char *path, const struct glirc_string *args, size_t args_len)
+  (struct glirc *G,
+   const char *path,
+   const struct glirc_string *args,
+   size_t args_len)
 {
         const char * err;
         lua_State *L = NULL;
-
-        if (LUA_EXTRASPACE < sizeof(struct glirc *)) {
-                err = "Lua extraspace too small";
-                goto cleanup;
-        }
 
         L = luaL_newstate();
         if (L == NULL) {
@@ -166,7 +176,11 @@ static void stop_entrypoint(struct glirc *G, void *L)
         lua_close(L);
 }
 
-static enum process_result message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
+static enum process_result
+message_entrypoint
+  (struct glirc *G,
+   void *L,
+   const struct glirc_message *msg)
 {
         if (L == NULL) return PASS_MESSAGE;
         lua_pushliteral(L, "process_message");
@@ -174,7 +188,11 @@ static enum process_result message_entrypoint(struct glirc *G, void *L, const st
         return callback(G, L, 1);
 }
 
-static enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
+static enum process_result
+chat_entrypoint
+  (struct glirc *G,
+   void *L,
+   const struct glirc_chat *chat)
 {
         if (L == NULL) return PASS_MESSAGE;
         lua_pushliteral(L, "process_chat");
@@ -182,7 +200,11 @@ static enum process_result chat_entrypoint(struct glirc *G, void *L, const struc
         return callback(G, L, 1);
 }
 
-static void command_entrypoint(struct glirc *G, void *L, const struct glirc_command *cmd)
+static void
+command_entrypoint
+  (struct glirc *G,
+   void *L,
+   const struct glirc_command *cmd)
 {
         if (L == NULL) return;
         lua_pushliteral(L, "process_command");
