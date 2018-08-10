@@ -405,7 +405,7 @@ glirc_user_channel_modes stab netPtr netLen chanPtr chanLen nickPtr nickLen =
                       . chanUsers  . ix (mkId nick) ) st
      case mb of
        Just sigils -> newCString sigils
-       _           -> return nullPtr
+       Nothing     -> return nullPtr
 
 ------------------------------------------------------------------------
 
@@ -512,18 +512,12 @@ glirc_current_focus :: Glirc_current_focus
 glirc_current_focus stab netP netL tgtP tgtL =
   do mvar <- derefToken stab
      st   <- readMVar mvar
-     case view clientFocus st of
-       Unfocused        -> do poke' netP nullPtr
-                              poke' netL 0
-                              poke' tgtP nullPtr
-                              poke' tgtL 0
-
-       NetworkFocus n   -> do exportText netP netL n
-                              poke' tgtP nullPtr
-                              poke' tgtL 0
-
-       ChannelFocus n t -> do exportText netP netL n
-                              exportText tgtP tgtL (idText t)
+     let (net,tgt) = case view clientFocus st of
+                       Unfocused        -> (Text.empty, Text.empty)
+                       NetworkFocus n   -> (n         , Text.empty)
+                       ChannelFocus n t -> (n         , idText t  )
+     exportText netP netL net
+     exportText tgtP tgtL tgt
 
 ------------------------------------------------------------------------
 

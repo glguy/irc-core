@@ -14,27 +14,36 @@ help:
 	@echo 'Currently this Makefile only autodetects Linux and Darwin'
 	@echo 'You can force a specific build with "make macos" or "make linux"'
 
-macos: glirc-lua.dylib
+macos: glirc-lua.bundle
 linux: glirc-lua.so
 
-glirc-lua.dylib: glirc-lua.c
-	cc -dynamiclib -o $@ $^ -I../include \
-	  -pedantic -Wall \
-	  -undefined dynamic_lookup \
-	  `pkg-config --cflags --libs lua-5.3`
+OBJS = glirc-lua.o glirc-marshal.o glirc-lib.o
+EXE  = $(HOME)/.cabal/bin/glirc2
+CC   = cc
+LUA  = lua-5.3
 
-glirc-lua.so: glirc-lua.c
-	cc -shared -o $@ $^ -I../include \
-	  -pedantic -fpic -Wall \
-	  `pkg-config --cflags --libs lua-5.3`
+%.o: %.c
+	$(CC) -c -o $@ $^ -I../include \
+	  -std=c99 -fpic -pedantic -Wall -O \
+	  `pkg-config --cflags $(LUA)`
 
-glirc-lua-debug.dylib: glirc-lua.c
-	cc -shared -o $@ $^ -I../include \
-	  -pedantic -Wall \
-	  -undefined dynamic_lookup \
-	  -L/Users/emertens/Source/galua/galua-c/inplace/lib \
-	  -I/Users/emertens/Source/galua/galua-c/inplace/include/galua \
-	  -lgalua-dbg -liconv -lz
+glirc-lua.bundle: $(OBJS)
+	$(CC) -bundle -o $@ $^ \
+	  -Wl,-exported_symbol,_extension \
+	  -Wl,-bundle_loader,$(EXE) \
+	  `pkg-config --libs $(LUA)`
+
+glirc-lua.so: $(OBJS)
+	$(CC) -shared -o $@ $^ -I../include \
+	  `pkg-config --libs $(LUA)`
+
+# glirc-lua-debug.dylib: $(OBJS)
+# 	cc -shared -o $@ $^ -I../include \
+# 	  -pedantic -Wall \
+# 	  -undefined dynamic_lookup \
+# 	  -L/Users/emertens/Source/galua/galua-c/inplace/lib \
+# 	  -I/Users/emertens/Source/galua/galua-c/inplace/include/galua \
+# 	  -lgalua-dbg -liconv -lz
 
 clean:
-	rm -rf *.dylib *.so *.dSYM
+	rm -rf *.bundle *.o *.so *.dSYM
