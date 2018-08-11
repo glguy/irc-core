@@ -1,11 +1,14 @@
-/// Extension API for glirc
-// This module provides extension functionality for the glirc IRC client.
-// Extensions are expected to be implemented as Lua modules that return
-// a single table with callbacks that the client can dispatch events to.
-// @module glirc
-// @author Eric Mertens
-// @license ISC
-// @copyright Eric Mertens 2018
+/***
+This module defines the interface that an extension script is expected
+to implement. The script will be executed with the scripts arguments
+passed in the 'arg' table. All standard Lua libraries are registered.
+Client interaction is available through the `glirc` lirary.
+
+@module extension
+@author Eric Mertens
+@license ISC
+@copyright Eric Mertens 2018
+*/
 
 #include <assert.h>
 #include <string.h>
@@ -29,41 +32,6 @@ static_assert(LUA_EXTRASPACE >= sizeof(struct glirc *),
  * information in the Lua registry.
  */
 static char glirc_callback_module_key;
-
-/* This function actually initialized the Lua state and
- * runs the user's script. It is allowed to raise errors
- * which will be caught by the use of lua_pcall in start.
- */
-static int initialize_lua(lua_State *L)
-{
-        // Validate dynamic library Lua version
-        luaL_checkversion(L);
-
-        // Validate function arguments
-        luaL_checktype(L, 1, LUA_TTABLE);
-        const char *scriptpath = luaL_checkstring(L, 2);
-        luaL_checktype(L, 3, LUA_TNONE); // STACK: arg scriptpath
-
-        // Load user script
-        if (luaL_loadfile(L, scriptpath)) { // STACK: arg scriptpath script
-                lua_error(L);
-        }
-        lua_insert(L, 1);        // STACK script arg scriptpath
-        lua_rawseti(L, -2, 0);   // STACK: script arg
-        lua_setglobal(L, "arg"); // STACK: script
-
-        // Initialize libraries
-        luaL_openlibs(L);
-        glirc_install_lib(L);
-
-        // Execute user script
-        lua_call(L, 0, 1);       // STACK: module
-
-        lua_rawsetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key);
-        // STACK:
-
-        return 0;
-}
 
 /* Push path to glirc.lua which should be in the same directory
  * as the given path to the extension shared library.
@@ -90,6 +58,54 @@ static void push_scriptname
         }
 }
 
+static void push_args_table(lua_State *L, const struct glirc_string *args, size_t args_len) {
+        lua_createtable(L, args_len > 1 ? args_len - 1 : 0, 1);
+        for (size_t i = 1; i < args_len; i++) {
+                push_glirc_string(L, args+i);
+                lua_rawseti(L, -2, 1);
+        }
+}
+
+/* This function actually initialized the Lua state and
+ * runs the user's script. It is allowed to raise errors
+ * which will be caught by the use of lua_pcall in start.
+ */
+static int initialize_lua(lua_State *L)
+{
+        // Validate dynamic library Lua version
+        luaL_checkversion(L);
+
+        const char * const path                = lua_touserdata(L, 1);
+        const struct glirc_string * const args = lua_touserdata(L, 2);
+        const lua_Integer args_len             = lua_tointeger (L, 3);
+
+        lua_settop(L, 0);
+
+        push_args_table(L, args, args_len);
+        push_scriptname(L, path, args, args_len);
+        const char *scriptpath = lua_tostring(L, 2);
+
+        // Load user script
+        if (luaL_loadfile(L, scriptpath)) { // STACK: arg scriptpath script
+                lua_error(L);
+        }
+        lua_insert(L, 1);        // STACK script arg scriptpath
+        lua_rawseti(L, -2, 0);   // STACK: script arg
+        lua_setglobal(L, "arg"); // STACK: script
+
+        // Initialize libraries
+        luaL_openlibs(L);
+        glirc_install_lib(L);
+
+        // Execute user script
+        lua_call(L, 0, 1);       // STACK: module
+
+        lua_rawsetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key);
+        // STACK:
+
+        return 0;
+}
+
 /* Start the Lua interpreter, run glirc.lua in current directory,
  * register the first returned result of running the file as
  * the callback for message processing.
@@ -113,15 +129,12 @@ static void *start
         // Store glirc token in extra space, used for re-entry into glirc
         memcpy(lua_getextraspace(L), &G, sizeof(G));
 
-        lua_pushcfunction(L, initialize_lua);
-        lua_createtable(L, args_len > 1 ? args_len - 1 : 0, 1);
-        for (size_t i = 1; i < args_len; i++) {
-                push_glirc_string(L, args+i);
-                lua_rawseti(L, -2, 1);
-        }
-        push_scriptname(L, path, args, args_len);
+        lua_pushcfunction    (L, initialize_lua);
+        lua_pushlightuserdata(L, (void*)path);
+        lua_pushlightuserdata(L, (void*)args);
+        lua_pushinteger      (L, args_len);
 
-        if (lua_pcall(L, 2, 0, 0)) {
+        if (lua_pcall(L, 3, 0, 0)) {
                 err = lua_tostring(L, -1);
                 goto cleanup;
         }
@@ -168,6 +181,11 @@ static enum process_result callback(struct glirc *G, lua_State *L, int nargs)
         return res ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
+/***
+Callback used by client when unloading the Lua extension.
+@function stop
+@tparam extension self Extension module
+*/
 static void stop_entrypoint(struct glirc *G, void *L)
 {
         if (L == NULL) return;
@@ -176,6 +194,13 @@ static void stop_entrypoint(struct glirc *G, void *L)
         lua_close(L);
 }
 
+/***
+Callback used when client receives message from the server.
+@function process_message
+@tparam extension self Extension module
+@tparam message message Message received
+@treturn bool Return true to drop this message
+*/
 static enum process_result
 message_entrypoint
   (struct glirc *G,
@@ -188,6 +213,13 @@ message_entrypoint
         return callback(G, L, 1);
 }
 
+/***
+Callback used when client submits a chat message.
+@function process_chat
+@tparam extension self Extension module
+@tparam chat chat Chat information table
+@treturn bool Return true to drop this message
+*/
 static enum process_result
 chat_entrypoint
   (struct glirc *G,
@@ -200,6 +232,12 @@ chat_entrypoint
         return callback(G, L, 1);
 }
 
+/***
+Callback used when client submits an /extension Lua command
+@function process_command
+@tparam extension self Extension module
+@tparam string command Command text
+*/
 static void
 command_entrypoint
   (struct glirc *G,
@@ -249,7 +287,6 @@ Table used with send_message and process_message.
 @tfield prefix prefix Sender information
 @tfield string command IRC command
 @tfield {string,...} params Command parameters
-@see send_message
 */
 
 /***

@@ -1,3 +1,13 @@
+/***
+This module provides client-specific hooks back into the glirc
+client.
+
+@module glirc
+@author Eric Mertens
+@license ISC
+@copyright Eric Mertens 2018
+*/
+
 #include <lauxlib.h>
 
 #include "glirc-api.h"
