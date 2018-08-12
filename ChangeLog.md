@@ -5,6 +5,11 @@
 * Make RTLD flags configurable when loading an extension
 * Update client's internal hostname on `RPL_HOSTHIDDEN`
 * Support IRCv3.2 `server-time` extension over ZNC-specific one
+* Lots of work on the Lua extension code and documentation
+* Added `glirc_user_account` and `glirc_user_channel_modes`
+  extension API entrypoints.
+* Added support for `account-notify` and `extended-join`
+* Added configurable "arguments" to the C extensions
 
 ## 2.27
 * Requires GHC 8.4
