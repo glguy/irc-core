@@ -1,8 +1,10 @@
 /***
-This module defines the interface that an extension script is expected
-to implement. The script will be executed with the scripts arguments
-passed in the 'arg' table. All standard Lua libraries are registered.
-Client interaction is available through the `glirc` lirary.
+Callback registration interface
+
+A client script should implement this module interface to handle
+callbacks from the client. The script will be executed with the scripts
+arguments passed in the 'arg' table. All standard Lua libraries are
+registered.  Client interaction is available through the `glirc` lirary.
 
 @module extension
 @author Eric Mertens

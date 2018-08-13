@@ -1,6 +1,8 @@
 /***
-This module provides client-specific hooks back into the glirc
-client.
+Library for interacting with the client state
+
+This module provides client-specific hooks back into the glirc client.
+Through this library scripts can send messages, check modes, and more.
 
 @module glirc
 @author Eric Mertens
@@ -21,6 +23,8 @@ when sending a message.
 @tparam string network Network name
 @tparam string command IRC Command
 @tparam string ... Command parameters (max 15)
+@raise `'too many parameters'` and `'client failure'`
+@usage glirc.send_message('mynet', 'PRIVMSG', 'someone', 'Hello, Someone!')
 */
 static int glirc_lua_send_message(lua_State *L)
 {
@@ -44,7 +48,7 @@ static int glirc_lua_send_message(lua_State *L)
         }
 
         if (glirc_send_message(get_glirc(L), &msg)) {
-                luaL_error(L, "failure in client");
+                luaL_error(L, "client failure");
         }
 
         return 0;
@@ -57,6 +61,10 @@ Add a message to a chat window as though it was said by the given user.
 @tparam string source Message source
 @tparam string target Target message window name
 @tparam string message Chat message body
+@raise `'client failure'`
+@usage
+glirc.inject_chat('mynet', 'nick!user@host', '#mychannel', 'An injected message')
+glirc.inject_chat('mynet', 'script output', 'somenick', 'Script output text')
 */
 static int glirc_lua_inject_chat(lua_State *L) {
         size_t netlen, srclen, tgtlen, msglen;
@@ -67,7 +75,7 @@ static int glirc_lua_inject_chat(lua_State *L) {
 
         if (glirc_inject_chat(get_glirc(L),
                net, netlen, src, srclen, tgt, tgtlen, msg, msglen)) {
-                luaL_error(L, "failure in client");
+                luaL_error(L, "client failure");
         }
         return 0;
 }
@@ -76,6 +84,7 @@ static int glirc_lua_inject_chat(lua_State *L) {
 Print a message to the client console
 @function print
 @tparam string message Message to print to console
+@usage glirc.print('This shows up on the * window')
 */
 static int glirc_lua_print(lua_State *L)
 {
@@ -91,6 +100,7 @@ static int glirc_lua_print(lua_State *L)
 Print an error message to the client console
 @function error
 @tparam string message Message to print to console
+@usage glirc.error('This shows up on the * window')
 */
 static int glirc_lua_error(lua_State *L)
 {
@@ -106,6 +116,8 @@ static int glirc_lua_error(lua_State *L)
 Generate a list of names of connected networks.
 @function list_networks
 @treturn {string,...} A table of network names
+@raise `'client failure'`
+@usage glirc.list_networks() --> { 'mynet' }
 */
 static int glirc_lua_list_networks(lua_State *L)
 {
@@ -124,6 +136,8 @@ List the connected channels for a given network
 @function list_channels
 @tparam string network Network name
 @treturn {string,...} A table of channel names
+@raise `'no such network'`
+@usage glirc.list_channels('mynet') --> { '#somechan', '#friends' }
 */
 static int glirc_lua_list_channels(lua_State *L)
 {
@@ -146,6 +160,8 @@ List the users in a channel
 @tparam string network Network name
 @tparam string channel Channel name
 @treturn {string,...} A table of nicknames
+@raise `'no such channel'`
+@usage glirc.list_channel_users('mynet', '#somechan') --> { 'chatter', 'quietguy' }
 */
 static int glirc_lua_list_channel_users(lua_State *L)
 {
@@ -170,7 +186,8 @@ Determine the services account for a given nickname
 @function user_account
 @tparam string network Network name
 @tparam string nick    User nickname
-@treturn ?string Account name if known, otherwise nil
+@treturn ?string Account name if known, otherwise `nil`
+@usage glirc.user_account('mynet', 'somenick') --> 'anaccount'
 */
 static int glirc_lua_user_account(lua_State *L)
 {
@@ -192,7 +209,8 @@ Return the mode sigils for a user on a channel (e.g. + or @)
 @tparam string network Network name
 @tparam string channel Channel name
 @tparam string nick User nickname
-@treturn ?string Sigils if on channel, nil otherwise
+@treturn ?string Sigils if on channel, `nil` otherwise
+@usage glirc.user_channel_modes('mynet', '#somechan', 'an_op') --> '@'
 */
 static int glirc_lua_user_channel_modes(lua_State *L)
 {
@@ -213,7 +231,8 @@ static int glirc_lua_user_channel_modes(lua_State *L)
 Return the client's nickname on a particular network
 @function my_nick
 @tparam string network Network name
-@treturn ?string Client user's nickname if connected, otherwise nil
+@treturn ?string Client user's nickname if connected, otherwise `nil`
+@usage glirc.my_nick('mynet') --> 'mynick'
 */
 static int glirc_lua_my_nick(lua_State *L)
 {
@@ -234,6 +253,9 @@ window name should be either a channel name or a user nickname.
 @function mark_seen
 @tparam string network Network name
 @tparam string channel Window name
+@usage
+glirc.mark_seen('mynet', '#somechan') -- channel
+glirc.mark_seen('mynet', 'chatter') -- direct message
 */
 static int glirc_lua_mark_seen(lua_State *L)
 {
@@ -254,6 +276,9 @@ either a channel name or a user nickname.
 @function clear_window
 @tparam string network Network name
 @tparam string channel Window name
+@usage
+glirc.clear_window('mynet', '#somechan') -- channel
+glirc.clear_window('mynet', 'chatter') -- direct message
 */
 static int glirc_lua_clear_window(lua_State *L)
 {
@@ -269,11 +294,21 @@ static int glirc_lua_clear_window(lua_State *L)
 }
 
 /***
-Find the name of the currently focused window
-either a channel name or a user nickname.
+Get currently focused window.
+
+The client window `*` is identified by two `nil` values.
+
+The network windows are identified by a network name and `nil` target.
+
+The chat windows are identified by both a network name and a target name.
+
 @function current_focus
 @treturn ?string Network name
 @treturn ?string Target name
+@usage
+glirc.current_focus() --> nil, nil
+glirc.current_focus() --> 'mynet', nil
+glirc.current_focus() --> 'mynet', '#somechan'
 */
 static int glirc_lua_current_focus(lua_State *L)
 {
@@ -300,6 +335,7 @@ currently connected.
 @tparam string network Network name
 @tparam string nickname Nickname
 @treturn boolean User known to be connected
+@usage glirc.is_logged_on('mynet', 'chatter')
 */
 static int glirc_lua_is_logged_on(lua_State *L)
 {
@@ -317,12 +353,20 @@ static int glirc_lua_is_logged_on(lua_State *L)
 }
 
 /***
-Determine if the given target is the name of a channel
-currently connected.
+Test if target identifies a channel.
+
+This provides a network-specific test to determine if a target name
+identifies a channel.  While most networks use `#` to prefix channel
+names, there are other possibilities.
+
 @function is_channel
 @tparam string network Network name
 @tparam string target Target name
 @treturn boolean Target is a channel name
+@usage
+glirc.is_channel('mynet', 'chatter') --> false
+glirc.is_channel('mynet', '#somechan') --> true
+glirc.is_channel('mynet', '&somechan') --> true
 */
 static int glirc_lua_is_channel(lua_State *L)
 {
@@ -340,11 +384,21 @@ static int glirc_lua_is_channel(lua_State *L)
 }
 
 /***
-Resolve file path relative to configuration file and expand
-home directory if needed.
+Resolve file path.
+
+This provides access to the same path resolution logic used by the
+client configuration file. Relative paths are resolved from the
+directory containing the loaded configuration file. `~` is expanded to
+the home directory.
+
 @function resolve_path
 @tparam string path Path
 @treturn string Absolute file path
+@usage
+-- assuming configuration is at '/home/user/.config/glirc/config'
+glirc.resolve_path('relative/path') --> 'home/user/.config/glirc/relative/path'
+glirc.resolve_path('/absolute/path') --> '/abbsolute/path'
+glirc.resolve_path('~/path') --> '/home/user/path'
 */
 static int glirc_lua_resolve_path(lua_State *L)
 {
@@ -362,13 +416,18 @@ static int glirc_lua_resolve_path(lua_State *L)
 
 /***
 Case-insensitive comparison of two identifiers using IRC case map.
-Return -1 when first identifier is "greater than" the second.
+Return -1 when first identifier is "less than" the second.
 Return 0 when first identifier is "equal to" the second.
-Return 1 when first identifier is "less than" the second.
+Return 1 when first identifier is "greater than" the second.
 @function identifier_cmp
 @tparam string identifier1 First identifier
 @tparam string identifier2 Second identifier
 @treturn integer Comparison result
+@usage
+glirc.identifier_cmp('somenick', 'SOMENICK') --> 0
+glirc.identifier_cmp('surprise{|}~', 'surprise[\\]^') --> 0
+glirc.identifier_cmp('apple', 'zebra') --> -1
+glirc.identifier_cmp('zebra', 'apple') --> 1
 */
 static int glirc_lua_identifier_cmp(lua_State *L)
 {
