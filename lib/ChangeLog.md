@@ -1,5 +1,10 @@
 # Revision history for irc-core
 
+## 2.4.1
+
+* Add support for extended JOIN and ACCOUNT messages
+* Added CAP NEW and CAP DEL
+
 ## 2.4.0
 
 * Change TOPIC and INVITING replies to channel target
