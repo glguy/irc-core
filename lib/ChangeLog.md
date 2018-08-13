@@ -1,6 +1,6 @@
 # Revision history for irc-core
 
-## 2.4.1
+## 2.5.0
 
 * Add support for extended JOIN and ACCOUNT messages
 * Added CAP NEW and CAP DEL
