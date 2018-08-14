@@ -17,7 +17,8 @@ module Client.CApi
 
   -- * Extension callbacks
   , extensionSymbol
-  , activateExtension
+  , openExtension
+  , startExtension
   , deactivateExtension
   , notifyExtensions
   , commandExtension
@@ -69,34 +70,40 @@ data ActiveExtension = ActiveExtension
 -- | Load the extension from the given path and call the start
 -- callback. The result of the start callback is saved to be
 -- passed to any subsequent calls into the extension.
-activateExtension ::
-  Ptr () ->
+openExtension ::
   ExtensionConfiguration {- ^ extension configuration -} ->
   IO ActiveExtension
-activateExtension stab config =
+openExtension config =
   do dl   <- dlopen (view extensionPath config)
                     (view extensionRtldFlags config)
      p    <- dlsym dl extensionSymbol
      fgn  <- peek (castFunPtrToPtr p)
      name <- peekCString (fgnName fgn)
-     let f = fgnStart fgn
-     s  <- if nullFunPtr == f
-             then return nullPtr
-             else evalNestedIO $
+     return $! ActiveExtension
+       { aeFgn          = fgn
+       , aeDL           = dl
+       , aeSession      = nullPtr
+       , aeName         = Text.pack name
+       , aeMajorVersion = fromIntegral (fgnMajorVersion fgn)
+       , aeMinorVersion = fromIntegral (fgnMinorVersion fgn)
+       }
+
+startExtension ::
+  Ptr ()                 {- ^ client stable pointer   -} ->
+  ExtensionConfiguration {- ^ extension configuration -} ->
+  ActiveExtension        {- ^ active extension        -} ->
+  IO (Ptr ())            {- ^ extension state         -}
+startExtension stab config ae =
+  do let f = fgnStart (aeFgn ae)
+     if nullFunPtr == f
+       then return nullPtr
+       else evalNestedIO $
                   do extPath <- nest1 (withCString (view extensionPath config))
                      args <- traverse withText
                            $ view extensionArgs config
                      argsArray <- nest1 (withArray args)
                      let len = fromIntegral (length args)
                      liftIO (runStartExtension f stab extPath argsArray len)
-     return $! ActiveExtension
-       { aeFgn     = fgn
-       , aeDL      = dl
-       , aeSession = s
-       , aeName    = Text.pack name
-       , aeMajorVersion = fromIntegral (fgnMajorVersion fgn)
-       , aeMinorVersion = fromIntegral (fgnMinorVersion fgn)
-       }
 
 -- | Call the stop callback of the extension if it is defined
 -- and unload the shared object.

@@ -17,7 +17,6 @@ module Client.EventLoop
   ) where
 
 import qualified Client.Authentication.Ecdsa as Ecdsa
-import           Client.CApi
 import           Client.Commands
 import           Client.Commands.Interpolation
 import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames)
@@ -33,6 +32,7 @@ import           Client.Message
 import           Client.Network.Async
 import           Client.State
 import qualified Client.State.EditBox     as Edit
+import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
 import           Control.Concurrent.STM
@@ -232,10 +232,7 @@ doNetworkLine networkId time line st =
              return $! recordError time cs msg st
 
         Just raw ->
-          do (st1,passed) <- clientPark st $ \ptr ->
-                               notifyExtensions ptr network raw
-                                 (view (clientExtensions . esActive) st)
-
+          do (st1,passed) <- clientNotifyExtensions network raw st
 
              if not passed then return st1 else do
 
@@ -504,6 +501,12 @@ doCommandResult clearOnSuccess res =
     CommandQuit    st -> Nothing <$ clientShutdown st
     CommandSuccess st -> continue (if clearOnSuccess then consumeInput st else st)
     CommandFailure st -> continue (set clientBell True st)
+
+
+-- | Actions to be run when exiting the client.
+clientShutdown :: ClientState -> IO ()
+clientShutdown st = () <$ clientStopExtensions st
+ -- other shutdown stuff might be added here later
 
 
 -- | Execute the the command on the first line of the text box

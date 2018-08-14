@@ -97,6 +97,7 @@ library
                        Client.State.Channel
                        Client.State.EditBox
                        Client.State.EditBox.Content
+                       Client.State.Extensions
                        Client.State.Focus
                        Client.State.Network
                        Client.State.Window

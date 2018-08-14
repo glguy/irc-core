@@ -21,6 +21,7 @@ import Client.Configuration
 import Client.EventLoop
 import Client.Options
 import Client.State
+import Client.State.Extensions
 import Client.State.Focus
 
 import Exports ()

@@ -25,7 +25,6 @@ module Client.Commands
   , commandsList
   ) where
 
-import           Client.CApi
 import           Client.Commands.Arguments.Spec
 import           Client.Commands.Arguments.Parser
 import           Client.Commands.Exec
@@ -38,6 +37,7 @@ import           Client.Message
 import           Client.State
 import           Client.State.Channel
 import qualified Client.State.EditBox as Edit
+import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
@@ -231,9 +231,7 @@ executeChat msg st =
              let msgTxt = Text.pack $ takeWhile (/='\n') msg
                  tgtTxt = idText channel
 
-             (st1,allow) <- clientPark st $ \ptr ->
-                do let aes = view (clientExtensions . esActive) st
-                   chatExtension ptr network tgtTxt msgTxt aes
+             (st1,allow) <- clientChatExtension network tgtTxt msgTxt st
 
              when allow (sendMsg cs (ircPrivmsg tgtTxt msgTxt))
 
@@ -2178,13 +2176,10 @@ nickTabCompletion isReversed st =
 
 cmdExtension :: ClientCommand (String, String)
 cmdExtension st (name,command) =
-  case find (\ae -> aeName ae == Text.pack name)
-            (view (clientExtensions . esActive) st) of
-        Nothing -> commandFailureMsg "unknown extension" st
-        Just ae ->
-          do (st',_) <- clientPark st $ \ptr ->
-                          commandExtension ptr (Text.pack command) ae
-             commandSuccess st'
+  do res <- clientCommandExtension (Text.pack name) (Text.pack command) st
+     case res of
+       Nothing  -> commandFailureMsg "unknown extension" st
+       Just st' -> commandSuccess st'
 
 -- | Implementation of @/exec@ command.
 cmdExec :: ClientCommand String

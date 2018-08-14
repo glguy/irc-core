@@ -48,9 +48,6 @@ module Client.State
 
   -- * Client operations
   , withClientState
-  , clientStartExtensions
-  , clientShutdown
-  , clientPark
   , clientMatcher
   , clientMatcher'
   , clientActiveRegex
@@ -99,6 +96,8 @@ module Client.State
   -- * Extensions
   , ExtensionState
   , esActive
+  , esMVar
+  , esStablePtr
 
   -- * URL view
   , urlPattern
@@ -128,7 +127,6 @@ import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Data.Foldable
-import           Data.Either
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (HashSet)
@@ -143,7 +141,6 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import           Data.Time
-import           Foreign.Ptr
 import           Foreign.StablePtr
 import           Irc.Codes
 import           Irc.Identifier
@@ -205,20 +202,6 @@ data ExtensionState = ExtensionState
 
 makeLenses ''ClientState
 makeLenses ''ExtensionState
-
-
--- | Prepare the client to support reentry from the extension API.
-clientPark ::
-  ClientState      {- ^ client state                                        -} ->
-  (Ptr () -> IO a) {- ^ continuation using the stable pointer to the client -} ->
-  IO (ClientState, a)
-clientPark st k =
-  do let mvar = view (clientExtensions . esMVar) st
-     putMVar mvar st
-     let token = views (clientExtensions . esStablePtr) castStablePtrToPtr st
-     res <- k token
-     st' <- takeMVar mvar
-     return (st', res)
 
 -- | 'Traversal' for finding the 'NetworkState' associated with a given network
 -- if that connection is currently active.
@@ -789,45 +772,6 @@ applyWindowRenames network (Nick old new) st
 
 applyWindowRenames _ _ st = st
 
-
--- | Actions to be run when exiting the client.
-clientShutdown :: ClientState -> IO ()
-clientShutdown st = () <$ clientStopExtensions st
- -- other shutdown stuff might be added here later
-
-
--- | Unload all active extensions.
-clientStopExtensions :: ClientState -> IO ClientState
-clientStopExtensions st =
-  do let (aes,st1) = (clientExtensions . esActive <<.~ []) st
-     (st2,_) <- clientPark st1 $ \ptr ->
-                  traverse_ (deactivateExtension ptr) aes
-     return st2
-
--- | Start extensions after ensuring existing ones are stopped
-clientStartExtensions :: ClientState -> IO ClientState
-clientStartExtensions st =
-  do let cfg = view clientConfig st
-     st1        <- clientStopExtensions st
-     (st2, res) <- clientPark st1 $ \ptr ->
-            traverse (try . activateExtension ptr)
-                     (view configExtensions cfg)
-
-     let (errors, exts) = partitionEithers res
-     st3 <- recordErrors errors st2
-     return $! set (clientExtensions . esActive) exts st3
-  where
-    recordErrors [] ste = return ste
-    recordErrors es ste =
-      do now <- getZonedTime
-         return $! foldl' (recordError now) ste es
-
-    recordError now ste e =
-      recordNetworkMessage ClientMessage
-        { _msgTime    = now
-        , _msgBody    = ErrorBody (Text.pack (show (e :: IOError)))
-        , _msgNetwork = ""
-        } ste
 
 ------------------------------------------------------------------------
 -- Scrolling
