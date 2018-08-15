@@ -20,9 +20,13 @@ module Client.CApi
   , openExtension
   , startExtension
   , deactivateExtension
-  , notifyExtensions
+  , notifyExtension
   , commandExtension
   , chatExtension
+
+  , evalNestedIO
+  , withChat
+  , withRawIrcMsg
   ) where
 
 import           Client.Configuration
@@ -115,72 +119,38 @@ deactivateExtension stab ae =
      dlclose (aeDL ae)
 
 
--- | Call all of the process message callbacks in the list of extensions.
--- This operation marshals the IRC message once and shares that across
--- all of the callbacks.
---
--- Returns 'True' to pass message to client.  Returns 'False to drop message.
-notifyExtensions ::
-  Ptr ()            {- ^ clientstate stable pointer -} ->
-  Text              {- ^ network                    -} ->
-  RawIrcMsg         {- ^ current message            -} ->
-  [ActiveExtension] {- ^ all active extensions      -} ->
-  IO Bool           {- ^ should pass message        -}
-notifyExtensions stab network msg aes
-  | null aes' = return True
-  | otherwise = doNotifications
-  where
-    -- only the extensions that have a incoming message callback
-    aes' = [ (f,s) | ae <- aes
-                  , let f = fgnMessage (aeFgn ae)
-                        s = aeSession ae
-                  , f /= nullFunPtr ]
-
-    doNotifications = evalNestedIO $
-      do raw <- withRawIrcMsg network msg
-         liftIO (go aes' raw)
-
-    -- run handlers until one of them drops the message
-    go [] _ = return True
-    go ((f,s):rest) msgPtr =
-       do res <- runProcessMessage f stab s msgPtr
-          if res == passMessage
-            then go rest msgPtr
-            else return False
-
 -- | Call all of the process chat callbacks in the list of extensions.
 -- This operation marshals the IRC message once and shares that across
 -- all of the callbacks.
 --
 -- Returns 'True' to pass message to client.  Returns 'False to drop message.
 chatExtension ::
-  Ptr ()            {- ^ clientstate stable pointer -} ->
-  Text              {- ^ network                    -} ->
-  Text              {- ^ target (channel or user)   -} ->
-  Text              {- ^ message body               -} ->
-  [ActiveExtension] {- ^ all active extensions      -} ->
-  IO Bool           {- ^ should pass message        -}
-chatExtension stab net tgt msg aes
-  | null aes' = return True
-  | otherwise = doNotifications
-  where
-    -- only the extensions that have a chat callback
-    aes' = [ (f, aeSession ae)
-             | ae <- aes
-             , let f = fgnChat (aeFgn ae)
-             , f /= nullFunPtr ]
+  Ptr ()          {- ^ client callback handle  -} ->
+  ActiveExtension {- ^ extension               -} ->
+  Ptr FgnChat     {- ^ serialized chat message -} ->
+  IO Bool         {- ^ allow message           -}
+chatExtension stab ae chat =
+  do let f = fgnChat (aeFgn ae)
+     if f == nullFunPtr
+       then return True
+       else (passMessage ==) <$> runProcessChat f stab (aeSession ae) chat
 
-    doNotifications = evalNestedIO $
-      do chat <- withChat net tgt msg
-         liftIO (go aes' chat)
+-- | Call all of the process message callbacks in the list of extensions.
+-- This operation marshals the IRC message once and shares that across
+-- all of the callbacks.
+--
+-- Returns 'True' to pass message to client.  Returns 'False to drop message.
+notifyExtension ::
+  Ptr ()          {- ^ clientstate stable pointer -} ->
+  ActiveExtension {- ^ extension                  -} ->
+  Ptr FgnMsg      {- ^ serialized IRC message     -} ->
+  IO Bool         {- ^ allow message              -}
+notifyExtension stab ae msg =
+  do let f = fgnMessage (aeFgn ae)
+     if f == nullFunPtr
+       then return True
+       else (passMessage ==) <$> runProcessMessage f stab (aeSession ae) msg
 
-    -- run handlers until one of them drops the message
-    go [] _ = return True
-    go ((f,s):rest) ptr =
-       do res <- runProcessChat f stab s ptr
-          if res == passMessage
-            then go rest ptr
-            else return False
 
 -- | Notify an extension of a client command with the given parameters.
 commandExtension ::

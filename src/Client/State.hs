@@ -195,7 +195,7 @@ data ClientState = ClientState
 -- | State of the extension API including loaded extensions and the mechanism used
 -- to support reentry into the Haskell runtime from the C API.
 data ExtensionState = ExtensionState
-  { _esActive    :: [ActiveExtension]            -- ^ active extensions
+  { _esActive    :: IntMap ActiveExtension       -- ^ active extensions
   , _esMVar      :: MVar ClientState             -- ^ 'MVar' used to with 'clientPark'
   , _esStablePtr :: StablePtr (MVar ClientState) -- ^ 'StablePtr' used with 'clientPark'
   }
@@ -266,7 +266,7 @@ withExtensionState k =
   do mvar <- newEmptyMVar
      bracket (newStablePtr mvar) freeStablePtr $ \stab ->
        k ExtensionState
-         { _esActive    = []
+         { _esActive    = IntMap.empty
          , _esMVar      = mvar
          , _esStablePtr = stab
          }
