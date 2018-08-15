@@ -194,11 +194,17 @@ data ClientState = ClientState
 
 -- | State of the extension API including loaded extensions and the mechanism used
 -- to support reentry into the Haskell runtime from the C API.
+--
+-- When executing inside an extension the mvar will contain the client state
+-- and the ID of the running extension.
 data ExtensionState = ExtensionState
-  { _esActive    :: IntMap ActiveExtension       -- ^ active extensions
-  , _esMVar      :: MVar ClientState             -- ^ 'MVar' used to with 'clientPark'
-  , _esStablePtr :: StablePtr (MVar ClientState) -- ^ 'StablePtr' used with 'clientPark'
+  { _esActive    :: IntMap ActiveExtension     -- ^ active extensions
+  , _esMVar      :: MVar ParkState             -- ^ 'MVar' used to with 'clientPark'
+  , _esStablePtr :: StablePtr (MVar ParkState) -- ^ 'StablePtr' used with 'clientPark'
   }
+
+-- | ID of active extension and stored client state
+type ParkState = (Int,ClientState)
 
 makeLenses ''ClientState
 makeLenses ''ExtensionState

@@ -70,7 +70,7 @@ start1 st config =
                       Nothing -> 0
 
             let st1 = st & clientExtensions . esActive . at i ?~ ae
-            (st2, h) <- clientPark st1 $ \ptr -> startExtension ptr config ae
+            (st2, h) <- clientPark i st1 $ \ptr -> startExtension ptr config ae
 
             -- save handle back into active extension
             return $! st2 & clientExtensions . esActive . ix i %~ \ae' ->
@@ -83,10 +83,12 @@ clientStopExtensions ::
   ClientState    {- ^ client state                          -} ->
   IO ClientState {- ^ client state with extensions unloaded -}
 clientStopExtensions st =
-  do let (aes,st1) = (clientExtensions . esActive <<.~ IntMap.empty) st
-     (st2,_) <- clientPark st1 $ \ptr ->
-                  traverse_ (deactivateExtension ptr) aes
-     return st2
+  do let (aes,st1) = st & clientExtensions . esActive <<.~ IntMap.empty
+     ifoldlM step st1 aes
+  where
+    step i st2 ae =
+      do (st3,_) <- clientPark i st2 $ \ptr -> deactivateExtension ptr ae
+         return st3
 
 
 -- | Dispatch chat messages through extensions before sending to server.
@@ -100,19 +102,19 @@ clientChatExtension net tgt msg st
   | noCallback = return (st, True)
   | otherwise  = evalNestedIO $
                  do chat <- withChat net tgt msg
-                    liftIO (chat1 chat st aes)
+                    liftIO (chat1 chat st (IntMap.toList aes))
   where
-    aes = IntMap.elems (view (clientExtensions . esActive) st)
+    aes = view (clientExtensions . esActive) st
     noCallback = all (\ae -> fgnChat (aeFgn ae) == nullFunPtr) aes
 
 chat1 ::
-  Ptr FgnChat            {- ^ serialized chat message     -} ->
-  ClientState            {- ^ client state                -} ->
-  [ActiveExtension]      {- ^ extensions needing callback -} ->
-  IO (ClientState, Bool) {- ^ new state and allow         -}
+  Ptr FgnChat             {- ^ serialized chat message     -} ->
+  ClientState             {- ^ client state                -} ->
+  [(Int,ActiveExtension)] {- ^ extensions needing callback -} ->
+  IO (ClientState, Bool)  {- ^ new state and allow         -}
 chat1 _    st [] = return (st, True)
-chat1 chat st (ae:aes) =
-  do (st1, allow) <- clientPark st $ \ptr -> chatExtension ptr ae chat
+chat1 chat st ((i,ae):aes) =
+  do (st1, allow) <- clientPark i st $ \ptr -> chatExtension ptr ae chat
      if allow then chat1 chat st1 aes
               else return (st1, False)
 
@@ -127,19 +129,19 @@ clientNotifyExtensions network raw st
   | noCallback = return (st, True)
   | otherwise  = evalNestedIO $
                  do fgn <- withRawIrcMsg network raw
-                    liftIO (message1 fgn st aes)
+                    liftIO (message1 fgn st (IntMap.toList aes))
   where
-    aes = IntMap.elems (view (clientExtensions . esActive) st)
+    aes = view (clientExtensions . esActive) st
     noCallback = all (\ae -> fgnMessage (aeFgn ae) == nullFunPtr) aes
 
 message1 ::
-  Ptr FgnMsg             {- ^ serialized IRC message      -} ->
-  ClientState            {- ^ client state                -} ->
-  [ActiveExtension]      {- ^ extensions needing callback -} ->
-  IO (ClientState, Bool) {- ^ new state and allow         -}
+  Ptr FgnMsg              {- ^ serialized IRC message      -} ->
+  ClientState             {- ^ client state                -} ->
+  [(Int,ActiveExtension)] {- ^ extensions needing callback -} ->
+  IO (ClientState, Bool)  {- ^ new state and allow         -}
 message1 _    st [] = return (st, True)
-message1 chat st (ae:aes) =
-  do (st1, allow) <- clientPark st $ \ptr -> notifyExtension ptr ae chat
+message1 chat st ((i,ae):aes) =
+  do (st1, allow) <- clientPark i st $ \ptr -> notifyExtension ptr ae chat
      if allow then message1 chat st1 aes
               else return (st1, False)
 
@@ -152,24 +154,25 @@ clientCommandExtension ::
   ClientState            {- ^ client state                -} ->
   IO (Maybe ClientState) {- ^ new client state on success -}
 clientCommandExtension name command st =
-  case find (\ae -> aeName ae == name)
-            (view (clientExtensions . esActive) st) of
+  case find (\(_,ae) -> aeName ae == name)
+            (IntMap.toList (view (clientExtensions . esActive) st)) of
         Nothing -> return Nothing
-        Just ae ->
-          do (st', _) <- clientPark st $ \ptr ->
+        Just (i,ae) ->
+          do (st', _) <- clientPark i st $ \ptr ->
                             commandExtension ptr command ae
              return (Just st')
 
 
 -- | Prepare the client to support reentry from the extension API.
 clientPark ::
+  Int              {- ^ extension ID                                        -} ->
   ClientState      {- ^ client state                                        -} ->
   (Ptr () -> IO a) {- ^ continuation using the stable pointer to the client -} ->
   IO (ClientState, a)
-clientPark st k =
+clientPark i st k =
   do let mvar = view (clientExtensions . esMVar) st
-     putMVar mvar st
+     putMVar mvar (i,st)
      let token = views (clientExtensions . esStablePtr) castStablePtrToPtr st
-     res <- k token
-     st' <- takeMVar mvar
+     res     <- k token
+     (_,st') <- takeMVar mvar
      return (st', res)
