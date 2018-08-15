@@ -50,6 +50,7 @@ void write_fingerprints(void *);
 void new_fingerprint (void *, OtrlUserState, const char *, const char *, const char *, unsigned char[20]);
 void create_privkey(void *, const char *, const char *);
 void create_instag(void *, const char *, const char *);
+void timer_control(void *, unsigned int);
 
 OtrlMessageAppOps ops = {
     .policy            = op_policy,
@@ -57,6 +58,7 @@ OtrlMessageAppOps ops = {
     .max_message_size  = max_message_size,
     .handle_msg_event  = handle_msg_event,
     .is_logged_in      = is_logged_in,
+    .timer_control     = timer_control,
 
     .gone_secure       = gone_secure,
     .still_secure      = still_secure,
@@ -115,12 +117,15 @@ struct OpData {
     /* libotr session data */
     OTR otr;
 
+    /* libotr poll interval */
+    unsigned int timer_interval;
+
 private:
     /* used to track open BATCHes by network */
     unordered_map<string, unordered_set<string>> batch_reftags;
 
 public:
-    OpData(glirc *G) : G(G), otr(&ops, this) {}
+    OpData(glirc *G) : G(G), otr(&ops, this), timer_interval(0) {}
 
     tuple<string,string> current_focus() {
 
@@ -201,6 +206,10 @@ public:
     bool in_batch(const string &net) {
         auto it = batch_reftags.find(net);
         return it != end(batch_reftags) && !it->second.empty();
+    }
+
+    void schedule_timer(timer_callback f, void *dat) {
+        glirc_set_timer(G, 1000 * timer_interval, f, dat);
     }
 };
 
@@ -452,6 +461,33 @@ void create_instag(void *L, const char *accountname, const char *protocol)
     free(path);
 }
 
+void timer_entrypoint(struct glirc *G, void *L, void *dat) {
+
+    GET_opdata;
+
+    // Running poll might update timer_interval
+    opdata->otr.message_poll();
+
+    // If timer_interval still set, reschedule the timer
+    if (0 != opdata->timer_interval) {
+        opdata->schedule_timer(timer_entrypoint, nullptr);
+    }
+}
+
+void timer_control(void *L, unsigned int interval)
+{
+    GET_opdata;
+
+    auto previous = opdata->timer_interval;
+    opdata->timer_interval = interval;
+
+    // If there isn't already a timer running, schedule a new one
+    if (0 == previous && 0 != interval) {
+        opdata->schedule_timer(timer_entrypoint, nullptr);
+    }
+
+}
+
 void *start_entrypoint
   (struct glirc *G,
    const char *lib_path,
@@ -678,13 +714,6 @@ void cmd_secret (OpData *opdata, const string &params)
 }
 
 
-void cmd_poll (OpData *opdata, const string &params)
-{
-  (void)params;
-  opdata->otr.message_poll();
-}
-
-
 /*
  * Manually mark the fingerprint associated with the current window trusted.
  */
@@ -789,7 +818,6 @@ struct cmd_impl cmd_impls[] = {
   { "end"    , cmd_end    , "Close the current window's OTR context"                },
   { "trust"  , cmd_trust  , "Trust the current remote user's fingerprint"           },
   { "untrust", cmd_untrust, "Revoke trust in the current remote user's fingerprint" },
-  { "poll"   , cmd_poll   , "Manually trigger an OTR poll event"                    },
   { "help"   , cmd_help   , "Show available commands"                               },
 };
 
