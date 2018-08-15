@@ -32,3 +32,4 @@ foreign export ccall glirc_free_string        :: Glirc_free_string
 foreign export ccall glirc_free_strings       :: Glirc_free_strings
 foreign export ccall glirc_current_focus      :: Glirc_current_focus
 foreign export ccall glirc_resolve_path       :: Glirc_resolve_path
+foreign export ccall glirc_set_timer          :: Glirc_set_timer

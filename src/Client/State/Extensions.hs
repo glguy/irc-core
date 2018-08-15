@@ -16,6 +16,7 @@ module Client.State.Extensions
   , clientStartExtensions
   , clientNotifyExtensions
   , clientStopExtensions
+  , clientExtTimer
   ) where
 
 import Control.Concurrent.MVar
@@ -176,3 +177,19 @@ clientPark i st k =
      res     <- k token
      (_,st') <- takeMVar mvar
      return (st', res)
+
+
+-- | Run the next available timer event on a particular extension.
+clientExtTimer ::
+  Int         {- ^ extension ID -} ->
+  ClientState {- ^ client state -} ->
+  IO ClientState
+clientExtTimer i st =
+  do let ae = st ^?! clientExtensions . esActive . ix i
+     case popTimer ae of
+       Nothing -> return st
+       Just (_, fun, dat, ae') ->
+         do let st1 = set (clientExtensions . esActive . ix i) ae' st
+            (st2,_) <- clientPark i st1 $ \ptr ->
+                         runTimerCallback fun ptr (aeSession ae) dat
+            return st2

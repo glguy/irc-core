@@ -10,11 +10,16 @@ Through this library scripts can send messages, check modes, and more.
 @copyright Eric Mertens 2018
 */
 
+#include <assert.h>
+
 #include <lauxlib.h>
 
 #include "glirc-api.h"
 #include "glirc-lib.h"
 #include "glirc-marshal.h"
+
+/* luaL_ref returns an int, which is passed through glirc_set_timer */
+static_assert(sizeof(int) <= sizeof(intptr_t), "timer callback assumption");
 
 /***
 Send an IRC command on a connected network. Message tags are ignored
@@ -414,6 +419,29 @@ static int glirc_lua_resolve_path(lua_State *L)
         return 1;
 }
 
+static void on_timer(struct glirc *G, void *S, void *dat) {
+        lua_State *L = S;
+        int ref = (int)(intptr_t)dat;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        if (lua_pcall(L, 0, 0, 0)) {
+                size_t len;
+                const char *msg = lua_tolstring(L, -1, &len);
+                glirc_print(G, ERROR_MESSAGE, msg, len);
+                lua_remove(L, -1);
+        }
+}
+
+static int glirc_lua_set_timer(lua_State *L)
+{
+        lua_Integer millis = luaL_checkinteger(L, 1);
+        luaL_checktype(L, 3, LUA_TNONE);
+        lua_settop(L, 2);
+        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        glirc_set_timer(get_glirc(L), millis, on_timer, (void*)(intptr_t)ref);
+        return 0;
+}
+
 /***
 Case-insensitive comparison of two identifiers using IRC case map.
 Return -1 when first identifier is "less than" the second.
@@ -499,6 +527,7 @@ static luaL_Reg glirc_lib[] =
   , { "is_logged_on"      , glirc_lua_is_logged_on       }
   , { "is_channel"        , glirc_lua_is_channel         }
   , { "resolve_path"      , glirc_lua_resolve_path       }
+  , { "set_timer"         , glirc_lua_set_timer          }
   , { NULL                , NULL                         }
   };
 

@@ -17,6 +17,7 @@ module Client.EventLoop
   ) where
 
 import qualified Client.Authentication.Ecdsa as Ecdsa
+import           Client.CApi (popTimer)
 import           Client.Commands
 import           Client.Commands.Interpolation
 import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames)
@@ -64,6 +65,7 @@ data ClientEvent
   = VtyEvent Event -- ^ Key presses and resizing
   | NetworkEvent NetworkEvent -- ^ Incoming network events
   | TimerEvent NetworkId TimedAction -- ^ Timed action and the applicable network
+  | ExtTimerEvent Int -- ^ extension ID
 
 
 -- | Block waiting for the next 'ClientEvent'. This function will compute
@@ -85,20 +87,36 @@ getEvent vty st =
     prepareTimer =
       case earliestEvent st of
         Nothing -> return retry
-        Just (networkId,(runAt,action)) ->
+        Just (runAt,event) ->
           do now <- getCurrentTime
              let microsecs = truncate (1000000 * diffUTCTime runAt now)
              var <- registerDelay (max 0 microsecs)
              return $ do ready <- readTVar var
                          unless ready retry
-                         return (TimerEvent networkId action)
+                         return event
 
 -- | Compute the earliest scheduled timed action for the client
-earliestEvent :: ClientState -> Maybe (NetworkId, (UTCTime, TimedAction))
-earliestEvent =
-  minimumByOf
-    (clientConnections . (ifolded <. folding nextTimedAction) . withIndex)
-    (comparing (fst . snd))
+earliestEvent :: ClientState -> Maybe (UTCTime, ClientEvent)
+earliestEvent st = earliest2 networkEvent extensionEvent
+  where
+    earliest2 (Just (time1, action1)) (Just (time2, action2))
+      | time1 < time2 = Just (time1, action1)
+      | otherwise     = Just (time2, action2)
+    earliest2 x y = mplus x y
+
+    mkEventN (network, (time, action)) = (time, TimerEvent network action)
+    networkEvent =
+      minimumByOf
+        (clientConnections . (ifolded <. folding nextTimedAction) . withIndex . to mkEventN)
+        (comparing fst)
+        st
+
+    mkEventE (i, (time,_,_,_)) = (time, ExtTimerEvent i)
+    extensionEvent =
+      minimumByOf
+        (clientExtensions . esActive . (ifolded <. folding popTimer) . withIndex . to mkEventE)
+        (comparing fst)
+        st
 
 -- | Apply this function to an initial 'ClientState' to launch the client.
 eventLoop :: Vty -> ClientState -> IO ()
@@ -111,6 +129,7 @@ eventLoop vty st =
 
      event <- getEvent vty st'
      case event of
+       ExtTimerEvent i -> eventLoop vty =<< clientExtTimer i st'
        TimerEvent networkId action  -> eventLoop vty =<< doTimerEvent networkId action st'
        VtyEvent vtyEvent -> traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
        NetworkEvent networkEvent ->

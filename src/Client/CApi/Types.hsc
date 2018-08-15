@@ -21,6 +21,7 @@ module Client.CApi.Types
   , ProcessMessage
   , ProcessCommand
   , ProcessChat
+  , TimerCallback
 
   -- * Strings
   , FgnStringLen(..)
@@ -41,6 +42,7 @@ module Client.CApi.Types
   , runProcessMessage
   , runProcessCommand
   , runProcessChat
+  , runTimerCallback
 
   -- * report message codes
   , MessageCode(..), normalMessage, errorMessage
@@ -128,6 +130,12 @@ type ProcessChat =
   Ptr FgnChat {- ^ chat info       -} ->
   IO ProcessResult
 
+type TimerCallback =
+  Ptr () {- ^ api token       -} ->
+  Ptr () {- ^ extension state -} ->
+  Ptr () {- ^ timer state     -} ->
+  IO ()
+
 -- | Type of dynamic function pointer wrappers. These convert C
 -- function-pointers into Haskell functions.
 type Dynamic a = FunPtr a -> a
@@ -142,6 +150,8 @@ foreign import ccall "dynamic" runProcessMessage :: Dynamic ProcessMessage
 foreign import ccall "dynamic" runProcessCommand :: Dynamic ProcessCommand
 -- | Dynamic import for 'ProcessChat'.
 foreign import ccall "dynamic" runProcessChat    :: Dynamic ProcessChat
+-- | Dynamic import for timer callback
+foreign import ccall "dynamic" runTimerCallback  :: Dynamic TimerCallback
 
 ------------------------------------------------------------------------
 

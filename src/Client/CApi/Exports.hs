@@ -67,8 +67,12 @@ module Client.CApi.Exports
  , Glirc_resolve_path
  , glirc_resolve_path
 
+ , Glirc_set_timer
+ , glirc_set_timer
+
  ) where
 
+import           Client.CApi (pushTimer)
 import           Client.CApi.Types
 import           Client.Configuration
 import           Client.Message
@@ -101,7 +105,7 @@ import           LensUtils
 ------------------------------------------------------------------------
 
 -- | Dereference the stable pointer passed to extension callbacks
-derefToken :: Ptr () -> IO (MVar ClientState)
+derefToken :: Ptr () -> IO (MVar (Int, ClientState))
 derefToken = deRefStablePtr . castPtrToStablePtr
 
 
@@ -153,11 +157,10 @@ glirc_send_message token msgPtr =
      fgn     <- peek msgPtr
      msg     <- peekFgnMsg fgn
      network <- peekFgnStringLen (fmNetwork fgn)
-     withMVar mvar $ \st ->
-       case preview (clientConnection network) st of
-         Nothing -> return 1
-         Just cs -> do sendMsg cs msg
-                       return 0
+     (_,st)  <- readMVar mvar
+     case preview (clientConnection network) st of
+       Nothing -> return 1
+       Just cs -> 0 <$ sendMsg cs msg
   `catch` \SomeException{} -> return 1
 
 ------------------------------------------------------------------------
@@ -186,8 +189,8 @@ glirc_print stab code msgPtr msgLen =
                  , _msgTime    = now
                  , _msgNetwork = Text.empty
                  }
-     modifyMVar_ mvar $ \st ->
-       do return (recordNetworkMessage msg st)
+     modifyMVar_ mvar $ \(i,st) ->
+       do return (i, recordNetworkMessage msg st)
      return 0
   `catch` \SomeException{} -> return 1
 
@@ -224,8 +227,8 @@ glirc_inject_chat stab netPtr netLen srcPtr srcLen tgtPtr tgtLen msgPtr msgLen =
                  , _msgTime    = now
                  , _msgNetwork = net
                  }
-     modifyMVar_ mvar $ \st ->
-       do return (recordChannelMessage net tgt msg st)
+     modifyMVar_ mvar $ \(i, st) ->
+       do return (i, recordChannelMessage net tgt msg st)
      return 0
   `catch` \SomeException{} -> return 1
 
@@ -243,7 +246,7 @@ type Glirc_list_networks =
 glirc_list_networks :: Glirc_list_networks
 glirc_list_networks stab =
   do mvar <- derefToken stab
-     st   <- readMVar mvar
+     (_,st) <- readMVar mvar
      let networks = views clientNetworkMap HashMap.keys st
      strs <- traverse (newCString . Text.unpack) networks
      newArray0 nullPtr strs
@@ -286,7 +289,7 @@ type Glirc_list_channels =
 glirc_list_channels :: Glirc_list_channels
 glirc_list_channels stab networkPtr networkLen =
   do mvar <- derefToken stab
-     st   <- readMVar mvar
+     (_,st) <- readMVar mvar
      network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
      case preview (clientConnection network . csChannels) st of
         Nothing -> return nullPtr
@@ -311,8 +314,8 @@ type Glirc_list_channel_users =
 -- @glirc_free_strings@.
 glirc_list_channel_users :: Glirc_list_channel_users
 glirc_list_channel_users stab networkPtr networkLen channelPtr channelLen =
-  do mvar <- derefToken stab
-     st   <- readMVar mvar
+  do mvar    <- derefToken stab
+     (_, st) <- readMVar mvar
      network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
      channel <- peekFgnStringLen (FgnStringLen channelPtr channelLen)
      let mb = preview ( clientConnection network
@@ -340,8 +343,8 @@ type Glirc_my_nick =
 -- @glirc_free_string@.
 glirc_my_nick :: Glirc_my_nick
 glirc_my_nick stab networkPtr networkLen =
-  do mvar <- derefToken stab
-     st   <- readMVar mvar
+  do mvar    <- derefToken stab
+     (_,st)  <- readMVar mvar
      network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
      let mb = preview (clientConnection network . csNick) st
      case mb of
@@ -366,7 +369,7 @@ type Glirc_user_account =
 glirc_user_account :: Glirc_user_account
 glirc_user_account stab networkPtr networkLen nickPtr nickLen =
   do mvar    <- derefToken stab
-     st      <- readMVar mvar
+     (_,st)  <- readMVar mvar
      network <- peekFgnStringLen (FgnStringLen networkPtr networkLen)
      nick    <- peekFgnStringLen (FgnStringLen nickPtr    nickLen   )
      let mb = preview ( clientConnection network
@@ -396,7 +399,7 @@ type Glirc_user_channel_modes =
 glirc_user_channel_modes :: Glirc_user_channel_modes
 glirc_user_channel_modes stab netPtr netLen chanPtr chanLen nickPtr nickLen =
   do mvar    <- derefToken stab
-     st      <- readMVar mvar
+     (_,st)  <- readMVar mvar
      network <- peekFgnStringLen (FgnStringLen netPtr  netLen)
      chan    <- peekFgnStringLen (FgnStringLen chanPtr chanLen   )
      nick    <- peekFgnStringLen (FgnStringLen nickPtr nickLen   )
@@ -432,8 +435,9 @@ glirc_mark_seen stab networkPtr networkLen channelPtr channelLen =
            | otherwise         = ChannelFocus network (mkId channel)
 
      mvar <- derefToken stab
-     modifyMVar_ mvar $ \st ->
-       return $! overStrict (clientWindows . ix focus) windowSeen st
+     modifyMVar_ mvar $ \(i,st) ->
+       let st' = overStrict (clientWindows . ix focus) windowSeen st
+       in st' `seq` return (i,st')
 
 ------------------------------------------------------------------------
 
@@ -460,8 +464,9 @@ glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
            | otherwise         = ChannelFocus network (mkId channel)
 
      mvar <- derefToken stab
-     modifyMVar_ mvar $ \st ->
-       return $! set (clientWindows . ix focus) emptyWindow st
+     modifyMVar_ mvar $ \(i,st) ->
+       let st' = set (clientWindows . ix focus) emptyWindow st
+       in st' `seq` return (i,st')
 
 ------------------------------------------------------------------------
 
@@ -510,8 +515,8 @@ type Glirc_current_focus =
 -- current target.
 glirc_current_focus :: Glirc_current_focus
 glirc_current_focus stab netP netL tgtP tgtL =
-  do mvar <- derefToken stab
-     st   <- readMVar mvar
+  do mvar   <- derefToken stab
+     (_,st) <- readMVar mvar
      let (net,tgt) = case view clientFocus st of
                        Unfocused        -> (Text.empty, Text.empty)
                        NetworkFocus n   -> (n         , Text.empty)
@@ -537,7 +542,7 @@ type Glirc_is_channel =
 glirc_is_channel :: Glirc_is_channel
 glirc_is_channel stab net netL tgt tgtL =
   do mvar    <- derefToken stab
-     st      <- readMVar mvar
+     (_,st)  <- readMVar mvar
      network <- peekFgnStringLen (FgnStringLen net netL)
      target  <- peekFgnStringLen (FgnStringLen tgt tgtL)
 
@@ -563,7 +568,7 @@ type Glirc_is_logged_on =
 glirc_is_logged_on :: Glirc_is_logged_on
 glirc_is_logged_on stab net netL tgt tgtL =
   do mvar    <- derefToken stab
-     st      <- readMVar mvar
+     (_,st)  <- readMVar mvar
      network <- peekFgnStringLen (FgnStringLen net netL)
      target  <- peekFgnStringLen (FgnStringLen tgt tgtL)
 
@@ -587,9 +592,28 @@ type Glirc_resolve_path =
 glirc_resolve_path :: Glirc_resolve_path
 glirc_resolve_path stab pathP pathL =
   do mvar    <- derefToken stab
-     st      <- readMVar mvar
+     (_,st)  <- readMVar mvar
      path    <- peekFgnStringLen (FgnStringLen pathP pathL)
 
      let cfgPath = view clientConfigPath st
      cxt <- newFilePathContext cfgPath
      newCString (resolveFilePath cxt (Text.unpack path))
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_set_timer' extension entry-point
+type Glirc_set_timer =
+  Ptr ()               {- ^ api token          -} ->
+  CULong               {- ^ milliseconds delay -} ->
+  FunPtr TimerCallback {- ^ function           -} ->
+  Ptr ()               {- ^ callback state     -} ->
+  IO ()                {- ^ resolved path      -}
+
+-- | 
+glirc_set_timer :: Glirc_set_timer
+glirc_set_timer stab millis fun ptr =
+  do mvar    <- derefToken stab
+     time    <- addUTCTime (fromIntegral millis / 1000) <$> getCurrentTime
+     modifyMVar_ mvar $ \(i,st) ->
+       let st' = overStrict (clientExtensions . esActive . ix i) (pushTimer time fun ptr) st
+       in st' `seq` return (i,st')

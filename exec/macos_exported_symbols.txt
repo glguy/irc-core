@@ -16,3 +16,4 @@ _glirc_current_focus
 _glirc_resolve_path
 _glirc_free_string
 _glirc_free_strings
+_glirc_set_timer
