@@ -432,6 +432,21 @@ static void on_timer(struct glirc *G, void *S, void *dat) {
         }
 }
 
+/***
+Register a timer callback.
+
+The given callback will be called after waiting at least
+the given number of milliseconds.
+
+@function set_timer
+@tparam integer millis Milliseconds delay
+@tparam func callback Callback function
+
+@usage
+glirc.set_timer(10000, function()
+    glirc.print('10 seconds has passed')
+end)
+*/
 static int glirc_lua_set_timer(lua_State *L)
 {
         lua_Integer millis = luaL_checkinteger(L, 1);
