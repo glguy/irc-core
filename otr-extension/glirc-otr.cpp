@@ -461,6 +461,7 @@ void create_instag(void *L, const char *accountname, const char *protocol)
     free(path);
 }
 
+// Entry point from client when timer triggers
 void timer_entrypoint(struct glirc *G, void *L, void *dat) {
 
     GET_opdata;

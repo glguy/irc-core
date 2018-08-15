@@ -1,5 +1,6 @@
 project('glirc-otr', 'cpp',
   license: 'ISC',
+  version: '2.29',
   default_options: 'cpp_std=c++14')
 
 otrdep = dependency('libotr')

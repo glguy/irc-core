@@ -1,5 +1,6 @@
 project('glirc-lua', 'c',
   license: 'ISC',
+  version: '2.29',
   default_options: 'c_std=c11')
 
 luadep = dependency('lua-5.3')

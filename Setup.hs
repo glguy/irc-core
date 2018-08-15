@@ -1,4 +1,3 @@
-{-# Language CPP #-}
 {-|
 Module      : Main
 Description : Custom setup script
@@ -25,19 +24,13 @@ import           Distribution.Simple
 import           Distribution.Simple.LocalBuildInfo (LocalBuildInfo, installedPkgs, withLibLBI)
 import           Distribution.Simple.PackageIndex (allPackages)
 import           Distribution.Simple.Setup (configVerbosity, fromFlag)
-import           Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFile)
+import           Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFileEx)
 import           Distribution.Verbosity (Verbosity)
 import           System.FilePath ((</>), (<.>))
 
-#if MIN_VERSION_Cabal(2,0,0)
 import           Distribution.Simple.BuildPaths (autogenComponentModulesDir)
-#else
-import           Distribution.Simple.BuildPaths (autogenModulesDir)
-#endif
 
-#if MIN_VERSION_Cabal(2,2,0)
 import qualified Distribution.SPDX               as SPDX
-#endif
 
 
 -- | Default Setup main extended to generate a Build module and to validate
@@ -109,16 +102,12 @@ generateBuildModule ::
   [InstalledPackageInfo] {- ^ transitive package dependencies -} ->
   IO ()
 generateBuildModule verbosity pkg lbi pkgs =
-#if MIN_VERSION_Cabal(2,0,0)
   withLibLBI pkg lbi $ \_lib clbi ->
   do let dir = autogenComponentModulesDir lbi clbi
-#else
-  do let dir = autogenModulesDir lbi
-#endif
          modname = buildModuleName pkg
          file    = dir </> modname <.> "hs"
      createDirectoryIfMissingVerbose verbosity True dir
-     rewriteFile file
+     rewriteFileEx verbosity file
        $ unlines
        [ "{-|"
        , "Module      : " ++ modname
@@ -137,14 +126,9 @@ renderDeps ::
   [InstalledPackageInfo] {- ^ transitive package dependencies -} ->
   String                 {- ^ haskell syntax                  -}
 renderDeps pkgs =
-  show [ (unPackageName (pkgName p), versionBranch (pkgVersion p))
+  show [ (unPackageName (pkgName p), versionNumbers (pkgVersion p))
        | p <- sourcePackageId <$> pkgs
        ]
-
-#if MIN_VERSION_Cabal(2,0,0)
-versionBranch :: Version -> [Int]
-versionBranch = versionNumbers
-#endif
 
 -- | Check that all transitive dependencies are available under an acceptable
 -- license. Raises a user-error on failure.
@@ -152,24 +136,13 @@ validateLicenses ::
   [InstalledPackageInfo] {- ^ transitive package dependencies -} ->
   IO ()
 validateLicenses pkgs =
-  do let p pkg   = toLicense (license pkg) `notElem` freeLicenses
+  do let toLicense = either licenseFromSPDX id
+         p pkg   = toLicense (license pkg) `notElem` freeLicenses
          badPkgs = filter p pkgs
 
      unless (null badPkgs) $
        do mapM_ print [ toLicense (license p) | p <- badPkgs ]
           fail "BAD LICENSE"
-
-class ToLicense a where toLicense :: a -> License
-instance ToLicense License where toLicense = id
-
-#if MIN_VERSION_Cabal(2,2,0)
-instance (ToLicense a, ToLicense b) => ToLicense (Either a b) where
-  toLicense (Right x) = toLicense x
-  toLicense (Left  x) = toLicense x
-instance ToLicense SPDX.License where
-  toLicense = licenseFromSPDX
-#endif
-
 
 
 -- | The set of permissive licenses that are acceptable for transitive dependencies
