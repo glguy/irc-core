@@ -607,13 +607,15 @@ type Glirc_set_timer =
   CULong               {- ^ milliseconds delay -} ->
   FunPtr TimerCallback {- ^ function           -} ->
   Ptr ()               {- ^ callback state     -} ->
-  IO ()                {- ^ resolved path      -}
+  IO CLong             {- ^ timer ID           -}
 
--- | 
+-- | Register a function to be called after a given number of milliseconds
+-- of delay. The returned timer ID can be used to cancel the timer.
 glirc_set_timer :: Glirc_set_timer
 glirc_set_timer stab millis fun ptr =
   do mvar    <- derefToken stab
      time    <- addUTCTime (fromIntegral millis / 1000) <$> getCurrentTime
-     modifyMVar_ mvar $ \(i,st) ->
-       let st' = overStrict (clientExtensions . esActive . ix i) (pushTimer time fun ptr) st
-       in st' `seq` return (i,st')
+     modifyMVar mvar $ \(i,st) ->
+       let (timer,st') = st & clientExtensions . esActive . singular (ix i)
+                            %%~ pushTimer time fun ptr
+       in st' `seq` return ((i,st'), fromIntegral timer)
