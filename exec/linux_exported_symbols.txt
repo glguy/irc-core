@@ -18,4 +18,5 @@ glirc_resolve_path;
 glirc_free_string;
 glirc_free_strings;
 glirc_set_timer;
+glirc_cancel_timer;
 };

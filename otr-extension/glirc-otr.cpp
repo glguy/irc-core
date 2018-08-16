@@ -104,7 +104,7 @@ inline struct glirc_string mk_glirc_string(const char * str) {
 }
 
 /* Construct a C++ string from a glirc_string */
-string make_string(const glirc_string &s) {
+inline string make_string(const glirc_string &s) {
         return string(s.str, s.len);
 }
 
@@ -118,13 +118,10 @@ struct OpData {
     /* libotr session data */
     OTR otr;
 
+private:
     /* libotr poll interval */
     unsigned long timer_interval;
     long timer_id;
-
-private:
-    /* used to track open BATCHes by network */
-    unordered_map<string, unordered_set<string>> batch_reftags;
 
 public:
     OpData(glirc *G) :
@@ -172,44 +169,6 @@ public:
 
     bool is_channel(const string &net, const string &tgt) {
         return glirc_is_channel(G, net.c_str(), net.length(), tgt.c_str(), tgt.length());
-    }
-
-    /* Populate the list of networks. This should run on startup in order to handle
-     * the case where the extension is loaded while there are already connected
-     * networks and the welcome message won't be seen
-     */
-    void populate_networks() {
-        auto networks = glirc_list_networks(G);
-
-        for (auto network = networks; *network; network++) {
-            batch_reftags.insert(make_tuple(string(*network), unordered_set<string>()));
-        }
-
-        glirc_free_strings(networks);
-    }
-
-    /* BATCH logic */
-
-    /* Initialize a network, resets the batch state */
-    void add_network(const string &net) {
-        batch_reftags.erase(net);
-        batch_reftags.insert(make_tuple(net, unordered_set<string>()));
-    }
-
-    /* Start a batch for the given network tag and ref tag */
-    void start_batch(const string &net, const string &reftag) {
-        batch_reftags[net].insert(reftag);
-    }
-
-    /* End a batch for the given network tag and ref tag */
-    void end_batch(const string &net, const string &reftag) {
-        batch_reftags[net].erase(reftag);
-    }
-
-    /* Predicate to check if any batch is active on a particular network */
-    bool in_batch(const string &net) {
-        auto it = batch_reftags.find(net);
-        return it != end(batch_reftags) && !it->second.empty();
     }
 
     void schedule_timer() {
@@ -505,8 +464,6 @@ void *start_entrypoint
   OTRL_INIT;
   auto opdata = new OpData(G);
 
-  opdata->populate_networks();
-
   char *path = state_path("keys");
   if (path) opdata->otr.privkey_read(path);
   free(path);
@@ -549,31 +506,13 @@ rebuild_userinfo(const struct glirc_message *msg)
     return out.str();
 }
 
-enum process_result
-process_welcome(OpData *opdata, const struct glirc_message *msg) {
-        opdata->add_network(make_string(msg->network));
-        return PASS_MESSAGE;
-}
-
-enum process_result
-process_batch(OpData *opdata, const struct glirc_message *msg) {
-
-        if (msg->params_n < 1) return PASS_MESSAGE;
-
-        auto reftag_ptr = msg->params[0].str;
-        auto reftag = string(reftag_ptr+1, msg->params[0].len - 1);
-        auto net = make_string(msg->network);
-
-        switch (*reftag_ptr) {
-                case '+':
-                        opdata->start_batch(net, reftag);
-                        break;
-                case '-':
-                        opdata->end_batch(net, reftag);
-                        break;
+bool in_batch(const struct glirc_message *msg) {
+    for (size_t i = 0; i < msg->tags_n; i++) {
+        if ("batch" == make_string(msg->tagkeys[i])) {
+            return true;
         }
-
-        return PASS_MESSAGE;
+    }
+    return false;
 }
 
 enum process_result
@@ -583,17 +522,18 @@ process_privmsg(OpData *opdata, const struct glirc_message *msg)
         return PASS_MESSAGE;
     }
 
-    auto net = make_string(msg->network);
-    if (opdata->in_batch(net)) {
+    if (in_batch(msg)) {
         switch (otrl_proto_message_type(msg->params[1].str)) {
-                default: return DROP_MESSAGE;
+                default:
+                    return DROP_MESSAGE;
                 case OTRL_MSGTYPE_NOTOTR:
                 case OTRL_MSGTYPE_TAGGEDPLAINTEXT:
                     return PASS_MESSAGE;
         }
     }
 
-    auto target  = make_string(msg->params[0]);
+    auto net    = make_string(msg->network);
+    auto target = make_string(msg->params[0]);
     if (opdata->is_channel(net, target)) {
         return PASS_MESSAGE;
     }
@@ -629,10 +569,6 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 
     if (cmd == "PRIVMSG") {
         return process_privmsg(opdata, msg);
-    } else if (cmd == "BATCH") {
-        return process_batch(opdata, msg);
-    } else if (cmd == "001") {
-        return process_welcome(opdata, msg);
     } else {
         return PASS_MESSAGE;
     }

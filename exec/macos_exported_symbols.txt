@@ -17,3 +17,4 @@ _glirc_resolve_path
 _glirc_free_string
 _glirc_free_strings
 _glirc_set_timer
+_glirc_cancel_timer
