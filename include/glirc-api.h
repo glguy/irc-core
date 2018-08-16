@@ -83,6 +83,7 @@ int glirc_is_logged_on(struct glirc *G, const char *net, size_t netlen,
                                         const char *tgt, size_t tgtlen);
 char * glirc_resolve_path(struct glirc *G, const char *path, size_t path_len);
 long glirc_set_timer(struct glirc *G, unsigned long millis, timer_callback *cb, void *dat);
+void glirc_cancel_timer(struct glirc *G, long timer_id);
 
 void glirc_free_string(char *);
 void glirc_free_strings(char **);

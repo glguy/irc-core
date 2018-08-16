@@ -26,6 +26,7 @@ module Client.CApi
 
   , popTimer
   , pushTimer
+  , cancelTimer
 
   , evalNestedIO
   , withChat
@@ -81,20 +82,24 @@ data ActiveExtension = ActiveExtension
 
 data TimerEntry = TimerEntry !(FunPtr TimerCallback) !(Ptr ())
 
+
+-- | Find the earliest timer ready to run if any are available.
 popTimer ::
-  ActiveExtension ->
+  ActiveExtension {- ^ extension -} ->
   Maybe (UTCTime, FunPtr TimerCallback, Ptr (), ActiveExtension)
+    {- ^ earlier time, callback, callback state, updated extension -}
 popTimer ae =
   do let timers = aeTimers ae
      (_, time, TimerEntry fun ptr, timers') <- IntPSQ.minView timers
      let ae' = ae { aeTimers = timers' }
      return (time, fun, ptr, ae')
 
+-- | Schedue a new timer event for the given extension.
 pushTimer ::
-  UTCTime ->
-  FunPtr TimerCallback ->
-  Ptr () ->
-  ActiveExtension ->
+  UTCTime              {- ^ activation time   -} ->
+  FunPtr TimerCallback {- ^ callback function -} ->
+  Ptr ()               {- ^ callback state    -} ->
+  ActiveExtension      {- ^ extension         -} ->
   (Int,ActiveExtension)
 pushTimer time fun ptr ae = entry `seq` ae' `seq` (i, ae')
   where
@@ -103,6 +108,13 @@ pushTimer time fun ptr ae = entry `seq` ae' `seq` (i, ae')
     ae'   = ae { aeTimers = IntPSQ.insert i time entry (aeTimers ae)
                , aeNextTimer = i + 1 }
 
+-- | Remove a timer from the schedule by ID
+cancelTimer ::
+  Int             {- ^ timer ID  -}  ->
+  ActiveExtension {- ^ extension -}  ->
+  ActiveExtension
+cancelTimer timerId ae = ae
+  { aeTimers = IntPSQ.delete timerId (aeTimers ae) }
 
 -- | Load the extension from the given path and call the start
 -- callback. The result of the start callback is saved to be

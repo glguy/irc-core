@@ -51,6 +51,7 @@ void new_fingerprint (void *, OtrlUserState, const char *, const char *, const c
 void create_privkey(void *, const char *, const char *);
 void create_instag(void *, const char *, const char *);
 void timer_control(void *, unsigned int);
+void timer_entrypoint(struct glirc *, void *, void *);
 
 OtrlMessageAppOps ops = {
     .policy            = op_policy,
@@ -118,14 +119,17 @@ struct OpData {
     OTR otr;
 
     /* libotr poll interval */
-    unsigned int timer_interval;
+    unsigned long timer_interval;
+    long timer_id;
 
 private:
     /* used to track open BATCHes by network */
     unordered_map<string, unordered_set<string>> batch_reftags;
 
 public:
-    OpData(glirc *G) : G(G), otr(&ops, this), timer_interval(0) {}
+    OpData(glirc *G) :
+            G(G), otr(&ops, this),
+            timer_interval(0), timer_id(0) {}
 
     tuple<string,string> current_focus() {
 
@@ -208,8 +212,18 @@ public:
         return it != end(batch_reftags) && !it->second.empty();
     }
 
-    void schedule_timer(timer_callback f, void *dat) {
-        glirc_set_timer(G, 1000 * timer_interval, f, dat);
+    void schedule_timer() {
+        timer_id = glirc_set_timer(G, 1000 * timer_interval, timer_entrypoint, nullptr);
+    }
+
+    void timer_control(unsigned long interval) {
+        if (timer_interval > 0) {
+            glirc_cancel_timer(G, timer_id);
+        }
+        timer_interval = interval;
+        if (timer_interval > 0) {
+            schedule_timer();
+        }
     }
 };
 
@@ -469,24 +483,14 @@ void timer_entrypoint(struct glirc *G, void *L, void *dat) {
     // Running poll might update timer_interval
     opdata->otr.message_poll();
 
-    // If timer_interval still set, reschedule the timer
-    if (0 != opdata->timer_interval) {
-        opdata->schedule_timer(timer_entrypoint, nullptr);
-    }
+    opdata->schedule_timer();
 }
 
 void timer_control(void *L, unsigned int interval)
 {
     GET_opdata;
 
-    auto previous = opdata->timer_interval;
-    opdata->timer_interval = interval;
-
-    // If there isn't already a timer running, schedule a new one
-    if (0 == previous && 0 != interval) {
-        opdata->schedule_timer(timer_entrypoint, nullptr);
-    }
-
+    opdata->timer_control(interval);
 }
 
 void *start_entrypoint

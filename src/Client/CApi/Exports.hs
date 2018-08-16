@@ -70,9 +70,12 @@ module Client.CApi.Exports
  , Glirc_set_timer
  , glirc_set_timer
 
+ , Glirc_cancel_timer
+ , glirc_cancel_timer
+
  ) where
 
-import           Client.CApi (pushTimer)
+import           Client.CApi (cancelTimer, pushTimer)
 import           Client.CApi.Types
 import           Client.Configuration
 import           Client.Message
@@ -619,3 +622,22 @@ glirc_set_timer stab millis fun ptr =
        let (timer,st') = st & clientExtensions . esActive . singular (ix i)
                             %%~ pushTimer time fun ptr
        in st' `seq` return ((i,st'), fromIntegral timer)
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_cancel_timer' extension entry-point
+type Glirc_cancel_timer =
+  Ptr ()               {- ^ api token          -} ->
+  CLong                {- ^ timer ID           -} ->
+  IO ()
+
+-- | Register a function to be called after a given number of milliseconds
+-- of delay. The returned timer ID can be used to cancel the timer.
+glirc_cancel_timer :: Glirc_cancel_timer
+glirc_cancel_timer stab timerId =
+  do mvar    <- derefToken stab
+     modifyMVar_ mvar $ \(i,st) ->
+       let st' = overStrict (clientExtensions . esActive . singular (ix i))
+                            (cancelTimer (fromIntegral timerId))
+                            st
+       in st' `seq` return (i,st')
