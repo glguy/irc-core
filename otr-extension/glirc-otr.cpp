@@ -49,7 +49,7 @@ void new_fingerprint (void *, OtrlUserState, const char *, const char *, const c
 void create_privkey(void *, const char *, const char *);
 void create_instag(void *, const char *, const char *);
 void timer_control(void *, unsigned int);
-void timer_entrypoint(struct glirc *, void *, void *);
+void timer_entrypoint(struct glirc *, void *, void *, timer_id);
 
 OtrlMessageAppOps ops = {
     .policy            = op_policy,
@@ -170,7 +170,9 @@ public:
     }
 
     void schedule_timer() {
-        timer_id = glirc_set_timer(G, 1000 * timer_interval, timer_entrypoint, nullptr);
+        if (timer_interval > 0) {
+                timer_id = glirc_set_timer(G, 1000 * timer_interval, timer_entrypoint, nullptr);
+        }
     }
 
     void timer_control(unsigned long interval) {
@@ -178,9 +180,7 @@ public:
             glirc_cancel_timer(G, timer_id);
         }
         timer_interval = interval;
-        if (timer_interval > 0) {
-            schedule_timer();
-        }
+        schedule_timer();
     }
 };
 
@@ -293,6 +293,9 @@ inject_message
   if (msgtype == OTRL_MSGTYPE_QUERY) {
     message = QUERY_TEXT;
   }
+
+  // inject_chat gets called even when there's no chat to inject!
+  if (strlen(message) == 0) { return; }
 
   struct glirc_string params[2] = {
     mk_glirc_string(recipient),
@@ -433,7 +436,7 @@ void create_instag(void *L, const char *accountname, const char *protocol)
 }
 
 // Entry point from client when timer triggers
-void timer_entrypoint(struct glirc *G, void *L, void *dat) {
+void timer_entrypoint(struct glirc *G, void *L, void *dat, timer_id tid) {
 
     GET_opdata;
 

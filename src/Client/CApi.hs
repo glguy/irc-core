@@ -86,13 +86,13 @@ data TimerEntry = TimerEntry !(FunPtr TimerCallback) !(Ptr ())
 -- | Find the earliest timer ready to run if any are available.
 popTimer ::
   ActiveExtension {- ^ extension -} ->
-  Maybe (UTCTime, FunPtr TimerCallback, Ptr (), ActiveExtension)
+  Maybe (UTCTime, TimerId, FunPtr TimerCallback, Ptr (), ActiveExtension)
     {- ^ earlier time, callback, callback state, updated extension -}
 popTimer ae =
   do let timers = aeTimers ae
-     (_, time, TimerEntry fun ptr, timers') <- IntPSQ.minView timers
+     (timerId, time, TimerEntry fun ptr, timers') <- IntPSQ.minView timers
      let ae' = ae { aeTimers = timers' }
-     return (time, fun, ptr, ae')
+     return (time, fromIntegral timerId, fun, ptr, ae')
 
 -- | Schedue a new timer event for the given extension.
 pushTimer ::

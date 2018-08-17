@@ -610,7 +610,7 @@ type Glirc_set_timer =
   CULong               {- ^ milliseconds delay -} ->
   FunPtr TimerCallback {- ^ function           -} ->
   Ptr ()               {- ^ callback state     -} ->
-  IO CLong             {- ^ timer ID           -}
+  IO TimerId           {- ^ timer ID           -}
 
 -- | Register a function to be called after a given number of milliseconds
 -- of delay. The returned timer ID can be used to cancel the timer.
@@ -628,14 +628,14 @@ glirc_set_timer stab millis fun ptr =
 -- | Type of 'glirc_cancel_timer' extension entry-point
 type Glirc_cancel_timer =
   Ptr ()               {- ^ api token          -} ->
-  CLong                {- ^ timer ID           -} ->
+  TimerId              {- ^ timer ID           -} ->
   IO ()
 
 -- | Register a function to be called after a given number of milliseconds
 -- of delay. The returned timer ID can be used to cancel the timer.
 glirc_cancel_timer :: Glirc_cancel_timer
 glirc_cancel_timer stab timerId =
-  do mvar    <- derefToken stab
+  do mvar <- derefToken stab
      modifyMVar_ mvar $ \(i,st) ->
        let st' = overStrict (clientExtensions . esActive . singular (ix i))
                             (cancelTimer (fromIntegral timerId))

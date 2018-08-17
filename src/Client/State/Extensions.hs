@@ -188,8 +188,8 @@ clientExtTimer i st =
   do let ae = st ^?! clientExtensions . esActive . ix i
      case popTimer ae of
        Nothing -> return st
-       Just (_, fun, dat, ae') ->
+       Just (_, timerId, fun, dat, ae') ->
          do let st1 = set (clientExtensions . esActive . ix i) ae' st
             (st2,_) <- clientPark i st1 $ \ptr ->
-                         runTimerCallback fun ptr (aeSession ae) dat
+                         runTimerCallback fun ptr (aeSession ae) dat timerId
             return st2

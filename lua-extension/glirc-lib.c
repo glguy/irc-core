@@ -18,8 +18,9 @@ Through this library scripts can send messages, check modes, and more.
 #include "glirc-lib.h"
 #include "glirc-marshal.h"
 
-/* luaL_ref returns an int, which is passed through glirc_set_timer */
-static_assert(sizeof(int) <= sizeof(intptr_t), "timer callback assumption");
+/* The address of this global variable is used to store a table of
+ * the closures associated with timers in the registry. */
+static char timer_closures;
 
 /***
 Send an IRC command on a connected network. Message tags are ignored
@@ -419,12 +420,20 @@ static int glirc_lua_resolve_path(lua_State *L)
         return 1;
 }
 
-static void on_timer(struct glirc *G, void *S, void *dat) {
+static void on_timer(struct glirc *G, void *S, void *dat, timer_id tid) {
         lua_State *L = S;
-        int ref = (int)(intptr_t)dat;
-        lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+
+        // get closure from timer closures table
+        lua_rawgetp(L, LUA_REGISTRYINDEX, &timer_closures); // STACK: closures
+        lua_rawgeti(L, -1, tid);                            // STACK: closures closure
+
+        // remove closure from timer closures table
+        lua_pushnil(L);                                     // STACK: closures closure nil
+        lua_rawseti(L, -3, tid);                            // STACK: closures closure
+        lua_remove(L, -2);                                  // STACK: closure
+
         if (lua_pcall(L, 0, 0, 0)) {
+                // STACK: error
                 size_t len;
                 const char *msg = lua_tolstring(L, -1, &len);
                 glirc_print(G, ERROR_MESSAGE, msg, len);
@@ -441,6 +450,7 @@ the given number of milliseconds.
 @function set_timer
 @tparam integer millis Milliseconds delay
 @tparam func callback Callback function
+@treturn integer Timer ID
 
 @usage
 glirc.set_timer(10000, function()
@@ -450,10 +460,45 @@ end)
 static int glirc_lua_set_timer(lua_State *L)
 {
         lua_Integer millis = luaL_checkinteger(L, 1);
-        luaL_checktype(L, 3, LUA_TNONE);
-        lua_settop(L, 2);
-        int ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        glirc_set_timer(get_glirc(L), millis, on_timer, (void*)(intptr_t)ref);
+        luaL_checkany(L, 2);
+
+        timer_id tid = glirc_set_timer(get_glirc(L), millis, on_timer, NULL);
+
+        lua_rawgetp(L, LUA_REGISTRYINDEX, &timer_closures);
+        lua_pushvalue(L, 2); // get closure
+        lua_rawseti(L, -2, tid);
+
+        lua_pushinteger(L, tid);
+
+        return 1;
+}
+
+/***
+Cancel an active timer by ID.
+
+@function cancel_timer
+@tparam integer Timer ID
+@raise 'no such timer'
+@usage
+local tid = glirc.set_timer(1000, callback)
+glirc.cancel_timer(tid)
+*/
+static int glirc_lua_cancel_timer(lua_State *L)
+{
+        lua_Integer tid = luaL_checkinteger(L, 1);
+        luaL_checktype(L, 2, LUA_TNONE);
+
+        lua_rawgetp(L, LUA_REGISTRYINDEX, &timer_closures);
+
+        if (lua_rawgeti(L, -1, tid)) {
+                glirc_cancel_timer(get_glirc(L), tid);
+
+                lua_pushnil(L);
+                lua_rawseti(L, -3, tid);
+        } else {
+                luaL_error(L, "no such timer");
+        }
+
         return 0;
 }
 
@@ -543,6 +588,7 @@ static luaL_Reg glirc_lib[] =
   , { "is_channel"        , glirc_lua_is_channel         }
   , { "resolve_path"      , glirc_lua_resolve_path       }
   , { "set_timer"         , glirc_lua_set_timer          }
+  , { "cancel_timer"      , glirc_lua_cancel_timer       }
   , { NULL                , NULL                         }
   };
 
@@ -566,5 +612,8 @@ void glirc_install_lib(lua_State *L)
         lua_setfield   (L, -2, "format");
 
         lua_setglobal(L, "glirc");
+
+        lua_newtable(L);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, &timer_closures);
 }
 

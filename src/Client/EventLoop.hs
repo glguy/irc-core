@@ -111,7 +111,7 @@ earliestEvent st = earliest2 networkEvent extensionEvent
         (comparing fst)
         st
 
-    mkEventE (i, (time,_,_,_)) = (time, ExtTimerEvent i)
+    mkEventE (i, (time,_,_,_,_)) = (time, ExtTimerEvent i)
     extensionEvent =
       minimumByOf
         (clientExtensions . esActive . (ifolded <. folding popTimer) . withIndex . to mkEventE)

@@ -22,6 +22,7 @@ module Client.CApi.Types
   , ProcessCommand
   , ProcessChat
   , TimerCallback
+  , TimerId
 
   -- * Strings
   , FgnStringLen(..)
@@ -60,6 +61,7 @@ import           Control.Monad
 import           Data.Text (Text)
 import qualified Data.Text.Foreign as Text
 import           Data.Word
+import           Data.Int
 import           Foreign.C
 import           Foreign.Marshal.Array
 import           Foreign.Ptr
@@ -130,10 +132,15 @@ type ProcessChat =
   Ptr FgnChat {- ^ chat info       -} ->
   IO ProcessResult
 
+-- | Integer type of timer IDs
+type TimerId = #type timer_id
+
+-- | Callback function when timer triggers
 type TimerCallback =
-  Ptr () {- ^ api token       -} ->
-  Ptr () {- ^ extension state -} ->
-  Ptr () {- ^ timer state     -} ->
+  Ptr ()  {- ^ api token       -} ->
+  Ptr ()  {- ^ extension state -} ->
+  Ptr ()  {- ^ timer state     -} ->
+  TimerId {- ^ timer ID        -} ->
   IO ()
 
 -- | Type of dynamic function pointer wrappers. These convert C
