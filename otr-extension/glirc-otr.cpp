@@ -118,13 +118,14 @@ struct OpData {
 
 private:
     /* libotr poll interval */
+    bool timer_active;
     unsigned long timer_interval;
     long timer_id;
 
 public:
     OpData(glirc *G) :
             G(G), otr(&ops, this),
-            timer_interval(0), timer_id(0) {}
+            timer_active(false), timer_interval(0), timer_id(0) {}
 
     tuple<string,string> current_focus() {
 
@@ -170,15 +171,20 @@ public:
     }
 
     void schedule_timer() {
-        if (timer_interval > 0) {
+        if (timer_active) {
+            glirc_cancel_timer(G, timer_id);
+        }
+        timer_active = timer_interval > 0;
+        if (timer_active) {
                 timer_id = glirc_set_timer(G, 1000 * timer_interval, timer_entrypoint, nullptr);
         }
     }
 
+    void timer_finished() {
+        timer_active = false;
+    }
+
     void timer_control(unsigned long interval) {
-        if (timer_interval > 0) {
-            glirc_cancel_timer(G, timer_id);
-        }
         timer_interval = interval;
         schedule_timer();
     }
@@ -440,6 +446,8 @@ void timer_entrypoint(struct glirc *G, void *L, void *dat, timer_id tid) {
 
     GET_opdata;
 
+    opdata->timer_finished();
+
     // Running poll might update timer_interval
     opdata->otr.message_poll();
 
@@ -607,6 +615,34 @@ enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc
     return err || has_newmsg ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
+void cmd_start (OpData *opdata, const string &cmd_arg)
+{
+    (void)cmd_arg;
+
+    string net, tgt;
+    tie(net,tgt) = opdata->current_focus();
+
+    if (net.empty() || tgt.empty() || opdata->is_channel(net, tgt)) {
+      const char *errmsg = "OTR: User chat not focused";
+      glirc_print(opdata->G, ERROR_MESSAGE, errmsg, strlen(errmsg));
+      return;
+    }
+
+    struct glirc_string params[2] = {
+      mk_glirc_string(tgt.c_str()),
+      mk_glirc_string(QUERY_TEXT),
+    };
+
+    struct glirc_message m = {
+      .network  = mk_glirc_string(net.c_str()),
+      .command  = mk_glirc_string("PRIVMSG"),
+      .params   = params,
+      .params_n = 2,
+    };
+
+    glirc_send_message(opdata->G, &m);
+}
+
 void cmd_end (OpData *opdata, const string &params)
 {
   (void)params;
@@ -757,6 +793,7 @@ struct cmd_impl cmd_impls[] = {
   { "status" , cmd_status , "Display the current window's OTR context"              },
   { "secret" , cmd_secret , "Reply to a peer verification request (1 argument)"     },
   { "ask"    , cmd_ask    , "Send a peer verification request (1 argument)"         },
+  { "start"  , cmd_start  , "Propose to start an OTR session"                       },
   { "end"    , cmd_end    , "Close the current window's OTR context"                },
   { "trust"  , cmd_trust  , "Trust the current remote user's fingerprint"           },
   { "untrust", cmd_untrust, "Revoke trust in the current remote user's fingerprint" },
