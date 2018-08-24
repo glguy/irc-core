@@ -354,12 +354,12 @@ glirc.set_focus('mynet', '#somechan') --> Chat window for #somechan
 static int glirc_lua_set_focus(lua_State *L)
 {
         size_t network_len = 0, target_len = 0;
-        const char *network = luaL_checklstring(L, 1, &network_len);
-        const char *target  = luaL_checklstring(L, 2, &target_len);
-        luaL_argcheck(L, network_len > 0 || target_len == 0, 1,
+        const char *network = luaL_optlstring(L, 1, "", &network_len);
+        const char *target  = luaL_optlstring(L, 2, "", &target_len);
+        luaL_argcheck(L, network_len > 0 || target_len == 0, 2,
                       "target specified without a network");
         luaL_checktype(L, 3, LUA_TNONE);
-        glirc_set_focus(get_glirc(L), network, network_len, target,  target_len);
+        glirc_set_focus(get_glirc(L), network, network_len, target, target_len);
         return 0;
 }
 
