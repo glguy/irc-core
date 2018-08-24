@@ -14,6 +14,7 @@ glirc_is_channel;
 glirc_is_logged_on;
 glirc_clear_window;
 glirc_current_focus;
+glirc_set_focus;
 glirc_resolve_path;
 glirc_free_string;
 glirc_free_strings;

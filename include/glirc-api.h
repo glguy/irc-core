@@ -73,6 +73,7 @@ char ** glirc_list_networks(struct glirc *G);
 char ** glirc_list_channels(struct glirc *G, const char *net, size_t netlen);
 char ** glirc_list_channel_users(struct glirc *G, const char *net, size_t net_len, const char *chan, size_t chan_len);
 void glirc_current_focus(struct glirc *G, char **net, size_t *netlen, char **tgt , size_t *tgtlen);
+void glirc_set_focus(struct glirc *G, const char *net, size_t netlen, const char *tgt , size_t tgtlen);
 char * glirc_my_nick(struct glirc *G, const char *net, size_t netlen);
 char * glirc_user_account(struct glirc *G, const char *net, size_t netlen, const char *nick, size_t nicklen);
 char * glirc_user_channel_modes(struct glirc *G, const char *net, size_t netlen, const char *chan, size_t chanlen, const char *nick, size_t nicklen);

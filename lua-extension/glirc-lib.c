@@ -335,6 +335,32 @@ static int glirc_lua_current_focus(lua_State *L)
 }
 
 /***
+Set currently focused window.
+
+The client window `*` is identified by two `nil` values.
+
+The network windows are identified by a network name and `nil` target.
+
+The chat windows are identified by both a network name and a target name.
+
+@function set_focus
+@tparam ?string Network name
+@tparam ?string Target name
+@usage
+glirc.set_focus() --> client window
+glirc.set_focus('mynet') --> Network window for mynet
+glirc.set_focus('mynet', '#somechan') --> Chat window for #somechan
+*/
+static int glirc_lua_set_focus(lua_State *L)
+{
+        size_t network_len = 0, target_len = 0;
+        const char *network = luaL_checklstring(L, 1, &network_len);
+        const char *target  = luaL_checklstring(L, 2, &target_len);
+        glirc_set_focus(get_glirc(L), network, network_len, target,  target_len);
+        return 0;
+}
+
+/***
 Determine if we are sure that the given user on the given network is
 currently connected.
 @function is_logged_on
@@ -584,6 +610,7 @@ static luaL_Reg glirc_lib[] =
   , { "mark_seen"         , glirc_lua_mark_seen          }
   , { "clear_window"      , glirc_lua_clear_window       }
   , { "current_focus"     , glirc_lua_current_focus      }
+  , { "set_focus"         , glirc_lua_set_focus          }
   , { "is_logged_on"      , glirc_lua_is_logged_on       }
   , { "is_channel"        , glirc_lua_is_channel         }
   , { "resolve_path"      , glirc_lua_resolve_path       }

@@ -2,6 +2,7 @@
 
 ## 2.29
 * Add support for timers to the extension API
+* Add `glirc_set_focus` API call
 
 ## 2.28
 * Add formatting reference to `/palette`

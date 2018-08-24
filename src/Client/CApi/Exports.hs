@@ -55,6 +55,9 @@ module Client.CApi.Exports
  , Glirc_current_focus
  , glirc_current_focus
 
+ , Glirc_set_focus
+ , glirc_set_focus
+
  , Glirc_free_string
  , glirc_free_string
 
@@ -502,11 +505,11 @@ glirc_free_strings p =
 
 -- | Type of 'glirc_current_focus' extension entry-point
 type Glirc_current_focus =
-  Ptr ()      {- ^ api token                      -} ->
-  Ptr CString {- ^ newly allocated network string -} ->
-  Ptr CSize   {- ^ network length                 -} ->
-  Ptr CString {- ^ newly allocated target string  -} ->
-  Ptr CSize   {- ^ target length                  -} ->
+  Ptr ()      {- ^ api token                           -} ->
+  Ptr CString {- ^ OUT: newly allocated network string -} ->
+  Ptr CSize   {- ^ OUT: network length                 -} ->
+  Ptr CString {- ^ OUT: newly allocated target string  -} ->
+  Ptr CSize   {- ^ OUT: target length                  -} ->
   IO ()
 
 -- | Find the network and target identifier associated with the
@@ -526,6 +529,39 @@ glirc_current_focus stab netP netL tgtP tgtL =
                        ChannelFocus n t -> (n         , idText t  )
      exportText netP netL net
      exportText tgtP tgtL tgt
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_set_focus' extension entry-point
+type Glirc_set_focus =
+  Ptr ()  {- ^ api token      -} ->
+  CString {- ^ network        -} ->
+  CSize   {- ^ network length -} ->
+  CString {- ^ target         -} ->
+  CSize   {- ^ target length  -} ->
+  IO ()
+
+-- | Assign window focus to a new value.
+--
+-- Set to client window if network is empty.
+--
+-- Set to network window if channel is empty.
+--
+-- Set to chat window otherwise.
+glirc_set_focus :: Glirc_set_focus
+glirc_set_focus stab netP netL tgtP tgtL =
+  do mvar   <- derefToken stab
+     net    <- peekFgnStringLen (FgnStringLen netP netL)
+     tgt    <- peekFgnStringLen (FgnStringLen tgtP tgtL)
+
+     let focus
+           | Text.null net = Unfocused
+           | Text.null tgt = NetworkFocus net
+           | otherwise     = ChannelFocus net (mkId tgt)
+
+     modifyMVar_ mvar $ \(i,st) ->
+       let st' = changeFocus focus st
+       in st' `seq` return (i,st')
 
 ------------------------------------------------------------------------
 
