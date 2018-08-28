@@ -659,7 +659,8 @@ Right urlPattern =
     defaultCompOpt
     defaultExecOpt{captureGroups=False}
     "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[^[:cntrl:][:space:]]*)|\
-    \<https?://[^>]*>"
+    \<https?://[^>]*>|\
+    \\\(https?://[^\\)]*\\)"
 
 
 -- | Find all the URL matches using 'urlPattern' in a given 'Text' suitable
@@ -675,6 +676,7 @@ urlMatches txt = removeBrackets . extractText . (^?! ix 0)
     removeBrackets t =
       case Text.uncons t of
        Just ('<',t') | not (Text.null t') -> Text.init t'
+       Just ('(',t') | not (Text.null t') -> Text.init t'
        _                                  -> t
 
 -- | Remove a network connection and unlink it from the network map.
