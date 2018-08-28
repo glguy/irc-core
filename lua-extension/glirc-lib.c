@@ -78,6 +78,7 @@ static int glirc_lua_inject_chat(lua_State *L) {
         const char *src = luaL_checklstring(L, 2, &srclen);
         const char *tgt = luaL_checklstring(L, 3, &tgtlen);
         const char *msg = luaL_checklstring(L, 4, &msglen);
+        luaL_checktype(L, 5, LUA_TNONE);
 
         if (glirc_inject_chat(get_glirc(L),
                net, netlen, src, srclen, tgt, tgtlen, msg, msglen)) {
@@ -148,8 +149,7 @@ List the connected channels for a given network
 static int glirc_lua_list_channels(lua_State *L)
 {
         size_t network_len;
-        const char *network;
-        network = luaL_checklstring(L, 1, &network_len);
+        const char *network = luaL_checklstring(L, 1, &network_len);
         luaL_checktype(L, 2, LUA_TNONE);
 
         char **channels = glirc_list_channels(get_glirc(L), network, network_len);
@@ -172,9 +172,8 @@ List the users in a channel
 static int glirc_lua_list_channel_users(lua_State *L)
 {
         size_t network_len, channel_len;
-        const char *network, *channel;
-        network = luaL_checklstring(L, 1, &network_len);
-        channel = luaL_checklstring(L, 2, &channel_len);
+        const char *network = luaL_checklstring(L, 1, &network_len);
+        const char *channel = luaL_checklstring(L, 2, &channel_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
         char **users = glirc_list_channel_users
@@ -197,7 +196,7 @@ Determine the services account for a given nickname
 */
 static int glirc_lua_user_account(lua_State *L)
 {
-        size_t netlen = 0, nicklen = 0;
+        size_t netlen, nicklen;
         const char *net = luaL_checklstring(L, 1, &netlen);
         const char *nick = luaL_checklstring(L, 2, &nicklen);
         luaL_checktype(L, 3, LUA_TNONE);
@@ -220,7 +219,7 @@ Return the mode sigils for a user on a channel (e.g. + or @)
 */
 static int glirc_lua_user_channel_modes(lua_State *L)
 {
-        size_t netlen = 0, chanlen = 0, nicklen = 0;
+        size_t netlen, chanlen, nicklen;
         const char *net = luaL_checklstring(L, 1, &netlen);
         const char *chan = luaL_checklstring(L, 2, &chanlen);
         const char *nick = luaL_checklstring(L, 3, &nicklen);
@@ -243,7 +242,7 @@ Return the modes for a channel
 */
 static int glirc_lua_channel_modes(lua_State *L)
 {
-        size_t netlen = 0, chanlen = 0;
+        size_t netlen, chanlen;
         const char *net = luaL_checklstring(L, 1, &netlen);
         const char *chan = luaL_checklstring(L, 2, &chanlen);
         luaL_checktype(L, 3, LUA_TNONE);
@@ -279,7 +278,7 @@ Typical mask lists are `b` for bans, `q` for quiets, `e` for exempts, `I` for in
 */
 static int glirc_lua_channel_masks(lua_State *L)
 {
-        size_t netlen = 0, chanlen = 0, modelen = 0;
+        size_t netlen, chanlen, modelen;
         const char *net = luaL_checklstring(L, 1, &netlen);
         const char *chan = luaL_checklstring(L, 2, &chanlen);
         const char *mode = luaL_checklstring(L, 3, &modelen);
@@ -305,7 +304,7 @@ Return the client's nickname on a particular network
 */
 static int glirc_lua_my_nick(lua_State *L)
 {
-        size_t netlen = 0;
+        size_t netlen;
         const char *net = luaL_checklstring(L, 1, &netlen);
         luaL_checktype(L, 2, LUA_TNONE);
 
@@ -352,9 +351,8 @@ glirc.clear_window('mynet', 'chatter') -- direct message
 static int glirc_lua_clear_window(lua_State *L)
 {
         size_t network_len, channel_len;
-        const char *network, *channel;
-        network = luaL_optlstring(L, 1, NULL, &network_len);
-        channel = luaL_optlstring(L, 2, NULL, &channel_len);
+        const char *network = luaL_optlstring(L, 1, NULL, &network_len);
+        const char *channel = luaL_optlstring(L, 2, NULL, &channel_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
         glirc_clear_window(get_glirc(L), network, network_len,
@@ -416,12 +414,13 @@ glirc.set_focus('mynet', '#somechan') --> Chat window for #somechan
 */
 static int glirc_lua_set_focus(lua_State *L)
 {
-        size_t network_len = 0, target_len = 0;
-        const char *network = luaL_optlstring(L, 1, "", &network_len);
-        const char *target  = luaL_optlstring(L, 2, "", &target_len);
+        size_t network_len, target_len;
+        const char *network = luaL_optlstring(L, 1, NULL, &network_len);
+        const char *target  = luaL_optlstring(L, 2, NULL, &target_len);
         luaL_argcheck(L, network_len > 0 || target_len == 0, 2,
                       "target specified without a network");
         luaL_checktype(L, 3, LUA_TNONE);
+
         glirc_set_focus(get_glirc(L), network, network_len, target, target_len);
         return 0;
 }
@@ -437,10 +436,9 @@ currently connected.
 */
 static int glirc_lua_is_logged_on(lua_State *L)
 {
-        size_t network_len = 0, target_len = 0;
-        const char *network = NULL, *target = NULL;
-        network = luaL_checklstring(L, 1, &network_len);
-        target  = luaL_checklstring(L, 2, &target_len);
+        size_t network_len, target_len;
+        const char *network = luaL_checklstring(L, 1, &network_len);
+        const char *target  = luaL_checklstring(L, 2, &target_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
         int res = glirc_is_logged_on(get_glirc(L), network, network_len,
@@ -468,10 +466,9 @@ glirc.is_channel('mynet', '&somechan') --> true
 */
 static int glirc_lua_is_channel(lua_State *L)
 {
-        size_t network_len = 0, target_len = 0;
-        const char *network = NULL, *target = NULL;
-        network = luaL_checklstring(L, 1, &network_len);
-        target  = luaL_checklstring(L, 2, &target_len);
+        size_t network_len, target_len;
+        const char *network = luaL_checklstring(L, 1, &network_len);
+        const char *target  = luaL_checklstring(L, 2, &target_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
         int res = glirc_is_channel(get_glirc(L), network, network_len,
@@ -553,6 +550,7 @@ static int glirc_lua_set_timer(lua_State *L)
 {
         lua_Integer millis = luaL_checkinteger(L, 1);
         luaL_checkany(L, 2);
+        luaL_checktype(L, 3, LUA_TNONE);
 
         timer_id tid = glirc_set_timer(get_glirc(L), millis, on_timer, NULL);
 
@@ -612,9 +610,8 @@ glirc.identifier_cmp('zebra', 'apple') --> 1
 static int glirc_lua_identifier_cmp(lua_State *L)
 {
         size_t str1_len, str2_len;
-        const char *str1, *str2;
-        str1 = luaL_checklstring(L, 1, &str1_len);
-        str2 = luaL_checklstring(L, 2, &str2_len);
+        const char *str1 = luaL_checklstring(L, 1, &str1_len);
+        const char *str2 = luaL_checklstring(L, 2, &str2_len);
         luaL_checktype(L, 3, LUA_TNONE);
 
         int res = glirc_identifier_cmp(str1, str1_len, str2, str2_len);
@@ -711,4 +708,3 @@ void glirc_install_lib(lua_State *L)
         lua_newtable(L);
         lua_rawsetp(L, LUA_REGISTRYINDEX, &timer_closures);
 }
-
