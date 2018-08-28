@@ -37,6 +37,12 @@ module Client.CApi.Exports
  , Glirc_user_channel_modes
  , glirc_user_channel_modes
 
+ , Glirc_channel_modes
+ , glirc_channel_modes
+
+ , Glirc_channel_masks
+ , glirc_channel_masks
+
  , Glirc_identifier_cmp
  , glirc_identifier_cmp
 
@@ -91,7 +97,9 @@ import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad (unless)
+import           Data.Char (chr)
 import           Data.Foldable (traverse_)
+import qualified Data.Map as Map
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -415,6 +423,79 @@ glirc_user_channel_modes stab netPtr netLen chanPtr chanLen nickPtr nickLen =
      case mb of
        Just sigils -> newCString sigils
        Nothing     -> return nullPtr
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_channel_modes' extension entry-point
+type Glirc_channel_modes =
+  Ptr ()  {- ^ api token           -} ->
+  CString {- ^ network name        -} ->
+  CSize   {- ^ network name length -} ->
+  CString {- ^ channel             -} ->
+  CSize   {- ^ channel length      -} ->
+  IO (Ptr CString)
+
+-- | Return all of the modes of a given channel. The first
+-- letter of each string returned is the mode. Any remaining
+-- characters are the mode argument.
+-- Caller is responsible for freeing successful result with
+-- @glirc_free_strings@. If the user is not on a channel @NULL@
+-- is returned. The modes might not be known to the client for
+-- a particular channel which can result in an empty list of
+-- modes being returned.
+glirc_channel_modes :: Glirc_channel_modes
+glirc_channel_modes stab netPtr netLen chanPtr chanLen =
+  do mvar    <- derefToken stab
+     (_,st)  <- readMVar mvar
+     network <- peekFgnStringLen (FgnStringLen netPtr  netLen)
+     chan    <- peekFgnStringLen (FgnStringLen chanPtr chanLen   )
+     let mb = preview ( clientConnection network
+                      . csChannels . ix (mkId chan)
+                      . chanModes
+                      ) st
+     case mb of
+       Nothing -> return nullPtr
+       Just modeMap ->
+         do let strings = [ mode : Text.unpack arg | (mode,arg) <- Map.toList modeMap ]
+            strs <- traverse newCString strings
+            newArray0 nullPtr strs
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_channel_masks' extension entry-point
+type Glirc_channel_masks =
+  Ptr ()  {- ^ api token           -} ->
+  CString {- ^ network name        -} ->
+  CSize   {- ^ network name length -} ->
+  CString {- ^ channel             -} ->
+  CSize   {- ^ channel length      -} ->
+  CChar   {- ^ mode                -} ->
+  IO (Ptr CString)
+
+-- | Return all of the modes of a given channel. The first
+-- letter of each string returned is the mode. Any remaining
+-- characters are the mode argument.
+-- Caller is responsible for freeing successful result with
+-- @glirc_free_strings@. If the user is not on a channel @NULL@
+-- is returned. The modes might not be known to the client for
+-- a particular channel which can result in an empty list of
+-- modes being returned.
+glirc_channel_masks :: Glirc_channel_masks
+glirc_channel_masks stab netPtr netLen chanPtr chanLen cmode =
+  do let mode = chr (fromIntegral cmode) :: Char
+     mvar    <- derefToken stab
+     (_,st)  <- readMVar mvar
+     network <- peekFgnStringLen (FgnStringLen netPtr  netLen)
+     chan    <- peekFgnStringLen (FgnStringLen chanPtr chanLen   )
+     let mb = preview ( clientConnection network
+                      . csChannels . ix (mkId chan)
+                      . chanLists  . ix mode
+                      ) st
+     case mb of
+       Nothing -> return nullPtr
+       Just listMap ->
+         do strs <- traverse (newCString . Text.unpack) (HashMap.keys listMap)
+            newArray0 nullPtr strs
 
 ------------------------------------------------------------------------
 

@@ -77,6 +77,8 @@ void glirc_set_focus(struct glirc *G, const char *net, size_t netlen, const char
 char * glirc_my_nick(struct glirc *G, const char *net, size_t netlen);
 char * glirc_user_account(struct glirc *G, const char *net, size_t netlen, const char *nick, size_t nicklen);
 char * glirc_user_channel_modes(struct glirc *G, const char *net, size_t netlen, const char *chan, size_t chanlen, const char *nick, size_t nicklen);
+char ** glirc_channel_modes(struct glirc *G, const char *net, size_t netlen, const char *chan, size_t chanlen);
+char ** glirc_channel_masks(struct glirc *G, const char *net, size_t netlen, const char *chan, size_t chanlen, char mode);
 void glirc_mark_seen(struct glirc *G, const char *net, size_t net_len, const char *chan, size_t chan_len);
 void glirc_clear_window(struct glirc *G, const char *net, size_t net_len, const char *chan, size_t chan_len);
 int glirc_identifier_cmp(const char *s, size_t s_len, const char *t, size_t t_len);

@@ -9,6 +9,8 @@ glirc_list_channel_users;
 glirc_my_nick;
 glirc_user_account;
 glirc_user_channel_modes;
+glirc_channel_modes;
+glirc_channel_masks;
 glirc_mark_seen;
 glirc_is_channel;
 glirc_is_logged_on;

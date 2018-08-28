@@ -234,6 +234,69 @@ static int glirc_lua_user_channel_modes(lua_State *L)
 }
 
 /***
+Return the modes for a channel
+@function channel_modes
+@tparam string network Network name
+@tparam string channel Channel name
+@treturn ?table Modes
+@usage glirc.channel_modes('mynet', '#somechan') --> { k = 'thekey', n = '', t = '' }
+*/
+static int glirc_lua_channel_modes(lua_State *L)
+{
+        size_t netlen = 0, chanlen = 0;
+        const char *net = luaL_checklstring(L, 1, &netlen);
+        const char *chan = luaL_checklstring(L, 2, &chanlen);
+        luaL_checktype(L, 3, LUA_TNONE);
+
+        char **modes = glirc_channel_modes(get_glirc(L), net, netlen, chan, chanlen);
+
+        if (modes) {
+                lua_newtable(L);
+                for (int i = 0; modes[i] != NULL; i++) {
+                        char key[] = {0,0};
+                        key[0] = modes[i][0];
+                        lua_pushstring(L, &modes[i][1]);
+                        lua_setfield(L, -2, key);
+                }
+
+                glirc_free_strings(modes);
+
+                return 1;
+        } else {
+                return 0;
+        }
+}
+
+/***
+Return the masks for a channel.
+Typical mask lists are `b` for bans, `q` for quiets, `e` for exempts, `I` for invex.
+@function channel_masks
+@tparam string network Network name
+@tparam string channel Channel name
+@tparam string mode Mode letter
+@treturn ?table Masks
+@usage glirc.channel_masks('mynet', '#somechan', 'b') --> { '*!*@spam.host', 'badguy!*@*' }
+*/
+static int glirc_lua_channel_masks(lua_State *L)
+{
+        size_t netlen = 0, chanlen = 0, modelen = 0;
+        const char *net = luaL_checklstring(L, 1, &netlen);
+        const char *chan = luaL_checklstring(L, 2, &chanlen);
+        const char *mode = luaL_checklstring(L, 3, &modelen);
+        luaL_argcheck(L, modelen == 1, 3, "expected single mode character");
+        luaL_checktype(L, 4, LUA_TNONE);
+
+        char **masks = glirc_channel_masks(get_glirc(L), net, netlen, chan, chanlen, *mode);
+
+        if (masks) {
+                import_string_array(L, masks);
+                return 1;
+        } else {
+                return 0;
+        }
+}
+
+/***
 Return the client's nickname on a particular network
 @function my_nick
 @tparam string network Network name
@@ -610,6 +673,8 @@ static luaL_Reg glirc_lib[] =
   , { "my_nick"           , glirc_lua_my_nick            }
   , { "user_account"      , glirc_lua_user_account       }
   , { "user_channel_modes", glirc_lua_user_channel_modes }
+  , { "channel_modes"     , glirc_lua_channel_modes      }
+  , { "channel_masks"     , glirc_lua_channel_masks      }
   , { "mark_seen"         , glirc_lua_mark_seen          }
   , { "clear_window"      , glirc_lua_clear_window       }
   , { "current_focus"     , glirc_lua_current_focus      }
