@@ -39,7 +39,6 @@ data Recognizer a
 
 instance Monoid (Recognizer a) where
   mempty = Branch "" Nothing empty
-  mappend = both
 
 instance Semigroup (Recognizer a) where
   (<>) = both
