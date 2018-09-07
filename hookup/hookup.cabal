@@ -27,7 +27,7 @@ library
                        Hookup.Socks5
   extra-libraries:     ssl
   build-depends:       base                  >=4.9  && <4.12,
-                       network               >=2.6  && <2.8,
+                       network               >=2.6  && <2.9,
                        bytestring            >=0.10 && <0.11,
                        attoparsec            >=0.13 && <0.14,
                        HsOpenSSL             >=0.11.2.3 && <0.12,
