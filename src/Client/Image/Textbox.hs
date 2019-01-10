@@ -142,35 +142,37 @@ renderLine ::
   Bool                 {- ^ focused      -} ->
   String               {- ^ input text   -} ->
   Image'               {- ^ output image -}
-renderLine st pal myNick nicks macros focused ('/':xs) =
-  char defAttr '/' <> string attr cleanCmd <> continue rest
-  where
-    specAttr spec =
-      case parse st spec rest of
-        Nothing -> view palCommand      pal
-        Just{}  -> view palCommandReady pal
+renderLine st pal myNick nicks macros focused input =
 
-    (cmd, rest) = break isSpace xs
-    cleanCmd = map cleanChar cmd
+  case break ('/'==) input of
+    (spcs, '/':xs) -> string defAttr spcs <> char defAttr '/'
+                   <> string attr cleanCmd <> continue rest
+      where
+        specAttr spec =
+          case parse st spec rest of
+            Nothing -> view palCommand      pal
+            Just{}  -> view palCommandReady pal
 
-    allCommands = (Left <$> macros) <> (Right <$> commands)
-    (attr, continue)
-      = case recognize (Text.pack cmd) allCommands of
-          Exact (Right Command{cmdArgumentSpec = spec}) ->
-            ( specAttr spec
-            , render pal st focused spec
-            )
-          Exact (Left (MacroSpec spec)) ->
-            ( specAttr spec
-            , render pal st focused spec
-            )
-          Prefix _ ->
-            ( view palCommandPrefix pal
-            , parseIrcTextWithNicks pal myNick nicks focused . Text.pack
-            )
-          Invalid ->
-            ( view palCommandError pal
-            , parseIrcTextWithNicks pal myNick nicks focused . Text.pack
-            )
+        (cmd, rest) = break (' '==) xs
+        cleanCmd = map cleanChar cmd
 
-renderLine _ pal myNick nicks _ focused xs = parseIrcTextWithNicks pal myNick nicks focused (Text.pack xs)
+        allCommands = (Left <$> macros) <> (Right <$> commands)
+        (attr, continue)
+          = case recognize (Text.pack cmd) allCommands of
+              Exact (Right Command{cmdArgumentSpec = spec}) ->
+                ( specAttr spec
+                , render pal st focused spec
+                )
+              Exact (Left (MacroSpec spec)) ->
+                ( specAttr spec
+                , render pal st focused spec
+                )
+              Prefix _ ->
+                ( view palCommandPrefix pal
+                , parseIrcTextWithNicks pal myNick nicks focused . Text.pack
+                )
+              Invalid ->
+                ( view palCommandError pal
+                , parseIrcTextWithNicks pal myNick nicks focused . Text.pack
+                )
+    _ -> parseIrcTextWithNicks pal myNick nicks focused (Text.pack input)

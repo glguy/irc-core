@@ -137,17 +137,18 @@ commandFailureMsg e st =
   return $! CommandFailure $! set clientErrorMsg (Just e) st
 
 -- | Interpret the given chat message or command. Leading @/@ indicates a
--- command. Otherwise if a channel or user query is focused a chat message
--- will be sent.
+-- command. Otherwise if a channel or user query is focused a chat message will
+-- be sent. Leading spaces before the @/@ are ignored when checking for
+-- commands.
 execute ::
   String           {- ^ chat or command -} ->
   ClientState      {- ^ client state    -} ->
   IO CommandResult {- ^ command result  -}
 execute str st =
-  case str of
+  case dropWhile (' '==) str of
     []          -> commandFailure st
     '/':command -> executeUserCommand Nothing command st
-    msg         -> executeChat msg st
+    _           -> executeChat str st
 
 -- | Execute command provided by user, resolve aliases if necessary.
 --
