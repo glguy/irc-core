@@ -144,7 +144,7 @@ renderLine ::
   Image'               {- ^ output image -}
 renderLine st pal myNick nicks macros focused input =
 
-  case break ('/'==) input of
+  case span (' '==) input of
     (spcs, '/':xs) -> string defAttr spcs <> char defAttr '/'
                    <> string attr cleanCmd <> continue rest
       where
