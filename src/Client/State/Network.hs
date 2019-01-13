@@ -114,6 +114,7 @@ data NetworkState = NetworkState
   , _csChannels     :: !(HashMap Identifier ChannelState) -- ^ joined channels
   , _csSocket       :: !NetworkConnection -- ^ network socket
   , _csModeTypes    :: !ModeTypes -- ^ channel mode meanings
+  , _csUmodeTypes   :: !ModeTypes -- ^ user mode meanings
   , _csChannelTypes :: ![Char] -- ^ channel identifier prefixes
   , _csTransaction  :: !Transaction -- ^ state for multi-message sequences
   , _csModes        :: ![Char] -- ^ modes for the connected user
@@ -259,6 +260,7 @@ newNetworkState networkId network settings sock ping = NetworkState
   , _csSocket       = sock
   , _csChannelTypes = defaultChannelTypes
   , _csModeTypes    = defaultModeTypes
+  , _csUmodeTypes   = defaultUmodeTypes
   , _csTransaction  = CapTransaction
   , _csModes        = ""
   , _csStatusMsg    = ""
@@ -401,12 +403,13 @@ doRpl :: ReplyCode -> ZonedTime -> [Text] -> NetworkState -> NetworkState
 doRpl cmd msgWhen args =
   case cmd of
     RPL_UMODEIS ->
+      \ns ->
       case args of
         _me:modes:params
-          | Just xs <- splitModes defaultUmodeTypes modes params ->
+          | Just xs <- splitModes (view csUmodeTypes ns) modes params ->
                  doMyModes xs
-               . set csModes "" -- reset modes
-        _ -> id
+               $ set csModes "" ns -- reset modes
+        _ -> ns
 
     RPL_NOTOPIC ->
       case args of
@@ -441,6 +444,8 @@ doRpl cmd msgWhen args =
         _me:chan:urlTxt:_ ->
           overChannel (mkId chan) (set chanUrl (Just urlTxt))
         _ -> id
+
+    RPL_MYINFO -> myinfo args
 
     RPL_ISUPPORT -> isupport args
 
@@ -598,7 +603,7 @@ doMode ::
   NetworkState -> ([RawIrcMsg], NetworkState)
 doMode when who target modes args cs
   | view csNick cs == target
-  , Just xs <- splitModes defaultUmodeTypes modes args =
+  , Just xs <- splitModes (view csUmodeTypes cs) modes args =
         noReply (doMyModes xs cs)
 
   | isChannelIdentifier cs target
@@ -793,6 +798,15 @@ updateMyNick :: Identifier -> Identifier -> NetworkState -> NetworkState
 updateMyNick oldNick newNick cs
   | oldNick == view csNick cs = set csNick newNick cs
   | otherwise = cs
+
+myinfo ::
+  [Text] ->
+  NetworkState ->
+  NetworkState
+myinfo (_me : _host : _version : umodes : _) =
+  -- special logic for s because I know it has arguments
+  set (csUmodeTypes . modesNeverArg) (delete 's' (Text.unpack umodes))
+myinfo _ = id
 
 -- ISUPPORT is defined by
 -- https://tools.ietf.org/html/draft-brocklesby-irc-isupport-03#section-3.14
