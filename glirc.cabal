@@ -145,7 +145,7 @@ library
                        irc-core             >=2.5    && <2.6,
                        kan-extensions       >=5.0    && <5.3,
                        lens                 >=4.14   && <4.18,
-                       network              >=2.6.2  && <2.9,
+                       network              >=2.6.2  && <3.1,
                        process              >=1.4.2  && <1.7,
                        psqueues             >=0.2.7  && <0.3,
                        regex-tdfa           >=1.2    && <1.3,
