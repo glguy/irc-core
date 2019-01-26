@@ -62,9 +62,10 @@ data IrcMsg
   | Ping [Text] -- ^ parameters
   | Pong [Text] -- ^ parameters
   | Error !Text -- ^ message
-  | BatchStart Text Text [Text] -- ^ reference-id type parameters
-  | BatchEnd Text -- ^ reference-id
-  | Account !UserInfo Text -- ^ user account name changed (account-notify extension)
+  | BatchStart !Text !Text [Text] -- ^ reference-id type parameters
+  | BatchEnd !Text -- ^ reference-id
+  | Account !UserInfo !Text -- ^ user account name changed (account-notify extension)
+  | Chghost !UserInfo !Text !Text -- ^ Target, new username and new hostname
   deriving Show
 
 -- | Sub-commands of the CAP command
@@ -170,6 +171,10 @@ cookIrcMsg msg =
               , [acct] <- view msgParams msg ->
       Account user (if acct == "*" then "" else acct)
 
+    "CHGHOST" | Just user <- view msgPrefix msg
+              , [newuser, newhost] <- view msgParams msg ->
+      Chghost user newuser newhost
+
     _      -> UnknownMsg msg
 
 -- | Parse a CTCP encoded message:
@@ -216,7 +221,8 @@ msgTarget me msg =
     Reply code args          -> replyTarget code args
     BatchStart{}             -> TargetHidden
     BatchEnd{}               -> TargetHidden
-    Account{}                -> TargetHidden
+    Account user _           -> TargetUser (userNick user)
+    Chghost user _ _         -> TargetUser (userNick user)
   where
     directed src tgt
       | Text.null (userHost src) = TargetNetwork -- server message

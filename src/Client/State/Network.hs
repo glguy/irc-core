@@ -309,6 +309,10 @@ applyMessage' msgWhen msg cs =
            noReply
          $ recordUser user acct cs
 
+    Chghost user newUser newHost ->
+           noReply
+         $ updateUserInfo (userNick user) newUser newHost cs
+
     Quit user _reason ->
            noReply
          $ forgetUser (userNick user)
@@ -680,7 +684,7 @@ selectCaps cs offered = supported `intersect` offered
     supported =
       sasl ++ serverTime ++
       ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"
-      , "cap-notify", "extended-join", "account-notify" ]
+      , "cap-notify", "extended-join", "account-notify", "chghost" ]
 
     -- logic for using IRCv3.2 server-time if available and falling back
     -- to ZNC's specific extension otherwise.
@@ -883,6 +887,15 @@ recordUser (UserInfo nick user host) acct
   | Text.null user || Text.null host = id
   | otherwise = set (csUsers . at nick)
                     (Just $! UserAndHost user host acct)
+
+-- | Process a CHGHOST command, updating a users information
+updateUserInfo ::
+  Identifier {- ^ nickname     -} ->
+  Text       {- ^ new username -} ->
+  Text       {- ^ new hostname -} ->
+  NetworkState -> NetworkState
+updateUserInfo nick user host =
+  over (csUsers . ix nick) $ \(UserAndHost _ _ acct) -> UserAndHost user host acct
 
 forgetUser :: Identifier -> NetworkState -> NetworkState
 forgetUser = over csUsers . sans
