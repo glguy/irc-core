@@ -637,7 +637,7 @@ highlightNicks ::
   HashSet Identifier {- ^ my nicks    -} ->
   HashSet Identifier {- ^ other nicks -} ->
   Text -> Image'
-highlightNicks palette myNicks nicks txt = mconcat (highlight1 <$> txtParts)
+highlightNicks palette myNicks nicks txt = foldMap highlight1 txtParts
   where
     txtParts = nickSplit txt
     allNicks = HashSet.union myNicks nicks
