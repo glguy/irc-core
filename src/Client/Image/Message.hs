@@ -258,6 +258,7 @@ ircLinePrefix !rp body =
     BatchEnd{}     -> mempty
 
     Account user _ -> who user <> " account:"
+    Chghost ui _ _ -> who ui <> " chghost:"
 
 
 -- | Render a chat message given a rendering mode, the sigils of the user
@@ -300,6 +301,7 @@ ircLineImage !rp body =
     Mode _ _ params   -> ircWords params
 
     Account _ acct -> if Text.null acct then "*" else text' defAttr (cleanText acct)
+    Chghost _ user host -> text' defAttr (cleanText user) <> " " <> text' defAttr (cleanText host)
 
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
@@ -428,6 +430,11 @@ fullIrcLineImage !rp body =
       string quietAttr "acct " <>
       who src <> ": " <>
       if Text.null acct then "*" else text' defAttr (cleanText acct)
+
+    Chghost user newuser newhost ->
+      string quietAttr "chng " <>
+      who user <> ": " <>
+      text' defAttr (cleanText newuser) <> " " <> text' defAttr (cleanText newhost)
 
 
 renderCapCmd :: CapCmd -> Text
@@ -657,6 +664,8 @@ metadataImg msg =
     JoinSummary who     -> Just (char (withForeColor defAttr green ) '+', who, Nothing)
     CtcpSummary who     -> Just (char (withForeColor defAttr white ) 'C', who, Nothing)
     NickSummary old new -> Just (char (withForeColor defAttr yellow) '>', old, Just new)
+    ChngSummary who     -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
+    AcctSummary who     -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
     _                   -> Nothing
 
 -- | Image used when treating ignored chat messages as metadata

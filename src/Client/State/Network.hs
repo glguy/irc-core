@@ -309,6 +309,10 @@ applyMessage' msgWhen msg cs =
            noReply
          $ recordUser user acct cs
 
+    Chghost user newUser newHost ->
+           noReply
+         $ updateUserInfo (userNick user) newUser newHost cs
+
     Quit user _reason ->
            noReply
          $ forgetUser (userNick user)
@@ -680,7 +684,7 @@ selectCaps cs offered = supported `intersect` offered
     supported =
       sasl ++ serverTime ++
       ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"
-      , "cap-notify", "extended-join", "account-notify" ]
+      , "cap-notify", "extended-join", "account-notify", "chghost", "userhost-in-names" ]
 
     -- logic for using IRCv3.2 server-time if available and falling back
     -- to ZNC's specific extension otherwise.
@@ -771,20 +775,29 @@ initialMessages cs
 loadNamesList :: Identifier -> NetworkState -> NetworkState
 loadNamesList chan cs
   = set csTransaction NoTransaction
+  $ flip (foldl' (flip learnUserInfo)) (fst <$> entries)
   $ setStrict (csChannels . ix chan . chanUsers) newChanUsers
   $ cs
   where
-    newChanUsers = HashMap.fromList (splitEntry "" <$> entries)
+    newChanUsers = HashMap.fromList [ (view uiNick ui, modes) | (ui, modes) <- entries ]
+
+    -- userhost-in-names might or might not include the user and host
+    -- if we find it we update the user information.
+    learnUserInfo (UserInfo n u h)
+      | Text.null u || Text.null h = id
+      | otherwise = updateUserInfo n u h
 
     sigils = toListOf (csModeTypes . modesPrefixModes . folded . _2) cs
 
     splitEntry modes str
       | Text.head str `elem` sigils = splitEntry (Text.head str : modes)
                                                  (Text.tail str)
-      | otherwise = (mkId str, reverse modes)
+      | otherwise = (parseUserInfo str, reverse modes)
 
-    entries =
-      concatMap Text.words (view (csTransaction . _NamesTransaction) cs)
+    entries :: [(UserInfo, [Char])]
+    entries = fmap (splitEntry "")
+            $ concatMap Text.words
+            $ view (csTransaction . _NamesTransaction) cs
 
 
 createOnJoin :: UserInfo -> Identifier -> NetworkState -> NetworkState
@@ -883,6 +896,16 @@ recordUser (UserInfo nick user host) acct
   | Text.null user || Text.null host = id
   | otherwise = set (csUsers . at nick)
                     (Just $! UserAndHost user host acct)
+
+-- | Process a CHGHOST command, updating a users information
+updateUserInfo ::
+  Identifier {- ^ nickname     -} ->
+  Text       {- ^ new username -} ->
+  Text       {- ^ new hostname -} ->
+  NetworkState -> NetworkState
+updateUserInfo nick user host =
+  over (csUsers . at nick) $ \old ->
+    Just $! UserAndHost user host (maybe "" _uhAccount old)
 
 forgetUser :: Identifier -> NetworkState -> NetworkState
 forgetUser = over csUsers . sans
