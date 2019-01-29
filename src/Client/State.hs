@@ -20,6 +20,7 @@ module Client.State
   , clientTextBox
   , clientTextBoxOffset
   , clientConnections
+  , clientDCCOffers
   , clientWidth
   , clientHeight
   , clientEvents
@@ -63,6 +64,7 @@ module Client.State
   , addConnection
   , removeNetwork
   , clientTick
+  , queueDCCTransfer
   , applyMessageToClientState
   , clientHighlights
   , clientWindowNames
@@ -120,6 +122,7 @@ import qualified Client.State.EditBox as Edit
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Client.State.DCC
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
@@ -164,6 +167,7 @@ data ClientState = ClientState
   , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
+  , _clientDCCOffers         :: !([DCCOffer])             -- ^ DCC transfer offers
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
   , _clientConfigPath        :: !FilePath                 -- ^ client configuration file path
@@ -250,6 +254,7 @@ withClientState cfgPath cfg k =
         , _clientIgnores           = HashSet.fromList ignoreIds
         , _clientIgnoreMask        = buildMask ignoreIds
         , _clientConnections       = _Empty # ()
+        , _clientDCCOffers         = []
         , _clientTextBox           = Edit.defaultEditBox
         , _clientTextBoxOffset     = 0
         , _clientWidth             = 80
@@ -769,8 +774,27 @@ applyMessageToClientState time irc networkId cs st =
   where
     (reply, cs') = applyMessage time irc cs
     network      = view csNetwork cs
-    st'          = applyWindowRenames network irc
+    st'          = queueDCCTransfer irc . applyWindowRenames network irc
                  $ set (clientConnections . ix networkId) cs' st
+
+-- | TODO: maybe replace with some lens magic?
+ctcpToTuple :: IrcMsg -> Maybe (UserInfo, Identifier, Text, Text)
+ctcpToTuple (Ctcp from target command txt) =
+  Just (from, target, command, txt)
+ctcpToTuple (CtcpNotice from target command txt) =
+  Just (from, target, command, txt)
+ctcpToTuple _ = Nothing
+
+-- | Queue a DCC transfer when the message is correct. Await for user
+--   confirmation to start the download.
+queueDCCTransfer :: IrcMsg -> ClientState -> ClientState
+queueDCCTransfer ctcpMsg st
+  | Just (_from, _target, command, txt) <- ctcpToTuple ctcpMsg
+  , command == "DCC", Right dccOffer <- parseDCC txt
+  = over clientDCCOffers (cons dccOffer) st
+
+queueDCCTransfer _ st = st
+
 
 -- | When a nick change happens and there is an open query window for that nick
 -- and there isn't an open query window for the new nick, rename the window.
