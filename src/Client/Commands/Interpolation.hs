@@ -108,7 +108,7 @@ parseDefaulted :: Parser ExpansionChunk
 parseDefaulted =
   construct
     <$> parseVariable
-    <*> optional (char '|' *> P.takeWhile1 (/= '}'))
+    <*> optional (char '|' *> P.takeWhile (/= '}'))
  where
  construct ch Nothing  = ch
  construct ch (Just l) = DefaultChunk ch l
