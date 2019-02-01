@@ -55,8 +55,8 @@ module Irc.Commands
 
   -- * SASL support
   , ircAuthenticate
-  , plainAuthenticationMode
   , encodePlainAuthentication
+  , encodeExternalAuthentication
   ) where
 
 import           Irc.RawIrcMsg
@@ -362,12 +362,10 @@ ircZnc ::
 ircZnc = rawIrcMsg "ZNC"
 
 -- | AUTHENTICATE command
-ircAuthenticate :: Text -> RawIrcMsg
+ircAuthenticate ::
+  Text {- ^ authentication mechanism -} ->
+  RawIrcMsg
 ircAuthenticate msg = rawIrcMsg "AUTHENTICATE" [msg]
-
--- | PLAIN authentiation mode
-plainAuthenticationMode :: Text
-plainAuthenticationMode = "PLAIN"
 
 -- | Encoding of username and password in PLAIN authentication
 encodePlainAuthentication ::
@@ -379,3 +377,12 @@ encodePlainAuthentication user pass
   $ Enc.encode
   $ Text.encodeUtf8
   $ Text.intercalate "\0" [user,user,pass]
+
+-- | Encoding of username in EXTERNAL authentication
+encodeExternalAuthentication ::
+  Text {- ^ username -} ->
+  Text
+encodeExternalAuthentication user
+  = Text.decodeUtf8
+  $ Enc.encode
+  $ Text.encodeUtf8 user

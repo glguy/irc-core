@@ -141,6 +141,7 @@ data AuthenticateState
   | AS_PlainStarted       -- ^ PLAIN mode initiated
   | AS_EcdsaStarted       -- ^ ECDSA-NIST mode initiated
   | AS_EcdsaWaitChallenge -- ^ ECDSA-NIST user sent waiting for challenge
+  | AS_ExternalStarted    -- ^ EXTERNAL mode initiated
   deriving Show
 
 -- | Pair of username and hostname. Empty strings represent missing information.
@@ -702,14 +703,20 @@ doAuthenticate :: Text -> NetworkState -> ([RawIrcMsg], NetworkState)
 doAuthenticate param cs =
   case view csAuthenticationState cs of
     AS_PlainStarted
-      | "+" <- param
+      | "+"       <- param
       , Just user <- view ssSaslUsername ss
       , Just pass <- view ssSaslPassword ss
       -> ([ircAuthenticate (encodePlainAuthentication user pass)],
           set csAuthenticationState AS_None cs)
 
+    AS_ExternalStarted
+      | "+"       <- param
+      , Just user <- view ssSaslUsername ss
+      -> ([ircAuthenticate (encodeExternalAuthentication user)],
+          set csAuthenticationState AS_None cs)
+
     AS_EcdsaStarted
-      | "+" <- param
+      | "+"       <- param
       , Just user <- view ssSaslUsername ss
       -> ([ircAuthenticate (Ecdsa.encodeUsername user)],
           set csAuthenticationState AS_EcdsaWaitChallenge cs)
@@ -742,13 +749,16 @@ doCap cmd args cs =
     (CapDel,_) -> ([],cs)
 
     (CapAck,[capsTxt])
-      | "sasl" `elem` caps ->
+      | "sasl" `elem` caps && isJust (view ssSaslUsername ss) ->
           if isJust (view ssSaslEcdsaFile ss)
             then ( [ircAuthenticate Ecdsa.authenticationMode]
                  , set csAuthenticationState AS_EcdsaStarted cs)
-          else if isJust (view ssSaslUsername ss)
-            then ( [ircAuthenticate plainAuthenticationMode]
+          else if isJust (view ssSaslPassword ss)
+            then ( [ircAuthenticate "PLAIN"]
                  , set csAuthenticationState AS_PlainStarted cs)
+          else if isJust (view ssTlsClientCert ss)
+            then ( [ircAuthenticate "EXTERNAL"]
+                 , set csAuthenticationState AS_ExternalStarted cs)
           else endCapTransaction cs
       where
         ss   = view csSettings cs
