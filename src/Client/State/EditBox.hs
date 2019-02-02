@@ -64,6 +64,7 @@ module Client.State.EditBox
 import           Client.State.EditBox.Content
 import           Control.Lens hiding (below)
 import           Data.Char
+import           Data.Maybe (fromMaybe)
 
 
 data EditBox = EditBox
@@ -123,30 +124,53 @@ success e
  where
  (sent, c) = shift $ view content e
 
+replaceList :: Int -> [a] -> [a] -> [a]
+replaceList i rpl xs =
+  case splitAt i xs of
+    (a, b) -> a ++ rpl ++ drop 1 b
+
 -- | Update the editbox to reflect the earlier element in the history.
 earlier :: EditBox -> Maybe EditBox
 earlier e =
-  do let i = view historyPos e + 1
-     x <- preview (history . ix i) e
+  do x <- preview (history . ix (i+1)) e
      return $ set content (singleLine (endLine x))
             $ set lastOperation OtherOperation
-            $ set historyPos i e
+            $ set historyPos i'
+            $ over history updateHistory e
+  where
+    i = view historyPos e
+
+    i' | i < 0     = length txt
+       | otherwise = length txt + i
+
+    txt = reverse (filter (not . null) (allLines (view content e)))
+
+    updateHistory h
+      | i < 0     = txt ++ h
+      | otherwise = replaceList i txt h
 
 -- | Update the editbox to reflect the later element in the history.
 later :: EditBox -> Maybe EditBox
 later e
-  | i <  0 = Nothing
-  | i == 0 = Just
-           $ set content noContent
-           $ set lastOperation OtherOperation
-           $ set historyPos (-1) e
-  | otherwise =
-      do x <- preview (history . ix (i-1)) e
-         return $ set content (singleLine (endLine x))
+  | i < 0 && null txt = Nothing
+  | otherwise = Just $!
+                  set content (singleLine (endLine newContent))
                 $ set lastOperation OtherOperation
-                $ set historyPos (i-1) e
+                $ set historyPos i'
+                $ over history updateHistory e
   where
-  i = view historyPos e
+    txt = reverse (filter (not . null) (allLines (view content e)))
+
+    i = view historyPos e
+
+    i' | i < 0 = -1
+       | otherwise = i - 1
+
+    newContent = fromMaybe "" (preview (history . ix (i-1)) e)
+
+    updateHistory h
+      | i < 0     = txt ++ h
+      | otherwise = replaceList i txt h
 
 -- | Jump the cursor to the beginning of the input.
 home :: EditBox -> EditBox

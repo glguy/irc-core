@@ -20,6 +20,7 @@ module Client.State.EditBox.Content
   , singleLine
   , noContent
   , shift
+  , allLines
 
   -- * Focused line
   , Line(..)
@@ -284,3 +285,6 @@ digraph !c =
      d <- lookupDigraph x y
      let line' = Line (n-1) (pfx++d:sfx)
      Just $! set line line' c
+
+allLines :: Content -> [String]
+allLines c = reverse (view above c) ++ view text c : view below c
