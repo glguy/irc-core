@@ -349,9 +349,9 @@ ircCapReq caps = rawIrcMsg "CAP" ["REQ", Text.unwords caps]
 ircCapEnd :: RawIrcMsg
 ircCapEnd = rawIrcMsg "CAP" ["END"]
 
--- | CAP LS command
+-- | CAP LS command - support CAP version 3.2
 ircCapLs :: RawIrcMsg
-ircCapLs = rawIrcMsg "CAP" ["LS"]
+ircCapLs = rawIrcMsg "CAP" ["LS", "302"]
 
 -- | ZNC command
 --

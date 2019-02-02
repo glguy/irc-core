@@ -172,6 +172,7 @@ data Transaction
   | BanTransaction [(Text,MaskListEntry)]
   | WhoTransaction [UserInfo]
   | CapTransaction
+  | CapLsTransaction [(Text, Maybe Text)]
   deriving Show
 
 makeLenses ''NetworkState
@@ -677,11 +678,13 @@ doMyModes changes = over csModes $ \modes -> sort (foldl' applyOne modes changes
     applyOne modes (False, mode, _) = delete mode modes
 
 selectCaps ::
-  NetworkState {- ^ network state  -} ->
-  [Text]       {- ^ server caps    -} ->
-  [Text]       {- ^ caps to enable -}
-selectCaps cs offered = supported `intersect` offered
+  NetworkState         {- ^ network state  -} ->
+  [(Text, Maybe Text)] {- ^ server caps    -} ->
+  [Text]               {- ^ caps to enable -}
+selectCaps cs offered = supported `intersect` Map.keys capMap
   where
+    capMap = Map.fromList offered
+
     supported =
       sasl ++ serverTime ++
       ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"
@@ -690,9 +693,9 @@ selectCaps cs offered = supported `intersect` offered
     -- logic for using IRCv3.2 server-time if available and falling back
     -- to ZNC's specific extension otherwise.
     serverTime
-      | "server-time"            `elem` offered = ["server-time"]
-      | "znc.in/server-time-iso" `elem` offered = ["znc.in/server-time-iso"]
-      | otherwise                               = []
+      | "server-time"            `Map.member` capMap = ["server-time"]
+      | "znc.in/server-time-iso" `Map.member` capMap = ["znc.in/server-time-iso"]
+      | otherwise                                    = []
 
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslUsername ss)
@@ -732,18 +735,24 @@ doAuthenticate param cs =
 doCap :: CapCmd -> [Text] -> NetworkState -> ([RawIrcMsg], NetworkState)
 doCap cmd args cs =
   case (cmd,args) of
+    (CapLs,["*", capsTxt]) ->
+      noReply (set csTransaction (CapLsTransaction (splitCapList capsTxt ++ prevCaps)) cs)
+      where
+        prevCaps = view (csTransaction . _CapLsTransaction) cs
+
     (CapLs,[capsTxt])
       | null reqCaps -> endCapTransaction cs
       | otherwise -> ([ircCapReq reqCaps], cs)
       where
-        caps = Text.words capsTxt
+        caps = splitCapList capsTxt ++ prevCaps
         reqCaps = selectCaps cs caps
+        prevCaps = view (csTransaction . _CapLsTransaction) cs
 
     (CapNew,[capsTxt])
       | null reqCaps -> ([], cs)
       | otherwise -> ([ircCapReq reqCaps], cs)
       where
-        caps = Text.words capsTxt
+        caps = splitCapList capsTxt
         reqCaps = selectCaps cs caps
 
     (CapDel,_) -> ([],cs)

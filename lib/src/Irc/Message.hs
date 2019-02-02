@@ -28,6 +28,7 @@ module Irc.Message
   -- * Helper functions
   , nickSplit
   , computeMaxMessageLength
+  , splitCapList
   ) where
 
 import           Control.Monad
@@ -320,3 +321,12 @@ computeMaxMessageLength myUserInfo target
   - Text.length (renderUserInfo myUserInfo)
   - length (": PRIVMSG  :\r\n"::String)
   - Text.length target
+
+splitCapList :: Text -> [(Text, Maybe Text)]
+splitCapList caps =
+  [ (name, value)
+    | kv <- Text.words caps
+    , let (name, v) = Text.break ('=' ==) kv
+    , let value | Text.null v = Nothing
+                | otherwise   = Just $! Text.tail v
+    ]
