@@ -344,7 +344,7 @@ applyMessage' msgWhen msg cs =
        in noReply (recordUser (UserInfo (mkId nick) user host) acct' cs)
 
     Reply code args        -> noReply (doRpl code msgWhen args cs)
-    Cap cmd params         -> doCap cmd params cs
+    Cap cmd                -> doCap cmd cs
     Authenticate param     -> doAuthenticate param cs
     Mode who target (modes:params)  -> doMode msgWhen who target modes params cs
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
@@ -732,32 +732,29 @@ doAuthenticate param cs =
     ss = view csSettings cs
 
 
-doCap :: CapCmd -> [Text] -> NetworkState -> ([RawIrcMsg], NetworkState)
-doCap cmd args cs =
-  case (cmd,args) of
-    (CapLs,["*", capsTxt]) ->
-      noReply (set csTransaction (CapLsTransaction (splitCapList capsTxt ++ prevCaps)) cs)
+doCap :: CapCmd -> NetworkState -> ([RawIrcMsg], NetworkState)
+doCap cmd cs =
+  case cmd of
+    (CapLs CapMore caps) ->
+      noReply (set csTransaction (CapLsTransaction (caps ++ prevCaps)) cs)
       where
         prevCaps = view (csTransaction . _CapLsTransaction) cs
 
-    (CapLs,[capsTxt])
+    CapLs CapDone caps
       | null reqCaps -> endCapTransaction cs
-      | otherwise -> ([ircCapReq reqCaps], cs)
+      | otherwise    -> ([ircCapReq reqCaps], cs)
       where
-        caps = splitCapList capsTxt ++ prevCaps
-        reqCaps = selectCaps cs caps
-        prevCaps = view (csTransaction . _CapLsTransaction) cs
+        reqCaps = selectCaps cs (caps ++ view (csTransaction . _CapLsTransaction) cs)
 
-    (CapNew,[capsTxt])
+    CapNew caps
       | null reqCaps -> ([], cs)
-      | otherwise -> ([ircCapReq reqCaps], cs)
+      | otherwise    -> ([ircCapReq reqCaps], cs)
       where
-        caps = splitCapList capsTxt
         reqCaps = selectCaps cs caps
 
-    (CapDel,_) -> ([],cs)
+    CapDel _ -> ([],cs)
 
-    (CapAck,[capsTxt])
+    CapAck caps
       | "sasl" `elem` caps && isJust (view ssSaslUsername ss) ->
           if isJust (view ssSaslEcdsaFile ss)
             then ( [ircAuthenticate Ecdsa.authenticationMode]
@@ -770,8 +767,7 @@ doCap cmd args cs =
                  , set csAuthenticationState AS_ExternalStarted cs)
           else endCapTransaction cs
       where
-        ss   = view csSettings cs
-        caps = Text.words capsTxt
+        ss = view csSettings cs
 
     _ -> endCapTransaction cs
 

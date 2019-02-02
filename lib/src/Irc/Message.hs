@@ -17,6 +17,7 @@ module Irc.Message
   -- * High-level messages
     IrcMsg(..)
   , CapCmd(..)
+  , CapMore(..)
   , cookIrcMsg
 
   -- * Properties of messages
@@ -28,7 +29,7 @@ module Irc.Message
   -- * Helper functions
   , nickSplit
   , computeMaxMessageLength
-  , splitCapList
+  , capCmdText
   ) where
 
 import           Control.Monad
@@ -59,7 +60,7 @@ data IrcMsg
   | Notice !UserInfo !Identifier !Text -- ^ source target txt
   | Mode !UserInfo !Identifier [Text] -- ^ source target txt
   | Authenticate !Text -- ^ parameters
-  | Cap !CapCmd [Text] -- ^ command parameters
+  | Cap !CapCmd -- ^ cap command and parameters
   | Ping [Text] -- ^ parameters
   | Pong [Text] -- ^ parameters
   | Error !Text -- ^ message
@@ -69,29 +70,31 @@ data IrcMsg
   | Chghost !UserInfo !Text !Text -- ^ Target, new username and new hostname
   deriving Show
 
--- | Sub-commands of the CAP command
+data CapMore = CapMore | CapDone
+  deriving (Show, Read, Eq, Ord)
+
+-- | Sub-commands of the CAP command sent by server
 data CapCmd
-  = CapLs -- ^ request list of supported caps
-  | CapList -- ^ request list of active caps
-  | CapReq -- ^ request activation of cap
-  | CapAck -- ^ request accepted
-  | CapNak -- ^ request denied
-  | CapEnd -- ^ end negotiation
-  | CapNew -- ^ new capability available (cap-notify extension)
-  | CapDel -- ^ capability removed (cap-notify extension)
-  deriving (Show, Eq, Ord)
+  = CapLs !CapMore [(Text, Maybe Text)] -- ^ list of supported caps
+  | CapList [Text] -- ^ list of active caps
+  | CapAck [Text] -- ^ request accepted
+  | CapNak [Text] -- ^ request denied
+  | CapNew [(Text, Maybe Text)] -- ^ new capability available (cap-notify extension)
+  | CapDel [Text] -- ^ capability removed (cap-notify extension)
+  deriving (Show, Read, Eq, Ord)
 
 -- | Match command text to structured cap sub-command
-cookCapCmd :: Text -> Maybe CapCmd
-cookCapCmd "LS"   = Just CapLs
-cookCapCmd "LIST" = Just CapList
-cookCapCmd "ACK"  = Just CapAck
-cookCapCmd "NAK"  = Just CapNak
-cookCapCmd "END"  = Just CapEnd
-cookCapCmd "REQ"  = Just CapReq
-cookCapCmd "NEW"  = Just CapNew
-cookCapCmd "DEL"  = Just CapDel
-cookCapCmd _      = Nothing
+cookCapCmd :: Text -> [Text] -> Maybe CapCmd
+cookCapCmd cmd args =
+  case (cmd, args) of
+    ("LS"  , ["*", caps]) -> Just (CapLs CapMore (splitCapList caps))
+    ("LS"  , [     caps]) -> Just (CapLs CapDone (splitCapList caps))
+    ("LIST", [     caps]) -> Just (CapList (Text.words caps))
+    ("ACK" , [     caps]) -> Just (CapAck (Text.words caps))
+    ("NAK" , [     caps]) -> Just (CapNak (Text.words caps))
+    ("NEW" , [     caps]) -> Just (CapNew (splitCapList caps))
+    ("DEL" , [     caps]) -> Just (CapDel (Text.words caps))
+    _                     -> Nothing
 
 -- | Interpret a low-level 'RawIrcMsg' as a high-level 'IrcMsg'.
 -- Messages that can't be understood are wrapped in 'UnknownMsg'.
@@ -101,8 +104,7 @@ cookIrcMsg msg =
     cmd | Right (n,"") <- decimal cmd ->
         Reply (ReplyCode n) (view msgParams msg)
     "CAP" | _target:cmdTxt:rest <- view msgParams msg
-          , Just cmd <- cookCapCmd cmdTxt ->
-           Cap cmd rest
+          , Just cmd <- cookCapCmd cmdTxt rest -> Cap cmd
 
     "AUTHENTICATE" | x:_ <- view msgParams msg ->
         Authenticate x
@@ -282,12 +284,29 @@ ircMsgText msg =
     Mode x _ xs    -> Text.unwords (renderUserInfo x:"set mode":xs)
     Ping xs        -> Text.unwords xs
     Pong xs        -> Text.unwords xs
-    Cap _ xs       -> Text.unwords xs
+    Cap cmd        -> capCmdText cmd
     Error t        -> t
     Account x a    -> Text.unwords [renderUserInfo x, a]
     Authenticate{} -> ""
     BatchStart{}   -> ""
     BatchEnd{}     -> ""
+
+capCmdText :: CapCmd -> Text
+capCmdText cmd =
+  case cmd of
+    CapLs more caps -> capMoreText more <> capUnsplitCaps caps
+    CapNew     caps -> capUnsplitCaps caps
+    CapList    caps -> Text.unwords caps
+    CapAck     caps -> Text.unwords caps
+    CapNak     caps -> Text.unwords caps
+    CapDel     caps -> Text.unwords caps
+
+capMoreText :: CapMore -> Text
+capMoreText CapDone = ""
+capMoreText CapMore = "* "
+
+capUnsplitCaps :: [(Text, Maybe Text)] -> Text
+capUnsplitCaps xs = Text.unwords [ k <> maybe "" ("=" <>) v | (k, v) <- xs ]
 
 -- nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
 -- letter     =  %x41-5A / %x61-7A       ; A-Z / a-z

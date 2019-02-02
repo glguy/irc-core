@@ -1,5 +1,11 @@
 # Revision history for irc-core
 
+## 2.6.0
+
+* Process CAP commands in library instead of client
+* Add support for SASL EXTERNAL
+* Add support for CHGHOST
+
 ## 2.5.0
 
 * Add support for extended JOIN and ACCOUNT messages

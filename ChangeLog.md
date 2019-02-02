@@ -5,9 +5,11 @@
 * Implement support for chghost <https://ircv3.net/specs/extensions/chghost-3.2.html>
 * Implement support for userhost-in-names <https://ircv3.net/specs/extensions/userhost-in-names-3.2.html>
 * Implement support for SASL EXTERNAL authentication
+* Implement support for CAP 302
 * Add ACCOUNT messages to the metadata lines
 * Add logic for server defined user modes
 * Ignore leading whitespace when interpreting commands
+* Handle more formatting color codes
 
 ## 2.29
 * Add support for timers to the extension API

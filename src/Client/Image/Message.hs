@@ -248,7 +248,7 @@ ircLinePrefix !rp body =
         Just ui -> who ui
         Nothing -> string (view palError pal) "?"
 
-    Cap cmd _ ->
+    Cap cmd ->
       text' (withForeColor defAttr magenta) (renderCapCmd cmd) <> ":"
 
     Mode nick _ _ -> who nick <> " set mode:"
@@ -297,7 +297,7 @@ ircLineImage !rp body =
       text' defAttr (view msgCommand irc) <>
       char defAttr ' ' <>
       separatedParams (view msgParams irc)
-    Cap _ args        -> separatedParams args
+    Cap cmd           -> text' defAttr (cleanText (capCmdText cmd))
     Mode _ _ params   -> ircWords params
 
     Account _ acct -> if Text.null acct then "*" else text' defAttr (cleanText acct)
@@ -412,10 +412,10 @@ fullIrcLineImage !rp body =
       char defAttr ' ' <>
       separatedParams (view msgParams irc)
 
-    Cap cmd args ->
+    Cap cmd ->
       text' (withForeColor defAttr magenta) (renderCapCmd cmd) <>
       text' defAttr ": " <>
-      separatedParams args
+      text' defAttr (cleanText (capCmdText cmd))
 
     Mode nick _chan params ->
       string quietAttr "mode " <>
@@ -440,14 +440,12 @@ fullIrcLineImage !rp body =
 renderCapCmd :: CapCmd -> Text
 renderCapCmd cmd =
   case cmd of
-    CapLs   -> "caps-available"
-    CapList -> "caps-active"
-    CapAck  -> "caps-acknowledged"
-    CapNak  -> "caps-rejected"
-    CapEnd  -> "caps-finished" -- server shouldn't send this
-    CapReq  -> "caps-requested" -- server shouldn't send this
-    CapNew  -> "caps-offered"
-    CapDel  -> "caps-withdrawn"
+    CapLs   {} -> "caps-available"
+    CapList {} -> "caps-active"
+    CapAck  {} -> "caps-acknowledged"
+    CapNak  {} -> "caps-rejected"
+    CapNew  {} -> "caps-offered"
+    CapDel  {} -> "caps-withdrawn"
 
 separatorImage :: Image'
 separatorImage = char (withForeColor defAttr blue) '·'
