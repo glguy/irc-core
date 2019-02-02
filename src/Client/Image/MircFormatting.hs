@@ -16,6 +16,7 @@ module Client.Image.MircFormatting
   , plainText
   , controlImage
   , mircColor
+  , mircColors
   ) where
 
 import           Client.Image.PackedImage as I
@@ -27,6 +28,8 @@ import           Data.Char
 import           Data.Maybe
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
+import           Data.Vector (Vector)
+import qualified Data.Vector as Vector
 
 makeLensesFor
   [ ("attrForeColor", "foreColorLens")
@@ -77,7 +80,7 @@ pIrcLine explicit fmt =
             mbFmt' = applyControlEffect c fmt
             next   = pIrcLine explicit (fromMaybe fmt mbFmt')
 
-pColorNumbers :: Parser (Maybe (Color, Maybe Color))
+pColorNumbers :: Parser (Maybe (MaybeDefault Color, Maybe (MaybeDefault Color)))
 pColorNumbers = option Nothing $
   do n       <- pNumber
      Just fc <- pure (mircColor n)
@@ -95,31 +98,47 @@ pColorNumbers = option Nothing $
 optional :: Parser a -> Parser (Maybe a)
 optional p = option Nothing (Just <$> p)
 
-applyColors :: (Maybe (Color, Maybe Color)) -> Attr -> Attr
+applyColors :: Maybe (MaybeDefault Color, Maybe (MaybeDefault Color)) -> Attr -> Attr
 applyColors Nothing = set foreColorLens Default
                     . set backColorLens Default
-applyColors (Just (c1, Nothing)) = set foreColorLens (SetTo c1) -- preserve background
-applyColors (Just (c1, Just c2)) = set foreColorLens (SetTo c1)
-                                 . set backColorLens (SetTo c2)
+applyColors (Just (c1, Nothing)) = set foreColorLens c1 -- preserve background
+applyColors (Just (c1, Just c2)) = set foreColorLens c1
+                                 . set backColorLens c2
 
-mircColor :: Int -> Maybe Color
-mircColor  0 = Just (white                ) -- white
-mircColor  1 = Just (black                ) -- black
-mircColor  2 = Just (blue                 ) -- blue
-mircColor  3 = Just (green                ) -- green
-mircColor  4 = Just (red                  ) -- red
-mircColor  5 = Just (rgbColor' 127 0 0    ) -- brown
-mircColor  6 = Just (rgbColor' 156 0 156  ) -- purple
-mircColor  7 = Just (rgbColor' 252 127 0  ) -- yellow
-mircColor  8 = Just (yellow               ) -- yellow
-mircColor  9 = Just (brightGreen          ) -- green
-mircColor 10 = Just (cyan                 ) -- brightBlue
-mircColor 11 = Just (brightCyan           ) -- brightCyan
-mircColor 12 = Just (brightBlue           ) -- brightBlue
-mircColor 13 = Just (rgbColor' 255 0 255  ) -- brightRed
-mircColor 14 = Just (rgbColor' 127 127 127) -- brightBlack
-mircColor 15 = Just (rgbColor' 210 210 210) -- brightWhite
-mircColor  _ = Nothing
+mircColor :: Int -> Maybe (MaybeDefault Color)
+mircColor 99 = Just Default
+mircColor i  = SetTo <$> mircColors Vector.!? i
+
+mircColors :: Vector Color
+mircColors =
+  Vector.fromList $
+    [ white                 -- white
+    , black                 -- black
+    , blue                  -- blue
+    , green                 -- green
+    , red                   -- red
+    , rgbColor' 127 0 0     -- brown
+    , rgbColor' 156 0 156   -- purple
+    , rgbColor' 252 127 0   -- yellow
+    , yellow                -- yellow
+    , brightGreen           -- green
+    , cyan                  -- brightBlue
+    , brightCyan            -- brightCyan
+    , brightBlue            -- brightBlue
+    , rgbColor' 255 0 255   -- brightRed
+    , rgbColor' 127 127 127 -- brightBlack
+    , rgbColor' 210 210 210 -- brightWhite
+    ] ++
+    map (Color240 . subtract 16) [ -- https://modern.ircdocs.horse/formatting.html#colors-16-98
+      052, 094, 100, 058,
+      022, 029, 023, 024, 017, 054, 053, 089, 088, 130,
+      142, 064, 028, 035, 030, 025, 018, 091, 090, 125,
+      124, 166, 184, 106, 034, 049, 037, 033, 019, 129,
+      127, 161, 196, 208, 226, 154, 046, 086, 051, 075,
+      021, 171, 201, 198, 203, 215, 227, 191, 083, 122,
+      087, 111, 063, 177, 207, 205, 217, 223, 229, 193,
+      157, 158, 159, 153, 147, 183, 219, 212, 016, 233,
+      235, 237, 239, 241, 244, 247, 250, 254, 231 ]
 
 rgbColor' :: Int -> Int -> Int -> Color
 rgbColor' = rgbColor -- fix the type to Int

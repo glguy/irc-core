@@ -20,18 +20,15 @@ import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Control.Lens
 import           Data.List
+import           Data.List.Split (chunksOf)
 import           Graphics.Vty.Attributes
+import qualified Data.Vector as Vector
 
 digits :: String
 digits = "0123456789ABCDEF"
 
 digitImage :: Char -> Image'
-digitImage d = string defAttr [' ',d,' ']
-
-decimalImage :: Int -> Image'
-decimalImage n
-  | n < 10    = string defAttr (' ':'0':show n)
-  | otherwise = string defAttr (    ' ':show n)
+digitImage d = string defAttr [' ', d, ' ']
 
 columns :: [Image'] -> Image'
 columns = mconcat . intersperse (char defAttr ' ')
@@ -60,11 +57,13 @@ paletteViewLines pal = reverse $
 
   , "Chat formatting colors: C-c[foreground[,background]]"
   , ""
-  , columns ("   " : map decimalImage [0..15])
-  , columns mircColors
-  , ""
+  ] ++
 
-  , "Available palette colors: 0x<row><col>"
+  colorTable
+
+  ++
+  [ ""
+  , "Available terminal palette colors: 0x<row><col>"
   , ""
   , columns (map digitImage (' ':digits))
   , columns isoColors ]
@@ -80,6 +79,13 @@ paletteViewLines pal = reverse $
   | (digit,row) <- zip (drop 1 digits) [0 ..]
   ]
 
+isLight :: Color -> Bool
+isLight (ISOColor c) = c `elem` [1, 3, 5, 6, 7]
+isLight (Color240 c) =
+  case color240CodeToRGB c of
+    Just (r, g, b) -> (r `max` g `max` b) > 200
+    Nothing        -> True
+
 
 isoColors :: [Image']
 isoColors =
@@ -88,13 +94,19 @@ isoColors =
     | c <- [0..15]
     ]
 
-mircColors :: [Image']
-mircColors =
-  "   "
-  : [ string (withBackColor defAttr c) "   "
-    | i <- [0..15]
-    , let Just c = mircColor i
-    ]
+colorTable :: [Image']
+colorTable
+  = map (\imgs -> mconcat ("   " : imgs))
+  $ chunksOf 8 [ render i (mircColors Vector.! i) | i <- [0 .. 15] ]
+  ++ [[]]
+  ++ chunksOf 12 [ render i (mircColors Vector.! i) | i <- [16 .. 98] ]
+  where
+    showPad i
+      | i < 10    = '0' : show i
+      | otherwise = show i
+
+    render i c =
+      string (withForeColor (withBackColor defAttr c) (if isLight c then black else white)) (' ' : showPad i ++ " ")
 
 paletteEntries :: Palette -> [Image']
 paletteEntries pal =
