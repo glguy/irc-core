@@ -5,7 +5,8 @@
 * Implement support for chghost <https://ircv3.net/specs/extensions/chghost-3.2.html>
 * Implement support for userhost-in-names <https://ircv3.net/specs/extensions/userhost-in-names-3.2.html>
 * Implement support for SASL EXTERNAL authentication
-* Implement support for CAP 302
+* Implement support for CAP 302 <https://ircv3.net/specs/core/capability-negotiation.html>
+* Implement support for sts <https://ircv3.net/specs/extensions/sts.html>
 * Add ACCOUNT messages to the metadata lines
 * Add logic for server defined user modes
 * Ignore leading whitespace when interpreting commands

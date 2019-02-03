@@ -312,6 +312,9 @@ clientResponse now irc cs st =
     Cap (CapLs _ caps)
       | Just stsVal <- join (lookup "sts" caps) -> processSts stsVal cs st
 
+    Cap (CapNew caps)
+      | Just stsVal <- join (lookup "sts" caps) -> processSts stsVal cs st
+
     _ -> return st
 
 
