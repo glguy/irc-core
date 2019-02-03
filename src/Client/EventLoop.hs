@@ -325,6 +325,7 @@ processSts ::
   IO ClientState
 processSts txt cs st =
   case view (csSettings . ssTls) cs of
+    _ | views (csSettings . ssSts) not cs        -> return st -- sts disabled
     UseInsecure    | Just port     <- mbPort     -> upgradeConnection port
     UseTls         | Just duration <- mbDuration -> setStsPolicy duration
     UseInsecureTls | Just duration <- mbDuration -> setStsPolicy duration

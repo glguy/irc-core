@@ -48,6 +48,7 @@ module Client.Configuration.ServerSettings
   , ssNickCompletion
   , ssLogDir
   , ssProtocolFamily
+  , ssSts
 
   -- * Load function
   , loadDefaultServerSettings
@@ -98,10 +99,11 @@ data ServerSettings = ServerSettings
   , _ssMessageHooks     :: ![Text] -- ^ Initial message hooks
   , _ssName             :: !(Maybe Text) -- ^ The name referencing the server in commands
   , _ssReconnectAttempts:: !Int -- ^ The number of reconnect attempts to make on error
-  , _ssAutoconnect      :: Bool -- ^ Connect to this network on server startup
+  , _ssAutoconnect      :: !Bool -- ^ Connect to this network on server startup
   , _ssNickCompletion   :: WordCompletionMode -- ^ Nick completion mode for this server
   , _ssLogDir           :: Maybe FilePath -- ^ Directory to save logs of chat
   , _ssProtocolFamily   :: Maybe Family -- ^ Protocol family to connect with
+  , _ssSts              :: !Bool -- ^ Honor STS policies when true
   }
   deriving Show
 
@@ -151,6 +153,7 @@ loadDefaultServerSettings =
        , _ssNickCompletion   = defaultNickWordCompleteMode
        , _ssLogDir           = Nothing
        , _ssProtocolFamily   = Nothing
+       , _ssSts              = True
        }
 
 serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
@@ -255,6 +258,9 @@ serverSpec = sectionsSpec "server-settings" $
 
       , opt "protocol-family" ssProtocolFamily protocolFamilySpec
         "IP protocol family to use for this connection"
+
+      , req "sts" ssSts yesOrNoSpec
+        "Honor server STS policies forcing TLS connections"
       ]
 
 
