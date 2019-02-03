@@ -16,6 +16,7 @@ network connection library.
 
 module Client.Network.Connect
   ( withConnection
+  , ircPort
   ) where
 
 import           Client.Configuration.ServerSettings

@@ -1354,7 +1354,7 @@ cmdConnect :: ClientCommand String
 cmdConnect st networkStr =
   do -- abort any existing connection before connecting
      let network = Text.pack networkStr
-     st' <- addConnection 0 Nothing network =<< abortNetwork network st
+     st' <- addConnection 0 Nothing Nothing network =<< abortNetwork network st
      commandSuccess
        $ changeFocus (NetworkFocus network) st'
 
@@ -1931,7 +1931,7 @@ cmdReconnect st _
   | Just network <- views clientFocus focusNetwork st =
 
       do tm <- getCurrentTime
-         st' <- addConnection 0 (Just tm) network =<< abortNetwork network st
+         st' <- addConnection 0 (Just tm) Nothing network =<< abortNetwork network st
          commandSuccess
            $ changeFocus (NetworkFocus network) st'
 

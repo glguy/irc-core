@@ -45,6 +45,7 @@ module Client.State
   , clientLayout
   , clientRtsStats
   , clientConfigPath
+  , clientStsPolicy
 
   -- * Client operations
   , withClientState
@@ -109,6 +110,7 @@ import           Client.CApi
 import           Client.Commands.WordCompletion
 import           Client.Configuration
 import           Client.Configuration.ServerSettings
+import           Client.Configuration.Sts
 import           Client.Image.Message
 import           Client.Image.Palette
 import           Client.Log
@@ -189,6 +191,8 @@ data ClientState = ClientState
   , _clientLogQueue          :: ![LogLine]                -- ^ log lines ready to write
   , _clientErrorMsg          :: Maybe Text                -- ^ transient error box text
   , _clientRtsStats          :: Maybe Stats               -- ^ most recent GHC RTS stats
+
+  , _clientStsPolicy         :: !(HashMap Text StsPolicy) -- ^ STS policy entries
   }
 
 
@@ -235,6 +239,7 @@ withClientState cfgPath cfg k =
   withExtensionState $ \exts ->
 
   do events <- atomically newTQueue
+     sts    <- readPolicyFile
      let ignoreIds = map mkId (view configIgnores cfg)
      k ClientState
         { _clientWindows           = _Empty # ()
@@ -265,6 +270,7 @@ withClientState cfgPath cfg k =
         , _clientLogQueue          = []
         , _clientErrorMsg          = Nothing
         , _clientRtsStats          = Nothing
+        , _clientStsPolicy         = sts
         }
 
 withExtensionState :: (ExtensionState -> IO a) -> IO a
@@ -699,10 +705,11 @@ removeNetwork networkId st =
 addConnection ::
   Int           {- ^ attempts                 -} ->
   Maybe UTCTime {- ^ optional disconnect time -} ->
+  Maybe Int     {- ^ STS upgrade port         -} ->
   Text          {- ^ network name             -} ->
   ClientState ->
   IO ClientState
-addConnection attempts lastTime network st =
+addConnection attempts lastTime stsUpgrade network st =
   do let defSettings = (view (clientConfig . configDefaults) st)
                      { _ssName = Just network
                      , _ssHostName = Text.unpack network
@@ -710,6 +717,23 @@ addConnection attempts lastTime network st =
 
          settings = fromMaybe defSettings
                   $ preview (clientConfig . configServers . ix network) st
+
+     now <- getCurrentTime
+     let stsUpgrade'
+           | Just{} <- stsUpgrade = stsUpgrade
+           | UseInsecure <- view ssTls settings
+           , let host = Text.pack (view ssHostName settings)
+           , Just policy <- view (clientStsPolicy . at host) st
+           , now < view stsExpiration policy
+           = Just (view stsPort policy)
+           | otherwise = Nothing
+
+         settings1 =
+           case stsUpgrade' of
+             Just port -> set ssPort (Just (fromIntegral port))
+                        $ set ssTls UseTls settings
+             Nothing   -> settings
+
 
          i = nextAvailableKey (view clientConnections st)
 
@@ -719,10 +743,10 @@ addConnection attempts lastTime network st =
      c <- createConnection
             delay
             i
-            settings
+            settings1
             (view clientEvents st)
 
-     let cs = newNetworkState i network settings c (PingConnecting attempts lastTime)
+     let cs = newNetworkState i network settings1 c (PingConnecting attempts lastTime)
      traverse_ (sendMsg cs) (initialMessages cs)
 
      return $ set (clientNetworkMap . at network) (Just i)

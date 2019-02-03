@@ -80,11 +80,13 @@ instance Show NetworkConnection where
 data TerminationReason
   = PingTimeout      -- ^ sent when ping timer expires
   | ForcedDisconnect -- ^ sent when client commands force disconnect
+  | StsUpgrade       -- ^ sent when the client disconnects due to sts policy
   deriving Show
 
 instance Exception TerminationReason where
   displayException PingTimeout      = "connection killed due to ping timeout"
   displayException ForcedDisconnect = "connection killed by client command"
+  displayException StsUpgrade       = "connection killed by sts policy"
 
 -- | Schedule a message to be transmitted on the network connection.
 -- These messages are sent unmodified. The message should contain a

@@ -22,6 +22,7 @@ import           Client.Commands
 import           Client.Commands.Interpolation
 import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames)
 import           Client.Configuration.ServerSettings
+import           Client.Configuration.Sts
 import           Client.EventLoop.Actions
 import           Client.EventLoop.Errors (exceptionToLines)
 import           Client.Hook
@@ -31,6 +32,7 @@ import           Client.Image.Layout (scrollAmount)
 import           Client.Log
 import           Client.Message
 import           Client.Network.Async
+import           Client.Network.Connect (ircPort)
 import           Client.State
 import qualified Client.State.EditBox     as Edit
 import           Client.State.Extensions
@@ -49,6 +51,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
+import qualified Data.Text.Read as Text
 import           Data.Time
 import           GHC.IO.Exception (IOErrorType(..), ioe_type)
 import           Graphics.Vty
@@ -207,7 +210,7 @@ reconnectLogic ex cs st
 
   | shouldReconnect =
       do (attempts, mbDisconnectTime) <- computeRetryInfo
-         addConnection attempts mbDisconnectTime (view csNetwork cs) st
+         addConnection attempts mbDisconnectTime Nothing (view csNetwork cs) st
 
   | otherwise = return st
 
@@ -306,8 +309,54 @@ clientResponse now irc cs st =
       | AS_EcdsaWaitChallenge <- view csAuthenticationState cs ->
          processSaslEcdsa now challenge cs st
 
+    Cap (CapLs _ caps)
+      | Just stsVal <- join (lookup "sts" caps) -> processSts stsVal cs st
+
     _ -> return st
 
+
+processSts ::
+  Text         {- ^ STS parameter string -} ->
+  NetworkState {- ^ network state        -} ->
+  ClientState  {- ^ client state         -} ->
+  IO ClientState
+processSts txt cs st =
+  case view (csSettings . ssTls) cs of
+    UseInsecure    | Just port     <- mbPort     -> upgradeConnection port
+    UseTls         | Just duration <- mbDuration -> setStsPolicy duration
+    UseInsecureTls | Just duration <- mbDuration -> setStsPolicy duration
+    _                                            -> return st
+
+  where
+    entries    = splitEntry <$> Text.splitOn "," txt
+    mbPort     = readInt =<< lookup "port"     entries
+    mbDuration = readInt =<< lookup "duration" entries
+
+    splitEntry e =
+      case Text.break ('=' ==) e of
+        (a, b) -> (a, Text.drop 1 b)
+
+    upgradeConnection port =
+      do abortConnection StsUpgrade (view csSocket cs)
+         addConnection 0 (view csLastReceived cs) (Just port) (view csNetwork cs) st
+
+    setStsPolicy duration =
+      do now <- getCurrentTime
+         let host = Text.pack (view (csSettings . ssHostName) cs)
+             port = fromIntegral (ircPort (view csSettings cs))
+             policy = StsPolicy
+                        { _stsExpiration = addUTCTime (fromIntegral duration) now
+                        , _stsPort       = port }
+             st' = st & clientStsPolicy . at host ?~ policy
+         savePolicyFile (view clientStsPolicy st')
+         return st'
+
+
+readInt :: Text -> Maybe Int
+readInt x =
+  case Text.decimal x of
+    Right (n, t) | Text.null t -> Just n
+    _                          -> Nothing
 
 processSaslEcdsa ::
   ZonedTime    {- ^ message time  -} ->

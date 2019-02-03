@@ -73,7 +73,7 @@ addInitialNetworks ::
   IO ClientState
 addInitialNetworks [] st = return st
 addInitialNetworks (n:ns) st =
-  do st' <- foldM (flip (addConnection 0 Nothing)) st (n:ns)
+  do st' <- foldM (\st_ n -> addConnection 0 Nothing Nothing n st_) st (n:ns)
      return $! set clientFocus (NetworkFocus n) st'
 
 -- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
