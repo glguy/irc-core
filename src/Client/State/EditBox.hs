@@ -64,12 +64,12 @@ module Client.State.EditBox
 import           Client.State.EditBox.Content
 import           Control.Lens hiding (below)
 import           Data.Char
-import           Data.Maybe (fromMaybe)
+import           Data.List.NonEmpty (NonEmpty)
 
 
 data EditBox = EditBox
   { _content       :: !Content
-  , _history       :: ![String]
+  , _history       :: ![NonEmpty String]
   , _historyPos    :: !Int
   , _yankBuffer    :: String
   , _lastOperation :: !LastOperation
@@ -116,7 +116,7 @@ updateYankBuffer dir str e =
 -- the history.
 success :: EditBox -> EditBox
 success e
-  = over history (cons sent)
+  = over history (cons (pure sent))
   $ set  content c
   $ set  lastOperation OtherOperation
   $ set  historyPos (-1)
@@ -133,7 +133,7 @@ replaceList i rpl xs =
 earlier :: EditBox -> Maybe EditBox
 earlier e =
   do x <- preview (history . ix (i+1)) e
-     return $ set content (singleLine (endLine x))
+     return $ set content (fromStrings x)
             $ set lastOperation OtherOperation
             $ set historyPos i'
             $ over history updateHistory e
@@ -143,7 +143,7 @@ earlier e =
     i' | i < 0     = length txt
        | otherwise = length txt + i
 
-    txt = reverse (filter (not . null) (allLines (view content e)))
+    txt = filter (/= pure "") [toStrings (view content e)]
 
     updateHistory h
       | i < 0     = txt ++ h
@@ -154,19 +154,20 @@ later :: EditBox -> Maybe EditBox
 later e
   | i < 0 && null txt = Nothing
   | otherwise = Just $!
-                  set content (singleLine (endLine newContent))
+                  set content newContent
                 $ set lastOperation OtherOperation
                 $ set historyPos i'
                 $ over history updateHistory e
   where
-    txt = reverse (filter (not . null) (allLines (view content e)))
+    txt = filter (/= pure "") [toStrings (view content e)]
 
     i = view historyPos e
 
     i' | i < 0 = -1
        | otherwise = i - 1
 
-    newContent = fromMaybe "" (preview (history . ix (i-1)) e)
+    newContent = maybe noContent fromStrings
+               $ preview (history . ix (i-1)) e
 
     updateHistory h
       | i < 0     = txt ++ h

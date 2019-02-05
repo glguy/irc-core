@@ -20,7 +20,8 @@ module Client.State.EditBox.Content
   , singleLine
   , noContent
   , shift
-  , allLines
+  , toStrings
+  , fromStrings
 
   -- * Focused line
   , Line(..)
@@ -47,10 +48,11 @@ module Client.State.EditBox.Content
   , digraph
   ) where
 
-import           Control.Lens hiding (below)
+import           Control.Lens hiding ((<|), below)
 import           Control.Monad (guard)
 import           Data.Char (isAlphaNum)
 import           Data.List (find)
+import           Data.List.NonEmpty (NonEmpty(..), (<|))
 import           Digraphs (lookupDigraph)
 
 data Line = Line
@@ -286,5 +288,8 @@ digraph !c =
      let line' = Line (n-1) (pfx++d:sfx)
      Just $! set line line' c
 
-allLines :: Content -> [String]
-allLines c = reverse (view above c) ++ view text c : view below c
+fromStrings :: NonEmpty String -> Content
+fromStrings (x :| xs) = Content xs (endLine x) []
+
+toStrings :: Content -> NonEmpty String
+toStrings c = foldl (flip (<|)) (view text c :| view above c) (view below c)
