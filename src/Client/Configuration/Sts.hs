@@ -30,8 +30,8 @@ import           Data.Time (UTCTime, defaultTimeLocale, formatTime, parseTimeM, 
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import           System.Directory (getXdgDirectory, XdgDirectory(XdgConfig))
-import           System.FilePath (FilePath, (</>))
+import           System.Directory (getXdgDirectory, XdgDirectory(XdgConfig), createDirectoryIfMissing)
+import           System.FilePath (FilePath, (</>), takeDirectory)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
@@ -98,7 +98,9 @@ readPolicyFile =
 savePolicyFile :: StsPolicies -> IO ()
 savePolicyFile sts =
   do path <- getPolicyFilePath
-     writeFile path (encodePolicy sts ++ "\n")
+     try (do createDirectoryIfMissing True (takeDirectory path)
+             writeFile path (encodePolicy sts ++ "\n")) :: IO (Either IOError ())
+     return ()
 
 dateTimeSpec :: ValueSpecs UTCTime
 dateTimeSpec
