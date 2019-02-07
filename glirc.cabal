@@ -77,6 +77,7 @@ library
                        Client.EventLoop.Actions
                        Client.EventLoop.Errors
                        Client.Hook
+                       Client.Hook.Snotice
                        Client.Hook.Znc.Buffextras
                        Client.Hooks
                        Client.Image

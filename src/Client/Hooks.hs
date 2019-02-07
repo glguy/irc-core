@@ -19,11 +19,13 @@ import Data.Text
 import Data.HashMap.Strict
 import Client.Hook
 
+import Client.Hook.Snotice
 import Client.Hook.Znc.Buffextras
 
 -- | All the available message hooks.
 messageHooks :: HashMap Text MessageHook
 messageHooks = fromList
-  [ ("buffextras", buffextrasHook False)
+  [ ("snotice", snoticeHook)
+  , ("buffextras", buffextrasHook False)
   , ("buffextras-debug", buffextrasHook True)
   ]

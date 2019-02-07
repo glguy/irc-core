@@ -22,6 +22,7 @@ module Irc.Commands
   , ircJoin
   , ircKick
   , ircKill
+  , ircKline
   , ircKnock
   , ircLinks
   , ircList
@@ -37,18 +38,21 @@ module Irc.Commands
   , ircPing
   , ircPong
   , ircPrivmsg
-  , ircRules
   , ircQuit
   , ircRemove
+  , ircRules
   , ircStats
+  , ircTestline
+  , ircTestmask
   , ircTime
   , ircTopic
+  , ircUnkline
   , ircUser
   , ircUserhost
+  , ircVersion
   , ircWho
   , ircWhois
   , ircWhowas
-  , ircVersion
 
   -- * ZNC support
   , ircZnc
@@ -192,6 +196,33 @@ ircKill ::
   Text {- ^ message -} ->
   RawIrcMsg
 ircKill who msg = rawIrcMsg "KILL" (who : nonempty msg)
+
+-- | KLINE command
+ircKline ::
+  Text {- ^ minutes -} ->
+  Text {- ^ mask    -} ->
+  Text {- ^ reason  -} ->
+  RawIrcMsg
+ircKline minutes mask reason = rawIrcMsg "KLINE" [minutes, mask, reason]
+
+-- | UNKLINE command
+ircUnkline ::
+  Text {- ^ mask -} ->
+  RawIrcMsg
+ircUnkline mask = rawIrcMsg "UNKLINE" [mask]
+
+-- | TESTLINE command
+ircTestline ::
+  Text {- ^ mask -} ->
+  RawIrcMsg
+ircTestline mask = rawIrcMsg "TESTLINE" [mask]
+
+-- | TESTLINE command
+ircTestmask ::
+  Text {- ^ mask  -} ->
+  Text {- ^ gecos -} ->
+  RawIrcMsg
+ircTestmask mask gecos = rawIrcMsg "TESTMASK" (mask : nonempty gecos)
 
 -- | REMOVE command
 ircRemove ::

@@ -688,7 +688,8 @@ selectCaps cs offered = supported `intersect` Map.keys capMap
     supported =
       sasl ++ serverTime ++
       ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"
-      , "cap-notify", "extended-join", "account-notify", "chghost", "userhost-in-names" ]
+      , "cap-notify", "extended-join", "account-notify", "chghost"
+      , "userhost-in-names", "account-tag" ]
 
     -- logic for using IRCv3.2 server-time if available and falling back
     -- to ZNC's specific extension otherwise.

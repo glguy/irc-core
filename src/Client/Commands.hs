@@ -1140,6 +1140,30 @@ commandsList =
     $ NetworkCommand cmdKill simpleNetworkTab
 
   , Command
+      (pure "kline")
+      (liftA3 (,,) (simpleToken "minutes") (simpleToken "user@host") (remainingArg "reason"))
+      "Ban a client from the server.\n"
+    $ NetworkCommand cmdKline simpleNetworkTab
+
+  , Command
+      (pure "unkline")
+      (simpleToken "user@host")
+      "Unban a client from the server.\n"
+    $ NetworkCommand cmdUnkline simpleNetworkTab
+
+  , Command
+      (pure "testline")
+      (simpleToken "[[nick!]user@]host")
+      "Check matching I/K/D lines for a [[nick!]user@]host\n"
+    $ NetworkCommand cmdTestline simpleNetworkTab
+
+  , Command
+      (pure "testmask")
+      (liftA2 (,) (simpleToken "[nick!]user@host") (optionalArg (simpleToken "gecos")))
+      "Test how many local and global clients match a mask.\n"
+    $ NetworkCommand cmdTestmask simpleNetworkTab
+
+  , Command
       (pure "map")
       (pure ())
       "Display network map.\n"
@@ -1668,6 +1692,26 @@ cmdList cs st rest =
 cmdKill :: NetworkCommand (String, String)
 cmdKill cs st (client,rest) =
   do sendMsg cs (ircKill (Text.pack client) (Text.pack rest))
+     commandSuccess st
+
+cmdKline :: NetworkCommand (String, String, String)
+cmdKline cs st (minutes, mask, reason) =
+  do sendMsg cs (ircKline (Text.pack minutes) (Text.pack mask) (Text.pack reason))
+     commandSuccess st
+
+cmdUnkline :: NetworkCommand String
+cmdUnkline cs st mask =
+  do sendMsg cs (ircUnkline (Text.pack mask))
+     commandSuccess st
+
+cmdTestline :: NetworkCommand String
+cmdTestline cs st mask =
+  do sendMsg cs (ircTestline (Text.pack mask))
+     commandSuccess st
+
+cmdTestmask :: NetworkCommand (String, Maybe String)
+cmdTestmask cs st (mask, gecos) =
+  do sendMsg cs (ircTestmask (Text.pack mask) (maybe "" Text.pack gecos))
      commandSuccess st
 
 cmdAway :: NetworkCommand String

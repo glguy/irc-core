@@ -197,6 +197,7 @@ data MessageTarget
   | TargetWindow !Identifier -- ^ Directed message to channel or from user
   | TargetNetwork            -- ^ Network-level message
   | TargetHidden             -- ^ Completely hidden message
+  deriving (Show)
 
 -- | Target information for the window that could be appropriate to
 -- display this message in.

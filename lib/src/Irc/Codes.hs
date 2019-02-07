@@ -402,6 +402,7 @@ pattern ERR_NOPRIVS                 = ReplyCode 723
 pattern RPL_TESTMASK                = ReplyCode 724
 pattern RPL_TESTLINE                = ReplyCode 725
 pattern RPL_NOTESTLINE              = ReplyCode 726
+pattern RPL_TESTMASKGECOS           = ReplyCode 727
 pattern RPL_QUIETLIST               = ReplyCode 728
 pattern RPL_ENDOFQUIETLIST          = ReplyCode 729
 pattern RPL_MONONLINE               = ReplyCode 730
@@ -829,6 +830,7 @@ replyCodeInfoTable
   , (RPL_TESTMASK              , ReplyCodeInfo CommandReply "test-mask")
   , (RPL_TESTLINE              , ReplyCodeInfo CommandReply "test-line")
   , (RPL_NOTESTLINE            , ReplyCodeInfo CommandReply "no-test-line")
+  , (RPL_TESTMASKGECOS         , ReplyCodeInfo CommandReply "testmask-gecos")
   , (RPL_QUIETLIST             , ReplyCodeInfo CommandReply "quiet-list")
   , (RPL_ENDOFQUIETLIST        , ReplyCodeInfo CommandReply "end-of-quiet-list")
   , (RPL_MONONLINE             , ReplyCodeInfo CommandReply "mon-online")
