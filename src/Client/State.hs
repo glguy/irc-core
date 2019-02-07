@@ -21,6 +21,7 @@ module Client.State
   , clientTextBoxOffset
   , clientConnections
   , clientDCCOffers
+  , clientDCCTransfers
   , clientWidth
   , clientHeight
   , clientEvents
@@ -167,7 +168,8 @@ data ClientState = ClientState
   , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
-  , _clientDCCOffers         :: !([DCCOffer])             -- ^ DCC transfer offers
+  , _clientDCCOffers         :: !(IntMap DCCOffer)        -- ^ DCC transfer offers
+  , _clientDCCTransfers      :: !(IntMap DCCTransfer)     -- ^ DCC transactions
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
   , _clientConfigPath        :: !FilePath                 -- ^ client configuration file path
@@ -254,7 +256,8 @@ withClientState cfgPath cfg k =
         , _clientIgnores           = HashSet.fromList ignoreIds
         , _clientIgnoreMask        = buildMask ignoreIds
         , _clientConnections       = _Empty # ()
-        , _clientDCCOffers         = []
+        , _clientDCCOffers         = _Empty # ()
+        , _clientDCCTransfers      = _Empty # ()
         , _clientTextBox           = Edit.defaultEditBox
         , _clientTextBoxOffset     = 0
         , _clientWidth             = 80
@@ -791,7 +794,11 @@ queueDCCTransfer :: IrcMsg -> ClientState -> ClientState
 queueDCCTransfer ctcpMsg st
   | Just (_from, _target, command, txt) <- ctcpToTuple ctcpMsg
   , command == "DCC", Right dccOffer <- parseDCC txt
-  = over clientDCCOffers (cons dccOffer) st
+  = over clientDCCOffers (insertAsMax dccOffer) st
+  where insertAsMax offer intmap
+          | IntMap.null intmap = IntMap.singleton 1 offer
+          | otherwise = let (key, _) = IntMap.findMax intmap
+                        in IntMap.insert (succ key) offer intmap
 
 queueDCCTransfer _ st = st
 

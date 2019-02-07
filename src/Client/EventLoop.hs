@@ -34,13 +34,11 @@ import           Client.Message
 import           Client.Network.Async
 import           Client.Network.Connect (ircPort)
 import           Client.State
-import           Client.State.DCC
 import qualified Client.State.EditBox     as Edit
 import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
 import           Control.Concurrent.STM
-import           Control.Concurrent.Async (async)
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
@@ -71,7 +69,6 @@ data ClientEvent
   | NetworkEvent NetworkEvent -- ^ Incoming network events
   | TimerEvent NetworkId TimedAction -- ^ Timed action and the applicable network
   | ExtTimerEvent Int -- ^ extension ID
-  | DCCEvent DCCOffer -- ^ DCC SEND has been received, accept for now
 
 
 -- | Block waiting for the next 'ClientEvent'. This function will compute
@@ -82,12 +79,10 @@ getEvent ::
   IO ClientEvent
 getEvent vty st =
   do timer <- prepareTimer
-     dcc   <- dccAccept
      atomically $
        asum [ timer
             , VtyEvent     <$> readTChan vtyEventChannel
             , NetworkEvent <$> readTQueue (view clientEvents st)
-            , DCCEvent     <$> dcc
             ]
   where
     vtyEventChannel = _eventChannel (inputIface vty)
@@ -102,13 +97,6 @@ getEvent vty st =
              return $ do ready <- readTVar var
                          unless ready retry
                          return event
-
-    dccAccept :: IO (STM DCCOffer)
-    dccAccept = return $
-      case view clientDCCOffers st of
-        []  -> retry
-        a:_ -> return a
-
 
 -- | Compute the earliest scheduled timed action for the client
 earliestEvent :: ClientState -> Maybe (UTCTime, ClientEvent)
@@ -145,7 +133,6 @@ eventLoop vty st =
      event <- getEvent vty st'
      case event of
        ExtTimerEvent i -> eventLoop vty =<< clientExtTimer i st'
-       DCCEvent offer -> eventLoop vty =<< doDCCEvent offer st'
        TimerEvent networkId action  -> eventLoop vty =<< doTimerEvent networkId action st'
        VtyEvent vtyEvent -> traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
        NetworkEvent networkEvent ->
@@ -599,12 +586,6 @@ executeInput ::
   ClientState {- ^ client state -} ->
   IO CommandResult
 executeInput st = execute (clientFirstLine st) st
-
-
-doDCCEvent :: DCCOffer -> ClientState -> IO ClientState
-doDCCEvent offer st =
-  let st' = over clientDCCOffers (Data.List.delete offer) st
-  in async (startDownload offer) >> return st'
 
 
 -- | Respond to a timer event.

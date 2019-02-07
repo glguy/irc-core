@@ -107,6 +107,7 @@ library
                        Client.View
                        Client.View.ChannelInfo
                        Client.View.Digraphs
+                       Client.View.DCCList
                        Client.View.Help
                        Client.View.IgnoreList
                        Client.View.KeyMap

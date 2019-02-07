@@ -345,6 +345,7 @@ viewSubfocusLabel pal subfocus =
     FocusInfo     -> Just $ string (view palLabel pal) "info"
     FocusUsers    -> Just $ string (view palLabel pal) "users"
     FocusMentions -> Just $ string (view palLabel pal) "mentions"
+    FocusDCC      -> Just $ string (view palLabel pal) "DCC"
     FocusPalette  -> Just $ string (view palLabel pal) "palette"
     FocusDigraphs -> Just $ string (view palLabel pal) "digraphs"
     FocusKeyMap   -> Just $ string (view palLabel pal) "keymap"

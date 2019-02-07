@@ -36,12 +36,14 @@ import           Client.Mask
 import           Client.Message
 import           Client.State
 import           Client.State.Channel
+import           Client.State.DCC
 import qualified Client.State.EditBox as Edit
 import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Control.Applicative
+import           Control.Concurrent.Async (async)
 import           Control.Exception (displayException, try)
 import           Control.Lens
 import           Control.Monad
@@ -931,6 +933,11 @@ commandsList =
       "Send a raw IRC command.\n"
     $ NetworkCommand cmdQuote simpleNetworkTab
 
+  , Command
+      (pure "dcc")
+      (optionalArg numberArg)
+      "Accept a DCC SEND connection.\n"
+    $ ClientCommand cmdDcc noClientTab
   ------------------------------------------------------------------------
   ] , CommandSection "IRC queries"
   ------------------------------------------------------------------------
@@ -1284,6 +1291,18 @@ cmdQuote cs st rest =
     Just raw ->
       do sendMsg cs raw
          commandSuccess st
+
+-- TODO: what to do when we are already downloading?
+cmdDcc :: ClientCommand (Maybe Int)
+cmdDcc st Nothing = commandSuccess (changeSubfocus FocusDCC st)
+cmdDcc st (Just key) =
+  case view (clientDCCOffers . at key) st of
+    Nothing    -> commandFailureMsg "No such DCC offer" st
+    Just offer ->
+      do threadId <- async (startDownload offer)
+         let transfer = DCCTransfer threadId
+             st' = set (clientDCCTransfers . at key) (Just transfer) st
+         commandSuccess st'
 
 -- | Implementation of @/me@
 cmdMe :: ChannelCommand String

@@ -22,6 +22,7 @@ module Client.State.DCC
   , dccSize
   , startDownload
   , parseDCC
+  , DCCTransfer(..)
   ) where
 
 import           Control.Concurrent.Async
@@ -52,6 +53,11 @@ data DCCOffer = DCCOffer
 
 
 makeLenses ''DCCOffer
+
+
+data DCCTransfer = DCCTransfer
+  { _dtThread :: Async ()
+  }
 
 
 -- | Process the DCCOffer starting the exchange
