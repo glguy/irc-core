@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language QuasiQuotes, OverloadedStrings #-}
 {-|
 Module      : Client.Hook.Snotice
 Description : Hook for sorting some service notices into separate windows.
@@ -15,10 +15,17 @@ module Client.Hook.Snotice
   ) where
 
 import qualified Data.Text as Text
+import           Data.Text (Text)
+import           Data.List (find)
+import           Text.Regex.TDFA
+import           Text.Regex.TDFA.String
 
 import           Client.Hook
 import           Irc.Message
+import           Irc.Identifier (mkId, Identifier)
 import           Irc.UserInfo
+import           Language.Haskell.TH
+import           StrQuote (str)
 
 snoticeHook :: MessageHook
 snoticeHook = MessageHook "snotice" True remap
@@ -26,22 +33,35 @@ snoticeHook = MessageHook "snotice" True remap
 remap ::
   IrcMsg -> MessageResult
 
-remap (Notice (UserInfo n@"services." "" "") _ msg) =
-  RemapMessage (Notice (UserInfo n "" "*") "{services}" msg)
-
 remap (Notice (UserInfo u "" "") _ msg)
-  | "*** Notice -- K/DLINE active" `Text.isPrefixOf` msg ||
-    "*** Notice -- Propagated ban" `Text.isPrefixOf` msg ||
-    "*** Notice -- " `Text.isPrefixOf` msg && "min. K-Line for" `Text.isInfixOf` msg
-  = RemapMessage (Notice (UserInfo u "" "*") "{kline}" msg)
-
-  | "*** Notice -- OPERSPY " `Text.isPrefixOf` msg
-  = RemapMessage (Notice (UserInfo u "" "*") "{operspy}" msg)
-
-  | " is a possible spambot" `Text.isSuffixOf` msg
-  = RemapMessage (Notice (UserInfo u "" "*") "{spambot}" msg)
-
-  | "*** Notice -- Possible Flooder " `Text.isPrefixOf` msg
-  = RemapMessage (Notice (UserInfo u "" "*") "{flood}" msg)
+  | Just msg1 <- Text.stripPrefix "*** Notice -- " msg
+  , let msg2 = Text.filter (\x -> x /= '\x02' && x /= '\x0f') msg1
+  , Just (_lvl, cat) <- characterize msg2
+  = RemapMessage (Notice (UserInfo u "" "*") cat msg1)
 
 remap _ = PassMessage
+
+toPattern :: (Int, String, String) -> (Int, Identifier, Regex)
+toPattern (lvl, cat, reStr) =
+  case compile co eo reStr of
+    Left e  -> error e
+    Right r -> (lvl, mkId (Text.pack ('~':cat)), r)
+  where
+    co = CompOption
+      { caseSensitive  = True
+      , multiline      = False
+      , rightAssoc     = True
+      , newSyntax      = True
+      , lastStarGreedy = True }
+    eo = ExecOption
+      { captureGroups  = False }
+
+characterize :: Text -> Maybe (Int, Identifier)
+characterize txt =
+  do let s = Text.unpack txt
+     (lvl, cat, _) <- find (\(_, _, re) -> matchTest re s) patterns
+     pure (lvl, cat)
+
+patterns :: [(Int, Identifier, Regex)]
+patterns = map toPattern
+    []

@@ -123,6 +123,7 @@ library
                        Digraphs
                        DigraphQuote
                        RtsStats
+                       StrQuote
                        Paths_glirc
                        Build_glirc
 
