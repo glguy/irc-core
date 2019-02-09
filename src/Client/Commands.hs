@@ -43,7 +43,9 @@ import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Control.Applicative
-import           Control.Concurrent.Async (async)
+import           Control.Concurrent.Async (async, cancel)
+import           Control.Concurrent.STM (atomically)
+import qualified Control.Concurrent.STM.TMVar as TMVar
 import           Control.Exception (displayException, try)
 import           Control.Lens
 import           Control.Monad
@@ -54,7 +56,7 @@ import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, isJust)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
@@ -935,7 +937,7 @@ commandsList =
 
   , Command
       (pure "dcc")
-      (optionalArg numberArg)
+      (liftA2 (,) (optionalArg (simpleToken "(accept|cancel)")) (optionalArg numberArg))
       "Accept a DCC SEND connection.\n"
     $ ClientCommand cmdDcc noClientTab
   ------------------------------------------------------------------------
@@ -1292,17 +1294,30 @@ cmdQuote cs st rest =
       do sendMsg cs raw
          commandSuccess st
 
--- TODO: what to do when we are already downloading?
-cmdDcc :: ClientCommand (Maybe Int)
-cmdDcc st Nothing = commandSuccess (changeSubfocus FocusDCC st)
-cmdDcc st (Just key) =
-  case view (clientDCCOffers . at key) st of
-    Nothing    -> commandFailureMsg "No such DCC offer" st
-    Just offer ->
-      do threadId <- async (startDownload offer)
-         let transfer = DCCTransfer threadId
-             st' = set (clientDCCTransfers . at key) (Just transfer) st
-         commandSuccess st'
+-- | Implementation of @/dcc [(cancel|accept)] [key]
+cmdDcc :: ClientCommand (Maybe String, Maybe Int)
+cmdDcc st (Nothing, Nothing) = commandSuccess (changeSubfocus FocusDCC st)
+cmdDcc st (Just "accept", Just key) =
+  if isJust (view (clientDCCTransfers . at key) st)
+     then commandFailureMsg "Offer already accepted" st
+     else case view (clientDCCOffers . at key) st of
+            Nothing    -> commandFailureMsg "No such DCC offer" st
+            Just offer ->
+              do progressVar <- atomically $ TMVar.newTMVar 0
+                 downloadId <- async (startDownload progressVar offer)
+                 let transfer = DCCTransfer (Just downloadId) progressVar 0
+                     st' = set (clientDCCTransfers . at key) (Just transfer) st
+                 commandSuccess st'
+
+cmdDcc st (Just "cancel", Just key) =
+  case view (clientDCCTransfers . at key) st of
+    Nothing -> commandFailureMsg "Not a transfer to cancel" st
+    Just trans ->
+      case _dtThread trans of
+        Nothing -> commandFailureMsg "Transfer already stop" st
+        Just threadId -> cancel threadId *> commandSuccess st
+
+cmdDcc st _ = commandFailureMsg "Invalid syntax" st
 
 -- | Implementation of @/me@
 cmdMe :: ChannelCommand String

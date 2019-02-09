@@ -782,10 +782,10 @@ applyMessageToClientState time irc networkId cs st =
 
 -- | TODO: maybe replace with some lens magic?
 ctcpToTuple :: IrcMsg -> Maybe (UserInfo, Identifier, Text, Text)
-ctcpToTuple (Ctcp from target command txt) =
-  Just (from, target, command, txt)
-ctcpToTuple (CtcpNotice from target command txt) =
-  Just (from, target, command, txt)
+ctcpToTuple (Ctcp fromU target command txt) =
+  Just (fromU, target, command, txt)
+ctcpToTuple (CtcpNotice fromU target command txt) =
+  Just (fromU, target, command, txt)
 ctcpToTuple _ = Nothing
 
 -- | Queue a DCC transfer when the message is correct. Await for user

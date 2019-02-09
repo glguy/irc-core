@@ -34,6 +34,7 @@ import           Client.Message
 import           Client.Network.Async
 import           Client.Network.Connect (ircPort)
 import           Client.State
+import           Client.State.DCC
 import qualified Client.State.EditBox     as Edit
 import           Client.State.Extensions
 import           Client.State.Focus
@@ -44,6 +45,7 @@ import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import           Data.Foldable
+import           Data.IntMap (toAscList)
 import           Data.List
 import           Data.Maybe
 import           Data.Ord
@@ -69,6 +71,7 @@ data ClientEvent
   | NetworkEvent NetworkEvent -- ^ Incoming network events
   | TimerEvent NetworkId TimedAction -- ^ Timed action and the applicable network
   | ExtTimerEvent Int -- ^ extension ID
+  | DCCUpdate DCCUpdate -- ^ Event on any transfer
 
 
 -- | Block waiting for the next 'ClientEvent'. This function will compute
@@ -83,6 +86,7 @@ getEvent vty st =
        asum [ timer
             , VtyEvent     <$> readTChan vtyEventChannel
             , NetworkEvent <$> readTQueue (view clientEvents st)
+            , DCCUpdate    <$> dccUpdate
             ]
   where
     vtyEventChannel = _eventChannel (inputIface vty)
@@ -97,6 +101,8 @@ getEvent vty st =
              return $ do ready <- readTVar var
                          unless ready retry
                          return event
+
+    dccUpdate = views clientDCCTransfers (pollProgress . toAscList) st
 
 -- | Compute the earliest scheduled timed action for the client
 earliestEvent :: ClientState -> Maybe (UTCTime, ClientEvent)
@@ -133,6 +139,7 @@ eventLoop vty st =
      event <- getEvent vty st'
      case event of
        ExtTimerEvent i -> eventLoop vty =<< clientExtTimer i st'
+       DCCUpdate upd -> eventLoop vty (doDCCUpdate upd st')
        TimerEvent networkId action  -> eventLoop vty =<< doTimerEvent networkId action st'
        VtyEvent vtyEvent -> traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
        NetworkEvent networkEvent ->
@@ -598,3 +605,12 @@ doTimerEvent networkId action =
   traverseOf
     (clientConnections . ix networkId)
     (applyTimedAction action)
+
+doDCCUpdate :: DCCUpdate -> ClientState -> ClientState
+doDCCUpdate upd st =
+  case upd of
+    PercentUpdate k newVal -> set (commonLens k . dtProgress) newVal st
+    InterruptedTransfer k -> set (commonLens k . dtThread) Nothing st
+    Finished k -> set (commonLens k . dtThread) Nothing st
+  where
+    commonLens k = clientDCCTransfers . at k . _Just

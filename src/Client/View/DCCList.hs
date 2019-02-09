@@ -28,7 +28,17 @@ dccImages st =
       pal = clientPalette st
       imgKeys = map (string (_palLabel pal) . show) keys
       imgNames = map (text' defAttr . view dccFileName) offers
-  in createColumns $ transpose [imgKeys, imgNames]
+      statusOff key = case view (clientDCCTransfers . at key) st of
+                        Nothing -> "Pending"
+                        Just trans -> case view dtThread trans of
+                                        Nothing -> "Finished"
+                                        Just _ -> "Downloading"
+      downloading = map (string (_palMeta pal) . statusOff) keys
+      percentage = map (\k -> string (_palTextBox pal)
+                         . maybe "  " (\p -> show p ++ "%") . fmap _dtProgress
+                         $ view (clientDCCTransfers . at k) st) keys
+  in reverse . createColumns
+       $ transpose [imgKeys, imgNames, downloading, percentage]
 
 createColumns :: [[Image']] -> [Image']
 createColumns xs = map makeRow xs
