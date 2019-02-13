@@ -22,6 +22,7 @@ module Client.State
   , clientConnections
   , clientDCCOffers
   , clientDCCTransfers
+  , clientDCCUpdates
   , clientWidth
   , clientHeight
   , clientEvents
@@ -156,6 +157,7 @@ import           RtsStats (Stats)
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
 
+
 -- | All state information for the IRC client
 data ClientState = ClientState
   { _clientWindows           :: !(Map Focus Window) -- ^ client message buffers
@@ -170,6 +172,7 @@ data ClientState = ClientState
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
   , _clientDCCOffers         :: !(IntMap DCCOffer)        -- ^ DCC transfer offers
   , _clientDCCTransfers      :: !(IntMap DCCTransfer)     -- ^ DCC transactions
+  , _clientDCCUpdates        :: !(TChan DCCUpdate)       -- ^ DCC update events
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
   , _clientConfigPath        :: !FilePath                 -- ^ client configuration file path
@@ -247,8 +250,9 @@ withClientState cfgPath cfg k =
 
   withExtensionState $ \exts ->
 
-  do events <- atomically newTQueue
-     sts    <- readPolicyFile
+  do events    <- atomically newTQueue
+     dccEvents <- atomically newTChan
+     sts       <- readPolicyFile
      let ignoreIds = map mkId (view configIgnores cfg)
      k ClientState
         { _clientWindows           = _Empty # ()
@@ -258,6 +262,7 @@ withClientState cfgPath cfg k =
         , _clientConnections       = _Empty # ()
         , _clientDCCOffers         = _Empty # ()
         , _clientDCCTransfers      = _Empty # ()
+        , _clientDCCUpdates        = dccEvents
         , _clientTextBox           = Edit.defaultEditBox
         , _clientTextBoxOffset     = 0
         , _clientWidth             = 80
@@ -771,13 +776,13 @@ applyMessageToClientState ::
   NetworkId                  {- ^ message network          -} ->
   NetworkState               {- ^ network connection state -} ->
   ClientState                {- ^ client state             -} ->
-  ([RawIrcMsg], ClientState) {- ^ response , updated state -}
+  ([RawIrcMsg], Maybe DCCUpdate, ClientState) {- ^ response , DCC updates, updated state -}
 applyMessageToClientState time irc networkId cs st =
-  cs' `seq` (reply, st')
+  cs' `seq` (reply, dccUp, st')
   where
     (reply, cs') = applyMessage time irc cs
     network      = view csNetwork cs
-    st'          = queueDCCTransfer irc . applyWindowRenames network irc
+    (st', dccUp) = queueDCCTransfer network irc . applyWindowRenames network irc
                  $ set (clientConnections . ix networkId) cs' st
 
 -- | TODO: maybe replace with some lens magic?
@@ -790,17 +795,24 @@ ctcpToTuple _ = Nothing
 
 -- | Queue a DCC transfer when the message is correct. Await for user
 --   confirmation to start the download.
-queueDCCTransfer :: IrcMsg -> ClientState -> ClientState
-queueDCCTransfer ctcpMsg st
-  | Just (_from, _target, command, txt) <- ctcpToTuple ctcpMsg
-  , command == "DCC", Right dccOffer <- parseDCC txt
-  = over clientDCCOffers (insertAsMax dccOffer) st
-  where insertAsMax offer intmap
+queueDCCTransfer :: Text -> IrcMsg -> ClientState
+                 -> (ClientState, Maybe DCCUpdate)
+queueDCCTransfer network ctcpMsg st
+  | Just (fromU, _target, command, txt) <- ctcpToTuple ctcpMsg
+  , command == "DCC"
+  = case () of -- hack
+      _ | Right dccOffer <- parseSEND network fromU txt
+            -> (over clientDCCOffers (insertAsMax dccOffer) st, Nothing)
+        | offers <- view clientDCCOffers st
+        , Just upd <- parseACCEPT offers fromU txt -> (st, Just upd)
+        | otherwise -> (st, Nothing)
+  where
+    insertAsMax offer intmap
           | IntMap.null intmap = IntMap.singleton 1 offer
           | otherwise = let (key, _) = IntMap.findMax intmap
                         in IntMap.insert (succ key) offer intmap
 
-queueDCCTransfer _ st = st
+queueDCCTransfer _ _ st = (st, Nothing)
 
 
 -- | When a nick change happens and there is an open query window for that nick

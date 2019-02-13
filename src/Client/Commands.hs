@@ -44,8 +44,6 @@ import           Client.State.Network
 import           Client.State.Window
 import           Control.Applicative
 import           Control.Concurrent.Async (async, cancel)
-import           Control.Concurrent.STM (atomically)
-import qualified Control.Concurrent.STM.TMVar as TMVar
 import           Control.Exception (displayException, try)
 import           Control.Lens
 import           Control.Monad
@@ -937,7 +935,8 @@ commandsList =
 
   , Command
       (pure "dcc")
-      (liftA2 (,) (optionalArg (simpleToken "(accept|cancel)")) (optionalArg numberArg))
+      (liftA2 (,) (optionalArg (simpleToken "(accept|cancel|resume)"))
+                               (optionalArg numberArg))
       "Accept a DCC SEND connection.\n"
     $ ClientCommand cmdDcc noClientTab
   ------------------------------------------------------------------------
@@ -1303,11 +1302,34 @@ cmdDcc st (Just "accept", Just key) =
      else case view (clientDCCOffers . at key) st of
             Nothing    -> commandFailureMsg "No such DCC offer" st
             Just offer ->
-              do progressVar <- atomically $ TMVar.newTMVar 0
-                 downloadId <- async (startDownload progressVar offer)
-                 let transfer = DCCTransfer (Just downloadId) progressVar 0
+              do let updChan = view clientDCCUpdates st
+                 downloadId <- async (supervisedDownload key updChan offer)
+                 let transfer = DCCTransfer (Just downloadId) 0
                      st' = set (clientDCCTransfers . at key) (Just transfer) st
                  commandSuccess st'
+
+cmdDcc st (Just "resume", Just key) =
+  if isJust (view (clientDCCTransfers . at key) st)
+     then commandFailureMsg "Offer already accepted" st
+     else case view (clientDCCOffers . at key) st of
+            Nothing    -> commandFailureMsg "No such DCC offer" st
+            Just offer ->
+              do msize <- getFileOffset (_dccFileName offer)
+                 let mcs = preview (clientConnection (_dccNetwork offer)) st
+                 case (msize, mcs) of
+                   (Nothing, _) -> cmdDcc st (Just "accept", Just key)
+                   (Just 0, _)  -> cmdDcc st (Just "accept", Just key)
+                   (Just size, Just cs) ->
+                     let target = Text.unpack $
+                                    views uiNick idText (_dccFromInfo offer)
+                         txt = "RESUME " <> "\""
+                               <> Text.unpack (_dccFileName offer) <> "\" "
+                               <> show (_dccPort offer) <> " "
+                               <> show size
+                         st' = set (clientDCCOffers . at key . _Just . dccOffset)
+                                 size st
+                     in cmdCtcp cs st' (target, "DCC", txt)
+                   (_ , _) -> commandFailureMsg "Unknown case" st
 
 cmdDcc st (Just "cancel", Just key) =
   case view (clientDCCTransfers . at key) st of

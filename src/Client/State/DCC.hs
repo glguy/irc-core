@@ -8,34 +8,41 @@ Copyright   : (c) Ruben Astudillo, 2019
 License     : ISC
 Maintainer  : ruben.astud@gmail.com
 
-This module provides ADTs to hold a DCC offer made a by peer and
-functions to start such transfer.
+This module provides ADTs and functions to deal with DCC SEND/ACCEPT
+request and how start such transfers.
 -}
 
 module Client.State.DCC
   (
   -- * DCC offers
     DCCOffer(..)
-  , dccFrom
+  , dccNetwork
+  , dccFromInfo
+  , dccFromIP
   , dccPort
   , dccFileName
   , dccSize
-  , startDownload
-  , parseDCC
+  , dccOffset
   -- * DCC transfer
   , DCCTransfer(..)
   , dtThread
-  , dtProgressVar
   , dtProgress
-  , pollProgress
   -- * DCC Update
   , DCCUpdate(..)
+  -- * Transfer a DCCOffer
+  , supervisedDownload
+  -- * Parser for DCC request
+  , parseSEND
+  , parseACCEPT
+  -- * Miscellaneous
+  , getFileOffset
   ) where
 
+import           Control.Applicative (Alternative(..))
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
-import           Control.Exception ( bracket, IOException
-                                   , AsyncException, Exception(..))
+import qualified Control.Exception as E
+import           Control.Exception ( bracket, IOException, AsyncException)
 import           Control.Lens hiding (from)
 import           Control.Monad (unless)
 import           Control.Monad (when)
@@ -44,23 +51,28 @@ import qualified Data.ByteString as B
 import           Data.ByteString.Builder (word32BE, toLazyByteString)
 import           Data.ByteString.Lazy (toStrict)
 import           Data.IntMap (Key)
-import           Data.List (elem)
-import           Data.Maybe (isNothing)
-import           Data.Monoid
+import           Data.IntMap as I hiding (size)
+import           Data.List (find)
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Word
+import           Data.Word (Word32, Word64)
 import           Hookup
+import           Irc.UserInfo (UserInfo(..))
 import           Network.Socket ( HostName, PortNumber, Family(..)
                                 , hostAddressToTuple )
-import qualified System.IO as IO
+import           System.IO (withFile, IOMode(..), openFile, hClose, hFileSize)
+import           System.Directory (doesFileExist)
 
 -- | All the neccesary information to start the download
 data DCCOffer = DCCOffer
-  { _dccFrom     :: HostName -- ^ String of the ipv4 representation
+  { _dccNetwork  :: Text
+  , _dccFromInfo :: UserInfo
+  , _dccFromIP   :: HostName -- ^ String of the ipv4 representation
   , _dccPort     :: PortNumber
   , _dccFileName :: Text
-  , _dccSize     :: Word32 -- ^ Size of the whole file, per protocol restricted to 32-bits
+  , _dccSize     :: Word32 -- ^ Size of the whole file, per protocol
+                           --   restricted to 32-bits
+  , _dccOffset   :: Word32 -- ^ Byte from where the transmission starts
   } deriving (Show, Eq)
 
 
@@ -70,25 +82,42 @@ makeLenses ''DCCOffer
 data DCCTransfer = DCCTransfer
   { _dtThread      :: Maybe (Async ()) -- ^ If Nothing, the thread was killed
                                        --   and stopped.
-  , _dtProgressVar :: TMVar Word32
-  , _dtProgress    :: Word32 -- ^ Last _dtProgressVar seen
+  , _dtProgress    :: Word32 -- ^ Percetage of progress
   }
 
 makeLenses ''DCCTransfer
 
 
-data DCCUpdate = PercentUpdate Key Word32
-               | Finished Key
-               | InterruptedTransfer Key
-  deriving (Show, Eq)
+data DCCUpdate
+  = PercentUpdate Key Word32
+  | Finished Key
+  | InterruptedTransfer Key
+  | Accept Key PortNumber Word32 -- update that DCC RESUME triggers
+  deriving (Show, Eq)            -- Word32 is the offset
 
+
+supervisedDownload :: Key -> TChan DCCUpdate -> DCCOffer -> IO ()
+supervisedDownload key updateChan offer =
+  withAsync (startDownload key updateChan offer) $ \realTransferThread ->
+    do upd <- E.catches (Finished key <$ wait realTransferThread)
+                [ E.Handler (\(_ :: IOException) ->
+                               return (InterruptedTransfer key))
+                -- user killed, thrown by async >= 2.2
+                , E.Handler (\(_ :: AsyncCancelled) ->
+                               return (InterruptedTransfer key))
+                -- Compatibility hack
+                -- user killed, thrown by async <= 2.1.1 on cancel
+                , E.Handler (\(_ :: AsyncException) ->
+                               return (InterruptedTransfer key))
+                ]
+       atomically $ writeTChan updateChan upd
 
 -- | Process the DCCOffer starting the exchange
-startDownload :: TMVar Word32 -> DCCOffer -> IO ()
-startDownload progressVar (DCCOffer from port name totalSize) =
+startDownload :: Key -> TChan DCCUpdate -> DCCOffer -> IO ()
+startDownload key updateChan offer@(DCCOffer _ _ from port name totalSize offset) = do
+  let openMode = if offset > 0 then AppendMode else WriteMode
   bracket (connect param) close $ \conn ->
-    -- BUG: do better that pure AppendMode
-    bracket (IO.openFile (Text.unpack name) IO.AppendMode) IO.hClose $ \hdl ->
+    bracket (openFile (Text.unpack name) openMode) hClose $ \hdl ->
       do -- Has to decouple @send@ from @recv@, tells how much
          -- have we downloaded.
          recvChan1 <- atomically newTChan
@@ -96,12 +125,13 @@ startDownload progressVar (DCCOffer from port name totalSize) =
 
          -- Two threads, one for @send@ the progress to the
          -- server and another to signal how much progress
-         -- have we done. `withAsync` guarrantee correct exception
-         -- handling when the user cancels the transfer.
+         -- have we done to the main thread. `withAsync` guarrantee
+         -- correct exception handling when the user cancels the
+         -- transfer.
          withAsync (sendStream totalSize conn recvChan1) $ \outThread ->
-           withAsync (report totalSize recvChan2 progressVar) $ \_reportThread ->
-             do recvSendLoop 0 recvChan1 conn hdl
-                wait outThread
+           withAsync (report offer key recvChan2 updateChan)
+             $ \_reportThread -> do recvSendLoop 0 recvChan1 conn hdl
+                                    wait outThread
   where
     param = ConnectionParams
               { cpFamily = AF_INET, cpHost = from
@@ -119,7 +149,7 @@ startDownload progressVar (DCCOffer from port name totalSize) =
               recvSendLoop newSize chan conn hdl
 
 
--- | `send`ing the current size to the fileserver. As an
+-- | @send@ing the current size to the fileserver. As an
 --   independent acknowledgement stream, it doesn't match the protocol,
 --   but matches what other clients and servers do in practice.
 sendStream :: Word32 -> Connection -> TChan Word32 -> IO ()
@@ -130,41 +160,67 @@ sendStream maxSize conn chan =
      unless (val >= maxSize) (sendStream maxSize conn chan)
 
 
-report :: Word32 -> TChan Word32 -> TMVar Word32 -> IO ()
-report totalSize input output = go 0
+report :: DCCOffer -> Key -> TChan Word32 -> TChan DCCUpdate -> IO ()
+report offer key input output = compareAndUpdate (percent offset totalsize)
   where
-    go :: Word32 -> IO ()
-    go prevPercent =
+    offset = _dccOffset offer
+    totalsize = _dccSize offer
+
+    compareAndUpdate :: Word32 -> IO ()
+    compareAndUpdate prevPercent =
       do curSize <- atomically $ readTChan input
          let -- curPercent :: Word64 so the (* 100) doesn't overflow.
-             curPercent = percent curSize totalSize
+             curPercent = percent (offset + curSize) totalsize
+             updateEv   = PercentUpdate key curPercent
          if (curPercent == 100)
-           then atomically (putTMVar output curPercent)
+           then atomically (writeTChan output updateEv)
            else do when (curPercent > prevPercent)
-                        $ atomically (putTMVar output curPercent)
-                   go curPercent
+                        $ atomically (writeTChan output updateEv)
+                   compareAndUpdate curPercent
 
     percent :: Word32 -> Word32 -> Word32
     percent a total = fromIntegral $
       ((fromIntegral @_ @Word64 a) * 100) `div` (fromIntegral total)
 
 
-parseDCC :: Text -> Either String DCCOffer
-parseDCC = parseOnly dccFormat
+parseSEND :: Text -> UserInfo -> Text -> Either String DCCOffer
+parseSEND network userFrom text = parseOnly (sendFormat network userFrom) text
 
-
-dccFormat :: Parser DCCOffer
-dccFormat =
-      -- BUG: `name` maybe doesn't start with " or '.
-  let sepName = choice [char '"', char '\'']
-      fun name addr port size = DCCOffer addr port name size
-  in fun <$> (string "SEND" *> space *> sepName
-             *> takeWhile1 (\c -> not (c `elem` ['"', '\'']))
-             <* sepName) <*> (ipv4Dotted <$> (space *> decimal))
+sendFormat :: Text -> UserInfo -> Parser DCCOffer
+sendFormat network userFrom =
+  let fun name addr port totalsize =
+        DCCOffer network userFrom addr port name totalsize 0
+  in fun <$> (string "SEND" *> space *> nameFormat)
+             <*> (ipv4Dotted <$> (space *> decimal))
              <*> (space *> decimal)
              <*> (space *> decimal)
 
+-- | DCC RESUME counterpart.
+parseACCEPT :: IntMap DCCOffer -> UserInfo -> Text -> Maybe DCCUpdate
+parseACCEPT offers userFrom text =
+  let offerList = I.toDescList offers
+      predicate (fileName, _, _) (_, offer)=
+        (_dccFileName offer == fileName) && userFrom == (_dccFromInfo offer)
+  in case parseOnly acceptFormat text of
+       Left _ -> Nothing
+       Right args@(_, port, offset) ->
+         (\(key, _) -> Accept key port offset)
+             <$> find (predicate args) offerList
 
+
+acceptFormat :: Parser (Text, PortNumber, Word32)
+acceptFormat =
+  (,,) <$> (string "ACCEPT " *> nameFormat)
+       <*> (space *> decimal) -- port
+       <*> (space *> decimal) -- offset
+
+nameFormat :: Parser Text
+nameFormat = try quotedName <|> noSpaceName
+  where
+    quotedName = char '\"' *> takeWhile1 (\c -> c /= '\"') <* char '\"'
+    noSpaceName = takeWhile1 (\c -> c /= ' ')
+
+-- | Asumming little-endian
 ipv4Dotted :: Word32 -> HostName
 ipv4Dotted addr =
   let bigToLittleEndian (a, b, c, d) = (d, c, b, a)
@@ -172,41 +228,14 @@ ipv4Dotted addr =
         show d <> "." <> show c <> "." <> show b <> "." <> show a
   in ipv4Format . bigToLittleEndian $ hostAddressToTuple addr
 
--- | select/poll on DCC progress
-pollProgress :: [(Int, DCCTransfer)] -> STM DCCUpdate
-pollProgress =
-  let discern (key, trans) =
-        do -- Pass over already finished transfer
-           when (isNothing (_dtThread trans)) retry
-
-           let Just threadId = _dtThread trans
-           updateProgress key (_dtProgressVar trans)
-             `orElse` finishDownload key threadId
-
-      updateProgress :: Key -> TMVar Word32 -> STM DCCUpdate
-      updateProgress key tmvar =
-        do curProg <- takeTMVar tmvar
-           return $ PercentUpdate key curProg
-
-      finishDownload :: Key -> Async () -> STM DCCUpdate
-      finishDownload key threadId = do
-        res <- waitCatchSTM threadId
-        case res of
-          Right () -> return $ Finished key
-
-          -- socket died
-          Left exc | Just (_ :: IOException) <- fromException exc
-                     -> return (InterruptedTransfer key)
-
-          -- Compatibility hack
-          -- user killed, thrown by async <= 2.1.1 on cancel
-          Left exc | Just (_ :: AsyncException) <- fromException exc
-                     -> return (InterruptedTransfer key)
-
-          -- user killed, thrown by async >= 2.2
-          Left exc | Just (_ :: AsyncCancelled ) <- fromException exc
-                     -> return (InterruptedTransfer key)
-
-          Left _ -> return (InterruptedTransfer key) -- catchall
-
-  in getAlt . foldMap (Alt . discern)
+getFileOffset :: Text -> IO (Maybe Word32)
+getFileOffset pathtext =
+  do let path = Text.unpack pathtext
+     isfile <- doesFileExist path
+     case isfile of
+       False -> return Nothing
+       True ->
+         do size <- withFile path ReadMode hFileSize
+            if size == 0
+              then return Nothing
+              else return $ Just (fromIntegral size)

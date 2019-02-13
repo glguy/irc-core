@@ -39,13 +39,13 @@ import qualified Client.State.EditBox     as Edit
 import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
+import           Control.Concurrent.Async (async)
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import           Data.Foldable
-import           Data.IntMap (toAscList)
 import           Data.List
 import           Data.Maybe
 import           Data.Ord
@@ -86,7 +86,7 @@ getEvent vty st =
        asum [ timer
             , VtyEvent     <$> readTChan vtyEventChannel
             , NetworkEvent <$> readTQueue (view clientEvents st)
-            , DCCUpdate    <$> dccUpdate
+            , DCCUpdate    <$> readTChan dccUpdate
             ]
   where
     vtyEventChannel = _eventChannel (inputIface vty)
@@ -102,7 +102,7 @@ getEvent vty st =
                          unless ready retry
                          return event
 
-    dccUpdate = views clientDCCTransfers (pollProgress . toAscList) st
+    dccUpdate = view clientDCCUpdates st
 
 -- | Compute the earliest scheduled timed action for the client
 earliestEvent :: ClientState -> Maybe (UTCTime, ClientEvent)
@@ -139,7 +139,7 @@ eventLoop vty st =
      event <- getEvent vty st'
      case event of
        ExtTimerEvent i -> eventLoop vty =<< clientExtTimer i st'
-       DCCUpdate upd -> eventLoop vty (doDCCUpdate upd st')
+       DCCUpdate upd -> eventLoop vty =<< doDCCUpdate upd st'
        TimerEvent networkId action  -> eventLoop vty =<< doTimerEvent networkId action st'
        VtyEvent vtyEvent -> traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
        NetworkEvent networkEvent ->
@@ -292,8 +292,11 @@ doNetworkLine networkId time line st =
                                         , _msgBody    = IrcBody irc'
                                         }
 
-                    let (replies, st3) = applyMessageToClientState time irc networkId cs st2
+                    let (replies, dccUp, st3) = applyMessageToClientState time irc
+                                                  networkId cs st2
 
+                    maybe (return ())
+                      (atomically . writeTChan (view clientDCCUpdates st3)) dccUp
                     traverse_ (sendMsg cs) replies
                     clientResponse time' irc cs st3
 
@@ -606,11 +609,23 @@ doTimerEvent networkId action =
     (clientConnections . ix networkId)
     (applyTimedAction action)
 
-doDCCUpdate :: DCCUpdate -> ClientState -> ClientState
-doDCCUpdate upd st =
+doDCCUpdate :: DCCUpdate -> ClientState -> IO ClientState
+doDCCUpdate upd st0 =
   case upd of
-    PercentUpdate k newVal -> set (commonLens k . dtProgress) newVal st
-    InterruptedTransfer k -> set (commonLens k . dtThread) Nothing st
-    Finished k -> set (commonLens k . dtThread) Nothing st
+    PercentUpdate k newVal -> return $ set (commonLens k . dtProgress) newVal st0
+    InterruptedTransfer k -> return $ set (commonLens k . dtThread) Nothing st0
+    Finished k -> return $ set (commonLens k . dtThread) Nothing st0
+    Accept k port offset ->
+      do let moldOffer = view (clientDCCOffers . at k) st0
+         case moldOffer of
+           Nothing -> return st0
+           Just oldOffer ->
+             do let offer = set dccPort port $ set dccOffset offset oldOffer
+                    st1 = set (clientDCCOffers . at k) (Just offer) st0
+                    updChan = view clientDCCUpdates st1
+                downloadId <- async $ supervisedDownload k updChan offer
+                let transfer = DCCTransfer (Just downloadId) offset
+                    st2 = set (clientDCCTransfers . at k) (Just transfer) st1
+                return st2
   where
     commonLens k = clientDCCTransfers . at k . _Just
