@@ -783,7 +783,7 @@ initialMessages cs
    = [ ircCapLs ]
   ++ [ ircPass pass | Just pass <- [view ssPassword ss]]
   ++ [ ircNick (views ssNicks NonEmpty.head ss)
-     , ircUser (view ssUser ss) False True (view ssReal ss)
+     , ircUser (view ssUser ss) (view ssReal ss)
      ]
   where
     ss = view csSettings cs

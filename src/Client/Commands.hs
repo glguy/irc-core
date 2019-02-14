@@ -680,11 +680,12 @@ commandsList =
       (remainingArg "regular-expression")
       "Set the persistent regular expression.\n\
       \\n\
-      \Flags:\n\
-      \  -An  Show n messages after match\n\
-      \  -Bn  Show n messages before match\n\
-      \  -i   Case insensitive match\n\
-      \  --   Stop processing flags\n\
+      \\^BFlags:\^B\n\
+      \    -An  Show n messages after match\n\
+      \    -Bn  Show n messages before match\n\
+      \    -Cn  Show n messages before and after match\n\
+      \    -i   Case insensitive match\n\
+      \    --   Stop processing flags\n\
       \\n\
       \Clear the regular expression by calling this without an argument.\n\
       \\n\

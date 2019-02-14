@@ -634,20 +634,21 @@ clientActiveRegex st =
 buildMatcher :: String -> Maybe Matcher
 buildMatcher = go (True, 0, 0)
   where
-    go (sensitive, before, after) reStr =
+    go (sensitive, b, a) reStr =
       case dropWhile (' '==) reStr of
-        '-' : 'i' : ' ' : reStr'                                      -> go (False, before, after) reStr'
-        '-' : 'A' : reStr' | [(after' , ' ':reStr'')] <- reads reStr' -> go (sensitive, before, after') reStr''
-        '-' : 'B' : reStr' | [(before', ' ':reStr'')] <- reads reStr' -> go (sensitive, before', after) reStr''
-        '-' : '-' : reStr' -> finish (sensitive, before, after) (drop 1 reStr')
-        _ -> finish (sensitive, before, after) reStr
+        '-' : 'i' : ' ' : reStr'                                            -> go (False, b, a) reStr'
+        '-' : 'A' : reStr' | [(a' , ' ':reStr'')] <- reads reStr', a'  >= 0 -> go (sensitive, b, a') reStr''
+        '-' : 'B' : reStr' | [(b' , ' ':reStr'')] <- reads reStr', b'  >= 0 -> go (sensitive, b', a) reStr''
+        '-' : 'C' : reStr' | [(num, ' ':reStr'')] <- reads reStr', num >= 0 -> go (sensitive, num, num) reStr''
+        '-' : '-' : reStr' -> finish (sensitive, b, a) (drop 1 reStr')
+        _ -> finish (sensitive, b, a) reStr
 
-    finish (sensitive, before, after) reStr =
+    finish (sensitive, b, a) reStr =
       case compile defaultCompOpt{caseSensitive=sensitive}
                    defaultExecOpt{captureGroups=False}
                    reStr of
         Left{}  -> Nothing
-        Right r -> Just (Matcher before after (matchTest r . LText.unpack))
+        Right r -> Just (Matcher b a (matchTest r . LText.unpack))
 
 -- | Compute the command and arguments currently in the textbox.
 clientActiveCommand ::
