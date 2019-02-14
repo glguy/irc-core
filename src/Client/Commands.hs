@@ -1303,7 +1303,8 @@ cmdDcc st (Just "accept", Just key) =
             Nothing    -> commandFailureMsg "No such DCC offer" st
             Just offer ->
               do let updChan = view clientDCCUpdates st
-                 downloadId <- async (supervisedDownload key updChan offer)
+                     dir = view (clientConfig . configDownloadDir) st
+                 downloadId <- async (supervisedDownload dir key updChan offer)
                  let transfer = DCCTransfer (Just downloadId) 0
                      st' = set (clientDCCTransfers . at key) (Just transfer) st
                  commandSuccess st'

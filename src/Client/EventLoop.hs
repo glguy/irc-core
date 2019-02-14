@@ -20,7 +20,7 @@ import qualified Client.Authentication.Ecdsa as Ecdsa
 import           Client.CApi (popTimer)
 import           Client.Commands
 import           Client.Commands.Interpolation
-import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames)
+import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDownloadDir)
 import           Client.Configuration.ServerSettings
 import           Client.Configuration.Sts
 import           Client.EventLoop.Actions
@@ -623,7 +623,8 @@ doDCCUpdate upd st0 =
              do let offer = set dccPort port $ set dccOffset offset oldOffer
                     st1 = set (clientDCCOffers . at k) (Just offer) st0
                     updChan = view clientDCCUpdates st1
-                downloadId <- async $ supervisedDownload k updChan offer
+                    dir = view (clientConfig . configDownloadDir) st1
+                downloadId <- async $ supervisedDownload dir k updChan offer
                 let transfer = DCCTransfer (Just downloadId) offset
                     st2 = set (clientDCCTransfers . at k) (Just transfer) st1
                 return st2

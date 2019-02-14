@@ -62,6 +62,8 @@ import           Network.Socket ( HostName, PortNumber, Family(..)
                                 , hostAddressToTuple )
 import           System.IO (withFile, IOMode(..), openFile, hClose, hFileSize)
 import           System.Directory (doesFileExist)
+import           System.Environment (getEnv)
+import           System.FilePath ((</>))
 
 -- | All the neccesary information to start the download
 data DCCOffer = DCCOffer
@@ -82,7 +84,7 @@ makeLenses ''DCCOffer
 data DCCTransfer = DCCTransfer
   { _dtThread      :: Maybe (Async ()) -- ^ If Nothing, the thread was killed
                                        --   and stopped.
-  , _dtProgress    :: Word32 -- ^ Percetage of progress
+  , _dtProgress    :: Word32 -- ^ Percentage of progress
   }
 
 makeLenses ''DCCTransfer
@@ -96,9 +98,10 @@ data DCCUpdate
   deriving (Show, Eq)            -- Word32 is the offset
 
 
-supervisedDownload :: Key -> TChan DCCUpdate -> DCCOffer -> IO ()
-supervisedDownload key updateChan offer =
-  withAsync (startDownload key updateChan offer) $ \realTransferThread ->
+supervisedDownload :: Maybe FilePath -> Key -> TChan DCCUpdate
+                   -> DCCOffer -> IO ()
+supervisedDownload mdir key updateChan offer =
+  withAsync (startDownload mdir key updateChan offer) $ \realTransferThread ->
     do upd <- E.catches (Finished key <$ wait realTransferThread)
                 [ E.Handler (\(_ :: IOException) ->
                                return (InterruptedTransfer key))
@@ -113,11 +116,14 @@ supervisedDownload key updateChan offer =
        atomically $ writeTChan updateChan upd
 
 -- | Process the DCCOffer starting the exchange
-startDownload :: Key -> TChan DCCUpdate -> DCCOffer -> IO ()
-startDownload key updateChan offer@(DCCOffer _ _ from port name totalSize offset) = do
+startDownload :: Maybe FilePath -> Key -> TChan DCCUpdate
+              -> DCCOffer -> IO ()
+startDownload mdir key updateChan offer@(DCCOffer _ _ from port name totalSize offset) = do
+  home <- getEnv "HOME"
   let openMode = if offset > 0 then AppendMode else WriteMode
+      filepath = (maybe home id mdir) </> Text.unpack name
   bracket (connect param) close $ \conn ->
-    bracket (openFile (Text.unpack name) openMode) hClose $ \hdl ->
+    bracket (openFile filepath openMode) hClose $ \hdl ->
       do -- Has to decouple @send@ from @recv@, tells how much
          -- have we downloaded.
          recvChan1 <- atomically newTChan

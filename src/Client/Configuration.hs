@@ -29,6 +29,7 @@ module Client.Configuration
   , configPalette
   , configWindowNames
   , configNickPadding
+  , configDownloadDir
   , configMacros
   , configExtensions
   , configExtraHighlights
@@ -102,6 +103,7 @@ data Configuration = Configuration
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
   , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
+  , _configDownloadDir     :: Maybe FilePath -- ^ Possible directory for downloads
   , _configMacros          :: Recognizer Macro -- ^ command macros
   , _configExtensions      :: [ExtensionConfiguration] -- ^ extensions to load
   , _configUrlOpener       :: Maybe FilePath -- ^ paths to url opening executable
@@ -303,6 +305,8 @@ configurationSpec = sectionsSpec "" $
                                "extension libraries to load at startup"
      _configUrlOpener       <- optSection' "url-opener" stringSpec
                                "External command used by /url command"
+     _configDownloadDir     <- optSection' "download-dir" stringSpec
+                               "Path to the directory where to place DCC downloads"
      _configExtraHighlights <- sec' mempty "extra-highlights" identifierSetSpec
                                "Extra words to highlight in chat messages"
      _configNickPadding     <- sec' NoPadding "nick-padding" nickPaddingSpec
