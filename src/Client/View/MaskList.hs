@@ -23,8 +23,8 @@ import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Ord
-import           Data.Maybe
 import           Data.Text (Text)
+import qualified Data.Text.Lazy as LText
 import           Data.Time
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
@@ -59,7 +59,7 @@ maskListImages' entries w st = countImage : images
                  char (view palLabel pal) '/' <>
                  string defAttr (show (HashMap.size entries))
 
-    matcher = fromMaybe (const True) (clientMatcher' st)
+    matcher = maybe (const True) matcherPred (clientMatcher st) . LText.fromStrict
 
     matcher' (mask,entry) = matcher mask || matcher (view maskListSetter entry)
 

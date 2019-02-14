@@ -53,7 +53,7 @@ userListImages' cs channel st =
   where
     countImage = drawSigilCount pal (map snd usersList)
 
-    matcher = fromMaybe (const True) (clientMatcher st)
+    matcher = maybe (const True) matcherPred (clientMatcher st)
 
     myNicks = clientHighlights cs st
 
@@ -106,7 +106,7 @@ userInfoImages network channel st =
 userInfoImages' :: NetworkState -> Identifier -> ClientState -> [Image']
 userInfoImages' cs channel st = countImage : map renderEntry usersList
   where
-    matcher = fromMaybe (const True) (clientMatcher st)
+    matcher = maybe (const True) matcherPred (clientMatcher st)
 
     countImage = drawSigilCount pal (map snd usersList)
 

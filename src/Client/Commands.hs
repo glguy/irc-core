@@ -65,8 +65,6 @@ import           Irc.Modes
 import           LensUtils
 import           RtsStats (getStats)
 import           System.Process
-import           Text.Regex.TDFA
-import           Text.Regex.TDFA.String (compile)
 
 -- | Possible results of running a command
 data CommandResult
@@ -682,22 +680,16 @@ commandsList =
       (remainingArg "regular-expression")
       "Set the persistent regular expression.\n\
       \\n\
-      \Clear the regular expression by calling this without an argument.\n\
-      \\n\
-      \\^B/grep\^O is case-sensitive.\n\
-      \\^B/grepi\^O is case-insensitive.\n"
-    $ ClientCommand (cmdGrep True) simpleClientTab
-
-  , Command
-      (pure "grepi")
-      (remainingArg "regular-expression")
-      "Set the persistent regular expression.\n\
+      \Flags:\n\
+      \  -An  Show n messages after match\n\
+      \  -Bn  Show n messages before match\n\
+      \  -i   Case insensitive match\n\
+      \  --   Stop processing flags\n\
       \\n\
       \Clear the regular expression by calling this without an argument.\n\
       \\n\
-      \\^B/grep\^O is case-sensitive.\n\
-      \\^B/grepi\^O is case-insensitive.\n"
-    $ ClientCommand (cmdGrep False) simpleClientTab
+      \\^B/grep\^O is case-sensitive.\n"
+    $ ClientCommand cmdGrep simpleClientTab
 
   , Command
       (pure "mentions")
@@ -2345,15 +2337,13 @@ openUrl opener url st =
        Right{} -> commandSuccess st
 
 -- | Implementation of @/grep@ and @/grepi@
-cmdGrep ::
-  Bool {- ^ case sensitive -} ->
-  ClientCommand String
-cmdGrep sensitive st str
+cmdGrep :: ClientCommand String
+cmdGrep st str
   | null str  = commandSuccess (set clientRegex Nothing st)
   | otherwise =
-      case compile defaultCompOpt{caseSensitive=sensitive} defaultExecOpt str of
-        Left e -> commandFailureMsg (Text.pack e) st
-        Right r -> commandSuccess (set clientRegex (Just r) st)
+      case buildMatcher str of
+        Nothing -> commandFailureMsg "bad grep" st
+        Just  r -> commandSuccess (set clientRegex (Just r) st)
 
 cmdOper :: NetworkCommand (String, String)
 cmdOper cs st (user, pass) =

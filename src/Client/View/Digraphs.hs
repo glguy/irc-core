@@ -17,6 +17,7 @@ import           Client.State
 import           Data.List
 import           Data.List.Split
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
 import           Data.Text (Text)
 import           Digraphs
 import           Graphics.Vty.Attributes
@@ -35,7 +36,7 @@ digraphLines w st
   $ map (Text.pack . drawEntry)
   $ Text.chunksOf 3 digraphs
   where
-    matcher        = maybe id filter (clientMatcher' st)
+    matcher        = maybe id (\m -> filter (matcherPred m . LText.fromStrict)) (clientMatcher st)
     entriesPerLine = max 1 -- just in case?
                    $ (w + sepWidth) `quot` (entryWidth + sepWidth)
 

@@ -360,15 +360,8 @@ ircAdmin = rawIrcMsg "ADMIN" . nonempty
 -- | USER command
 ircUser ::
   Text {- ^ username -} ->
-  Bool {- ^ set +w   -} ->
-  Bool {- ^ set +i   -} ->
   Text {- ^ realname -} -> RawIrcMsg
-ircUser user set_w set_i real = rawIrcMsg "USER" [user, modeTxt, "*", real]
-  where
-    modeTxt = Text.pack (show mode)
-    mode :: Int
-    mode = (if set_w then 4 else 0) -- bit 2
-         + (if set_i then 8 else 0) -- bit 3
+ircUser user real = rawIrcMsg "USER" [user, "0", "*", real]
 
 -- | CAP REQ command
 ircCapReq ::

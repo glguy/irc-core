@@ -106,7 +106,7 @@ scrollImage st
   | otherwise = infoBubble (string attr "scroll")
   where
     pal  = clientPalette st
-    attr = view palLabel pal
+    attr = view palError pal
 
 
 -- | Indicate when the client is potentially showing a subset of the
@@ -118,7 +118,7 @@ filterImage st =
     Just {} -> infoBubble (string attr "filtered")
   where
     pal  = clientPalette st
-    attr = view palLabel pal
+    attr = view palError pal
 
 
 -- | Indicate the current connection health. This will either indicate

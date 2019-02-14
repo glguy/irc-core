@@ -49,8 +49,7 @@ module Client.State
 
   -- * Client operations
   , withClientState
-  , clientMatcher
-  , clientMatcher'
+  , clientMatcher, Matcher(..), buildMatcher
   , clientActiveRegex
   , clientToggleHideMeta
   , clientHighlightsNetwork
@@ -179,7 +178,7 @@ data ClientState = ClientState
   , _clientDetailView        :: !Bool                     -- ^ use detailed rendering mode
   , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
   , _clientShowPing          :: !Bool                     -- ^ visible ping time
-  , _clientRegex             :: Maybe Regex               -- ^ optional persistent filter
+  , _clientRegex             :: Maybe Matcher             -- ^ optional persistent filter
   , _clientLayout            :: !LayoutMode               -- ^ layout mode for split screen
 
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
@@ -195,6 +194,11 @@ data ClientState = ClientState
   , _clientStsPolicy         :: !(HashMap Text StsPolicy) -- ^ STS policy entries
   }
 
+data Matcher = Matcher
+  { matcherBefore :: !Int
+  , matcherAfter  :: !Int
+  , matcherPred   :: LText.Text -> Bool
+  }
 
 -- | State of the extension API including loaded extensions and the mechanism used
 -- to support reentry into the Haskell runtime from the C API.
@@ -612,41 +616,38 @@ channelUserList ::
 channelUserList network channel =
   views (clientConnection network . csChannels . ix channel . chanUsers) HashMap.keys
 
-
 -- | Returns the current filtering predicate if one is active.
 clientMatcher ::
-  ClientState          {- ^ client state       -} ->
-  Maybe (LText.Text -> Bool) {- ^ optional predicate -}
-clientMatcher st =
-  do r <- clientActiveRegex st
-     return (matchTest r . LText.unpack)
-
--- | Strict version of 'clientMatcher'
-clientMatcher' ::
-  ClientState          {- ^ client state       -} ->
-  Maybe (Text -> Bool) {- ^ optional predicate -}
-clientMatcher' st =
-  do p <- clientMatcher st
-     return (p . LText.fromStrict)
-
+  ClientState   {- ^ client state       -} ->
+  Maybe Matcher {- ^ optional predicate -}
+clientMatcher = clientActiveRegex
 
 -- | Construct a text matching predicate used to filter the message window.
-clientActiveRegex :: ClientState -> Maybe Regex
+clientActiveRegex :: ClientState -> Maybe Matcher
 clientActiveRegex st =
   case clientActiveCommand st of
-    Just ("grep" ,reStr) -> go True  reStr
-    Just ("grepi",reStr) -> go False reStr
+    Just ("grep" , reStr) -> buildMatcher reStr
     _ -> case view clientRegex st of
            Nothing -> Nothing
            Just r  -> Just r
+
+buildMatcher :: String -> Maybe Matcher
+buildMatcher = go (True, 0, 0)
   where
-    go sensitive reStr =
+    go (sensitive, before, after) reStr =
+      case dropWhile (' '==) reStr of
+        '-' : 'i' : ' ' : reStr'                                      -> go (False, before, after) reStr'
+        '-' : 'A' : reStr' | [(after' , ' ':reStr'')] <- reads reStr' -> go (sensitive, before, after') reStr''
+        '-' : 'B' : reStr' | [(before', ' ':reStr'')] <- reads reStr' -> go (sensitive, before', after) reStr''
+        '-' : '-' : reStr' -> finish (sensitive, before, after) (drop 1 reStr')
+        _ -> finish (sensitive, before, after) reStr
+
+    finish (sensitive, before, after) reStr =
       case compile defaultCompOpt{caseSensitive=sensitive}
                    defaultExecOpt{captureGroups=False}
                    reStr of
         Left{}  -> Nothing
-        Right r -> Just r
-
+        Right r -> Just (Matcher before after (matchTest r . LText.unpack))
 
 -- | Compute the command and arguments currently in the textbox.
 clientActiveCommand ::
