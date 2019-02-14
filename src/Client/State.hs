@@ -50,7 +50,6 @@ module Client.State
   -- * Client operations
   , withClientState
   , clientMatcher, Matcher(..), buildMatcher
-  , clientActiveRegex
   , clientToggleHideMeta
   , clientHighlightsNetwork
   , channelUserList
@@ -620,11 +619,7 @@ channelUserList network channel =
 clientMatcher ::
   ClientState   {- ^ client state       -} ->
   Maybe Matcher {- ^ optional predicate -}
-clientMatcher = clientActiveRegex
-
--- | Construct a text matching predicate used to filter the message window.
-clientActiveRegex :: ClientState -> Maybe Matcher
-clientActiveRegex st =
+clientMatcher st =
   case clientActiveCommand st of
     Just ("grep" , reStr) -> buildMatcher reStr
     _ -> case view clientRegex st of

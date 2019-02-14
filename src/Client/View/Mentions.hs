@@ -15,6 +15,9 @@ module Client.View.Mentions
   ) where
 
 import           Client.Configuration (PaddingMode, configNickPadding)
+import           Client.Message
+import           Client.State.Network (squelchIrcMsg)
+import           Irc.Message
 import           Client.Image.Message
 import           Client.Image.PackedImage
 import           Client.Image.Palette (Palette)
@@ -25,6 +28,7 @@ import           Client.State.Window
 import           Control.Lens
 import qualified Data.Map as Map
 import           Data.Time (UTCTime)
+import           ContextFilter (filterContext)
 
 -- | Generate the list of message lines marked important ordered by
 -- time. Each run of lines from the same channel will be grouped
@@ -40,8 +44,13 @@ mentionsViewLines w st = addMarkers w st entries
     padAmt = view (clientConfig . configNickPadding) st
     palette = clientPalette st
 
+    filt =
+      case clientMatcher st of
+        Nothing -> filter (\x -> WLImportant == view wlImportance x)
+        Just (Matcher b a p) -> filterContext b a (views wlText p)
+
     entries = merge
-              [windowEntries palette w padAmt detail n focus v
+              [windowEntries filt palette w padAmt detail n focus v
               | (n,(focus, v))
                 <- names `zip` Map.toList (view clientWindows st) ]
 
@@ -60,15 +69,17 @@ addMarkers ::
   [Image']      {- ^ mention images and channel labels -}
 addMarkers _ _ [] = []
 addMarkers w !st (!ml : xs)
-  = concatMap mlImage (ml:same)
- ++ minorStatusLineImage (mlFocus ml) w False st
-  : addMarkers w st rest
+  = minorStatusLineImage (mlFocus ml) w False st
+  : concatMap mlImage (ml:same)
+ ++ addMarkers w st rest
   where
     isSame ml' = mlFocus ml == mlFocus ml'
 
     (same,rest) = span isSame xs
 
 windowEntries ::
+  ([WindowLine] -> [WindowLine])
+              {- ^ filter        -} ->
   Palette     {- ^ palette       -} ->
   Int         {- ^ draw columns  -} ->
   PaddingMode {- ^ nick padding  -} ->
@@ -77,7 +88,7 @@ windowEntries ::
   Focus       {- ^ window focus  -} ->
   Window      {- ^ window        -} ->
   [MentionLine]
-windowEntries palette w padAmt detailed name focus win =
+windowEntries filt palette w padAmt detailed name focus win =
   [ MentionLine
       { mlTimestamp  = views wlTimestamp unpackUTCTime l
       , mlWindowName = name
@@ -86,9 +97,18 @@ windowEntries palette w padAmt detailed name focus win =
                         then [view wlFullImage l]
                         else drawWindowLine palette w padAmt l
       }
-  | let p x = WLImportant == view wlImportance x
-  , l <- toListOf (winMessages . each . filtered p) win
+  | l <- filt $ prefilt $ toListOf (winMessages . each) win
   ]
+  where
+    prefilt
+      | detailed  = id
+      | otherwise = filter (not . isNoisy)
+
+    isNoisy msg =
+      case view wlSummary msg of
+        ReplySummary code -> squelchIrcMsg (Reply code [])
+        _                 -> False
+
 
 -- | Merge a list of sorted lists of mention lines into a single sorted list
 -- in descending order.

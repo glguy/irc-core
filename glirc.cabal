@@ -118,12 +118,13 @@ library
                        Client.View.UserList
                        Client.View.Windows
 
-  other-modules:       LensUtils
-                       StrictUnit
-                       Digraphs
+  other-modules:       ContextFilter
                        DigraphQuote
+                       Digraphs
+                       LensUtils
                        RtsStats
                        StrQuote
+                       StrictUnit
                        Paths_glirc
                        Build_glirc
 

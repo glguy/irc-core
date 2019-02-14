@@ -57,6 +57,7 @@ pattern RPL_YOURID                  = ReplyCode 042
 pattern RPL_SAVENICK                = ReplyCode 043
 pattern RPL_ATTEMPTINGJUNC          = ReplyCode 050
 pattern RPL_ATTEMPTINGREROUTE       = ReplyCode 051
+pattern RPL_REMOTESUPPORT           = ReplyCode 105 -- ircd-seven unnamed code
 pattern RPL_TRACELINK               = ReplyCode 200
 pattern RPL_TRACECONNECTING         = ReplyCode 201
 pattern RPL_TRACEHANDSHAKE          = ReplyCode 202
@@ -485,6 +486,7 @@ replyCodeInfoTable
   , (RPL_SAVENICK              , ReplyCodeInfo ClientServerReply "save-nick")
   , (RPL_ATTEMPTINGJUNC        , ReplyCodeInfo ClientServerReply "attempting-junc")
   , (RPL_ATTEMPTINGREROUTE     , ReplyCodeInfo ClientServerReply "attempting-reroute")
+  , (RPL_REMOTESUPPORT         , ReplyCodeInfo ClientServerReply "remote-support")
   , (RPL_TRACELINK             , ReplyCodeInfo CommandReply "trace-link")
   , (RPL_TRACECONNECTING       , ReplyCodeInfo CommandReply "trace-connecting")
   , (RPL_TRACEHANDSHAKE        , ReplyCodeInfo CommandReply "trace-handshake")

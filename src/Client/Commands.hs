@@ -695,7 +695,10 @@ commandsList =
   , Command
       (pure "mentions")
       (pure ())
-      "Show a list of all message that were highlighted as important.\n"
+      "Show a list of all message that were highlighted as important.\n\
+      \\n\
+      \When using \^B/grep\^B the important messages are those matching\n\
+      \the regular expression instead.\n"
     $ ClientCommand cmdMentions noClientTab
 
   ------------------------------------------------------------------------

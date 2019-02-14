@@ -113,7 +113,7 @@ scrollImage st
 -- available chat messages.
 filterImage :: ClientState -> Image'
 filterImage st =
-  case clientActiveRegex st of
+  case clientMatcher st of
     Nothing -> mempty
     Just {} -> infoBubble (string attr "filtered")
   where
