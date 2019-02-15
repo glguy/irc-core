@@ -1,3 +1,4 @@
+{-# language LambdaCase #-}
 {-|
 Module      : Client.View.DCCList
 Description : View of the DCC offers and transfers
@@ -24,19 +25,15 @@ import           Client.State.DCC
 
 dccImages :: ClientState -> [Image']
 dccImages st =
-  let (keys, offers) = unzip $ views clientDCCOffers IntMap.toAscList st
+  let (keys, offers) = unzip $ views (clientDCC . dsOffers) IntMap.toAscList st
       pal = clientPalette st
       imgKeys = map (string (_palLabel pal) . show) keys
-      imgNames = map (text' defAttr . view dccFileName) offers
-      statusOff key = case view (clientDCCTransfers . at key) st of
-                        Nothing -> "Pending"
-                        Just trans -> case view dtThread trans of
-                                        Nothing -> "Finished"
-                                        Just _ -> "Downloading"
+      imgNames = map (string defAttr . view dccFileName) offers
+      statusOff key = views clientDCC (showStatus . statusAtKey key) st
       downloading = map (string (_palMeta pal) . statusOff) keys
       percentage = map (\k -> string (_palTextBox pal)
                          . maybe "  " (\p -> show p ++ "%") . fmap _dtProgress
-                         $ view (clientDCCTransfers . at k) st) keys
+                         $ view (clientDCC . dsTransfers . at k) st) keys
   in reverse . createColumns
        $ transpose [imgKeys, imgNames, downloading, percentage]
 
@@ -47,3 +44,12 @@ createColumns xs = map makeRow xs
     makeRow = mconcat
             . intersperse (char defAttr ' ')
             . zipWith resizeImage columnWidths
+
+showStatus :: ConnectionStatus -> String
+showStatus = \case
+  CorrectlyFinished -> "Finished"
+  UserKilled        -> "Killed by user"
+  LostConnection    -> "Socket failure"
+  Downloading       -> "Downloading"
+  Pending           -> "Pending"
+  NotExist          -> "Not exist" -- Shouldn't be shown never

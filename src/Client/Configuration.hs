@@ -89,6 +89,7 @@ import qualified Data.Vector                         as Vector
 import           Graphics.Vty.Input.Events (Modifier(..), Key(..))
 import           Irc.Identifier                      (Identifier)
 import           System.Directory
+import           System.Environment                  (getEnv)
 import           System.FilePath
 import           System.IO.Error
 import           System.Posix.DynamicLinker          (RTLDFlags(..))
@@ -103,7 +104,7 @@ data Configuration = Configuration
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
   , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
-  , _configDownloadDir     :: Maybe FilePath -- ^ Possible directory for downloads
+  , _configDownloadDir     :: FilePath -- ^ Directory for downloads, default to HOME
   , _configMacros          :: Recognizer Macro -- ^ command macros
   , _configExtensions      :: [ExtensionConfiguration] -- ^ extensions to load
   , _configUrlOpener       :: Maybe FilePath -- ^ paths to url opening executable
@@ -230,6 +231,7 @@ loadConfiguration ::
 loadConfiguration mbPath = try $
   do (path,txt) <- readConfigurationFile mbPath
      def  <- loadDefaultServerSettings
+     home <- getEnv "HOME" -- guarranted by POSIX?
 
      rawcfg <-
        case parse txt of
@@ -243,7 +245,7 @@ loadConfiguration mbPath = try $
                 $ Text.unlines
                 $ map explainLoadError (toList es)
        Right cfg ->
-         do cfg' <- resolvePaths path (cfg def)
+         do cfg' <- resolvePaths path (cfg def home)
             return (path, cfg')
 
 
@@ -283,7 +285,7 @@ resolvePaths file cfg =
              $ cfg
 
 configurationSpec ::
-  ValueSpecs (ServerSettings -> Configuration)
+  ValueSpecs (ServerSettings -> FilePath -> Configuration)
 configurationSpec = sectionsSpec "" $
 
   do let sec' def name spec info = fromMaybe def <$> optSection' name spec info
@@ -305,8 +307,6 @@ configurationSpec = sectionsSpec "" $
                                "extension libraries to load at startup"
      _configUrlOpener       <- optSection' "url-opener" stringSpec
                                "External command used by /url command"
-     _configDownloadDir     <- optSection' "download-dir" stringSpec
-                               "Path to the directory where to place DCC downloads"
      _configExtraHighlights <- sec' mempty "extra-highlights" identifierSetSpec
                                "Extra words to highlight in chat messages"
      _configNickPadding     <- sec' NoPadding "nick-padding" nickPaddingSpec
@@ -326,10 +326,13 @@ configurationSpec = sectionsSpec "" $
                                "Initial setting for window layout"
      _configShowPing        <- sec' True "show-ping" yesOrNoSpec
                                "Initial setting for visibility of ping times"
-     return (\def ->
+     maybeDownloadDir       <- optSection' "download-dir" stringSpec
+                               "Path to the directory where to place DCC downloads"
+     return (\def home ->
              let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
+                 _configDownloadDir = maybe home id maybeDownloadDir
              in Configuration{..})
 
 -- | The default nick padding side if padding is going to be used

@@ -20,8 +20,7 @@ module Client.State
   , clientTextBox
   , clientTextBoxOffset
   , clientConnections
-  , clientDCCOffers
-  , clientDCCTransfers
+  , clientDCC
   , clientDCCUpdates
   , clientWidth
   , clientHeight
@@ -170,9 +169,8 @@ data ClientState = ClientState
   , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
-  , _clientDCCOffers         :: !(IntMap DCCOffer)        -- ^ DCC transfer offers
-  , _clientDCCTransfers      :: !(IntMap DCCTransfer)     -- ^ DCC transactions
-  , _clientDCCUpdates        :: !(TChan DCCUpdate)       -- ^ DCC update events
+  , _clientDCC               :: !DCCState                 -- ^ DCC subsystem
+  , _clientDCCUpdates        :: !(TChan DCCUpdate)        -- ^ DCC update events
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
   , _clientConfigPath        :: !FilePath                 -- ^ client configuration file path
@@ -260,8 +258,7 @@ withClientState cfgPath cfg k =
         , _clientIgnores           = HashSet.fromList ignoreIds
         , _clientIgnoreMask        = buildMask ignoreIds
         , _clientConnections       = _Empty # ()
-        , _clientDCCOffers         = _Empty # ()
-        , _clientDCCTransfers      = _Empty # ()
+        , _clientDCC               = mempty
         , _clientDCCUpdates        = dccEvents
         , _clientTextBox           = Edit.defaultEditBox
         , _clientTextBoxOffset     = 0
@@ -785,34 +782,19 @@ applyMessageToClientState time irc networkId cs st =
     (st', dccUp) = queueDCCTransfer network irc . applyWindowRenames network irc
                  $ set (clientConnections . ix networkId) cs' st
 
--- | TODO: maybe replace with some lens magic?
-ctcpToTuple :: IrcMsg -> Maybe (UserInfo, Identifier, Text, Text)
-ctcpToTuple (Ctcp fromU target command txt) =
-  Just (fromU, target, command, txt)
-ctcpToTuple (CtcpNotice fromU target command txt) =
-  Just (fromU, target, command, txt)
-ctcpToTuple _ = Nothing
-
 -- | Queue a DCC transfer when the message is correct. Await for user
 --   confirmation to start the download.
 queueDCCTransfer :: Text -> IrcMsg -> ClientState
                  -> (ClientState, Maybe DCCUpdate)
 queueDCCTransfer network ctcpMsg st
   | Just (fromU, _target, command, txt) <- ctcpToTuple ctcpMsg
-  , command == "DCC"
-  = case () of -- hack
-      _ | Right dccOffer <- parseSEND network fromU txt
-            -> (over clientDCCOffers (insertAsMax dccOffer) st, Nothing)
-        | offers <- view clientDCCOffers st
-        , Just upd <- parseACCEPT offers fromU txt -> (st, Just upd)
-        | otherwise -> (st, Nothing)
-  where
-    insertAsMax offer intmap
-          | IntMap.null intmap = IntMap.singleton 1 offer
-          | otherwise = let (key, _) = IntMap.findMax intmap
-                        in IntMap.insert (succ key) offer intmap
+  , command == "DCC", dccState <- view clientDCC st
+  = case (parseSEND network fromU txt, parseACCEPT dccState fromU txt) of
+      (Right offer, _) -> (set clientDCC (insertAsNewMax offer dccState) st, Nothing)
+      (_, Just upd) -> (st, Just upd)
+      (_, _) -> (st, Nothing)
 
-queueDCCTransfer _ _ st = (st, Nothing)
+  | otherwise = (st, Nothing)
 
 
 -- | When a nick change happens and there is an open query window for that nick

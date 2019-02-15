@@ -39,7 +39,6 @@ import qualified Client.State.EditBox     as Edit
 import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
-import           Control.Concurrent.Async (async)
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
@@ -292,8 +291,8 @@ doNetworkLine networkId time line st =
                                         , _msgBody    = IrcBody irc'
                                         }
 
-                    let (replies, dccUp, st3) = applyMessageToClientState time irc
-                                                  networkId cs st2
+                    let (replies, dccUp, st3) =
+                          applyMessageToClientState time irc networkId cs st2
 
                     maybe (return ())
                       (atomically . writeTChan (view clientDCCUpdates st3)) dccUp
@@ -613,20 +612,19 @@ doDCCUpdate :: DCCUpdate -> ClientState -> IO ClientState
 doDCCUpdate upd st0 =
   case upd of
     PercentUpdate k newVal -> return $ set (commonLens k . dtProgress) newVal st0
-    InterruptedTransfer k -> return $ set (commonLens k . dtThread) Nothing st0
-    Finished k -> return $ set (commonLens k . dtThread) Nothing st0
-    Accept k port offset ->
-      do let moldOffer = view (clientDCCOffers . at k) st0
-         case moldOffer of
-           Nothing -> return st0
-           Just oldOffer ->
-             do let offer = set dccPort port $ set dccOffset offset oldOffer
-                    st1 = set (clientDCCOffers . at k) (Just offer) st0
-                    updChan = view clientDCCUpdates st1
-                    dir = view (clientConfig . configDownloadDir) st1
-                downloadId <- async $ supervisedDownload dir k updChan offer
-                let transfer = DCCTransfer (Just downloadId) offset
-                    st2 = set (clientDCCTransfers . at k) (Just transfer) st1
-                return st2
+    SocketInterrupted k    -> reportKill k LostConnection
+    UserInterrupted k      -> reportKill k UserKilled
+    Finished k             -> reportKill k CorrectlyFinished
+    accept@(Accept k _ _) ->
+      do let dccState0 = view clientDCC st0
+             dccState1 = acceptUpdate accept dccState0
+             -- st1 = set clientDCC dccState1 st0
+
+             updChan = view clientDCCUpdates st0
+             mdir = view (clientConfig . configDownloadDir) st0
+
+         dccState2 <- supervisedDownload mdir k updChan dccState1
+         return $ set clientDCC dccState2 st0
   where
-    commonLens k = clientDCCTransfers . at k . _Just
+    reportKill k status = return $ over clientDCC (reportStopWithStatus k status) st0
+    commonLens k = clientDCC . dsTransfers . at k . _Just
