@@ -282,6 +282,7 @@ resolvePaths file cfg =
                                 . over (ssLogDir        . mapped) res
      return $! over (configExtensions . mapped . extensionPath) res
              . over (configServers    . mapped) resolveServerFilePaths
+             . over configDownloadDir res
              $ cfg
 
 configurationSpec ::

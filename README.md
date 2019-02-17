@@ -143,6 +143,7 @@ nick-padding:
    width: 13
 
 url-opener: "open" -- This works on macOS, "gnome-open" for GNOME
+download-dir: "~/Downloads" -- defaults to HOME
 
 key-bindings:
   * bind: "C-M-b"
