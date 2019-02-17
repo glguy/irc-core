@@ -167,9 +167,12 @@ startDownload dir key updChan offer@(DCCOffer _ _ from port name totalSize offse
          -- have we done to the main thread. `withAsync` guarrantee
          -- correct exception handling when the user cancels the
          -- transfer.
-         withAsync (sendStream totalSize conn recvChan1) $ \outThread ->
-           withAsync (report offer key recvChan2 updChan)
-             $ \_reportThread -> do recvSendLoop 0 recvChan1 conn hdl
+         -- Notice how recvSendLoop starts at offset instead of 0, this
+         -- is so DCC RESUME start acknowledgement as if the starting
+         -- size was recently @recv@. DCC is a mess.
+         withAsync (sendStream totalSize conn recvChan1)
+           $ \outThread -> withAsync (report offer key recvChan2 updChan)
+             $ \_reportThread -> do recvSendLoop offset recvChan1 conn hdl
                                     wait outThread
   where
     param = ConnectionParams
@@ -208,7 +211,7 @@ report offer key input output = compareAndUpdate (percent offset totalsize)
     compareAndUpdate :: Word32 -> IO ()
     compareAndUpdate prevPercent =
       do curSize <- atomically $ readTChan input
-         let curPercent = percent (offset + curSize) totalsize
+         let curPercent = percent curSize totalsize
              updateEv   = PercentUpdate key curPercent
          if (curPercent == 100)
            then atomically (writeTChan output updateEv)
