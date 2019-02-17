@@ -17,6 +17,7 @@ module Client.State.DCC
     DCCState(..)
   , dsOffers
   , dsTransfers
+  , emptyDCCState
   -- * DCC offers
   , DCCOffer(..)
   , dccNetwork
@@ -53,7 +54,7 @@ module Client.State.DCC
 import           Control.Applicative (Alternative(..))
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
-import           Control.Exception (bracket, IOException, AsyncException)
+import           Control.Exception (bracket, IOException)
 import qualified Control.Exception as E
 import           Control.Lens hiding (from)
 import           Control.Monad (unless, when)
@@ -79,14 +80,14 @@ import           System.IO (withFile, IOMode(..), openFile, hClose, hFileSize)
 
 -- | All the neccesary information to start the download
 data DCCOffer = DCCOffer
-  { _dccNetwork  :: Text
-  , _dccFromInfo :: UserInfo
-  , _dccFromIP   :: HostName -- ^ String of the ipv4 representation
-  , _dccPort     :: PortNumber
-  , _dccFileName :: FilePath
-  , _dccSize     :: Word32 -- ^ Size of the whole file, per protocol
+  { _dccNetwork  :: !Text
+  , _dccFromInfo :: !UserInfo
+  , _dccFromIP   ::  HostName -- ^ String of the ipv4 representation
+  , _dccPort     :: !PortNumber
+  , _dccFileName ::  FilePath
+  , _dccSize     :: !Word32 -- ^ Size of the whole file, per protocol
                            --   restricted to 32-bits
-  , _dccOffset   :: Word32 -- ^ Byte from where the transmission starts
+  , _dccOffset   :: !Word32 -- ^ Byte from where the transmission starts
   } deriving (Show, Eq)
 
 
@@ -101,10 +102,10 @@ data ConnectionStatus
 -- | Structure with information of a download accepted via "/dcc accept"
 --   or "/dcc resume"
 data DCCTransfer = DCCTransfer
-  { _dtThread   :: Maybe (Async ()) -- ^ If Nothing, the thread was killed
+  { _dtThread   :: !(Maybe (Async ())) -- ^ If Nothing, the thread was killed
                                        --   and stopped.
-  , _dtProgress :: Word32 -- ^ Percentage of progress
-  , _dtStatus   :: ConnectionStatus
+  , _dtProgress :: !Word32 -- ^ Percentage of progress
+  , _dtStatus   :: !ConnectionStatus
   }
 
 makeLenses ''DCCTransfer
@@ -117,20 +118,16 @@ data DCCState = DCCState
 
 makeLenses ''DCCState
 
-instance Monoid DCCState where
-  mempty = DCCState mempty mempty
-
-instance Semigroup DCCState where
-  (DCCState off1 tran1) <> (DCCState off2 tran2) =
-      DCCState (off1 <> off2) (tran1 <> tran2)
+emptyDCCState :: DCCState
+emptyDCCState = DCCState mempty mempty
 
 data DCCUpdate
-  = PercentUpdate Key Word32
-  | Finished Key
-  | SocketInterrupted Key
-  | UserInterrupted Key
-  | Accept Key PortNumber Word32 -- update that DCC RESUME triggers
-  deriving (Show, Eq)            -- Word32 is the offset
+  = PercentUpdate !Key !Word32
+  | Finished !Key
+  | SocketInterrupted !Key
+  | UserInterrupted !Key
+  | Accept !Key !PortNumber !Word32 -- update that DCC RESUME triggers
+  deriving (Show, Eq)               -- Word32 is the offset
 
 -- | Launch a supervisor thread for downloading the offer refered by @Key@ and
 --   return the DCCState accordingly.
@@ -143,12 +140,8 @@ supervisedDownload dir key updChan state = do
         do upd <- E.catches (Finished key <$ wait realTransferThread)
                     [ E.Handler (\(_ :: IOException) ->
                                    return (SocketInterrupted key))
-                    -- user killed, thrown by async >= 2.2
+                    -- exception thrown by cancel on async >= 2.2
                     , E.Handler (\(_ :: AsyncCancelled) ->
-                                   return (UserInterrupted key))
-                    -- Compatibility hack
-                    -- user killed, thrown by async <= 2.1.1 on cancel
-                    , E.Handler (\(_ :: AsyncException) ->
                                    return (UserInterrupted key))
                     ]
            atomically $ writeTChan updChan upd
@@ -223,15 +216,15 @@ report offer key input output = compareAndUpdate (percent offset totalsize)
                         $ atomically (writeTChan output updateEv)
                    compareAndUpdate curPercent
 
+-- Avoid overflow via Word64
 percent :: Word32 -> Word32 -> Word32
-percent a total = fromIntegral $
-  ((fromIntegral @_ @Word64 a) * 100) `div` (fromIntegral total) -- Avoid overflow
+percent a total = fromIntegral (fromIntegral a * 100 `div` fromIntegral total :: Word64)
 
 -- | This function can only be called after a @cancel@ has been issued
 --   on the supervisor thread at @Key@
 reportStopWithStatus :: Key -> ConnectionStatus -> DCCState -> DCCState
 reportStopWithStatus key newstatus dccstate =
-  let transfer = maybe (error "Wrong index") id $ view (dsTransfers . at key) dccstate
+  let Just transfer = view (dsTransfers . at key) dccstate
       updatedTransfer = transfer {_dtStatus = newstatus, _dtThread = Nothing}
   in set (dsTransfers . at key) (Just updatedTransfer) dccstate
 
@@ -241,20 +234,19 @@ parseSEND network userFrom text = parseOnly (sendFormat network userFrom) text
 
 sendFormat :: Text -> UserInfo -> Parser DCCOffer
 sendFormat network userFrom =
-  let fun name addr port totalsize =
-        DCCOffer network userFrom addr port (Text.unpack name) totalsize 0
-  in fun <$> (string "SEND" *> space *> nameFormat)
-             <*> (ipv4Dotted <$> (space *> decimal))
-             <*> (space *> decimal)
-             <*> (space *> decimal)
+  do name      <- Text.unpack <$> (string "SEND" *> space *> nameFormat)
+     addr      <- ipv4Dotted <$> (space *> decimal)
+     port      <- space *> decimal
+     totalsize <- space *> decimal
+     return (DCCOffer network userFrom addr port name totalsize 0)
 
 -- | Parse a "DCC RESUME" command.
 parseACCEPT :: DCCState -> UserInfo -> Text -> Maybe DCCUpdate
 parseACCEPT state userFrom text =
   let offerList = I.toDescList (_dsOffers state)
       predicate fileName (key, offer)=
-          (_dccFileName offer == fileName)
-          && userFrom == (_dccFromInfo offer)
+          _dccFileName offer == fileName
+          && userFrom == _dccFromInfo offer
           && statusAtKey key state == Pending
   in case parseOnly acceptFormat text of
        Left _ -> Nothing
@@ -265,9 +257,10 @@ parseACCEPT state userFrom text =
 
 acceptFormat :: Parser (FilePath, PortNumber, Word32)
 acceptFormat =
-  (,,) <$> (string "ACCEPT " *> (Text.unpack <$> nameFormat))
-       <*> (space *> decimal) -- port
-       <*> (space *> decimal) -- offset
+  do filepath <- Text.unpack <$> (string "ACCEPT" *> space *> nameFormat)
+     port     <- space *> decimal
+     offset   <- space *> decimal
+     return (filepath, port, offset)
 
 -- Depending on the software, if the filename contains no spaces, the
 -- DCC SEND can be sent without a \" enclosing it. Handle that
@@ -334,14 +327,14 @@ resumeMsg sizeoffset offer =
 
       txt = "RESUME" <> " " <> quoting <> filename <> quoting <> " " <> port
             <> " " <> sizeoffset'
-      target = Text.unpack $ views uiNick idText (_dccFromInfo offer)
+      target = views (dccFromInfo . uiNick) (Text.unpack . idText) offer
   in (target, txt)
 
 -- | Modify the @DCCState@ following the corresponding @DCCUpdate@
 acceptUpdate :: DCCUpdate -> DCCState -> DCCState
 acceptUpdate (Accept k port offset) state =
   case view (dsOffers . at k) state of
-    Nothing -> error "Not a valid key"
+    Nothing -> state -- check at callsite
     Just oldOffer ->
       let newOffer = oldOffer { _dccPort = port, _dccOffset = offset }
       in set (dsOffers . at k) (Just newOffer) state

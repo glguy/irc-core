@@ -294,8 +294,7 @@ doNetworkLine networkId time line st =
                     let (replies, dccUp, st3) =
                           applyMessageToClientState time irc networkId cs st2
 
-                    maybe (return ())
-                      (atomically . writeTChan (view clientDCCUpdates st3)) dccUp
+                    traverse_ (atomically . writeTChan (view clientDCCUpdates st3)) dccUp
                     traverse_ (sendMsg cs) replies
                     clientResponse time' irc cs st3
 

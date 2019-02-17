@@ -89,7 +89,6 @@ import qualified Data.Vector                         as Vector
 import           Graphics.Vty.Input.Events (Modifier(..), Key(..))
 import           Irc.Identifier                      (Identifier)
 import           System.Directory
-import           System.Environment                  (getEnv)
 import           System.FilePath
 import           System.IO.Error
 import           System.Posix.DynamicLinker          (RTLDFlags(..))
@@ -231,7 +230,7 @@ loadConfiguration ::
 loadConfiguration mbPath = try $
   do (path,txt) <- readConfigurationFile mbPath
      def  <- loadDefaultServerSettings
-     home <- getEnv "HOME" -- guarranted by POSIX?
+     home <- getHomeDirectory
 
      rawcfg <-
        case parse txt of
@@ -328,12 +327,12 @@ configurationSpec = sectionsSpec "" $
      _configShowPing        <- sec' True "show-ping" yesOrNoSpec
                                "Initial setting for visibility of ping times"
      maybeDownloadDir       <- optSection' "download-dir" stringSpec
-                               "Path to the directory where to place DCC downloads"
+                               "Path to DCC download directoy. Defaults to home directory."
      return (\def home ->
              let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
-                 _configDownloadDir = maybe home id maybeDownloadDir
+                 _configDownloadDir = fromMaybe home maybeDownloadDir
              in Configuration{..})
 
 -- | The default nick padding side if padding is going to be used
