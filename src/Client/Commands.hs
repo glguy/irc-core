@@ -1029,7 +1029,9 @@ commandsList =
       \When executed in a network window, mode changes are applied to your user.\n\
       \When executed in a channel window, mode changes are applied to the channel.\n\
       \\n\
-      \This command has parameter sensitive tab-completion.\n"
+      \This command has parameter sensitive tab-completion.\n\
+      \\n\
+      \See also: /masks\n"
     $ NetworkCommand cmdMode tabMode
 
   , Command
@@ -1043,7 +1045,9 @@ commandsList =
       \\^BI\^B: invite exemptions (op view only)\n\
       \\^Be\^B: ban exemption (op view only)s\n\
       \\n\
-      \To populate the mask lists for the first time use: /mode \^Bmode\^B\n"
+      \To populate the mask lists for the first time use: /mode \^Bmode\^B\n\
+      \\n\
+      \See also: /mode\n"
     $ ChannelCommand cmdMasks noChannelTab
 
   , Command
