@@ -23,7 +23,6 @@ import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
 import           Data.List
-import           Data.Maybe
 import           Data.Ord
 import           Data.Text (Text)
 import qualified Data.Text as Text

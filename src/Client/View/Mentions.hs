@@ -16,8 +16,6 @@ module Client.View.Mentions
 
 import           Client.Configuration (PaddingMode, configNickPadding)
 import           Client.Message
-import           Client.State.Network (squelchIrcMsg)
-import           Irc.Message
 import           Client.Image.Message
 import           Client.Image.PackedImage
 import           Client.Image.Palette (Palette)
@@ -53,6 +51,7 @@ mentionsViewLines w st = addMarkers w st entries
               [windowEntries filt palette w padAmt detail n focus v
               | (n,(focus, v))
                 <- names `zip` Map.toList (view clientWindows st) ]
+
 
 data MentionLine = MentionLine
   { mlTimestamp  :: UTCTime  -- ^ message timestamp for sorting
@@ -93,21 +92,22 @@ windowEntries filt palette w padAmt detailed name focus win =
       { mlTimestamp  = views wlTimestamp unpackUTCTime l
       , mlWindowName = name
       , mlFocus      = focus
-      , mlImage      = if detailed
-                        then [view wlFullImage l]
-                        else drawWindowLine palette w padAmt l
+      , mlImage      = case metadataImg (view wlSummary l) of
+                         _ | detailed     -> [view wlFullImage l]
+                         Just (img, _, _) -> [img]
+                         Nothing          -> drawWindowLine palette w padAmt l
       }
   | l <- filt $ prefilt $ toListOf (winMessages . each) win
   ]
   where
     prefilt
       | detailed  = id
-      | otherwise = filter (not . isNoisy)
+      | otherwise = filter isChat
 
-    isNoisy msg =
+    isChat msg =
       case view wlSummary msg of
-        ReplySummary code -> squelchIrcMsg (Reply code [])
-        _                 -> False
+        ChatSummary{} -> True
+        _             -> False
 
 
 -- | Merge a list of sorted lists of mention lines into a single sorted list
