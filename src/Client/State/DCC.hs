@@ -75,7 +75,7 @@ import           Irc.UserInfo (UserInfo(..), uiNick)
 import           Network.Socket ( HostName, PortNumber, Family(..)
                                 , hostAddressToTuple )
 import           System.Directory (doesFileExist)
-import           System.FilePath ((</>))
+import           System.FilePath ((</>), takeFileName)
 import           System.IO (withFile, IOMode(..), openFile, hClose, hFileSize)
 
 -- | All the neccesary information to start the download
@@ -84,7 +84,7 @@ data DCCOffer = DCCOffer
   , _dccFromInfo :: !UserInfo
   , _dccFromIP   ::  HostName -- ^ String of the ipv4 representation
   , _dccPort     :: !PortNumber
-  , _dccFileName ::  FilePath
+  , _dccFileName ::  FilePath -- ^ Guarranted to be just the name
   , _dccSize     :: !Word32 -- ^ Size of the whole file, per protocol
                            --   restricted to 32-bits
   , _dccOffset   :: !Word32 -- ^ Byte from where the transmission starts
@@ -237,7 +237,7 @@ parseSEND network userFrom text = parseOnly (sendFormat network userFrom) text
 
 sendFormat :: Text -> UserInfo -> Parser DCCOffer
 sendFormat network userFrom =
-  do name      <- Text.unpack <$> (string "SEND" *> space *> nameFormat)
+  do name      <- string "SEND" *> space *> nameFormat
      addr      <- ipv4Dotted <$> (space *> decimal)
      port      <- space *> decimal
      totalsize <- space *> decimal
@@ -260,7 +260,7 @@ parseACCEPT state userFrom text =
 
 acceptFormat :: Parser (FilePath, PortNumber, Word32)
 acceptFormat =
-  do filepath <- Text.unpack <$> (string "ACCEPT" *> space *> nameFormat)
+  do filepath <- string "ACCEPT" *> space *> nameFormat
      port     <- space *> decimal
      offset   <- space *> decimal
      return (filepath, port, offset)
@@ -268,8 +268,9 @@ acceptFormat =
 -- Depending on the software, if the filename contains no spaces, the
 -- DCC SEND can be sent without a \" enclosing it. Handle that
 -- correctly.
-nameFormat :: Parser Text
-nameFormat = try quotedName <|> noSpaceName
+nameFormat :: Parser FilePath
+nameFormat = do textPath <- try quotedName <|> noSpaceName
+                return . takeFileName . Text.unpack $ textPath
   where
     quotedName = char '\"' *> takeWhile1 (\c -> c /= '\"') <* char '\"'
     noSpaceName = takeWhile1 (\c -> c /= ' ')

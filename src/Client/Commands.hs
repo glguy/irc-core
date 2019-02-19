@@ -66,6 +66,7 @@ import           Irc.UserInfo
 import           Irc.Modes
 import           LensUtils
 import           RtsStats (getStats)
+import           System.Directory (doesDirectoryExist)
 import           System.FilePath ((</>))
 import           System.Process
 
@@ -1301,48 +1302,61 @@ cmdQuote cs st rest =
 -- | Implementation of @/dcc [(cancel|accept|resume)] [key]
 cmdDcc :: ClientCommand (Maybe String, Maybe Int)
 cmdDcc st (Nothing, Nothing) = commandSuccess (changeSubfocus FocusDCC st)
-cmdDcc st (Just "accept", Just key)
-  | curKeyStatus `elem` alreadyAcceptedSet = commandFailureMsg "Offer already accepted" st
-  | NotExist <- curKeyStatus = commandFailureMsg "No such DCC offer" st
-  | otherwise = do newDCCState <- supervisedDownload mdir key updChan dccState
-                   commandSuccess (set clientDCC newDCCState st)
-  where
-    dccState = view clientDCC st
-    curKeyStatus = statusAtKey key dccState
-    alreadyAcceptedSet = [CorrectlyFinished, UserKilled, LostConnection, Downloading]
-    mdir = view (clientConfig . configDownloadDir) st
-    updChan = view clientDCCUpdates st
-
-cmdDcc st (Just "resume", Just key)
-  | curKeyStatus `elem` alreadyAcceptedSet = commandFailureMsg "Offer already accepted" st
-  | NotExist <- curKeyStatus = commandFailureMsg "No such DCC offer" st
-  | otherwise =
-        do let Just offer = view (clientDCC . dsOffers . at key) st
-               mcs = preview (clientConnection (_dccNetwork offer)) st
-               downloadDir = view (clientConfig . configDownloadDir) st
-           msize <- getFileOffset $ downloadDir </> (_dccFileName offer)
-           case (msize, mcs) of
-             (Nothing, _) -> cmdDcc st (Just "accept", Just key)
-             (Just size, Just cs) ->
-                let newOffer = offer {_dccOffset = size} -- innecesary here
-                    (target, txt) = resumeMsg size newOffer
-                    st' = set (clientDCC . dsOffers . at key) (Just newOffer) st
-                in cmdCtcp cs st' (target, "DCC", txt)
-             (_, _) -> commandFailureMsg "Unknown case" st
-  where
-    curKeyStatus = statusAtKey key (view clientDCC st)
-    alreadyAcceptedSet = [CorrectlyFinished, UserKilled, LostConnection, Downloading]
-
-cmdDcc st (Just "cancel", Just key)
-  | NotExist <- curKeyStatus = commandFailureMsg "Not a transfer to cancel" st
-  | curKeyStatus /= Downloading = commandFailureMsg "Transfer already stop" st
-  | otherwise = cancel threadId *> commandSuccess st
-  where
-    Just threadId = fromJust $ preview
-                      (clientDCC . dsTransfers . at key . _Just . dtThread) st
-    curKeyStatus = statusAtKey key (view clientDCC st)
-
+cmdDcc st (Just cmd, Just key) = checkAndBranch st cmd key
 cmdDcc st _ = commandFailureMsg "Invalid syntax" st
+
+checkAndBranch :: ClientState -> String -> Int -> IO CommandResult
+checkAndBranch st cmd key
+  | isCancel, NotExist <- curKeyStatus
+      = commandFailureMsg "Not a transfer to cancel" st
+  | isCancel, curKeyStatus /= Downloading
+      = commandFailureMsg "Transfer already stop" st
+  | isCancel = cancel threadId *> commandSuccess st
+
+  | isAcceptOrResume, curKeyStatus `elem` alreadyAcceptedSet
+      = commandFailureMsg "Offer already accepted" st
+  | isAcceptOrResume, NotExist <- curKeyStatus
+      = commandFailureMsg "No such DCC offer" st
+  | isAcceptOrResume
+      = do isDirectory <- doesDirectoryExist downloadPath
+           msize       <- getFileOffset downloadPath
+           case (isDirectory, msize, cmd, mcs) of
+             (True, _, _, _)      -> commandFailureMsg "Would overwrite a directory" st
+             (_, Nothing, _, _)   -> acceptOffer -- resume from 0 is accept
+             (_, _, "accept", _)  -> acceptOffer -- overwrite file
+             (_, Just size, "resume", Just cs) -> resumeOffer size cs
+             _ -> commandFailureMsg "Unknown case" st
+
+  | otherwise = commandFailureMsg "Invalid syntax" st
+  where
+    -- General
+    isAcceptOrResume = cmd `elem` ["accept", "resume"]
+    isCancel         = cmd == "cancel"
+    dccState         = view clientDCC st
+    curKeyStatus     = statusAtKey key dccState
+    alreadyAcceptedSet = [CorrectlyFinished, UserKilled, LostConnection, Downloading]
+
+    -- For cancel, other cases handled on the guards
+    Just threadId = fromJust $ preview
+                        (clientDCC . dsTransfers . at key . _Just . dtThread) st
+
+    -- Common values for resume or accept
+    Just offer   = view (clientDCC . dsOffers . at key) st -- guarded exist
+    updChan      = view clientDCCUpdates st
+    downloadDir  = view (clientConfig . configDownloadDir) st
+    downloadPath = downloadDir </> _dccFileName offer
+    mcs          = preview (clientConnection (_dccNetwork offer)) st
+
+    -- Actual workhorses for the commands
+    acceptOffer =
+        do newDCCState <- supervisedDownload downloadDir key updChan dccState
+           commandSuccess (set clientDCC newDCCState st)
+    resumeOffer size cs =
+        let newOffer = offer { _dccOffset = size }
+            (target, txt) = resumeMsg size newOffer
+            st' = set (clientDCC . dsOffers . at key) (Just newOffer) st
+        in cmdCtcp cs st' (target, "DCC", txt)
+
 
 -- | Implementation of @/me@
 cmdMe :: ChannelCommand String
