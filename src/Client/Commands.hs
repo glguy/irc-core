@@ -920,7 +920,9 @@ commandsList =
       \    Show information about the current channel.\n\
       \    Press ESC to exit the channel info window.\n\
       \\n\
-      \\^BSee also:\^B masks, users\n"
+      \    Information includes topic, creation time, URL, and modes.\n\
+      \\n\
+      \\^BSee also:\^B masks, mode, topic, users\n"
     $ ChannelCommand cmdChannelInfo noChannelTab
 
   , Command
@@ -1031,7 +1033,7 @@ commandsList =
       \\n\
       \This command has parameter sensitive tab-completion.\n\
       \\n\
-      \See also: /masks\n"
+      \See also: /masks /channelinfo\n"
     $ NetworkCommand cmdMode tabMode
 
   , Command

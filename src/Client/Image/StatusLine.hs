@@ -333,11 +333,8 @@ viewFocusLabel st focus =
 channelModesImage :: Text -> Identifier -> ClientState -> Image'
 channelModesImage network channel st =
   case preview (clientConnection network . csChannels . ix channel . chanModes) st of
-    Just modeMap | not (null modeMap) ->
-        string defAttr (" +" ++ modes) <>
-        mconcat [ char defAttr ' ' <> text' defAttr arg | arg <- args, not (Text.null arg) ]
-      where (modes,args) = unzip (Map.toList modeMap)
-    _ -> mempty
+    Just modeMap | not (null modeMap) -> string defAttr (" +" ++ Map.keys modeMap)
+    _                                 -> mempty
 
 viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image'
 viewSubfocusLabel pal subfocus =

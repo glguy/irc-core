@@ -29,6 +29,8 @@ import           Data.Text (Text)
 import           Data.Time
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
+import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 -- | Render the lines used in a channel mask list
 channelInfoImages ::
@@ -47,10 +49,13 @@ channelInfoImages network channelId st
 
 channelInfoImages' :: Palette -> HashSet Identifier -> ChannelState -> [Image']
 channelInfoImages' pal myNicks !channel
-    = topicLine
+    = reverse
+    $ topicLine
     : provenanceLines
    ++ creationLines
    ++ urlLines
+   ++ modeLines
+   ++ modeArgLines
 
   where
     label = text' (view palLabel pal)
@@ -80,3 +85,12 @@ channelInfoImages' pal myNicks !channel
           Nothing -> []
           Just url -> [ label "Channel URL: " <> parseIrcText url ]
 
+    modeLines = [label "Modes: " <> string defAttr modes | not (null modes) ]
+      where
+        modes = views chanModes Map.keys channel
+
+    modeArgLines =
+      [ string (view palLabel pal) ("Mode " ++ [mode, ':', ' ']) <> parseIrcText arg
+        | (mode, arg) <- Map.toList (view chanModes channel)
+        , not (Text.null arg)
+        ]
