@@ -23,19 +23,30 @@ import           Graphics.Vty.Attributes
 import           Client.State.DCC
 
 
+-- TODO: maybe express more clearly?
 dccImages :: ClientState -> [Image']
 dccImages st =
-  let (keys, offers) = unzip $ views (clientDCC . dsOffers) IntMap.toAscList st
-      pal = clientPalette st
-      imgKeys = map (string (_palLabel pal) . show) keys
-      imgNames = map (string defAttr . view dccFileName) offers
-      statusOff key = views clientDCC (showStatus . statusAtKey key) st
-      downloading = map (string (_palMeta pal) . statusOff) keys
-      percentage = map (\k -> string (_palTextBox pal)
-                         . maybe "  " (\p -> show p ++ "%") . fmap _dtProgress
-                         $ view (clientDCC . dsTransfers . at k) st) keys
-  in reverse . createColumns
-       $ transpose [imgKeys, imgNames, downloading, percentage]
+  let dccState       = view clientDCC st
+      (keys, offers) = views dsOffers (unzip . IntMap.toAscList) dccState
+      pal            = clientPalette st
+
+      imgKeys       = map (string (_palLabel pal) . show) keys
+      imgNames      = map (string defAttr . _dccFileName) offers
+      statusOff key = showStatus (statusAtKey key dccState)
+      downloading   = map (string (_palMeta pal) . statusOff) keys
+      percentage    = map (\k -> string (_palTextBox pal)
+                            . maybe "  " (\p -> show p ++ "%") . fmap _dtProgress
+                            $ view (dsTransfers . at k) dccState) keys
+
+      downloadingNum = length . filter ((== Downloading) . flip statusAtKey dccState) $ keys
+
+      countImage = string (view palLabel pal) "Offers (downloading/total): " <>
+                   string defAttr (show downloadingNum) <>
+                   char (view palLabel pal) '/' <>
+                   string defAttr (show (length keys))
+  in countImage :
+       (reverse . createColumns
+         $ transpose [imgKeys, imgNames, downloading, percentage])
 
 createColumns :: [[Image']] -> [Image']
 createColumns xs = map makeRow xs
