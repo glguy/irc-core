@@ -27,11 +27,11 @@ module Client.State.DCC
   , dccFileName
   , dccSize
   , dccOffset
+  , dccStatus
   -- * DCC transfer
   , DCCTransfer(..)
   , dtThread
   , dtProgress
-  , dtStatus
   , ConnectionStatus(..)
   -- * DCC Update
   , DCCUpdate(..)
@@ -86,12 +86,10 @@ data DCCOffer = DCCOffer
   , _dccPort     :: !PortNumber
   , _dccFileName ::  FilePath -- ^ Guarranted to be just the name
   , _dccSize     :: !Word32 -- ^ Size of the whole file, per protocol
-                           --   restricted to 32-bits
+                            --   restricted to 32-bits
   , _dccOffset   :: !Word32 -- ^ Byte from where the transmission starts
+  , _dccStatus   :: !ConnectionStatus
   } deriving (Show, Eq)
-
-
-makeLenses ''DCCOffer
 
 -- | Status of a connection at certain @Key@
 data ConnectionStatus
@@ -105,21 +103,13 @@ data DCCTransfer = DCCTransfer
   { _dtThread   :: !(Maybe (Async ())) -- ^ If Nothing, the thread was killed
                                        --   and stopped.
   , _dtProgress :: !Word32 -- ^ Percentage of progress
-  , _dtStatus   :: !ConnectionStatus
   }
-
-makeLenses ''DCCTransfer
 
 -- Check the invariants at @statusAtKey@
 data DCCState = DCCState
   { _dsOffers    :: !(IntMap DCCOffer)
   , _dsTransfers :: !(IntMap DCCTransfer)
   }
-
-makeLenses ''DCCState
-
-emptyDCCState :: DCCState
-emptyDCCState = DCCState mempty mempty
 
 data DCCUpdate
   = PercentUpdate !Key !Word32
@@ -128,6 +118,19 @@ data DCCUpdate
   | UserInterrupted !Key
   | Accept !Key !PortNumber !Word32 -- update that DCC RESUME triggers
   deriving (Show, Eq)               -- Word32 is the offset
+
+makeLenses ''DCCOffer
+makeLenses ''DCCTransfer
+makeLenses ''DCCState
+
+emptyDCCState :: DCCState
+emptyDCCState = DCCState mempty mempty
+
+-- | Smart constructor for new DCCOffers.
+dccOffer :: Text -> UserInfo -> HostName -> PortNumber
+         -> FilePath -> Word32 -> DCCOffer
+dccOffer network userFrom hostaddr port filename filesize =
+  DCCOffer network userFrom hostaddr port filename filesize 0 Pending
 
 -- | Launch a supervisor thread for downloading the offer refered by @Key@ and
 --   return the DCCState accordingly.
@@ -146,13 +149,15 @@ supervisedDownload dir key updChan state = do
                     ]
            atomically $ writeTChan updChan upd
   let startPercent = percent (_dccOffset offer) (_dccSize offer)
-      newTransfer = DCCTransfer (Just supervisorThread) startPercent Downloading
-      newState = set (dsTransfers . at key) (Just newTransfer) state
+      newTransfer  = DCCTransfer (Just supervisorThread) startPercent
+      newOffer     = offer {_dccStatus = Downloading}
+      newState     = set (dsOffers . at key) (Just newOffer)
+                     $ set (dsTransfers . at key) (Just newTransfer) state
   return newState
 
 -- |
 startDownload :: FilePath -> Key -> TChan DCCUpdate -> DCCOffer -> IO ()
-startDownload dir key updChan offer@(DCCOffer _ _ from port name totalSize offset) = do
+startDownload dir key updChan offer@(DCCOffer _ _ from port name totalSize offset _) = do
   let openMode = if offset > 0 then AppendMode else WriteMode
       filepath = dir </> name
   bracket (connect param) close $ \conn ->
@@ -226,10 +231,9 @@ percent a total = fromIntegral (fromIntegral a * 100 `div` fromIntegral total ::
 -- | This function can only be called after a @cancel@ has been issued
 --   on the supervisor thread at @Key@
 reportStopWithStatus :: Key -> ConnectionStatus -> DCCState -> DCCState
-reportStopWithStatus key newstatus dccstate =
-  let Just transfer = view (dsTransfers . at key) dccstate
-      updatedTransfer = transfer {_dtStatus = newstatus, _dtThread = Nothing}
-  in set (dsTransfers . at key) (Just updatedTransfer) dccstate
+reportStopWithStatus key newstatus =
+  set (dsOffers . at key . _Just . dccStatus) newstatus
+  . set (dsTransfers . at key . _Just . dtThread) Nothing
 
 -- | Parse a "DCC SEND" command.
 parseSEND :: Text -> UserInfo -> Text -> Either String DCCOffer
@@ -241,7 +245,7 @@ sendFormat network userFrom =
      addr      <- ipv4Dotted <$> (space *> decimal)
      port      <- space *> decimal
      totalsize <- space *> decimal
-     return (DCCOffer network userFrom addr port name totalsize 0)
+     return (dccOffer network userFrom addr port name totalsize)
 
 -- | Parse a "DCC RESUME" command.
 parseACCEPT :: DCCState -> UserInfo -> Text -> Maybe DCCUpdate
@@ -311,10 +315,9 @@ ctcpToTuple _ = Nothing
 -- | Check the status of a download at @Key@ by checking the invariants
 --   at @DCCState@
 statusAtKey :: Key -> DCCState -> ConnectionStatus
-statusAtKey key (DCCState offers transfers)
+statusAtKey key (DCCState offers _)
   | Nothing <- lookupOffer = NotExist
-  | (Just _) <- lookupOffer, Nothing <- I.lookup key transfers = Pending
-  | otherwise = _dtStatus (transfers I.! key)
+  | otherwise = _dccStatus (offers I.! key)
   where
     lookupOffer = I.lookup key offers
 

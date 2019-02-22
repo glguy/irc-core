@@ -937,12 +937,13 @@ commandsList =
 
   , Command
       (pure "dcc")
-      (liftA2 (,) (optionalArg (simpleToken "(accept|cancel|resume)"))
+      (liftA2 (,) (optionalArg (simpleToken "(accept|cancel|clear|resume)"))
                                (optionalArg numberArg))
       "Main access to the DCC subsystem with the following subcommands:\n\n\
        \  /dcc           : Access to a list of pending offer and downloads\n\
        \  /dcc accept #n : start downloading the #n pending offer\n\
        \  /dcc resume #n : same as accept but appending to the file on `download-dir`\n\
+       \  /dcc clear  #n : remove the #n offer from the list \n\
        \  /dcc cancel #n : cancel the download #n \n\n"
     $ ClientCommand cmdDcc noClientTab
   ------------------------------------------------------------------------
@@ -1309,9 +1310,19 @@ checkAndBranch :: ClientState -> String -> Int -> IO CommandResult
 checkAndBranch st cmd key
   | isCancel, NotExist <- curKeyStatus
       = commandFailureMsg "Not a transfer to cancel" st
+  | isCancel, curKeyStatus == Pending
+      = commandSuccess
+        $ set (clientDCC . dsOffers . at key . _Just . dccStatus) UserKilled st
   | isCancel, curKeyStatus /= Downloading
       = commandFailureMsg "Transfer already stop" st
   | isCancel = cancel threadId *> commandSuccess st
+
+  | isClear, NotExist <- curKeyStatus
+      = commandFailureMsg "No such DCC Offer" st
+  | isClear, curKeyStatus `elem` [Downloading, Pending]
+      = commandFailureMsg "Cancel the download first" st
+  | isClear = commandSuccess . set (clientDCC . dsOffers . at key) Nothing
+              $ set (clientDCC . dsTransfers . at key) Nothing st
 
   | isAcceptOrResume, curKeyStatus `elem` alreadyAcceptedSet
       = commandFailureMsg "Offer already accepted" st
@@ -1332,9 +1343,11 @@ checkAndBranch st cmd key
     -- General
     isAcceptOrResume = cmd `elem` ["accept", "resume"]
     isCancel         = cmd == "cancel"
+    isClear          = cmd == "clear"
     dccState         = view clientDCC st
     curKeyStatus     = statusAtKey key dccState
-    alreadyAcceptedSet = [CorrectlyFinished, UserKilled, LostConnection, Downloading]
+    alreadyAcceptedSet = [ CorrectlyFinished, UserKilled, LostConnection
+                         , Downloading]
 
     -- For cancel, other cases handled on the guards
     Just threadId = fromJust $ preview
