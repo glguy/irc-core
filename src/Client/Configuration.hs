@@ -72,6 +72,7 @@ import           Client.Image.Palette
 import           Config
 import           Config.Schema
 import           Control.Exception
+import           Control.Monad                       (unless)
 import           Control.Lens                        hiding (List)
 import           Data.Foldable                       (toList, find)
 import           Data.Functor.Alt                    ((<!>))
@@ -245,6 +246,7 @@ loadConfiguration mbPath = try $
                 $ map explainLoadError (toList es)
        Right cfg ->
          do cfg' <- resolvePaths path (cfg def home)
+                    >>= validateDirectories path
             return (path, cfg')
 
 
@@ -283,6 +285,21 @@ resolvePaths file cfg =
              . over (configServers    . mapped) resolveServerFilePaths
              . over configDownloadDir res
              $ cfg
+
+-- | Check if the `download-dir` is actually a directory and writeable,
+--   throw a ConfigurationMalformed exception if it isn't.
+validateDirectories :: FilePath -> Configuration -> IO Configuration
+validateDirectories cfgPath cfg =
+  do isDir       <- doesDirectoryExist downloadPath
+     unless isDir $ throwIO (ConfigurationMalformed cfgPath noDirMsg)
+     isWriteable <- writable <$> getPermissions downloadPath
+     unless isWriteable
+       $ throwIO (ConfigurationMalformed cfgPath noWriteableMsg)
+     return cfg
+  where
+    downloadPath = view configDownloadDir cfg
+    noDirMsg = "The download-dir section doesn't point to a directory."
+    noWriteableMsg = "The download-dir doesn't point to a writeable directory."
 
 configurationSpec ::
   ValueSpecs (ServerSettings -> FilePath -> Configuration)
