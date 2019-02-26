@@ -34,6 +34,7 @@ import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Message
+import           Client.State.DCC (isSend)
 import           Client.State.Window
 import           Control.Lens
 import           Data.Char
@@ -234,6 +235,8 @@ ircLinePrefix !rp body =
 
     Ctcp src _dst "ACTION" _txt ->
       string (withForeColor defAttr blue) "* " <> who src
+    Ctcp src _dst "DCC" txt | isSend txt ->
+      who src <> " offers a DCC transfer"
     Ctcp {} -> mempty
 
     CtcpNotice src _dst _cmd _txt ->

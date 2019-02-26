@@ -49,6 +49,7 @@ module Client.State.DCC
   , ctcpToTuple
   , statusAtKey
   , reportStopWithStatus
+  , isSend
   ) where
 
 import           Control.Applicative (Alternative(..))
@@ -346,3 +347,8 @@ acceptUpdate (Accept k port offset) state =
       let newOffer = oldOffer { _dccPort = port, _dccOffset = offset }
       in set (dsOffers . at k) (Just newOffer) state
 acceptUpdate _ state = state
+
+-- | Check if the payload of a "DCC" ctcp message is SEND
+isSend :: Text -> Bool
+isSend txt | "SEND":_ <- Text.splitOn " " txt = True
+           | otherwise                        = False
