@@ -19,6 +19,7 @@ import Data.Text
 import Data.HashMap.Strict
 import Client.Hook
 
+import Client.Hook.FreRelay
 import Client.Hook.Snotice
 import Client.Hook.Znc.Buffextras
 
@@ -28,4 +29,5 @@ messageHooks = fromList
   [ ("snotice", snoticeHook)
   , ("buffextras", buffextrasHook False)
   , ("buffextras-debug", buffextrasHook True)
+  , ("frerelay", freRelayHook)
   ]
