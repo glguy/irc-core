@@ -1,5 +1,4 @@
 {-# Language QuasiQuotes, OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-|
 Module      : Client.Hook.FreRelay
 Description : Hook for interpreting FreFrelay messages
@@ -16,48 +15,57 @@ module Client.Hook.FreRelay
   ( freRelayHook
   ) where
 
+import           Data.List (uncons)
 import qualified Data.Text as Text
 import           Data.Text (Text)
 import           Data.Foldable (asum)
 
-import           Client.Hook
+import           Text.Regex.TDFA (match, defaultCompOpt, defaultExecOpt)
+import           Text.Regex.TDFA.Text (Regex, compile)
+
+import           Client.Hook (MessageHook(..), MessageResult(..))
 import           Irc.Message
 import           Irc.Identifier (mkId, Identifier)
-import           Irc.UserInfo
-
-import           Text.Regex.TDFA
-import           Text.Regex.TDFA.String
+import           Irc.UserInfo (UserInfo(..))
 import           StrQuote (str)
 
 freRelayHook :: MessageHook
 freRelayHook = MessageHook "frerelay" False remap
 
+-- | Remap messages from frerelay on #dronebl that match one of the
+-- rewrite rules.
 remap :: IrcMsg -> MessageResult
-remap (Privmsg src chan msg)
-  | userNick src == "frerelay"
-  , chan == "#dronebl"
-  , Just sub <- rules chan msg
-  = RemapMessage sub
-
+remap (Privmsg (UserInfo "frerelay" _ _) chan@"#dronebl" msg)
+  | Just sub <- rules chan msg = RemapMessage sub
 remap _ = PassMessage
 
-rules :: Identifier -> Text -> Maybe IrcMsg
+-- | Generate a replacement message for a chat message from frerelay
+-- when the message matches one of the replacement rules.
+rules ::
+  Identifier {- ^ channel -} ->
+  Text       {- ^ message -} ->
+  Maybe IrcMsg
 rules chan msg =
   asum
-    [ rule (chatMsg chan) chatRe s
-    , rule (actionMsg chan) actionRe s
-    , rule (joinMsg chan) joinRe s
-    , rule (partMsg chan) partRe s
-    , rule quitMsg quitRe s
-    , rule nickMsg nickRe s
+    [ rule (chatMsg chan) chatRe msg
+    , rule (actionMsg chan) actionRe msg
+    , rule (joinMsg chan) joinRe msg
+    , rule (partMsg chan) partRe msg
+    , rule quitMsg quitRe msg
+    , rule nickMsg nickRe msg
     ]
-  where
-    s = Text.unpack msg
 
-rule :: ([String] -> IrcMsg) -> Regex -> String -> Maybe IrcMsg
+-- | Match the message against the regular expression and use the given
+-- consume to consume all of the captured groups.
+rule ::
+  Rule r =>
+  r     {- ^ capture consumer   -} ->
+  Regex {- ^ regular expression -} ->
+  Text  {- ^ message            -} ->
+  Maybe IrcMsg
 rule mk re s =
   case match re s of
-    [_:xs] -> Just $! mk xs
+    [_:xs] -> matchRule xs mk
     _      -> Nothing
 
 chatRe, actionRe, joinRe, quitRe, nickRe, partRe :: Regex
@@ -66,35 +74,109 @@ Right actionRe = compRe [str|^\* ([^ ]+) (.*)$|]
 Right joinRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) \(([^@]+)@([^)]+)\) has joined the channel$|]
 Right quitRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has signed off \((.*)\)$|]
 Right nickRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) changed nick to ([^ ]+)$|]
-Right partRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has left the channel$|]
+Right partRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has left the channel( \((.*)\))?$|]
 
-compRe :: String -> Either String Regex
+-- | Compile a regular expression for using in message matching.
+compRe ::
+  Text                {- ^ regular expression           -} ->
+  Either String Regex {- ^ error or compiled expression -}
 compRe = compile defaultCompOpt defaultExecOpt
 
-chatMsg :: Identifier -> [String] -> IrcMsg
-chatMsg chan [nick, msg] = Privmsg (UserInfo (mkId (Text.pack nick)) "*" "*") chan (Text.pack msg)
+------------------------------------------------------------------------
 
-actionMsg :: Identifier -> [String] -> IrcMsg
-actionMsg chan [nick, msg] = Ctcp (UserInfo (mkId (Text.pack nick)) "*" "*") chan "ACTION" (Text.pack msg)
+chatMsg ::
+  Identifier {- ^ channel  -} ->
+  Text       {- ^ nickname -} ->
+  Text       {- ^ message  -} ->
+  IrcMsg
+chatMsg chan nick msg =
+  Privmsg
+    (userInfo nick)
+    chan
+    msg
 
-joinMsg :: Identifier -> [String] -> IrcMsg
-joinMsg chan [srv, nick, user, host] =
-  Join (UserInfo (mkId (Text.pack (nick ++ "@" ++ srv))) (Text.pack user) (Text.pack host))
-       chan
-       "" -- account
+actionMsg ::
+  Identifier {- ^ channel  -} ->
+  Text       {- ^ nickname -} ->
+  Text       {- ^ message  -} ->
+  IrcMsg
+actionMsg chan nick msg =
+  Ctcp
+    (userInfo nick)
+    chan
+    "ACTION"
+    msg
 
-partMsg :: Identifier -> [String] -> IrcMsg
-partMsg chan [srv, nick] =
-  Part (UserInfo (mkId (Text.pack (nick ++ "@" ++ srv))) "*" "*")
-       chan
-       Nothing
+joinMsg ::
+  Identifier {- ^ channel  -} ->
+  Text       {- ^ server   -} ->
+  Text       {- ^ nickname -} ->
+  Text       {- ^ username -} ->
+  Text       {- ^ hostname -} ->
+  IrcMsg
+joinMsg chan srv nick user host =
+  Join
+    (UserInfo (mkId (nick <> "@" <> srv)) user host)
+    chan
+    "" -- account
 
-quitMsg :: [String] -> IrcMsg
-quitMsg [srv, nick, msg] =
-  Quit (UserInfo (mkId (Text.pack (nick ++ "@" ++ srv))) "*" "*")
-       (Just (Text.pack msg))
+partMsg ::
+  Identifier {- ^ channel        -} ->
+  Text       {- ^ server         -} ->
+  Text       {- ^ nickname       -} ->
+  Text       {- ^ reason wrapper -} ->
+  Text       {- ^ reason         -} ->
+  IrcMsg
+partMsg chan srv nick msg_outer msg =
+  Part
+    (userInfo (nick <> "@" <> srv))
+    chan
+    (if Text.null msg_outer then Nothing else Just msg)
 
-nickMsg :: [String] -> IrcMsg
-nickMsg [srv, old, new] =
-  Nick (UserInfo (mkId (Text.pack (old ++ "@" ++ srv))) "*" "*")
-       (mkId (Text.pack (new ++ "@" ++ srv)))
+quitMsg ::
+  Text {- ^ server       -} ->
+  Text {- ^ nickname     -} ->
+  Text {- ^ quit message -} ->
+  IrcMsg
+quitMsg srv nick msg =
+  Quit
+    (userInfo (nick <> "@" <> srv))
+    (Just msg)
+
+nickMsg ::
+  Text {- ^ server   -} ->
+  Text {- ^ old nick -} ->
+  Text {- ^ new nick -} ->
+  IrcMsg
+nickMsg srv old new =
+  Nick
+    (userInfo (old <> "@" <> srv))
+    (mkId (new <> "@" <> srv))
+
+-- | Construct dummy user info when we don't know the user or host part.
+userInfo ::
+  Text {- ^ nickname -} ->
+  UserInfo
+userInfo nick = UserInfo (mkId nick) "*" "*"
+
+------------------------------------------------------------------------
+
+class Rule a where
+  matchRule :: [Text] -> a -> Maybe IrcMsg
+
+class RuleArg a where
+  matchArg :: Text -> Maybe a
+
+instance RuleArg Text where
+  matchArg = Just
+
+instance (RuleArg a, Rule b) => Rule (a -> b) where
+  matchRule tts f =
+    do (t,ts) <- uncons tts
+       a      <- matchArg t
+       matchRule ts (f a)
+
+instance Rule IrcMsg where
+  matchRule args ircMsg
+    | null args = Just ircMsg
+    | otherwise = Nothing
