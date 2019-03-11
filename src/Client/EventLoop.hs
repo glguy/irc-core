@@ -45,6 +45,7 @@ import           Control.Monad
 import           Data.ByteString (ByteString)
 import           Data.Foldable
 import           Data.List
+import           Data.List.NonEmpty (NonEmpty, nonEmpty)
 import           Data.Maybe
 import           Data.Ord
 import           Data.Text (Text)
@@ -65,10 +66,10 @@ import           Hookup
 
 -- | Sum of the three possible event types the event loop handles
 data ClientEvent
-  = VtyEvent Event -- ^ Key presses and resizing
-  | NetworkEvent NetworkEvent -- ^ Incoming network events
-  | TimerEvent NetworkId TimedAction -- ^ Timed action and the applicable network
-  | ExtTimerEvent Int -- ^ extension ID
+  = VtyEvent Event                        -- ^ Key presses and resizing
+  | NetworkEvents (NonEmpty NetworkEvent) -- ^ Incoming network events
+  | TimerEvent NetworkId TimedAction      -- ^ Timed action and the applicable network
+  | ExtTimerEvent Int                     -- ^ extension ID
 
 
 -- | Block waiting for the next 'ClientEvent'. This function will compute
@@ -79,13 +80,15 @@ getEvent ::
   IO ClientEvent
 getEvent vty st =
   do timer <- prepareTimer
-     atomically $
-       asum [ timer
-            , VtyEvent     <$> readTChan vtyEventChannel
-            , NetworkEvent <$> readTQueue (view clientEvents st)
-            ]
+     atomically (asum [timer, vtyEvent, networkEvents])
   where
-    vtyEventChannel = _eventChannel (inputIface vty)
+    vtyEvent = VtyEvent <$> readTChan (_eventChannel (inputIface vty))
+
+    networkEvents =
+      do events <- flushTQueue (view clientEvents st)
+         case nonEmpty events of
+           Just events1 -> return (NetworkEvents events1)
+           Nothing      -> retry
 
     prepareTimer =
       case earliestEvent st of
@@ -132,16 +135,23 @@ eventLoop vty st =
 
      event <- getEvent vty st'
      case event of
-       ExtTimerEvent i -> eventLoop vty =<< clientExtTimer i st'
-       TimerEvent networkId action  -> eventLoop vty =<< doTimerEvent networkId action st'
-       VtyEvent vtyEvent -> traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
-       NetworkEvent networkEvent ->
-         eventLoop vty =<<
-         case networkEvent of
-           NetworkLine  net time line -> doNetworkLine  net time line st'
-           NetworkError net time ex   -> doNetworkError net time ex st'
-           NetworkOpen  net time      -> doNetworkOpen  net time st'
-           NetworkClose net time      -> doNetworkClose net time st'
+       ExtTimerEvent i ->
+         eventLoop vty =<< clientExtTimer i st'
+       TimerEvent networkId action ->
+         eventLoop vty =<< doTimerEvent networkId action st'
+       VtyEvent vtyEvent ->
+         traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
+       NetworkEvents networkEvents ->
+         eventLoop vty =<< foldM doNetworkEvent st' networkEvents
+
+-- | Apply a single network event to the client state.
+doNetworkEvent :: ClientState -> NetworkEvent -> IO ClientState
+doNetworkEvent st networkEvent =
+  case networkEvent of
+    NetworkLine  net time line -> doNetworkLine  net time line st
+    NetworkError net time ex   -> doNetworkError net time ex st
+    NetworkOpen  net time      -> doNetworkOpen  net time st
+    NetworkClose net time      -> doNetworkClose net time st
 
 -- | Sound the terminal bell assuming that the @BEL@ control code
 -- is supported.
