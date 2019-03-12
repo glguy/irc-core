@@ -76,6 +76,7 @@ module Client.State
   -- * Add messages to buffers
   , recordChannelMessage
   , recordNetworkMessage
+  , recordError
   , recordIrcMessage
 
   -- * Focus manipulation
@@ -514,6 +515,18 @@ recordNetworkMessage msg st = updateTransientError focus msg
 
     cfg        = view clientConfig st
 
+recordError ::
+  ZonedTime       {- ^ now             -} ->
+  Text            {- ^ network         -} ->
+  Text            {- ^ error message   -} ->
+  ClientState     {- ^ client state    -} ->
+  ClientState
+recordError now net msg =
+  recordNetworkMessage ClientMessage
+    { _msgTime    = now
+    , _msgNetwork = net
+    , _msgBody    = ErrorBody msg
+    }
 
 -- | Record window line at the given focus creating the window if necessary
 recordWindowLine ::
@@ -661,7 +674,7 @@ Right urlPattern =
   compile
     defaultCompOpt
     defaultExecOpt{captureGroups=False}
-    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[^[:cntrl:][:space:]]*)|\
+    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[-0-9a-zA-Z$_.+!*'(),%?=:@/;]*)?|\
     \<https?://[^>]*>|\
     \\\(https?://[^\\)]*\\)"
 

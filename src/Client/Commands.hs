@@ -2285,7 +2285,7 @@ cmdExec st rest =
       foldM (\st1 msg ->
            case parseRawIrcMsg msg of
              Nothing ->
-               return $! recordError now st1 ("Bad raw message: " <> msg)
+               return $! recordError now "" ("Bad raw message: " <> msg) st1
              Just raw ->
                do sendMsg cs raw
                   return st1) st msgs
@@ -2304,15 +2304,7 @@ cmdExec st rest =
          preview (clientConnection network) st
 
     failure now es =
-      commandFailure $! foldl' (recordError now) st (map Text.pack es)
-
-recordError :: ZonedTime -> ClientState -> Text -> ClientState
-recordError now ste e =
-  recordNetworkMessage ClientMessage
-    { _msgTime    = now
-    , _msgBody    = ErrorBody e
-    , _msgNetwork = ""
-    } ste
+      commandFailure $! foldl' (flip (recordError now "")) st (map Text.pack es)
 
 recordSuccess :: ZonedTime -> ClientState -> Text -> ClientState
 recordSuccess now ste m =

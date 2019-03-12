@@ -39,19 +39,13 @@ newRateLimit ::
   Rational {- ^ threshold seconds -} ->
   IO RateLimit
 newRateLimit penalty threshold =
-  do unless (penalty > 0)
-        (fail "newRateLimit: Penalty too small")
-
-     unless (threshold > 0)
-        (fail "newRateLimit: Threshold too small")
-
-     now <- getCurrentTime
+  do now <- getCurrentTime
      ref <- newMVar now
 
      return RateLimit
         { rateStamp     = ref
-        , rateThreshold = realToFrac threshold
-        , ratePenalty   = realToFrac penalty
+        , rateThreshold = realToFrac (max 0 threshold)
+        , ratePenalty   = realToFrac (max 0 penalty)
         }
 
 -- | Account for an event in the context of a 'RateLimit'. This command

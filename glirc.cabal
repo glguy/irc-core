@@ -76,6 +76,7 @@ library
                        Client.EventLoop
                        Client.EventLoop.Actions
                        Client.EventLoop.Errors
+                       Client.EventLoop.Network
                        Client.Hook
                        Client.Hook.FreRelay
                        Client.Hook.Snotice
