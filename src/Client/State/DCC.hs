@@ -75,17 +75,16 @@ import           Irc.Message (IrcMsg(..))
 import           Irc.UserInfo (UserInfo(..), uiNick)
 import           Network.Socket ( HostName, PortNumber, Family(..)
                                 , hostAddressToTuple )
-import           System.Directory (doesFileExist)
 import           System.FilePath ((</>), takeFileName)
 import           System.IO (withFile, IOMode(..), openFile, hClose, hFileSize)
 
--- | All the neccesary information to start the download
+-- | All the necessary information to start the download
 data DCCOffer = DCCOffer
   { _dccNetwork  :: !Text
   , _dccFromInfo :: !UserInfo
-  , _dccFromIP   ::  HostName -- ^ String of the ipv4 representation
+  , _dccFromIP   ::  HostName -- ^ String of the IPv4 representation
   , _dccPort     :: !PortNumber
-  , _dccFileName ::  FilePath -- ^ Guarranted to be just the name
+  , _dccFileName ::  FilePath -- ^ Guaranteed to be just the name
   , _dccSize     :: !Word32 -- ^ Size of the whole file, per protocol
                             --   restricted to 32-bits
   , _dccOffset   :: !Word32 -- ^ Byte from where the transmission starts
@@ -133,10 +132,14 @@ dccOffer :: Text -> UserInfo -> HostName -> PortNumber
 dccOffer network userFrom hostaddr port filename filesize =
   DCCOffer network userFrom hostaddr port filename filesize 0 Pending
 
--- | Launch a supervisor thread for downloading the offer refered by @Key@ and
+-- | Launch a supervisor thread for downloading the offer referred by @Key@ and
 --   return the DCCState accordingly.
-supervisedDownload :: FilePath -> Key -> TChan DCCUpdate
-                   -> DCCState -> IO DCCState
+supervisedDownload ::
+  FilePath        ->
+  Key             ->
+  TChan DCCUpdate ->
+  DCCState        ->
+  IO DCCState
 supervisedDownload dir key updChan state = do
   let Just offer = view (dsOffers . at key) state -- Previously check
   supervisorThread <- async $
@@ -148,12 +151,12 @@ supervisedDownload dir key updChan state = do
                     , E.Handler (\(_ :: AsyncCancelled) ->
                                    return (UserInterrupted key))
                     ]
-           atomically $ writeTChan updChan upd
+           atomically (writeTChan updChan upd)
   let startPercent = percent (_dccOffset offer) (_dccSize offer)
       newTransfer  = DCCTransfer (Just supervisorThread) startPercent
-      newOffer     = offer {_dccStatus = Downloading}
+      newOffer     = offer { _dccStatus = Downloading }
       newState     = set (dsOffers . at key) (Just newOffer)
-                     $ set (dsTransfers . at key) (Just newTransfer) state
+                   $ set (dsTransfers . at key) (Just newTransfer) state
   return newState
 
 -- |
@@ -166,11 +169,11 @@ startDownload dir key updChan offer@(DCCOffer _ _ from port name totalSize offse
       do -- Has to decouple @send@ from @recv@, tells how much
          -- have we downloaded.
          recvChan1 <- atomically newTChan
-         recvChan2 <- atomically $ dupTChan recvChan1
+         recvChan2 <- atomically (dupTChan recvChan1)
 
          -- Two threads, one for @send@ the progress to the
          -- server and another to signal how much progress
-         -- have we done to the main thread. `withAsync` guarrantee
+         -- have we done to the main thread. `withAsync` guarantee
          -- correct exception handling when the user cancels the
          -- transfer.
          -- Notice how recvSendLoop starts at offset instead of 0, this
@@ -182,9 +185,11 @@ startDownload dir key updChan offer@(DCCOffer _ _ from port name totalSize offse
                                     wait outThread
   where
     param = ConnectionParams
-              { cpFamily = AF_INET, cpHost = from
-              , cpPort = port, cpSocks = Nothing
-              , cpTls = Nothing }
+              { cpFamily = AF_INET
+              , cpHost   = from
+              , cpPort   = port
+              , cpSocks  = Nothing
+              , cpTls    = Nothing }
 
     buffSize = 4 * 1024 * 1024
 
@@ -193,7 +198,7 @@ startDownload dir key updChan offer@(DCCOffer _ _ from port name totalSize offse
          unless (B.null bytes) $
            do B.hPut hdl bytes
               let newSize = size + fromIntegral (B.length bytes)
-              atomically $ writeTChan chan newSize
+              atomically (writeTChan chan newSize)
               recvSendLoop newSize chan conn hdl
 
 
@@ -202,8 +207,8 @@ startDownload dir key updChan offer@(DCCOffer _ _ from port name totalSize offse
 --   what other clients and servers do in practice.
 sendStream :: Word32 -> Connection -> TChan Word32 -> IO ()
 sendStream maxSize conn chan =
-  do val <- atomically $ readTChan chan
-     let valBE = toStrict . toLazyByteString $ word32BE val
+  do val <- atomically (readTChan chan)
+     let valBE = toStrict (toLazyByteString (word32BE val))
      send conn valBE
      unless (val >= maxSize) (sendStream maxSize conn chan)
 
@@ -211,18 +216,18 @@ sendStream maxSize conn chan =
 report :: DCCOffer -> Key -> TChan Word32 -> TChan DCCUpdate -> IO ()
 report offer key input output = compareAndUpdate (percent offset totalsize)
   where
-    offset = _dccOffset offer
-    totalsize = _dccSize offer
+    offset    = _dccOffset offer
+    totalsize = _dccSize   offer
 
     compareAndUpdate :: Word32 -> IO ()
     compareAndUpdate prevPercent =
       do curSize <- atomically $ readTChan input
          let curPercent = percent curSize totalsize
              updateEv   = PercentUpdate key curPercent
-         if (curPercent == 100)
+         if curPercent == 100
            then atomically (writeTChan output updateEv)
            else do when (curPercent > prevPercent)
-                        $ atomically (writeTChan output updateEv)
+                        (atomically (writeTChan output updateEv))
                    compareAndUpdate curPercent
 
 -- Avoid overflow via Word64
@@ -232,18 +237,18 @@ percent a total = fromIntegral (fromIntegral a * 100 `div` fromIntegral total ::
 -- | This function can only be called after a @cancel@ has been issued
 --   on the supervisor thread at @Key@
 reportStopWithStatus :: Key -> ConnectionStatus -> DCCState -> DCCState
-reportStopWithStatus key newstatus =
-  set (dsOffers . at key . _Just . dccStatus) newstatus
-  . set (dsTransfers . at key . _Just . dtThread) Nothing
+reportStopWithStatus key newstatus
+  = set (dsOffers    . ix key . dccStatus) newstatus
+  . set (dsTransfers . ix key . dtThread ) Nothing
 
 -- | Parse a "DCC SEND" command.
 parseSEND :: Text -> UserInfo -> Text -> Either String DCCOffer
-parseSEND network userFrom text = parseOnly (sendFormat network userFrom) text
+parseSEND network userFrom = parseOnly (sendFormat network userFrom)
 
 sendFormat :: Text -> UserInfo -> Parser DCCOffer
 sendFormat network userFrom =
   do name      <- string "SEND" *> space *> nameFormat
-     addr      <- ipv4Dotted <$> (space *> decimal)
+     addr      <- ipv4Dotted <$ space <*> decimal
      port      <- space *> decimal
      totalsize <- space *> decimal
      return (dccOffer network userFrom addr port name totalsize)
@@ -251,16 +256,18 @@ sendFormat network userFrom =
 -- | Parse a "DCC RESUME" command.
 parseACCEPT :: DCCState -> UserInfo -> Text -> Maybe DCCUpdate
 parseACCEPT state userFrom text =
-  let offerList = I.toDescList (_dsOffers state)
-      predicate fileName (key, offer)=
-          _dccFileName offer == fileName
-          && userFrom == _dccFromInfo offer
-          && statusAtKey key state == Pending
-  in case parseOnly acceptFormat text of
-       Left _ -> Nothing
-       Right (fileName, port, offset) ->
-         (\(key, _) -> Accept key port offset)
-             <$> find (predicate fileName) offerList
+  case parseOnly acceptFormat text of
+    Left _ -> Nothing
+    Right (fileName, port, offset) ->
+      (\(key, _) -> Accept key port offset)
+      <$> find (predicate fileName) offerList
+  where
+    offerList = I.toDescList (_dsOffers state)
+
+    predicate fileName (key, offer) =
+      view dccFileName offer == fileName &&
+      view dccFromInfo offer == userFrom &&
+      statusAtKey key state  == Pending
 
 
 acceptFormat :: Parser (FilePath, PortNumber, Word32)
@@ -275,37 +282,33 @@ acceptFormat =
 -- correctly.
 nameFormat :: Parser FilePath
 nameFormat = do textPath <- try quotedName <|> noSpaceName
-                return . takeFileName . Text.unpack $ textPath
+                return (takeFileName (Text.unpack textPath))
   where
-    quotedName = char '\"' *> takeWhile1 (\c -> c /= '\"') <* char '\"'
-    noSpaceName = takeWhile1 (\c -> c /= ' ')
+    quotedName = char '\"' *> takeWhile1 ('\"' /=) <* char '\"'
+    noSpaceName = takeWhile1 (' ' /=)
 
--- | Asumming little-endian
+-- | Assuming little-endian
 ipv4Dotted :: Word32 -> HostName
-ipv4Dotted addr =
-  let bigToLittleEndian (a, b, c, d) = (d, c, b, a)
-      ipv4Format (d,c,b,a) =
-        show d <> "." <> show c <> "." <> show b <> "." <> show a
-  in ipv4Format . bigToLittleEndian $ hostAddressToTuple addr
+ipv4Dotted addr = ipv4Format (bigToLittleEndian (hostAddressToTuple addr))
+  where
+    bigToLittleEndian (a, b, c, d) = (d, c, b, a)
+
+    ipv4Format (d,c,b,a) =
+      show d <> "." <> show c <> "." <> show b <> "." <> show a
 
 getFileOffset :: FilePath -> IO (Maybe Word32)
 getFileOffset path =
-  do isfile <- doesFileExist path
-     case isfile of
-       False -> return Nothing
-       True ->
-         do size <- withFile path ReadMode hFileSize
-            if size == 0
-              then return Nothing
-              else return $ Just (fromIntegral size)
+  do res <- E.try (withFile path ReadMode hFileSize)
+     return $! case res :: Either IOError Integer of
+                 Right n | n > 0 -> Just $! fromIntegral n
+                 _               -> Nothing
 
 insertAsNewMax :: DCCOffer -> DCCState -> DCCState
 insertAsNewMax newoffer (DCCState offers transfers) =
-  let newmax = if I.null offers then 1 else succ . fst $ I.findMax offers
+  let newmax    = if I.null offers then 1 else 1 + fst (I.findMax offers)
       newOffers = I.insert newmax newoffer offers
   in DCCState newOffers transfers
 
--- TODO: maybe replace with some lens magic?
 ctcpToTuple :: IrcMsg -> Maybe (UserInfo, Identifier, Text, Text)
 ctcpToTuple (Ctcp fromU target command txt) =
   Just (fromU, target, command, txt)
@@ -316,39 +319,39 @@ ctcpToTuple _ = Nothing
 -- | Check the status of a download at @Key@ by checking the invariants
 --   at @DCCState@
 statusAtKey :: Key -> DCCState -> ConnectionStatus
-statusAtKey key (DCCState offers _)
-  | Nothing <- lookupOffer = NotExist
-  | otherwise = _dccStatus (offers I.! key)
+statusAtKey key (DCCState offers _) =
+  case I.lookup key offers of
+    Nothing -> NotExist
+    Just {} -> view dccStatus (offers I.! key)
+
+-- | Craft a CTCP message indicating we want to resume a download at the offset.
+resumeMsg ::
+  Word32           {- ^ offset        -} ->
+  DCCOffer         {- ^ offer         -} ->
+  (String, String) {- ^ (target, txt) -}
+resumeMsg sizeoffset offer = (target, txt)
   where
-    lookupOffer = I.lookup key offers
+    filename = _dccFileName offer
+    port = show (_dccPort offer)
+    sizeoffset' = show sizeoffset
+    quoting = if ' ' `elem` filename then "\"" else ""
 
--- | Craft a CTCP message indicating we wan to resume a download at the
---   offset
-resumeMsg :: Word32 {- offset -}
-          -> DCCOffer
-          -> (String, String) -- (target, txt)
-resumeMsg sizeoffset offer =
-  let filename = _dccFileName offer
-      port = show (_dccPort offer)
-      sizeoffset' = show sizeoffset
-      quoting = if any (== ' ') filename then "\"" else mempty
-
-      txt = "RESUME" <> " " <> quoting <> filename <> quoting <> " " <> port
-            <> " " <> sizeoffset'
-      target = views (dccFromInfo . uiNick) (Text.unpack . idText) offer
-  in (target, txt)
+    txt = concat ["RESUME ", quoting, filename, quoting,
+                  " ", port, " ", sizeoffset' ]
+    target = views (dccFromInfo . uiNick) (Text.unpack . idText) offer
 
 -- | Modify the @DCCState@ following the corresponding @DCCUpdate@
 acceptUpdate :: DCCUpdate -> DCCState -> DCCState
 acceptUpdate (Accept k port offset) state =
   case view (dsOffers . at k) state of
-    Nothing -> state -- check at callsite
-    Just oldOffer ->
-      let newOffer = oldOffer { _dccPort = port, _dccOffset = offset }
-      in set (dsOffers . at k) (Just newOffer) state
+    Nothing       -> state -- check at call-site
+    Just oldOffer -> set (dsOffers . at k) (Just newOffer) state
+      where
+        newOffer = oldOffer { _dccPort = port, _dccOffset = offset }
 acceptUpdate _ state = state
 
--- | Check if the payload of a "DCC" ctcp message is SEND
+-- | Check if the payload of a "DCC" CTCP message is SEND
 isSend :: Text -> Bool
-isSend txt | "SEND":_ <- Text.splitOn " " txt = True
-           | otherwise                        = False
+isSend txt
+  | "SEND":_ <- Text.splitOn " " txt = True
+  | otherwise                        = False

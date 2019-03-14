@@ -792,7 +792,8 @@ applyMessageToClientState time irc networkId cs st =
   where
     (reply, cs') = applyMessage time irc cs
     network      = view csNetwork cs
-    (st', dccUp) = queueDCCTransfer network irc . applyWindowRenames network irc
+    (st', dccUp) = queueDCCTransfer network irc
+                 $ applyWindowRenames network irc
                  $ set (clientConnections . ix networkId) cs' st
 
 -- | Queue a DCC transfer when the message is correct. Await for user
