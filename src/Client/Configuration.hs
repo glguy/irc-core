@@ -29,6 +29,7 @@ module Client.Configuration
   , configPalette
   , configWindowNames
   , configNickPadding
+  , configDownloadDir
   , configMacros
   , configExtensions
   , configExtraHighlights
@@ -71,6 +72,7 @@ import           Client.Image.Palette
 import           Config
 import           Config.Schema
 import           Control.Exception
+import           Control.Monad                       (unless)
 import           Control.Lens                        hiding (List)
 import           Data.Foldable                       (toList, find)
 import           Data.Functor.Alt                    ((<!>))
@@ -102,6 +104,7 @@ data Configuration = Configuration
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
   , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
+  , _configDownloadDir     :: FilePath -- ^ Directory for downloads, default to HOME
   , _configMacros          :: Recognizer Macro -- ^ command macros
   , _configExtensions      :: [ExtensionConfiguration] -- ^ extensions to load
   , _configUrlOpener       :: Maybe FilePath -- ^ paths to url opening executable
@@ -228,6 +231,7 @@ loadConfiguration ::
 loadConfiguration mbPath = try $
   do (path,txt) <- readConfigurationFile mbPath
      def  <- loadDefaultServerSettings
+     home <- getHomeDirectory
 
      rawcfg <-
        case parse txt of
@@ -241,7 +245,8 @@ loadConfiguration mbPath = try $
                 $ Text.unlines
                 $ map explainLoadError (toList es)
        Right cfg ->
-         do cfg' <- resolvePaths path (cfg def)
+         do cfg' <- resolvePaths path (cfg def home)
+                    >>= validateDirectories path
             return (path, cfg')
 
 
@@ -278,10 +283,26 @@ resolvePaths file cfg =
                                 . over (ssLogDir        . mapped) res
      return $! over (configExtensions . mapped . extensionPath) res
              . over (configServers    . mapped) resolveServerFilePaths
+             . over configDownloadDir res
              $ cfg
 
+-- | Check if the `download-dir` is actually a directory and writeable,
+--   throw a ConfigurationMalformed exception if it isn't.
+validateDirectories :: FilePath -> Configuration -> IO Configuration
+validateDirectories cfgPath cfg =
+  do isDir       <- doesDirectoryExist downloadPath
+     unless isDir $ throwIO (ConfigurationMalformed cfgPath noDirMsg)
+     isWriteable <- writable <$> getPermissions downloadPath
+     unless isWriteable
+       $ throwIO (ConfigurationMalformed cfgPath noWriteableMsg)
+     return cfg
+  where
+    downloadPath = view configDownloadDir cfg
+    noDirMsg = "The download-dir section doesn't point to a directory."
+    noWriteableMsg = "The download-dir doesn't point to a writeable directory."
+
 configurationSpec ::
-  ValueSpecs (ServerSettings -> Configuration)
+  ValueSpecs (ServerSettings -> FilePath -> Configuration)
 configurationSpec = sectionsSpec "" $
 
   do let sec' def name spec info = fromMaybe def <$> optSection' name spec info
@@ -322,10 +343,13 @@ configurationSpec = sectionsSpec "" $
                                "Initial setting for window layout"
      _configShowPing        <- sec' True "show-ping" yesOrNoSpec
                                "Initial setting for visibility of ping times"
-     return (\def ->
+     maybeDownloadDir       <- optSection' "download-dir" stringSpec
+                               "Path to DCC download directoy. Defaults to home directory."
+     return (\def home ->
              let _configDefaults = ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
+                 _configDownloadDir = fromMaybe home maybeDownloadDir
              in Configuration{..})
 
 -- | The default nick padding side if padding is going to be used

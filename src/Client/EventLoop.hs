@@ -18,7 +18,7 @@ module Client.EventLoop
 
 import           Client.CApi (popTimer)
 import           Client.Commands
-import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames)
+import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDownloadDir)
 import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Actions
 import           Client.EventLoop.Errors (exceptionToLines)
@@ -31,6 +31,7 @@ import           Client.Log
 import           Client.Message
 import           Client.Network.Async
 import           Client.State
+import           Client.State.DCC
 import qualified Client.State.EditBox     as Edit
 import           Client.State.Extensions
 import           Client.State.Focus
@@ -57,12 +58,13 @@ import           LensUtils
 import           Hookup
 
 
--- | Sum of the three possible event types the event loop handles
+-- | Sum of the five possible event types the event loop handles
 data ClientEvent
   = VtyEvent Event                        -- ^ Key presses and resizing
   | NetworkEvents (NonEmpty NetworkEvent) -- ^ Incoming network events
   | TimerEvent NetworkId TimedAction      -- ^ Timed action and the applicable network
   | ExtTimerEvent Int                     -- ^ extension ID
+  | DCCUpdate DCCUpdate                   -- ^ Event on any transfer
 
 
 -- | Block waiting for the next 'ClientEvent'. This function will compute
@@ -73,7 +75,7 @@ getEvent ::
   IO ClientEvent
 getEvent vty st =
   do timer <- prepareTimer
-     atomically (asum [timer, vtyEvent, networkEvents])
+     atomically (asum [timer, vtyEvent, networkEvents, dccUpdate])
   where
     vtyEvent = VtyEvent <$> readTChan (_eventChannel (inputIface vty))
 
@@ -93,6 +95,8 @@ getEvent vty st =
              return $ do ready <- readTVar var
                          unless ready retry
                          return event
+
+    dccUpdate = DCCUpdate <$> readTChan (view clientDCCUpdates st)
 
 -- | Compute the earliest scheduled timed action for the client
 earliestEvent :: ClientState -> Maybe (UTCTime, ClientEvent)
@@ -136,6 +140,8 @@ eventLoop vty st =
          traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
        NetworkEvents networkEvents ->
          eventLoop vty =<< foldM doNetworkEvent st' networkEvents
+       DCCUpdate upd ->
+         eventLoop vty =<< doDCCUpdate upd st'
 
 -- | Apply a single network event to the client state.
 doNetworkEvent :: ClientState -> NetworkEvent -> IO ClientState
@@ -288,8 +294,10 @@ doNetworkLine networkId time line st =
                                         , _msgBody    = IrcBody irc'
                                         }
 
-                    let (replies, st3) = applyMessageToClientState time irc networkId cs st2
+                    let (replies, dccUp, st3) =
+                          applyMessageToClientState time irc networkId cs st2
 
+                    traverse_ (atomically . writeTChan (view clientDCCUpdates st3)) dccUp
                     traverse_ (sendMsg cs) replies
                     clientResponse time' irc cs st3
 
@@ -466,3 +474,24 @@ doTimerEvent networkId action =
   traverseOf
     (clientConnections . ix networkId)
     (applyTimedAction action)
+
+doDCCUpdate :: DCCUpdate -> ClientState -> IO ClientState
+doDCCUpdate upd st0 =
+  case upd of
+    PercentUpdate k newVal -> return $ set (commonLens k . dtProgress) newVal st0
+    SocketInterrupted k    -> reportKill k LostConnection
+    UserInterrupted k      -> reportKill k UserKilled
+    Finished k             -> reportKill k CorrectlyFinished
+    accept@(Accept k _ _) ->
+      do let dccState0 = view clientDCC st0
+             dccState1 = acceptUpdate accept dccState0
+             -- st1 = set clientDCC dccState1 st0
+
+             updChan = view clientDCCUpdates st0
+             mdir = view (clientConfig . configDownloadDir) st0
+
+         dccState2 <- supervisedDownload mdir k updChan dccState1
+         return $ set clientDCC dccState2 st0
+  where
+    reportKill k status = return $ over clientDCC (reportStopWithStatus k status) st0
+    commonLens k = clientDCC . dsTransfers . at k . _Just

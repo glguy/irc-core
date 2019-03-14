@@ -143,6 +143,7 @@ nick-padding:
    width: 13
 
 url-opener: "open" -- This works on macOS, "gnome-open" for GNOME
+download-dir: "~/Downloads" -- defaults to HOME
 
 key-bindings:
   * bind: "C-M-b"
@@ -179,6 +180,7 @@ Configuration sections:
 | `extra-highlights`     | list of text        | Extra words/nicks to highlight                                                             |
 | `extensions`           | list of text        | Filenames of extension to load                                                             |
 | `url-opener`           | text                | Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS |
+| `download-dir`         | text                | path to the directory where to place DCC downloads, defaults to HOME                       |
 | `ignores`              | list of text        | Initial list of nicknames to ignore                                                        |
 | `activity-bar`         | yes or no           | Initial setting for visibility of activity bar (default no)                                |
 | `bell-on-mention`      | yes or no           | Sound terminal bell on transition from not mentioned to mentioned (default no)             |
@@ -282,6 +284,7 @@ Client commands
 * `/extension <extension name> <params...>` - Send the given params to the named extension
 * `/exec [-n network] [-c channel] <command> <arguments...>` - Execute a command, If no network or channel are provided send output to client window, if network and channel are provided send output as messages, if network is provided send output as raw IRC messages.
 * `/url [n]` - Execute url-opener on the nth URL in the current window (defaults to first)
+* `/dcc [(accept|resume|cancel|clear)] [n]` - Execute the corresponding action on the nth offer.
 
 View toggles
 * `/toggle-detail` - toggle full detail view of messages

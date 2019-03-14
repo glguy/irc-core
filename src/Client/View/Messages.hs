@@ -171,4 +171,5 @@ metadataWindowLine ::
 metadataWindowLine st wl =
   case view wlSummary wl of
     ChatSummary who -> (ignoreImage, userNick who, Nothing) <$ guard (identIgnored who st)
+    DccSendSummary _ -> Nothing -- Show a custom WindowLine latter
     summary         -> metadataImg summary

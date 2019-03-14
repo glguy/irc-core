@@ -39,6 +39,7 @@ import           Irc.Message
 import           Irc.Identifier
 import           Irc.UserInfo
 import           Irc.Codes
+import           Client.State.DCC (isSend)
 
 data MessageBody
   = IrcBody    !IrcMsg
@@ -63,6 +64,7 @@ data IrcSummary
   | ReplySummary {-# UNPACK #-} !ReplyCode
   | ChatSummary {-# UNPACK #-} !UserInfo
   | CtcpSummary {-# UNPACK #-} !Identifier
+  | DccSendSummary {-# UNPACK #-} !Identifier
   | ChngSummary {-# UNPACK #-} !Identifier -- ^ Chghost command
   | AcctSummary {-# UNPACK #-} !Identifier -- ^ Account command
   | NoSummary
@@ -92,6 +94,7 @@ ircSummary msg =
     Privmsg who _ _ -> ChatSummary who
     Notice who _ _  -> ChatSummary who
     Ctcp who _ "ACTION" _ -> ChatSummary who
+    Ctcp who _ "DCC" txt | isSend txt -> DccSendSummary (userNick who)
     Ctcp who _ _ _ -> CtcpSummary (userNick who)
     CtcpNotice who _ _ _ -> ChatSummary who
     Reply code _    -> ReplySummary code

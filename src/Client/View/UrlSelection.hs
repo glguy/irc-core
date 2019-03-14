@@ -78,6 +78,7 @@ summaryActor s =
     NickSummary who _ -> Just who
     ChatSummary who   -> Just (userNick who)
     CtcpSummary who   -> Just who
+    DccSendSummary who -> Just who
     AcctSummary who   -> Just who
     ChngSummary who   -> Just who
     ReplySummary {}   -> Nothing
