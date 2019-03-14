@@ -339,21 +339,20 @@ channelModesImage network channel st =
 viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image'
 viewSubfocusLabel pal subfocus =
   case subfocus of
-    FocusMessages -> Nothing
+    FocusMessages     -> Nothing
     FocusWindows filt -> Just $ string (view palLabel pal) "windows" <>
                                 opt (windowFilterName filt)
-    FocusInfo     -> Just $ string (view palLabel pal) "info"
-    FocusUsers    -> Just $ string (view palLabel pal) "users"
-    FocusMentions -> Just $ string (view palLabel pal) "mentions"
-    FocusDCC      -> Just $ string (view palLabel pal) "DCC"
-    FocusPalette  -> Just $ string (view palLabel pal) "palette"
-    FocusDigraphs -> Just $ string (view palLabel pal) "digraphs"
-    FocusKeyMap   -> Just $ string (view palLabel pal) "keymap"
-    FocusHelp mb  -> Just $ string (view palLabel pal) "help" <>
-                            opt mb
-    FocusIgnoreList -> Just $ string (view palLabel pal) "ignores"
-    FocusRtsStats -> Just $ string (view palLabel pal) "rtsstats"
-    FocusMasks m  -> Just $ mconcat
+    FocusInfo         -> Just $ string (view palLabel pal) "info"
+    FocusUsers        -> Just $ string (view palLabel pal) "users"
+    FocusMentions     -> Just $ string (view palLabel pal) "mentions"
+    FocusDCC          -> Just $ string (view palLabel pal) "dcc"
+    FocusPalette      -> Just $ string (view palLabel pal) "palette"
+    FocusDigraphs     -> Just $ string (view palLabel pal) "digraphs"
+    FocusKeyMap       -> Just $ string (view palLabel pal) "keymap"
+    FocusHelp mb      -> Just $ string (view palLabel pal) "help" <> opt mb
+    FocusIgnoreList   -> Just $ string (view palLabel pal) "ignores"
+    FocusRtsStats     -> Just $ string (view palLabel pal) "rtsstats"
+    FocusMasks m      -> Just $ mconcat
       [ string (view palLabel pal) "masks"
       , char defAttr ':'
       , char (view palLabel pal) m

@@ -35,10 +35,12 @@ dccImages st =
       statusOff key = showStatus (statusAtKey key dccState)
       downloading   = map (string (_palMeta pal) . statusOff) keys
       percentage    = map (\k -> string (_palTextBox pal)
-                            . maybe "  " (\p -> show p ++ "%") . fmap _dtProgress
-                            $ view (dsTransfers . at k) dccState) keys
+                               $ maybe "  " (\p -> show p ++ "%")
+                               $ preview (dsTransfers . ix k . dtProgress) dccState)
+                          keys
 
-      downloadingNum = length . filter ((== Downloading) . flip statusAtKey dccState) $ keys
+      downloadingNum =
+        length (filter (\key -> Downloading == statusAtKey key dccState) keys)
 
       countImage = string (view palLabel pal) "Offers (downloading/total): " <>
                    string defAttr (show downloadingNum) <>
@@ -63,4 +65,4 @@ showStatus = \case
   LostConnection    -> "Socket failure"
   Downloading       -> "Downloading"
   Pending           -> "Pending"
-  NotExist          -> "Not exist" -- Shouldn't be shown never
+  NotExist          -> "Missing" -- logic error

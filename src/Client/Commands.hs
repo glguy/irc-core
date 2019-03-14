@@ -54,7 +54,7 @@ import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
-import           Data.Maybe (fromMaybe, fromJust)
+import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time
@@ -91,7 +91,7 @@ type ChannelCommand a = Identifier {- ^ focused channel -} -> NetworkCommand a
 
 
 -- | Pair of implementations for executing a command and tab completing one.
--- The tab-completion logic is extended with a bool
+-- The tab-completion logic is extended with a Bool
 -- indicating that tab completion should be reversed
 data CommandImpl a
   -- | no requirements
@@ -1309,30 +1309,31 @@ cmdDcc st _ = commandFailureMsg "Invalid syntax" st
 checkAndBranch :: ClientState -> String -> Int -> IO CommandResult
 checkAndBranch st cmd key
   | isCancel, NotExist <- curKeyStatus
-      = commandFailureMsg "Not a transfer to cancel" st
+      = commandFailureMsg "No such DCC entry" st
   | isCancel, curKeyStatus == Pending
       = commandSuccess
-        $ set (clientDCC . dsOffers . at key . _Just . dccStatus) UserKilled st
+      $ set (clientDCC . dsOffers . ix key . dccStatus) UserKilled st
   | isCancel, curKeyStatus /= Downloading
-      = commandFailureMsg "Transfer already stop" st
+      = commandFailureMsg "Transfer already stopped" st
   | isCancel = cancel threadId *> commandSuccess st
 
   | isClear, NotExist <- curKeyStatus
-      = commandFailureMsg "No such DCC Offer" st
+      = commandFailureMsg "No such DCC entry" st
   | isClear, curKeyStatus `elem` [Downloading, Pending]
       = commandFailureMsg "Cancel the download first" st
-  | isClear = commandSuccess . set (clientDCC . dsOffers . at key) Nothing
-              $ set (clientDCC . dsTransfers . at key) Nothing st
+  | isClear = commandSuccess
+            $ set (clientDCC . dsOffers    . at key) Nothing
+            $ set (clientDCC . dsTransfers . at key) Nothing st
 
   | isAcceptOrResume, curKeyStatus `elem` alreadyAcceptedSet
       = commandFailureMsg "Offer already accepted" st
   | isAcceptOrResume, NotExist <- curKeyStatus
-      = commandFailureMsg "No such DCC offer" st
+      = commandFailureMsg "No such DCC entry" st
   | isAcceptOrResume
       = do isDirectory <- doesDirectoryExist downloadPath
            msize       <- getFileOffset downloadPath
            case (isDirectory, msize, cmd, mcs) of
-             (True, _, _, _)      -> commandFailureMsg "Would overwrite a directory" st
+             (True, _, _, _)      -> commandFailureMsg "DCC transfer would overwrite a directory" st
              (_, Nothing, _, _)   -> acceptOffer -- resume from 0 is accept
              (_, _, "accept", _)  -> acceptOffer -- overwrite file
              (_, Just size, "resume", Just cs) -> resumeOffer size cs
@@ -1350,8 +1351,7 @@ checkAndBranch st cmd key
                          , Downloading]
 
     -- For cancel, other cases handled on the guards
-    Just threadId = fromJust $ preview
-                        (clientDCC . dsTransfers . at key . _Just . dtThread) st
+    threadId = st ^?! clientDCC . dsTransfers . ix key . dtThread . _Just
 
     -- Common values for resume or accept
     Just offer   = view (clientDCC . dsOffers . at key) st -- guarded exist
@@ -1364,6 +1364,7 @@ checkAndBranch st cmd key
     acceptOffer =
         do newDCCState <- supervisedDownload downloadDir key updChan dccState
            commandSuccess (set clientDCC newDCCState st)
+
     resumeOffer size cs =
         let newOffer = offer { _dccOffset = size }
             (target, txt) = resumeMsg size newOffer
@@ -2424,7 +2425,7 @@ openUrl opener url st =
        Left e  -> commandFailureMsg (Text.pack (displayException (e :: IOError))) st
        Right{} -> commandSuccess st
 
--- | Implementation of @/grep@ and @/grepi@
+-- | Implementation of @/grep@
 cmdGrep :: ClientCommand String
 cmdGrep st str
   | null str  = commandSuccess (set clientRegex Nothing st)

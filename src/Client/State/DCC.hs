@@ -93,8 +93,8 @@ data DCCOffer = DCCOffer
 
 -- | Status of a connection at certain @Key@
 data ConnectionStatus
-  = CorrectlyFinished | UserKilled | LostConnection | Downloading
-  | Pending | NotExist
+  = CorrectlyFinished | UserKilled | LostConnection | Downloading | Pending
+  | NotExist
   deriving (Eq, Show)
 
 -- | Structure with information of a download accepted via "/dcc accept"
@@ -259,8 +259,8 @@ parseACCEPT state userFrom text =
   case parseOnly acceptFormat text of
     Left _ -> Nothing
     Right (fileName, port, offset) ->
-      (\(key, _) -> Accept key port offset)
-      <$> find (predicate fileName) offerList
+      do (key, _) <- find (predicate fileName) offerList
+         return (Accept key port offset)
   where
     offerList = I.toDescList (_dsOffers state)
 
@@ -322,7 +322,7 @@ statusAtKey :: Key -> DCCState -> ConnectionStatus
 statusAtKey key (DCCState offers _) =
   case I.lookup key offers of
     Nothing -> NotExist
-    Just {} -> view dccStatus (offers I.! key)
+    Just d  -> view dccStatus d
 
 -- | Craft a CTCP message indicating we want to resume a download at the offset.
 resumeMsg ::
