@@ -260,7 +260,7 @@ renderPrefix u
 -- a colon or contains a space.
 buildParams :: [Text] -> Builder
 buildParams [x]
-  | " " `Text.isInfixOf` x || ":" `Text.isPrefixOf` x
+  | " " `Text.isInfixOf` x || ":" `Text.isPrefixOf` x || Text.null x
   = Builder.char8 ' ' <> Builder.char8 ':' <> Text.encodeUtf8Builder x
 buildParams (x:xs)
   = Builder.char8 ' ' <> Text.encodeUtf8Builder x <> buildParams xs
