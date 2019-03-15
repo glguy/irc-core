@@ -102,13 +102,14 @@ parseExecCmd str =
 runExecCmd ::
   ExecCmd                       {- ^ exec configuration          -} ->
   IO (Either [String] [String]) {- ^ error lines or output lines -}
-runExecCmd e =
-  do res <- try (readProcess (view execCommand e)
-                             (view execArguments e)
-                             (view execStdIn e))
-     return $ case res of
-       Left er -> Left [show (er :: IOError)]
-       Right x -> Right (lines x)
+runExecCmd cmd =
+  do res <- try (readProcessWithExitCode
+                   (view execCommand   cmd)
+                   (view execArguments cmd)
+                   (view execStdIn     cmd))
+     return $! case res of
+       Left er                  -> Left [displayException (er :: IOError)]
+       Right (_code, out, _err) -> Right (lines out)
 
 -- | Power words is similar to 'words' except that when it encounters
 -- a word formatted as a Haskell 'String' literal it parses it as
