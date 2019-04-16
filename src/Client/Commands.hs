@@ -331,7 +331,7 @@ commandsList =
 
   , Command
       (pure "reload")
-      (optionalArg (simpleToken "filename"))
+      (optionalArg (simpleToken "[filename]"))
       "Reload the client configuration file.\n\
       \\n\
       \If \^Bfilename\^B is provided it will be used to reload.\n\
@@ -403,7 +403,7 @@ commandsList =
 
   , Command
       (pure "url")
-      (optionalArg numberArg)
+      optionalNumberArg
       "Open a URL seen in chat.\n\
       \\n\
       \The URL is opened using the executable configured under \^Burl-opener\^B.\n\
@@ -417,7 +417,7 @@ commandsList =
 
   , Command
       (pure "help")
-      (optionalArg (simpleToken "command"))
+      (optionalArg (simpleToken "[command]"))
       "Show command documentation.\n\
       \\n\
       \When \^Bcommand\^B is omitted a list of all commands is displayed.\n\
@@ -500,7 +500,7 @@ commandsList =
 
   [ Command
       (pure "focus")
-      (liftA2 (,) (simpleToken "network") (optionalArg (simpleToken "target")))
+      (liftA2 (,) (simpleToken "network") (optionalArg (simpleToken "[target]")))
       "Change the focused window.\n\
       \\n\
       \When only \^Bnetwork\^B is specified this switches to the network status window.\n\
@@ -570,7 +570,7 @@ commandsList =
 
   , Command
       (pure "clear")
-      (optionalArg (liftA2 (,) (simpleToken "network") (optionalArg (simpleToken "channel"))))
+      (optionalArg (liftA2 (,) (simpleToken "[network]") (optionalArg (simpleToken "[channel]"))))
       "Clear a window.\n\
       \\n\
       \If no arguments are provided the current window is cleared.\n\
@@ -583,7 +583,7 @@ commandsList =
 
   , Command
       (pure "windows")
-      (optionalArg (simpleToken "kind"))
+      (optionalArg (simpleToken "[kind]"))
       "Show a list of all windows with an optional argument to limit the kinds of windows listed.\n\
       \\n\
       \\^Bkind\^O: one of \^Bnetworks\^O, \^Bchannels\^O, \^Busers\^O\n\
@@ -711,7 +711,7 @@ commandsList =
 
   [ Command
       ("join" :| ["j"])
-      (liftA2 (,) (simpleToken "channels") (optionalArg (simpleToken "keys")))
+      (liftA2 (,) (simpleToken "channels") (optionalArg (simpleToken "[keys]")))
       "\^BParameters:\^B\n\
       \\n\
       \    channels: Comma-separated list of channels\n\
@@ -937,8 +937,8 @@ commandsList =
 
   , Command
       (pure "dcc")
-      (liftA2 (,) (optionalArg (simpleToken "(accept|cancel|clear|resume)"))
-                               (optionalArg numberArg))
+      (liftA2 (,) (optionalArg (simpleToken "[accept|cancel|clear|resume]"))
+                               optionalNumberArg)
       "Main access to the DCC subsystem with the following subcommands:\n\n\
        \  /dcc           : Access to a list of pending offer and downloads\n\
        \  /dcc accept #n : start downloading the #n pending offer\n\
@@ -982,7 +982,7 @@ commandsList =
 
   , Command
       (pure "time")
-      (optionalArg (simpleToken "servername"))
+      (optionalArg (simpleToken "[servername]"))
       "Send TIME query to server with given arguments.\n"
     $ NetworkCommand cmdTime simpleNetworkTab
 
@@ -994,22 +994,22 @@ commandsList =
 
   , Command
       (pure "lusers")
-      (optionalArg (liftA2 (,) (simpleToken "mask") (optionalArg (simpleToken "servername"))))
+      (optionalArg (liftA2 (,) (simpleToken "mask") (optionalArg (simpleToken "[servername]"))))
       "Send LUSERS query to server with given arguments.\n"
     $ NetworkCommand cmdLusers simpleNetworkTab
 
   , Command
-      (pure "motd") (optionalArg (simpleToken "servername"))
+      (pure "motd") (optionalArg (simpleToken "[servername]"))
       "Send MOTD query to server.\n"
     $ NetworkCommand cmdMotd simpleNetworkTab
 
   , Command
-      (pure "admin") (optionalArg (simpleToken "servername"))
+      (pure "admin") (optionalArg (simpleToken "[servername]"))
       "Send ADMIN query to server.\n"
     $ NetworkCommand cmdAdmin simpleNetworkTab
 
   , Command
-      (pure "rules") (optionalArg (simpleToken "servername"))
+      (pure "rules") (optionalArg (simpleToken "[servername]"))
       "Send RULES query to server.\n"
     $ NetworkCommand cmdRules simpleNetworkTab
 
@@ -1024,7 +1024,7 @@ commandsList =
     $ NetworkCommand cmdList simpleNetworkTab
 
   , Command
-      (pure "version") (optionalArg (simpleToken "servername"))
+      (pure "version") (optionalArg (simpleToken "[servername]"))
       "Send VERSION query to server.\n"
     $ NetworkCommand cmdVersion simpleNetworkTab
 
@@ -1034,7 +1034,7 @@ commandsList =
 
   [ Command
       (pure "mode")
-      (fromMaybe [] <$> optionalArg (extensionArg "modes" modeParamArgs))
+      (fromMaybe [] <$> optionalArg (extensionArg "[modes]" modeParamArgs))
       "Sets IRC modes.\n\
       \\n\
       \Examples:\n\
@@ -1127,7 +1127,7 @@ commandsList =
 
   , Command
       (pure "znc-playback")
-      (optionalArg (liftA2 (,) (simpleToken "time") (optionalArg (simpleToken "date"))))
+      (optionalArg (liftA2 (,) (simpleToken "[time]") (optionalArg (simpleToken "[date]"))))
       "Request playback from the ZNC 'playback' module.\n\
       \\n\
       \\^Btime\^B determines the time to playback since.\n\
@@ -1176,7 +1176,7 @@ commandsList =
 
   , Command
       (pure "testmask")
-      (liftA2 (,) (simpleToken "[nick!]user@host") (optionalArg (simpleToken "gecos")))
+      (liftA2 (,) (simpleToken "[nick!]user@host") (optionalArg (simpleToken "[gecos]")))
       "Test how many local and global clients match a mask.\n"
     $ NetworkCommand cmdTestmask simpleNetworkTab
 

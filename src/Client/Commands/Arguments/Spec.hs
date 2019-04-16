@@ -16,6 +16,7 @@ module Client.Commands.Arguments.Spec
   , optionalArg
   , tokenList
   , numberArg
+  , optionalNumberArg
   , extensionArg
 
   , ArgumentShape(..)
@@ -53,6 +54,9 @@ simpleToken name = tokenArg name (\_ -> Just)
 
 numberArg :: Args r Int
 numberArg = tokenArg "number" (\_ -> readMaybe)
+
+optionalNumberArg :: Args r (Maybe Int)
+optionalNumberArg = tokenArg "[number]" (\_ -> readMaybe)
 
 tokenList ::
   [String] {- ^ required names -} ->
