@@ -214,6 +214,14 @@ renderIrc = test
             { _msgTags = [TagEntry "time" "",
                           TagEntry "magic" ""] })
 
+  , assertEqual "empty last argument 1"
+      "CMD :\r\n"
+      (renderRawIrcMsg (rawIrcMsg "CMD" [""]))
+
+  , assertEqual "empty last argument 2"
+      "CMD X :\r\n"
+      (renderRawIrcMsg (rawIrcMsg "CMD" ["X", ""]))
+
   ]
 
 badRawMsgs :: Test
