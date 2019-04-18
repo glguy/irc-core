@@ -68,6 +68,7 @@ data IrcMsg
   | BatchEnd !Text -- ^ reference-id
   | Account !UserInfo !Text -- ^ user account name changed (account-notify extension)
   | Chghost !UserInfo !Text !Text -- ^ Target, new username and new hostname
+  | Wallops  !UserInfo !Text -- ^ Braodcast message: Source, message
   deriving Show
 
 data CapMore = CapMore | CapDone
@@ -129,11 +130,11 @@ cookIrcMsg msg =
     "JOIN" | Just user <- view msgPrefix msg
            , chan:rest <- view msgParams msg ->
 
-           let acct = case rest of
-                 ["*" , _real] -> ""
-                 [acct, _real] -> acct
-                 _             -> ""
-           in Join user (mkId chan) acct
+              Join user (mkId chan)
+            $ case rest of
+                ["*" , _real] -> ""
+                [acct, _real] -> acct
+                _             -> ""
 
     "QUIT" | Just user <- view msgPrefix msg
            , reasons   <- view msgParams msg ->
@@ -177,6 +178,10 @@ cookIrcMsg msg =
     "CHGHOST" | Just user <- view msgPrefix msg
               , [newuser, newhost] <- view msgParams msg ->
       Chghost user newuser newhost
+
+    "WALLOPS" | Just user <- view msgPrefix msg
+              , [txt] <- view msgParams msg ->
+      Wallops user txt
 
     _      -> UnknownMsg msg
 
@@ -227,13 +232,12 @@ msgTarget me msg =
     BatchEnd{}               -> TargetHidden
     Account user _           -> TargetUser (userNick user)
     Chghost user _ _         -> TargetUser (userNick user)
+    Wallops src _            -> TargetWindow (userNick src)
   where
     directed src tgt
       | Text.null (userHost src) = TargetNetwork -- server message
       | tgt == me = TargetWindow (userNick src)
       | otherwise = TargetWindow tgt
-      where
-        src' = userNick src
 
     replyTarget RPL_TOPIC    (_:chan:_)   = TargetWindow (mkId chan)
     replyTarget RPL_INVITING (_:_:chan:_) = TargetWindow (mkId chan)
@@ -264,6 +268,8 @@ msgActor msg =
     Cap{}         -> Nothing
     BatchStart{}  -> Nothing
     BatchEnd{}    -> Nothing
+    Chghost x _ _ -> Just x
+    Wallops x _   -> Just x
 
 -- | Text representation of an IRC message to be used for matching with
 -- regular expressions.
@@ -291,6 +297,8 @@ ircMsgText msg =
     Authenticate{} -> ""
     BatchStart{}   -> ""
     BatchEnd{}     -> ""
+    Chghost x a b  -> Text.unwords [renderUserInfo x, a, b]
+    Wallops x t    -> Text.unwords [renderUserInfo x, t]
 
 capCmdText :: CapCmd -> Text
 capCmdText cmd =

@@ -78,7 +78,7 @@ defaultRenderParams = MessageRendererParams
 -- render parameters.
 msgImage ::
   ZonedTime                {- ^ time of message     -} ->
-  MessageRendererParams    {- render parameters     -} ->
+  MessageRendererParams    {- ^ render parameters   -} ->
   MessageBody              {- ^ message body        -} ->
   (Image', Image', Image') {- ^ prefix, image, full -}
 msgImage when params body = (prefix, image, full)
@@ -232,6 +232,7 @@ ircLinePrefix !rp body =
       string (withForeColor defAttr red) ":"
 
     Privmsg src _ _ -> who src <> ":"
+    Wallops src _   -> who src <> "!!"
 
     Ctcp src _dst "ACTION" _txt ->
       string (withForeColor defAttr blue) "* " <> who src
@@ -290,6 +291,7 @@ ircLineImage !rp body =
     Kick       _ _ _        txt -> parseIrcTextWithNicks pal myNicks nicks False txt
     Notice     _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
     Privmsg    _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
+    Wallops    _            txt -> parseIrcTextWithNicks pal myNicks nicks False txt
     Ctcp       _ _ "ACTION" txt -> parseIrcTextWithNicks pal myNicks nicks False txt
     Ctcp {}                     -> mempty
     CtcpNotice _ _ cmd      txt -> parseIrcText cmd <> " " <>
@@ -372,6 +374,11 @@ fullIrcLineImage !rp body =
 
     Privmsg src _dst txt ->
       string quietAttr "chat " <>
+      who src <> ": " <>
+      parseIrcTextWithNicks pal myNicks nicks False txt
+
+    Wallops src txt ->
+      string quietAttr "wall " <>
       who src <> ": " <>
       parseIrcTextWithNicks pal myNicks nicks False txt
 

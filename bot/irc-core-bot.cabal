@@ -18,7 +18,7 @@ executable irc-core-bot
   build-depends:       base       >=4.9  && <4.13,
                        bytestring >=0.10 && <0.11,
                        hookup     >=0.2  && <0.3,
-                       irc-core   >=2.6  && <2.7,
+                       irc-core   >=2.7  && <2.8,
                        random     >=1.1  && <1.2,
                        text       >=1.2  && <1.3,
                        machines   >=0.6.3&& <0.7,
