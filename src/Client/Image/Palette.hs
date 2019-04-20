@@ -34,6 +34,7 @@ module Client.Image.Palette
   , palCommandError
   , palWindowDivider
   , palLineMarker
+  , palUModes
 
   , paletteMap
 
@@ -45,6 +46,8 @@ import           Control.Lens
 import           Data.Text (Text)
 import           Data.Vector (Vector)
 import           Graphics.Vty.Attributes
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 
 -- | Color palette used for rendering the client UI
 data Palette = Palette
@@ -68,6 +71,7 @@ data Palette = Palette
   , _palCommandPlaceholder :: Attr -- ^ command argument placeholder
   , _palWindowDivider :: Attr -- ^ Divider between split windows
   , _palLineMarker    :: Attr -- ^ Divider between new and old messages
+  , _palUModes        :: HashMap Char Attr -- ^ user mode attributes
   }
   deriving Show
 
@@ -96,6 +100,7 @@ defaultPalette = Palette
   , _palCommandPlaceholder      = withStyle defAttr reverseVideo
   , _palWindowDivider           = withStyle defAttr reverseVideo
   , _palLineMarker              = defAttr
+  , _palUModes                  = HashMap.empty
   }
 
 -- | Default nick highlighting colors that look nice in my dark solarized

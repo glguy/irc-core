@@ -446,11 +446,27 @@ paletteSpec = sectionsSpec "palette" $
   (ala Endo (foldMap . foldMap) ?? defaultPalette) <$> sequenceA fields
 
   where
-    nickColorsSpec = set palNicks . Vector.fromList . NonEmpty.toList <$> nonemptySpec attrSpec
+    nickColorsSpec :: ValueSpecs (Palette -> Palette)
+    nickColorsSpec = set palNicks . Vector.fromList . NonEmpty.toList
+                 <$> nonemptySpec attrSpec
+
+    umodeColorsSpec :: ValueSpecs (Palette -> Palette)
+    umodeColorsSpec
+      = fmap (set palUModes)
+      $ customSpec "umodes" (assocSpec attrSpec)
+      $ fmap HashMap.fromList
+      . traverse (\(mode, attr) ->
+          case Text.unpack mode of
+            [m] -> Just (m, attr)
+            _   -> Nothing)
 
     fields :: [SectionSpecs (Maybe (Palette -> Palette))]
     fields = optSection' "nick-colors" nickColorsSpec
              "Colors used to highlight nicknames"
+
+           : optSection' "umodes" umodeColorsSpec
+             "Colors used to highlight user modes"
+
            : [ optSection' lbl (set l <$> attrSpec) "" | (lbl, Lens l) <- paletteMap ]
 
 extensionSpec :: ValueSpecs ExtensionConfiguration

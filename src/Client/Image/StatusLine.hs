@@ -283,9 +283,12 @@ myNickImage st =
         Nothing -> Vty.emptyImage
         Just cs -> Vty.string (view palSigil pal) myChanModes
            Vty.<|> Vty.text' defAttr (idText nick)
-           Vty.<|> parens defAttr (Vty.string defAttr ('+' : view csModes cs))
+           Vty.<|> parens defAttr (Vty.char defAttr '+' Vty.<|> umodesImage)
           where
             nick      = view csNick cs
+            umodesImage = Vty.horizCat (map umodeImage (view csModes cs))
+            umodeImage m =
+              Vty.char (fromMaybe defAttr (view (palUModes . at m) pal)) m
             myChanModes =
               case mbChan of
                 Nothing   -> []
