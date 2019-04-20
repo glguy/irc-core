@@ -31,6 +31,7 @@ module Client.State.Network
   , csChannelTypes
   , csTransaction
   , csModes
+  , csSnomask
   , csStatusMsg
   , csSettings
   , csUserInfo
@@ -118,6 +119,7 @@ data NetworkState = NetworkState
   , _csChannelTypes :: ![Char] -- ^ channel identifier prefixes
   , _csTransaction  :: !Transaction -- ^ state for multi-message sequences
   , _csModes        :: ![Char] -- ^ modes for the connected user
+  , _csSnomask      :: ![Char] -- ^ server notice modes for the connected user
   , _csStatusMsg    :: ![Char] -- ^ modes that prefix statusmsg channel names
   , _csSettings     :: !ServerSettings -- ^ settings used for this connection
   , _csUserInfo     :: !UserInfo -- ^ usermask used by the server for this connection
@@ -265,6 +267,7 @@ newNetworkState networkId network settings sock ping = NetworkState
   , _csUmodeTypes   = defaultUmodeTypes
   , _csTransaction  = CapTransaction
   , _csModes        = ""
+  , _csSnomask      = ""
   , _csStatusMsg    = ""
   , _csSettings     = settings
   , _csModeCount    = 3
@@ -416,6 +419,13 @@ doRpl cmd msgWhen args =
                  doMyModes xs
                $ set csModes "" ns -- reset modes
         _ -> ns
+
+    RPL_SNOMASK ->
+      case args of
+        _me:snomask0:_
+          | Just snomask <- Text.stripPrefix "+" snomask0 ->
+           set csSnomask (Text.unpack snomask)
+        _             -> id
 
     RPL_NOTOPIC ->
       case args of
@@ -583,6 +593,7 @@ squelchReply rpl =
     RPL_ENDOFQUIETLIST  -> True
     RPL_CHANNELMODEIS   -> True
     RPL_UMODEIS         -> True
+    RPL_SNOMASK         -> True
     RPL_WHOREPLY        -> True
     RPL_ENDOFWHO        -> True
     RPL_WHOSPCRPL       -> True
