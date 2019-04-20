@@ -23,12 +23,7 @@ import           Data.List
 import           Data.List.Split (chunksOf)
 import           Graphics.Vty.Attributes
 import qualified Data.Vector as Vector
-
-digits :: String
-digits = "0123456789ABCDEF"
-
-digitImage :: Char -> Image'
-digitImage d = string defAttr [' ', d, ' ']
+import           Numeric (showHex)
 
 columns :: [Image'] -> Image'
 columns = mconcat . intersperse (char defAttr ' ')
@@ -63,50 +58,63 @@ paletteViewLines pal = reverse $
 
   ++
   [ ""
-  , "Available terminal palette colors: 0x<row><col>"
+  , "Available terminal palette colors (hex)"
   , ""
-  , columns (map digitImage (' ':digits))
-  , columns isoColors ]
+  ] ++
+  terminalColorTable
 
-  ++
+terminalColorTable :: [Image']
+terminalColorTable =
+  isoColors :
+  "" : colorBox 0x10 ++
+  "" : colorBox 0x7c ++
+  "" : "   " <> foldMap (\c -> colorBlock showPadHex c (Color240 (fromIntegral (c-16)))) [0xe8 .. 0xf3]
+     : "   " <> foldMap (\c -> colorBlock showPadHex c (Color240 (fromIntegral (c-16)))) [0xf4 .. 0xff]
+     : []
 
-  [ columns
-  $ digitImage digit
-  : [ string (withBackColor defAttr c) "   "
-    | col <- [0 .. 15]
-    , let c = Color240 (row * 16 + col)
-    ]
-  | (digit,row) <- zip (drop 1 digits) [0 ..]
+colorBox :: Int -> [Image']
+colorBox start =
+  [ "   " <>
+     columns
+      [ mconcat
+          [ colorBlock showPadHex k (Color240 (fromIntegral (k - 16)))
+          | k <- [j, j+6 .. j + 30 ] ]
+      | j <- [i, i + 0x24, i + 0x48 ]
+      ]
+  | i <- [ start .. start + 5 ]
   ]
 
 isLight :: Color -> Bool
-isLight (ISOColor c) = c `elem` [1, 3, 5, 6, 7]
+isLight (ISOColor c) = c `elem` [7, 10, 11, 14, 15]
 isLight (Color240 c) =
   case color240CodeToRGB c of
     Just (r, g, b) -> (r `max` g `max` b) > 200
     Nothing        -> True
 
 
-isoColors :: [Image']
-isoColors =
-  digitImage '0'
-  : [ string (withBackColor defAttr (ISOColor c)) "   "
-    | c <- [0..15]
-    ]
+isoColors :: Image'
+isoColors = "   " <> foldMap (\c -> colorBlock showPadHex c (ISOColor (fromIntegral c))) [0 .. 15]
 
 colorTable :: [Image']
 colorTable
   = map (\imgs -> mconcat ("   " : imgs))
-  $ chunksOf 8 [ render i (mircColors Vector.! i) | i <- [0 .. 15] ]
+  $ chunksOf 8 [ colorBlock showPadDec i (mircColors Vector.! i) | i <- [0 .. 15] ]
   ++ [[]]
-  ++ chunksOf 12 [ render i (mircColors Vector.! i) | i <- [16 .. 98] ]
-  where
-    showPad i
-      | i < 10    = '0' : show i
-      | otherwise = show i
+  ++ chunksOf 12 [ colorBlock showPadDec i (mircColors Vector.! i) | i <- [16 .. 98] ]
 
-    render i c =
-      string (withForeColor (withBackColor defAttr c) (if isLight c then black else white)) (' ' : showPad i ++ " ")
+colorBlock :: (Int -> String) -> Int -> Color -> Image'
+colorBlock showNum i c =
+  string (withForeColor (withBackColor defAttr c) (if isLight c then black else white)) (showNum i)
+
+showPadDec :: Int -> String
+showPadDec i
+  | i < 10    = ' ' : '0' : shows i " "
+  | otherwise = ' ' :       shows i " "
+
+showPadHex :: Int -> String
+showPadHex i
+  | i < 16    = ' ' : '0' : showHex i " "
+  | otherwise = ' ' :       showHex i " "
 
 paletteEntries :: Palette -> [Image']
 paletteEntries pal =
