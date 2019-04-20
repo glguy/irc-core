@@ -64,7 +64,7 @@ static void push_args_table(lua_State *L, const struct glirc_string *args, size_
         lua_createtable(L, args_len > 1 ? args_len - 1 : 0, 1);
         for (size_t i = 1; i < args_len; i++) {
                 push_glirc_string(L, args+i);
-                lua_rawseti(L, -2, 1);
+                lua_rawseti(L, -2, i);
         }
 }
 
