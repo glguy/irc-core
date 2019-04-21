@@ -95,11 +95,31 @@ Print a message to the client console
 */
 static int glirc_lua_print(lua_State *L)
 {
-        size_t msglen = 0;
-        const char *msg = luaL_checklstring(L, 1, &msglen);
-        luaL_checktype(L, 2, LUA_TNONE);
+        int n = lua_gettop(L);  /* number of arguments */
 
+        luaL_Buffer b;
+        luaL_buffinit(L, &b);
+
+        lua_getglobal(L, "tostring");
+        for (int i = 1; i <= n; i++) {
+                lua_pushvalue(L, -1);  /* function to be called */
+                lua_pushvalue(L, i);   /* value to print */
+                lua_call(L, 1, 1);
+                
+                if (!lua_isstring(L, -1)) {
+                        return luaL_error(L, "'tostring' must return a string to 'print'");
+                }
+                if (i > 1) {
+                        luaL_addchar(&b, '\t');
+                }
+                luaL_addvalue(&b);
+        }
+
+        luaL_pushresult(&b);
+        size_t msglen;
+        const char *msg = lua_tolstring(L, -1, &msglen);
         glirc_print(get_glirc(L), NORMAL_MESSAGE, msg, msglen);
+
         return 0;
 }
 
@@ -704,6 +724,9 @@ void glirc_install_lib(lua_State *L)
         lua_setfield   (L, -2, "format");
 
         lua_setglobal(L, "glirc");
+        
+        lua_pushcfunction(L, glirc_lua_print);
+        lua_setglobal(L, "print");
 
         lua_newtable(L);
         lua_rawsetp(L, LUA_REGISTRYINDEX, &timer_closures);
