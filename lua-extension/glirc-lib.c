@@ -38,18 +38,20 @@ static int glirc_lua_send_message(lua_State *L)
          * while it is adding them to the message struct.
          */
         struct glirc_message msg = {{0}};
-
+ 
         msg.network.str = luaL_checklstring(L, 1, &msg.network.len);
         msg.command.str = luaL_checklstring(L, 2, &msg.command.len);
 
-        lua_Integer n = lua_gettop(L) - 2;
+        int const n = lua_gettop(L) - 2;
         if (n > 15) luaL_error(L, "too many parameters");
 
-        struct glirc_string params[n];
-        msg.params   = params;
+        // Array allocated on Lua stack automatically cleaned up on error
+        struct glirc_string * const params =
+                lua_newuserdata(L, n * sizeof(struct glirc_string));
+        msg.params = params;
         msg.params_n = n;
 
-        for (lua_Integer i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++) {
                 params[i].str = luaL_checklstring(L, i+3, &params[i].len);
         }
 
