@@ -1,6 +1,11 @@
 --- Plugin loader extension.
 -- This module is intended to be loaded directly by the glirc
 -- Lua extension.
+--
+-- extensions:
+-- * path: "glirc-lua.bundle"
+--   args: [ "extension.lua", "Plugin1", "Plugin1" ]
+--
 -- @module extension
 
 -- Penlight
