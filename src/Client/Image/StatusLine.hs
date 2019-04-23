@@ -28,6 +28,7 @@ import           Control.Lens
 import           Data.Foldable (for_)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
+import           Data.HashMap.Strict (HashMap)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
@@ -284,26 +285,26 @@ myNickImage st =
         Just cs -> Vty.string (view palSigil pal) myChanModes
            Vty.<|> Vty.text' defAttr (idText nick)
            Vty.<|> parens defAttr
-                     (Vty.char defAttr '+' Vty.<|>
-                      umodesImage Vty.<|>
+                     (unpackImage $
+                      modesImage (view palUModes pal) (view csModes cs) <>
                       snomaskImage)
           where
             nick = view csNick cs
 
-            umodesImage = Vty.horizCat (map umodeImage (view csModes cs))
-
-            umodeImage m =
-              Vty.char (fromMaybe defAttr (view (palUModes . at m) pal)) m
-
             snomaskImage
-              | null (view csSnomask cs) = Vty.emptyImage
-              | otherwise                = Vty.string defAttr (' ' : '+' : view csSnomask cs)
+              | null (view csSnomask cs) = ""
+              | otherwise                = " " <> modesImage (view palSnomask pal) (view csSnomask cs)
 
             myChanModes =
               case mbChan of
                 Nothing   -> []
                 Just chan -> view (csChannels . ix chan . chanUsers . ix nick) cs
 
+modesImage :: HashMap Char Attr -> String -> Image'
+modesImage pal modes = "+" <> foldMap modeImage modes
+  where
+    modeImage m =
+      char (fromMaybe defAttr (view (at m) pal)) m
 
 subfocusImage :: ClientState -> Image'
 subfocusImage st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
@@ -346,8 +347,10 @@ viewFocusLabel st focus =
 channelModesImage :: Text -> Identifier -> ClientState -> Image'
 channelModesImage network channel st =
   case preview (clientConnection network . csChannels . ix channel . chanModes) st of
-    Just modeMap | not (null modeMap) -> string defAttr (" +" ++ Map.keys modeMap)
+    Just modeMap | not (null modeMap) -> " " <> modesImage (view palCModes pal) (Map.keys modeMap)
     _                                 -> mempty
+  where
+    pal = clientPalette st
 
 viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image'
 viewSubfocusLabel pal subfocus =

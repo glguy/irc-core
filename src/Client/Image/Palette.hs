@@ -34,7 +34,9 @@ module Client.Image.Palette
   , palCommandError
   , palWindowDivider
   , palLineMarker
+  , palCModes
   , palUModes
+  , palSnomask
 
   , paletteMap
 
@@ -71,7 +73,9 @@ data Palette = Palette
   , _palCommandPlaceholder :: Attr -- ^ command argument placeholder
   , _palWindowDivider :: Attr -- ^ Divider between split windows
   , _palLineMarker    :: Attr -- ^ Divider between new and old messages
+  , _palCModes        :: HashMap Char Attr -- ^ channel mode attributes
   , _palUModes        :: HashMap Char Attr -- ^ user mode attributes
+  , _palSnomask       :: HashMap Char Attr -- ^ snotice mask attributes
   }
   deriving Show
 
@@ -100,7 +104,9 @@ defaultPalette = Palette
   , _palCommandPlaceholder      = withStyle defAttr reverseVideo
   , _palWindowDivider           = withStyle defAttr reverseVideo
   , _palLineMarker              = defAttr
+  , _palCModes                  = HashMap.empty
   , _palUModes                  = HashMap.empty
+  , _palSnomask                 = HashMap.empty
   }
 
 -- | Default nick highlighting colors that look nice in my dark solarized

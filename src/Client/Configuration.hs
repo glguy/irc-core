@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ApplicativeDo     #-}
+{-# LANGUAGE RankNTypes        #-}
 
 {-|
 Module      : Client.Configuration
@@ -88,6 +89,7 @@ import qualified Data.Text                           as Text
 import qualified Data.Text.IO                        as Text
 import qualified Data.Vector                         as Vector
 import           Graphics.Vty.Input.Events (Modifier(..), Key(..))
+import           Graphics.Vty.Attributes             (Attr)
 import           Irc.Identifier                      (Identifier)
 import           System.Directory
 import           System.FilePath
@@ -450,10 +452,10 @@ paletteSpec = sectionsSpec "palette" $
     nickColorsSpec = set palNicks . Vector.fromList . NonEmpty.toList
                  <$> nonemptySpec attrSpec
 
-    umodeColorsSpec :: ValueSpecs (Palette -> Palette)
-    umodeColorsSpec
-      = fmap (set palUModes)
-      $ customSpec "umodes" (assocSpec attrSpec)
+    modeColorsSpec :: Lens' Palette (HashMap Char Attr) -> ValueSpecs (Palette -> Palette)
+    modeColorsSpec l
+      = fmap (set l)
+      $ customSpec "modes" (assocSpec attrSpec)
       $ fmap HashMap.fromList
       . traverse (\(mode, attr) ->
           case Text.unpack mode of
@@ -464,8 +466,14 @@ paletteSpec = sectionsSpec "palette" $
     fields = optSection' "nick-colors" nickColorsSpec
              "Colors used to highlight nicknames"
 
-           : optSection' "umodes" umodeColorsSpec
+           : optSection' "cmodes" (modeColorsSpec palCModes)
+             "Colors used to highlight channel modes"
+
+           : optSection' "umodes" (modeColorsSpec palUModes)
              "Colors used to highlight user modes"
+
+           : optSection' "snomask" (modeColorsSpec palSnomask)
+             "Colors used to highlight server notice mask"
 
            : [ optSection' lbl (set l <$> attrSpec) "" | (lbl, Lens l) <- paletteMap ]
 
