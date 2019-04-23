@@ -29,7 +29,6 @@ import           Client.State
 import           Client.State.Focus
 import qualified Client.State.EditBox as Edit
 import           Control.Lens
-import           Data.Char
 import qualified Data.HashSet as HashSet
 import           Data.HashSet (HashSet)
 import           Data.List
@@ -47,11 +46,12 @@ textboxImage width st
   where
   macros = views (clientConfig . configMacros) (fmap macroSpec) st
   (txt, content) =
-     views (clientTextBox . Edit.content) (renderContent st myNick nicks macros pal) st
+     renderContent st myNick nicks macros pal
+       (view (clientTextBox . Edit.content) st)
 
   lineImage = unpackImage (beginning <> content <> ending)
 
-  leftOfCurWidth = myWcswidth ('^':txt)
+  leftOfCurWidth = 1 + txt
 
   croppedImage = Vty.resizeWidth width
                $ Vty.cropLeft (Vty.imageWidth lineImage - newOffset) lineImage
@@ -96,8 +96,8 @@ renderContent ::
   Recognizer MacroSpec {- ^ macro completions                     -} ->
   Palette              {- ^ palette                               -} ->
   Edit.Content         {- ^ content                               -} ->
-  (String, Image')     {- ^ plain text rendering, image rendering -}
-renderContent st myNick nicks macros pal c = (txt, wholeImg)
+  (Int, Image')        {- ^ left-of-cursor width, image rendering -}
+renderContent st myNick nicks macros pal c = (leftLen, wholeImg)
   where
   as  = reverse (view Edit.above c)
   bs  = view Edit.below c
@@ -107,28 +107,17 @@ renderContent st myNick nicks macros pal c = (txt, wholeImg)
   leftCur = take (view Edit.pos cur) (view Edit.text cur)
 
   -- ["one","two"] "three" --> "two one three"
-  txt = foldl (\acc x -> x ++ ' ' : acc) leftCur as
+  leftLen = length leftCur + length leftImgs + sum (map imageWidth leftImgs)
 
   rndr = renderLine st pal myNick nicks macros
 
+  leftImgs = map (rndr False) as
+
   wholeImg = mconcat
            $ intersperse (plainText "\n")
-           $ map (rndr False) as
+           $ leftImgs
           ++ rndr True curTxt
            : map (rndr False) bs
-
-
--- | Version of 'wcwidth' that accounts for how control characters are
--- rendered
-myWcwidth :: Char -> Int
-myWcwidth x
-  | isControl x = 1
-  | otherwise   = Vty.wcwidth x
-
--- | Version of 'wcswidth' that accounts for how control characters are
--- rendered
-myWcswidth :: String -> Int
-myWcswidth = sum . map myWcwidth
 
 
 -- | Render the active text box line using command highlighting and
