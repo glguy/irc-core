@@ -56,7 +56,7 @@ numberArg :: Args r Int
 numberArg = tokenArg "number" (\_ -> readMaybe)
 
 optionalNumberArg :: Args r (Maybe Int)
-optionalNumberArg = tokenArg "[number]" (\_ -> readMaybe)
+optionalNumberArg = optionalArg (tokenArg "[number]" (\_ -> readMaybe))
 
 tokenList ::
   [String] {- ^ required names -} ->
