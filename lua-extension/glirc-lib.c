@@ -93,6 +93,22 @@ Print a message to the client console
 @tparam string message Message to print to console
 @usage glirc.print('This shows up on the * window')
 */
+static int glirc_lua_print_string(lua_State *L)
+{
+        size_t msglen;
+        const char *msg = luaL_checklstring(L, 1, &msglen);
+        luaL_checktype(L, 2, LUA_TNONE);
+
+        glirc_print(get_glirc(L), NORMAL_MESSAGE, msg, msglen);
+        return 0;
+}
+
+/***
+Replacement for Lua's print function
+@function print
+@tparam string message Message to print to console
+@usage print('This shows up on the * window')
+*/
 static int glirc_lua_print(lua_State *L)
 {
         int n = lua_gettop(L);  /* number of arguments */
@@ -102,7 +118,7 @@ static int glirc_lua_print(lua_State *L)
 
         lua_getglobal(L, "tostring");
         for (int i = 1; i <= n; i++) {
-                lua_pushvalue(L, -1);  /* function to be called */
+                lua_pushvalue(L, -1);  /* tostring */
                 lua_pushvalue(L, i);   /* value to print */
                 lua_call(L, 1, 1);
                 
@@ -117,7 +133,7 @@ static int glirc_lua_print(lua_State *L)
 
         luaL_pushresult(&b);
         size_t msglen;
-        const char *msg = lua_tolstring(L, -1, &msglen);
+        const char *msg = luaL_tolstring(L, -1, &msglen);
         glirc_print(get_glirc(L), NORMAL_MESSAGE, msg, msglen);
 
         return 0;
@@ -681,7 +697,7 @@ static void new_formatting_table(lua_State *L) {
 static luaL_Reg glirc_lib[] =
   { { "send_message"      , glirc_lua_send_message       }
   , { "inject_chat"       , glirc_lua_inject_chat        }
-  , { "print"             , glirc_lua_print              }
+  , { "print"             , glirc_lua_print_string       }
   , { "error"             , glirc_lua_error              }
   , { "identifier_cmp"    , glirc_lua_identifier_cmp     }
   , { "list_networks"     , glirc_lua_list_networks      }

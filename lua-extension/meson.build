@@ -4,6 +4,8 @@ project('glirc-lua', 'c',
   meson_version: '>=0.37.0',
   default_options: 'c_std=c11')
 
+add_global_arguments('-Werror=vla', language: 'c')
+
 luadep = dependency('lua', version: ['>=5.3', '<5.4'])
 incdir = include_directories('../include', 'include')
 sources = ['glirc-lua.c', 'glirc-marshal.c', 'glirc-lib.c']

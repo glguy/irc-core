@@ -29,11 +29,18 @@ void push_glirc_string(lua_State *L, const struct glirc_string *s)
  */
 void import_string_array(lua_State *L, char **list)
 {
-        lua_newtable(L);
+        int count = 0;
+        while (list[count] != NULL) {
+                count++;
+        }
+
+        lua_createtable(L, count, 0);
+
         for (int i = 0; list[i] != NULL; i++) {
                 lua_pushstring(L, list[i]);
                 lua_rawseti(L, -2, i+1);
         }
+
         glirc_free_strings(list);
 }
 

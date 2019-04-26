@@ -48,10 +48,10 @@ static void push_scriptname
 {
         // When no arguments are provided, default to glirc.lua
         if (args_n == 0) {
-                char path_copy[strlen(path)+1];
-                strcpy(path_copy, path);
-                char *dir_part = dirname(path_copy);
+                char *path_copy = strdup(path);
+                const char *dir_part = dirname(path_copy);
                 lua_pushfstring(L, "%s/glirc.lua", dir_part);
+                free(path_copy);
         } else {
                 char * script = glirc_resolve_path
                                   (get_glirc(L), args[0].str, args[0].len);
