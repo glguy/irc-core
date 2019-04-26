@@ -147,10 +147,11 @@ execute ::
   ClientState      {- ^ client state    -} ->
   IO CommandResult {- ^ command result  -}
 execute str st =
+  let st' = set clientErrorMsg Nothing st in
   case dropWhile (' '==) str of
     []          -> commandFailure st
-    '/':command -> executeUserCommand Nothing command st
-    _           -> executeChat str st
+    '/':command -> executeUserCommand Nothing command st'
+    _           -> executeChat str st'
 
 -- | Execute command provided by user, resolve aliases if necessary.
 --

@@ -152,10 +152,9 @@ cleanup:
 
 
 static int callback_worker(lua_State *L)
-{       int n = lua_gettop(L);                                         // name args...
-        lua_rawgetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // name args... ext
-        lua_insert(L, 1);                                              // ext name args...
-        lua_rotate(L, 2, -1);                                          // ext args... name
+{       int n = lua_gettop(L);                                         // args... name
+        lua_rawgetp(L, LUA_REGISTRYINDEX, &glirc_callback_module_key); // args... name ext
+        lua_insert(L, 1);                                              // ext name args... name
         if (lua_gettable(L, 1) != LUA_TNIL) {                          // ext args... callback/nil
             lua_insert(L, 1);                                          // callback ext args...
             lua_call(L, n, 1);                                         // result
@@ -163,23 +162,25 @@ static int callback_worker(lua_State *L)
         return 1; // result/nil
 }
 
-static enum process_result callback(struct glirc *G, lua_State *L, int nargs)
+static enum process_result
+callback (struct glirc *G, lua_State *L, const char *name, int nargs)
 {
-                                               // STACK: name arguments...
-        lua_pushcfunction(L, callback_worker); // STACK: name arguments... worker
-        lua_insert(L, 1);                      // STACK: worker name arguments...
+                                               // STACK: arguments...
+        lua_pushcfunction(L, callback_worker); // STACK: arguments... worker
+        lua_insert(L, 1);                      // STACK: worker arguments...
+        lua_pushstring(L, name);               // STACK: worker arguments... name
         int res = lua_pcall(L, 1+nargs, 1, 0); // STACK: result
 
         if (res != LUA_OK) {
                 size_t msglen = 0;
                 const char *msg = lua_tolstring(L, -1, &msglen);
                 glirc_print(G, ERROR_MESSAGE, msg, msglen);
-                lua_settop(L, 0); // discard error message
+                lua_pop(L, 1); // discard error message
                 return PASS_MESSAGE;
         }
 
         res = lua_toboolean(L, 1);
-        lua_settop(L, 0);
+        lua_pop(L, 1);
         return res ? DROP_MESSAGE : PASS_MESSAGE;
 }
 
@@ -191,8 +192,7 @@ Callback used by client when unloading the Lua extension.
 static void stop_entrypoint(struct glirc *G, void *L)
 {
         if (L == NULL) return;
-        lua_pushliteral(L, "stop");
-        callback(G, L, 0);
+        callback(G, L, "stop", 0);
         lua_close(L);
 }
 
@@ -210,9 +210,8 @@ message_entrypoint
    const struct glirc_message *msg)
 {
         if (L == NULL) return PASS_MESSAGE;
-        lua_pushliteral(L, "process_message");
         push_glirc_message(L, msg);
-        return callback(G, L, 1);
+        return callback(G, L, "process_message", 1);
 }
 
 /***
@@ -229,9 +228,8 @@ chat_entrypoint
    const struct glirc_chat *chat)
 {
         if (L == NULL) return PASS_MESSAGE;
-        lua_pushliteral(L, "process_chat");
         push_glirc_chat(L, chat);
-        return callback(G, L, 1);
+        return callback(G, L, "process_chat", 1);
 }
 
 /***
@@ -247,9 +245,8 @@ command_entrypoint
    const struct glirc_command *cmd)
 {
         if (L == NULL) return;
-        lua_pushliteral(L, "process_command");
         push_glirc_command(L, cmd);
-        callback(G, L, 1);
+        callback(G, L, "process_command", 1);
 }
 
 /***
