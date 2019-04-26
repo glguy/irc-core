@@ -8,6 +8,7 @@ scripting.
 (Note: On Linux the library will be `glirc-lua.so` instead of `glirc-lua.bundle`)
 
 ```
+$ luarocks install penlight # install dependencies
 $ cd /path/to/lua-extension
 $ meson build
 $ cd build
@@ -26,7 +27,6 @@ extensions:
 ```
 
 Any additional plugins should be listed after `"Eval"`.
-
 
 ## Plugin API
 
