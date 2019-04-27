@@ -297,7 +297,7 @@ ircLineImage !rp body =
     CtcpNotice _ _ cmd      txt -> parseIrcText cmd <> " " <>
                                    parseIrcTextWithNicks pal myNicks nicks False txt
 
-    Reply code params -> renderReplyCode NormalRender code params
+    Reply code params -> renderReplyCode pal NormalRender code params
     UnknownMsg irc ->
       text' defAttr (view msgCommand irc) <>
       char defAttr ' ' <>
@@ -413,7 +413,7 @@ fullIrcLineImage !rp body =
       parseIrcText reason
 
     Reply code params ->
-      renderReplyCode DetailedRender code params
+      renderReplyCode pal DetailedRender code params
 
     UnknownMsg irc ->
       foldMap (\ui -> coloredUserInfo pal rm myNicks ui <> char defAttr ' ')
@@ -485,8 +485,8 @@ replyCodePrefix code =
 
     attr = withForeColor defAttr color
 
-renderReplyCode :: RenderMode -> ReplyCode -> [Text] -> Image'
-renderReplyCode rm code@(ReplyCode w) params =
+renderReplyCode :: Palette -> RenderMode -> ReplyCode -> [Text] -> Image'
+renderReplyCode pal rm code@(ReplyCode w) params =
   case rm of
     DetailedRender -> string attr (shows w " ") <> rawParamsImage
     NormalRender   ->
@@ -497,6 +497,7 @@ renderReplyCode rm code@(ReplyCode w) params =
         RPL_CHANNEL_URL  -> channelUrlParamsImage
         RPL_CREATIONTIME -> creationTimeParamsImage
         RPL_INVITING     -> invitingParamsImage
+        RPL_TESTLINE     -> testlineParamsImage
         _                -> rawParamsImage
   where
     rawParamsImage = separatedParams params'
@@ -549,9 +550,23 @@ renderReplyCode rm code@(ReplyCode w) params =
         [_, name, idle, signon, _txt] ->
           text' defAttr name <>
           text' defAttr " idle: " <>
-          string defAttr (prettySeconds (Text.unpack idle)) <>
+          string defAttr (prettyTime 1 (Text.unpack idle)) <>
           text' defAttr " sign-on: " <>
           string defAttr (prettyUnixTime (Text.unpack signon))
+
+        _ -> rawParamsImage
+
+    testlineParamsImage =
+      let a = view palLabel pal in
+      case params of
+        [_, name, mins, mask, msg] ->
+          text' defAttr name <>
+          text' a " duration: " <>
+          string defAttr (prettyTime 60 (Text.unpack mins)) <>
+          text' a " mask: " <>
+          text' defAttr mask <>
+          text' a " reason: " <>
+          text' defAttr msg
 
         _ -> rawParamsImage
 
@@ -563,16 +578,18 @@ prettyUnixTime str =
     Just t  -> formatTime defaultTimeLocale "%A %B %e, %Y %H:%M:%S %Z" (t :: UTCTime)
 
 -- | Render string representing seconds into days, hours, minutes, and seconds.
-prettySeconds :: String -> String
-prettySeconds str =
+prettyTime :: Int -> String -> String
+prettyTime scale str =
   case readMaybe str of
     Nothing -> str
+    Just 0  -> "0s"
     Just n  -> intercalate " "
              $ map (\(u,i) -> show i ++ [u])
-             $ dropWhile (\x -> snd x == 0)
+             $ filter (\x -> snd x /= 0)
              $ zip "dhms" [d,h,m,s :: Int]
       where
-        (n1,s) = quotRem n  60
+        n0     = n * scale
+        (n1,s) = quotRem n0 60
         (n2,m) = quotRem n1 60
         (d ,h) = quotRem n2 24
 
