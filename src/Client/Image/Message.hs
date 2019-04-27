@@ -491,7 +491,17 @@ renderReplyCode pal rm code@(ReplyCode w) params =
     DetailedRender -> string attr (shows w " ") <> rawParamsImage
     NormalRender   ->
       case code of
+        RPL_WHOISUSER    -> whoisUserParamsImage
         RPL_WHOISIDLE    -> whoisIdleParamsImage
+        RPL_WHOISCHANNELS-> whoisChanParamsImage
+        RPL_WHOISACCOUNT -> whoisAcctParamsImage
+        RPL_WHOISSERVER  -> whoisServerParamsImage
+        RPL_WHOISSECURE  -> whoisSecureParamsImage
+        RPL_WHOISOPERATOR-> whoisOperParamsImage
+        RPL_WHOISCERTFP  -> whoisCertParamsImage
+        RPL_WHOISSPECIAL -> whoisSpecialParamsImage
+        RPL_WHOISHOST    -> whoisHostParamsImage
+        RPL_ENDOFWHOIS   -> endOfWhoisImage
         RPL_TOPIC        -> topicParamsImage
         RPL_TOPICWHOTIME -> topicWhoTimeParamsImage
         RPL_CHANNEL_URL  -> channelUrlParamsImage
@@ -500,6 +510,8 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_TESTLINE     -> testlineParamsImage
         _                -> rawParamsImage
   where
+    label = text' (view palLabel pal)
+
     rawParamsImage = separatedParams params'
 
     params' = case rm of
@@ -529,9 +541,9 @@ renderReplyCode pal rm code@(ReplyCode w) params =
     topicWhoTimeParamsImage =
       case params of
         [_, _, who, time] ->
-          text' defAttr "set by " <>
+          label "set by " <>
           text' defAttr who <>
-          text' defAttr " at " <>
+          label " at " <>
           string defAttr (prettyUnixTime (Text.unpack time))
         _ -> rawParamsImage
 
@@ -545,27 +557,88 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         [_, _, time, _] -> string defAttr (prettyUnixTime (Text.unpack time))
         _ -> rawParamsImage
 
+    whoisUserParamsImage =
+      case params of
+        [_, nick, user, host, _, real] ->
+          parseIrcText' False nick <>
+          label "!" <>
+          parseIrcText' False user <>
+          label "@" <>
+          parseIrcText' False host <>
+          label " gecos: " <>
+          parseIrcText' False real
+
+        _ -> rawParamsImage
+
+    whoisAcctParamsImage =
+      case params of
+        [_, _, acct, _] -> parseIrcText' False acct
+
+        _ -> rawParamsImage
+
+    whoisChanParamsImage =
+      case params of
+        [_, _, chans] -> parseIrcText' False chans
+        _ -> rawParamsImage
+
     whoisIdleParamsImage =
       case params of
-        [_, name, idle, signon, _txt] ->
-          text' defAttr name <>
-          text' defAttr " idle: " <>
+        [_, _, idle, signon, _txt] ->
           string defAttr (prettyTime 1 (Text.unpack idle)) <>
-          text' defAttr " sign-on: " <>
+          label " sign-on: " <>
           string defAttr (prettyUnixTime (Text.unpack signon))
 
         _ -> rawParamsImage
 
+    whoisServerParamsImage =
+      case params of
+        [_, _, host, txt] ->
+          parseIrcText' False host <>
+          " " <>
+          parseIrcText' False txt
+        _ -> rawParamsImage
+
+    whoisSecureParamsImage =
+      case params of
+        [_, _, txt] -> parseIrcText' False txt
+
+        _ -> rawParamsImage
+
+    whoisOperParamsImage =
+      case params of
+        [_, _, txt] -> parseIrcText' False txt
+
+        _ -> rawParamsImage
+
+    whoisCertParamsImage =
+      case params of
+        [_, _, txt] -> parseIrcText' False txt
+
+        _ -> rawParamsImage
+
+    whoisSpecialParamsImage =
+      case params of
+        [_, _, txt] -> parseIrcText' False txt
+
+        _ -> rawParamsImage
+
+    whoisHostParamsImage =
+      case params of
+        [_, _, txt] -> parseIrcText' False txt
+
+        _ -> rawParamsImage
+
+    endOfWhoisImage = "-------------------- end of whois --------------------"
+
     testlineParamsImage =
-      let a = view palLabel pal in
       case params of
         [_, name, mins, mask, msg] ->
           text' defAttr name <>
-          text' a " duration: " <>
+          label " duration: " <>
           string defAttr (prettyTime 60 (Text.unpack mins)) <>
-          text' a " mask: " <>
+          label " mask: " <>
           text' defAttr mask <>
-          text' a " reason: " <>
+          label " reason: " <>
           text' defAttr msg
 
         _ -> rawParamsImage
