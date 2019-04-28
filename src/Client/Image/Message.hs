@@ -492,25 +492,28 @@ renderReplyCode pal rm code@(ReplyCode w) params =
     NormalRender   ->
       case code of
         RPL_WHOISUSER    -> whoisUserParamsImage
+        RPL_WHOWASUSER   -> whoisUserParamsImage
+        RPL_WHOISACTUALLY-> param_3_4_Image
         RPL_WHOISIDLE    -> whoisIdleParamsImage
-        RPL_WHOISCHANNELS-> whoisChanParamsImage
-        RPL_WHOISACCOUNT -> whoisAcctParamsImage
+        RPL_WHOISCHANNELS-> param_3_3_Image
+        RPL_WHOISACCOUNT -> param_3_4_Image
         RPL_WHOISSERVER  -> whoisServerParamsImage
-        RPL_WHOISSECURE  -> whoisSecureParamsImage
-        RPL_WHOISOPERATOR-> whoisOperParamsImage
-        RPL_WHOISCERTFP  -> whoisCertParamsImage
-        RPL_WHOISSPECIAL -> whoisSpecialParamsImage
-        RPL_WHOISHOST    -> whoisHostParamsImage
-        RPL_ENDOFWHOIS   -> endOfWhoisImage
-        RPL_TOPIC        -> topicParamsImage
+        RPL_WHOISSECURE  -> param_3_3_Image
+        RPL_WHOISOPERATOR-> param_3_3_Image
+        RPL_WHOISCERTFP  -> param_3_3_Image
+        RPL_WHOISSPECIAL -> param_3_3_Image
+        RPL_WHOISHOST    -> param_3_3_Image
+        RPL_ENDOFWHOIS   -> ""
+        RPL_ENDOFWHOWAS  -> ""
+        RPL_TOPIC        -> param_3_3_Image
         RPL_TOPICWHOTIME -> topicWhoTimeParamsImage
-        RPL_CHANNEL_URL  -> channelUrlParamsImage
+        RPL_CHANNEL_URL  -> param_3_3_Image
         RPL_CREATIONTIME -> creationTimeParamsImage
-        RPL_INVITING     -> invitingParamsImage
+        RPL_INVITING     -> params_2_3_Image
         RPL_TESTLINE     -> testlineParamsImage
         _                -> rawParamsImage
   where
-    label = text' (view palLabel pal)
+    label t = text' (view palLabel pal) t <> ": "
 
     rawParamsImage = separatedParams params'
 
@@ -528,28 +531,28 @@ renderReplyCode pal rm code@(ReplyCode w) params =
 
     attr = withForeColor defAttr color
 
-    invitingParamsImage =
+    params_2_3_Image =
       case params of
-        [_, user, _] -> text' defAttr user
-        _ -> rawParamsImage
+        [_, p, _] -> parseIrcText' False p
+        _         -> rawParamsImage
 
-    topicParamsImage =
+    param_3_3_Image =
       case params of
-        [_, _, topic] -> text' defAttr topic
-        _ -> rawParamsImage
+        [_, _, txt] -> parseIrcText' False txt
+        _           -> rawParamsImage
+
+    param_3_4_Image =
+      case params of
+        [_, _, p, _] -> parseIrcText' False p
+        _            -> rawParamsImage
 
     topicWhoTimeParamsImage =
       case params of
         [_, _, who, time] ->
-          label "set by " <>
+          label "set by" <>
           text' defAttr who <>
-          label " at " <>
+          label " at" <>
           string defAttr (prettyUnixTime (Text.unpack time))
-        _ -> rawParamsImage
-
-    channelUrlParamsImage =
-      case params of
-        [_, _, url] -> text' defAttr url
         _ -> rawParamsImage
 
     creationTimeParamsImage =
@@ -560,87 +563,41 @@ renderReplyCode pal rm code@(ReplyCode w) params =
     whoisUserParamsImage =
       case params of
         [_, nick, user, host, _, real] ->
-          parseIrcText' False nick <>
-          label "!" <>
+          text' (withStyle defAttr bold) nick <>
+          text' (view palLabel pal) "!" <>
           parseIrcText' False user <>
-          label "@" <>
+          text' (view palLabel pal) "@" <>
           parseIrcText' False host <>
-          label " gecos: " <>
+          label " gecos" <>
           parseIrcText' False real
-
-        _ -> rawParamsImage
-
-    whoisAcctParamsImage =
-      case params of
-        [_, _, acct, _] -> parseIrcText' False acct
-
-        _ -> rawParamsImage
-
-    whoisChanParamsImage =
-      case params of
-        [_, _, chans] -> parseIrcText' False chans
         _ -> rawParamsImage
 
     whoisIdleParamsImage =
       case params of
         [_, _, idle, signon, _txt] ->
           string defAttr (prettyTime 1 (Text.unpack idle)) <>
-          label " sign-on: " <>
+          label " sign-on" <>
           string defAttr (prettyUnixTime (Text.unpack signon))
-
         _ -> rawParamsImage
 
     whoisServerParamsImage =
       case params of
         [_, _, host, txt] ->
           parseIrcText' False host <>
-          " " <>
+          label " note" <>
           parseIrcText' False txt
         _ -> rawParamsImage
-
-    whoisSecureParamsImage =
-      case params of
-        [_, _, txt] -> parseIrcText' False txt
-
-        _ -> rawParamsImage
-
-    whoisOperParamsImage =
-      case params of
-        [_, _, txt] -> parseIrcText' False txt
-
-        _ -> rawParamsImage
-
-    whoisCertParamsImage =
-      case params of
-        [_, _, txt] -> parseIrcText' False txt
-
-        _ -> rawParamsImage
-
-    whoisSpecialParamsImage =
-      case params of
-        [_, _, txt] -> parseIrcText' False txt
-
-        _ -> rawParamsImage
-
-    whoisHostParamsImage =
-      case params of
-        [_, _, txt] -> parseIrcText' False txt
-
-        _ -> rawParamsImage
-
-    endOfWhoisImage = "-------------------- end of whois --------------------"
 
     testlineParamsImage =
       case params of
         [_, name, mins, mask, msg] ->
           text' defAttr name <>
-          label " duration: " <>
+          label " duration" <>
           string defAttr (prettyTime 60 (Text.unpack mins)) <>
-          label " mask: " <>
+          label " mask" <>
           text' defAttr mask <>
-          label " reason: " <>
+          label " reason" <>
           text' defAttr msg
-
         _ -> rawParamsImage
 
 -- | Transform string representing seconds in POSIX time to pretty format.
