@@ -1677,7 +1677,7 @@ tabConnect :: Bool -> ClientCommand String
 tabConnect isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] networks isReversed st
   where
-    networks = views clientNetworkMap               HashMap.keys st
+    networks = views clientConnections              HashMap.keys st
             ++ views (clientConfig . configServers) HashMap.keys st
 
 
@@ -1687,7 +1687,7 @@ tabFocus :: Bool -> ClientCommand String
 tabFocus isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
-    networks   = map mkId $ HashMap.keys $ view clientNetworkMap st
+    networks   = map mkId $ HashMap.keys $ view clientConnections st
     params     = words $ uncurry take $ clientLine st
 
     completions =
@@ -1901,9 +1901,9 @@ cmdInvite channelId cs st nick =
 
 commandSuccessUpdateCS :: NetworkState -> ClientState -> IO CommandResult
 commandSuccessUpdateCS cs st =
-  do let networkId = view csNetworkId cs
+  do let network = view csNetwork cs
      commandSuccess
-       $ setStrict (clientConnections . ix networkId) cs st
+       $ setStrict (clientConnection network) cs st
 
 cmdTopic :: ChannelCommand String
 cmdTopic channelId cs st rest =

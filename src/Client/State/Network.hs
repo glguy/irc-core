@@ -38,7 +38,6 @@ module Client.State.Network
   , csUsers
   , csUser
   , csModeCount
-  , csNetworkId
   , csNetwork
   , csNextPingTime
   , csPingStatus
@@ -111,8 +110,7 @@ import           LensUtils
 
 -- | State tracked for each IRC connection
 data NetworkState = NetworkState
-  { _csNetworkId    :: !NetworkId -- ^ network connection identifier
-  , _csChannels     :: !(HashMap Identifier ChannelState) -- ^ joined channels
+  { _csChannels     :: !(HashMap Identifier ChannelState) -- ^ joined channels
   , _csSocket       :: !NetworkConnection -- ^ network socket
   , _csModeTypes    :: !ModeTypes -- ^ channel mode meanings
   , _csUmodeTypes   :: !ModeTypes -- ^ user mode meanings
@@ -251,15 +249,13 @@ utf8ChunksOf n txt
 -- | Construct a new network state using the given settings and
 -- default values as specified by the IRC specification.
 newNetworkState ::
-  NetworkId         {- ^ unique network ID         -} ->
   Text              {- ^ network name              -} ->
   ServerSettings    {- ^ server settings           -} ->
   NetworkConnection {- ^ active network connection -} ->
   PingStatus        {- ^ initial ping status       -} ->
   NetworkState      {- ^ new network state         -}
-newNetworkState networkId network settings sock ping = NetworkState
-  { _csNetworkId    = networkId
-  , _csUserInfo     = UserInfo "*" "" ""
+newNetworkState network settings sock ping = NetworkState
+  { _csUserInfo     = UserInfo "*" "" ""
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
   , _csChannelTypes = defaultChannelTypes

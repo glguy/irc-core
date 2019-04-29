@@ -134,7 +134,7 @@ processSaslEcdsa now challenge cs st =
                 return $! set asLens AS_None st
   where
     ss = view csSettings cs
-    asLens = clientConnections . ix (view csNetworkId cs) . csAuthenticationState
+    asLens = clientConnection (view csNetwork cs) . csAuthenticationState
 
 processConnectCmd ::
   ZonedTime       {- ^ now             -} ->

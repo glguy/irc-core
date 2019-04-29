@@ -18,6 +18,7 @@ module Client.EventLoop
 
 import           Client.CApi (popTimer)
 import           Client.Commands
+import           Client.Network.Async (recv)
 import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDownloadDir)
 import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Actions
@@ -42,10 +43,13 @@ import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import           Data.Foldable
+import           Data.Traversable
 import           Data.List
 import           Data.List.NonEmpty (NonEmpty, nonEmpty)
 import           Data.Maybe
 import           Data.Ord
+import           Data.Text (Text)
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
@@ -55,14 +59,14 @@ import           Graphics.Vty
 import           Irc.Message
 import           Irc.RawIrcMsg
 import           LensUtils
-import           Hookup
+import           Hookup (ConnectionFailure(..))
 
 
 -- | Sum of the five possible event types the event loop handles
 data ClientEvent
   = VtyEvent Event                        -- ^ Key presses and resizing
-  | NetworkEvents (NonEmpty NetworkEvent) -- ^ Incoming network events
-  | TimerEvent NetworkId TimedAction      -- ^ Timed action and the applicable network
+  | NetworkEvents (NonEmpty (Text, NetworkEvent)) -- ^ Incoming network events
+  | TimerEvent Text TimedAction      -- ^ Timed action and the applicable network
   | ExtTimerEvent Int                     -- ^ extension ID
   | DCCUpdate DCCUpdate                   -- ^ Event on any transfer
 
@@ -80,8 +84,10 @@ getEvent vty st =
     vtyEvent = VtyEvent <$> readTChan (_eventChannel (inputIface vty))
 
     networkEvents =
-      do events <- flushTQueue (view clientEvents st)
-         case nonEmpty events of
+      do xs <- for (HashMap.toList (view clientConnections st)) $ \(network, conn) ->
+           do ys <- recv (view csSocket conn)
+              return (map ((,) network) ys)
+         case nonEmpty (concat xs) of
            Just events1 -> return (NetworkEvents events1)
            Nothing      -> retry
 
@@ -144,13 +150,13 @@ eventLoop vty st =
          eventLoop vty =<< doDCCUpdate upd st'
 
 -- | Apply a single network event to the client state.
-doNetworkEvent :: ClientState -> NetworkEvent -> IO ClientState
-doNetworkEvent st networkEvent =
+doNetworkEvent :: ClientState -> (Text, NetworkEvent) -> IO ClientState
+doNetworkEvent st (net, networkEvent) =
   case networkEvent of
-    NetworkLine  net time line -> doNetworkLine  net time line st
-    NetworkError net time ex   -> doNetworkError net time ex st
-    NetworkOpen  net time      -> doNetworkOpen  net time st
-    NetworkClose net time      -> doNetworkClose net time st
+    NetworkLine  time line -> doNetworkLine  net time line st
+    NetworkError time ex   -> doNetworkError net time ex st
+    NetworkOpen  time      -> doNetworkOpen  net time st
+    NetworkClose time      -> doNetworkClose net time st
 
 -- | Sound the terminal bell assuming that the @BEL@ control code
 -- is supported.
@@ -163,7 +169,7 @@ processLogEntries =
 
 -- | Respond to a network connection successfully connecting.
 doNetworkOpen ::
-  NetworkId   {- ^ network id   -} ->
+  Text        {- ^ network name -} ->
   ZonedTime   {- ^ event time   -} ->
   ClientState {- ^ client state -} ->
   IO ClientState
@@ -183,7 +189,7 @@ doNetworkOpen networkId time st =
 
 -- | Respond to a network connection closing normally.
 doNetworkClose ::
-  NetworkId   {- ^ network id   -} ->
+  Text        {- ^ network name -} ->
   ZonedTime   {- ^ event time   -} ->
   ClientState {- ^ client state -} ->
   IO ClientState
@@ -199,7 +205,7 @@ doNetworkClose networkId time st =
 
 -- | Respond to a network connection closing abnormally.
 doNetworkError ::
-  NetworkId     {- ^ failed network     -} ->
+  Text          {- ^ failed network     -} ->
   ZonedTime     {- ^ current time       -} ->
   SomeException {- ^ termination reason -} ->
   ClientState   {- ^ client state       -} ->
@@ -247,7 +253,7 @@ reconnectLogic ex cs st
 -- | Respond to an IRC protocol line. This will parse the message, updated the
 -- relevant connection state and update the UI buffers.
 doNetworkLine ::
-  NetworkId   {- ^ Network ID of message            -} ->
+  Text        {- ^ Network name                     -} ->
   ZonedTime   {- ^ current time                     -} ->
   ByteString  {- ^ Raw IRC message without newlines -} ->
   ClientState {- ^ client state                     -} ->
@@ -466,13 +472,13 @@ executeInput st = execute (clientFirstLine st) st
 
 -- | Respond to a timer event.
 doTimerEvent ::
-  NetworkId   {- ^ Network related to event -} ->
+  Text        {- ^ Network related to event -} ->
   TimedAction {- ^ Action to perform        -} ->
   ClientState {- ^ client state             -} ->
   IO ClientState
 doTimerEvent networkId action =
   traverseOf
-    (clientConnections . ix networkId)
+    (clientConnection networkId)
     (applyTimedAction action)
 
 doDCCUpdate :: DCCUpdate -> ClientState -> IO ClientState

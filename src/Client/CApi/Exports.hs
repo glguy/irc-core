@@ -261,7 +261,7 @@ glirc_list_networks :: Glirc_list_networks
 glirc_list_networks stab =
   do mvar <- derefToken stab
      (_,st) <- readMVar mvar
-     let networks = views clientNetworkMap HashMap.keys st
+     let networks = views clientConnections HashMap.keys st
      strs <- traverse (newCString . Text.unpack) networks
      newArray0 nullPtr strs
 

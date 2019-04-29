@@ -34,7 +34,6 @@ module Client.State
   , clientActivityBar
   , clientShowPing
   , clientSubfocus
-  , clientNetworkMap
   , clientIgnores
   , clientIgnoreMask
   , clientConnection
@@ -167,9 +166,8 @@ data ClientState = ClientState
   , _clientSubfocus          :: !Subfocus           -- ^ current view mode
   , _clientExtraFocus        :: ![Focus]            -- ^ extra messages windows to view
 
-  , _clientConnections       :: !(IntMap NetworkState) -- ^ state of active connections
+  , _clientConnections       :: !(HashMap Text NetworkState) -- ^ state of active connections
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
-  , _clientNetworkMap        :: !(HashMap Text NetworkId) -- ^ network name to connection ID
   , _clientDCC               :: !DCCState                 -- ^ DCC subsystem
   , _clientDCCUpdates        :: !(TChan DCCUpdate)        -- ^ DCC update events
 
@@ -230,10 +228,7 @@ clientConnection ::
   Applicative f =>
   Text {- ^ network -} ->
   LensLike' f ClientState NetworkState
-clientConnection network f st =
-  case view (clientNetworkMap . at network) st of
-    Nothing -> pure st
-    Just i  -> clientConnections (ix i f) st
+clientConnection network = clientConnections . ix network
 
 -- | The full top-most line that would be executed
 clientFirstLine :: ClientState -> String
@@ -255,7 +250,6 @@ withClientState cfgPath cfg k =
      let ignoreIds = map mkId (view configIgnores cfg)
      k ClientState
         { _clientWindows           = _Empty # ()
-        , _clientNetworkMap        = _Empty # ()
         , _clientIgnores           = HashSet.fromList ignoreIds
         , _clientIgnoreMask        = buildMask ignoreIds
         , _clientConnections       = _Empty # ()
@@ -308,7 +302,7 @@ abortNetwork network st =
     Just cs -> do -- cancel the network thread
                   abortConnection ForcedDisconnect (view csSocket cs)
                   -- unassociate this network name from this network id
-                  return $! over clientNetworkMap (sans network) st
+                  return $! over clientConnections (sans network) st
 
 
 -- | Add a message to the window associated with a given channel
@@ -708,18 +702,11 @@ urlMatches txt = removeBrackets . extractText . (^?! ix 0)
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the network connection exists and should
 -- only be applied once per connection.
-removeNetwork :: NetworkId -> ClientState -> (NetworkState, ClientState)
-removeNetwork networkId st =
-  case (clientConnections . at networkId <<.~ Nothing) st of
+removeNetwork :: Text -> ClientState -> (NetworkState, ClientState)
+removeNetwork network st =
+  case (clientConnections . at network <<.~ Nothing) st of
     (Nothing, _  ) -> error "removeNetwork: network not found"
-    (Just cs, st1) ->
-      -- Only remove the network mapping if it hasn't already been replaced
-      -- with a new one. This can happen during reconnect in particular.
-      let network = view csNetwork cs in
-      forOf (clientNetworkMap . at network) st1 $ \mb ->
-        case mb of
-          Just i | i == networkId -> (cs,Nothing)
-          _                       -> (cs,mb)
+    (Just cs, st1) -> (cs, st1)
 
 -- | Start a new connection. The delay is used for reconnections.
 addConnection ::
@@ -755,46 +742,33 @@ addConnection attempts lastTime stsUpgrade network st =
              Nothing   -> settings
 
 
-         i = nextAvailableKey (view clientConnections st)
-
          -- don't bother delaying on the first reconnect
          delay = 15 * max 0 (attempts - 1)
 
      c <- createConnection
             delay
-            i
             settings1
-            (view clientEvents st)
 
-     let cs = newNetworkState i network settings1 c (PingConnecting attempts lastTime)
+     let cs = newNetworkState network settings1 c (PingConnecting attempts lastTime)
      traverse_ (sendMsg cs) (initialMessages cs)
 
-     return $ set (clientNetworkMap . at network) (Just i)
-            $ set (clientConnections . at i) (Just cs) st
+     return $ set (clientConnections . at network) (Just cs) st
 
--- | Find the first unused key in the intmap starting at 0.
-nextAvailableKey :: IntMap a -> Int
-nextAvailableKey m = foldr aux id (IntMap.keys m) 0
-  where
-    aux k next i
-      | k == i    = next (i+1)
-      | otherwise = i
 
 applyMessageToClientState ::
   ZonedTime                  {- ^ timestamp                -} ->
   IrcMsg                     {- ^ message received         -} ->
-  NetworkId                  {- ^ message network          -} ->
+  Text                       {- ^ network name             -} ->
   NetworkState               {- ^ network connection state -} ->
   ClientState                {- ^ client state             -} ->
   ([RawIrcMsg], Maybe DCCUpdate, ClientState) {- ^ response , DCC updates, updated state -}
-applyMessageToClientState time irc networkId cs st =
+applyMessageToClientState time irc network cs st =
   cs' `seq` (reply, dccUp, st')
   where
     (reply, cs') = applyMessage time irc cs
-    network      = view csNetwork cs
     (st', dccUp) = queueDCCTransfer network irc
                  $ applyWindowRenames network irc
-                 $ set (clientConnections . ix networkId) cs' st
+                 $ set (clientConnections . ix network) cs' st
 
 -- | Queue a DCC transfer when the message is correct. Await for user
 --   confirmation to start the download.

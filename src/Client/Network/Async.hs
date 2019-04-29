@@ -24,10 +24,10 @@ When a network connection terminates normally its final messages will be
 
 module Client.Network.Async
   ( NetworkConnection
-  , NetworkId
   , NetworkEvent(..)
   , createConnection
   , Client.Network.Async.send
+  , Client.Network.Async.recv
 
   -- * Abort connections
   , abortConnection
@@ -50,12 +50,10 @@ import           Irc.RateLimit
 import           Hookup
 
 
--- | Identifier used to match connection events to connections.
-type NetworkId = Int
-
 -- | Handle for a network connection
 data NetworkConnection = NetworkConnection
   { connOutQueue :: !(TQueue ByteString)
+  , connInQueue  :: !(TQueue NetworkEvent)
   , connAsync    :: !(Async ())
   }
 
@@ -64,13 +62,13 @@ data NetworkConnection = NetworkConnection
 -- was created as well as the time at which the message was recieved.
 data NetworkEvent
   -- | Event for successful connection to host
-  = NetworkOpen  !NetworkId !ZonedTime
+  = NetworkOpen  !ZonedTime
   -- | Event for a new recieved line (newline removed)
-  | NetworkLine  !NetworkId !ZonedTime !ByteString
+  | NetworkLine  !ZonedTime !ByteString
   -- | Final message indicating the network connection failed
-  | NetworkError !NetworkId !ZonedTime !SomeException
+  | NetworkError !ZonedTime !SomeException
   -- | Final message indicating the network connection finished
-  | NetworkClose !NetworkId !ZonedTime
+  | NetworkClose !ZonedTime
 
 instance Show NetworkConnection where
   showsPrec p _ = showParen (p > 10)
@@ -94,6 +92,9 @@ instance Exception TerminationReason where
 send :: NetworkConnection -> ByteString -> IO ()
 send c msg = atomically (writeTQueue (connOutQueue c) msg)
 
+recv :: NetworkConnection -> STM [NetworkEvent]
+recv = flushTQueue . connInQueue
+
 -- | Force the given connection to terminate.
 abortConnection :: TerminationReason -> NetworkConnection -> IO ()
 abortConnection reason c = cancelWith (connAsync c) reason
@@ -104,16 +105,25 @@ abortConnection reason c = cancelWith (connAsync c) reason
 -- early termination of the connection.
 createConnection ::
   Int {- ^ delay in seconds -} ->
-  NetworkId {- ^ Identifier to be used on incoming events -} ->
   ServerSettings ->
-  TQueue NetworkEvent {- Queue for incoming events -} ->
   IO NetworkConnection
-createConnection delay network settings inQueue =
-   do outQueue <- atomically newTQueue
+createConnection delay settings =
+   do outQueue <- newTQueueIO
+      inQueue  <- newTQueueIO
 
       supervisor <- async $
                       threadDelay (delay * 1000000) >>
-                      startConnection network settings inQueue outQueue
+                      startConnection settings inQueue outQueue
+
+      let recordFailure :: SomeException -> IO ()
+          recordFailure ex =
+              do now <- getZonedTime
+                 atomically (writeTQueue inQueue (NetworkError now ex))
+
+          recordNormalExit :: IO ()
+          recordNormalExit =
+            do now <- getZonedTime
+               atomically (writeTQueue inQueue (NetworkClose now))
 
       -- Having this reporting thread separate from the supervisor ensures
       -- that canceling the supervisor with abortConnection doesn't interfere
@@ -125,34 +135,24 @@ createConnection delay network settings inQueue =
 
       return NetworkConnection
         { connOutQueue = outQueue
+        , connInQueue  = inQueue
         , connAsync    = supervisor
         }
-  where
-    recordFailure :: SomeException -> IO ()
-    recordFailure ex =
-        do now <- getZonedTime
-           atomically (writeTQueue inQueue (NetworkError network now ex))
-
-    recordNormalExit :: IO ()
-    recordNormalExit =
-      do now <- getZonedTime
-         atomically (writeTQueue inQueue (NetworkClose network now))
 
 
 startConnection ::
-  NetworkId ->
   ServerSettings ->
   TQueue NetworkEvent ->
   TQueue ByteString ->
   IO ()
-startConnection network settings inQueue outQueue =
+startConnection settings inQueue outQueue =
   do rate <- newRateLimit
                (view ssFloodPenalty settings)
                (view ssFloodThreshold settings)
      withConnection settings $ \h ->
-       do reportNetworkOpen network inQueue
+       do reportNetworkOpen inQueue
           withAsync (sendLoop h outQueue rate) $ \sender ->
-            withAsync (receiveLoop network h inQueue) $ \receiver ->
+            withAsync (receiveLoop h inQueue) $ \receiver ->
               do res <- waitEitherCatch sender receiver
                  case res of
                    Left  Right{}  -> fail "PANIC: sendLoop returned"
@@ -160,10 +160,10 @@ startConnection network settings inQueue outQueue =
                    Left  (Left e) -> throwIO e
                    Right (Left e) -> throwIO e
 
-reportNetworkOpen :: NetworkId -> TQueue NetworkEvent -> IO ()
-reportNetworkOpen network inQueue =
+reportNetworkOpen :: TQueue NetworkEvent -> IO ()
+reportNetworkOpen inQueue =
   do now <- getZonedTime
-     atomically (writeTQueue inQueue (NetworkOpen network now))
+     atomically (writeTQueue inQueue (NetworkOpen now))
 
 sendLoop :: Connection -> TQueue ByteString -> RateLimit -> IO ()
 sendLoop h outQueue rate =
@@ -175,12 +175,12 @@ sendLoop h outQueue rate =
 ircMaxMessageLength :: Int
 ircMaxMessageLength = 512
 
-receiveLoop :: NetworkId -> Connection -> TQueue NetworkEvent -> IO ()
-receiveLoop network h inQueue =
+receiveLoop :: Connection -> TQueue NetworkEvent -> IO ()
+receiveLoop h inQueue =
   do mb <- recvLine h (2*ircMaxMessageLength)
      for_ mb $ \msg ->
        do unless (B.null msg) $ -- RFC says to ignore empty messages
             do now <- getZonedTime
                atomically $ writeTQueue inQueue
-                          $ NetworkLine network now msg
-          receiveLoop network h inQueue
+                          $ NetworkLine now msg
+          receiveLoop h inQueue
