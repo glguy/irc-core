@@ -112,9 +112,10 @@ pushTimer time fun ptr ae = entry `seq` ae' `seq` (i, ae')
 cancelTimer ::
   Int             {- ^ timer ID  -}  ->
   ActiveExtension {- ^ extension -}  ->
-  ActiveExtension
-cancelTimer timerId ae = ae
-  { aeTimers = IntPSQ.delete timerId (aeTimers ae) }
+  Maybe (Ptr (), ActiveExtension)
+cancelTimer timerId ae =
+  do (_, TimerEntry _ ptr) <- IntPSQ.lookup timerId (aeTimers ae)
+     return (ptr, ae { aeTimers = IntPSQ.delete timerId (aeTimers ae)})
 
 -- | Load the extension from the given path and call the start
 -- callback. The result of the start callback is saved to be
@@ -158,11 +159,11 @@ startExtension stab config ae =
 
 -- | Call the stop callback of the extension if it is defined
 -- and unload the shared object.
-deactivateExtension :: Ptr () -> ActiveExtension -> IO ()
-deactivateExtension stab ae =
+deactivateExtension :: ActiveExtension -> IO ()
+deactivateExtension ae =
   do let f = fgnStop (aeFgn ae)
      unless (nullFunPtr == f) $
-       runStopExtension f stab (aeSession ae)
+       runStopExtension f (aeSession ae)
      dlclose (aeDL ae)
 
 
@@ -172,15 +173,14 @@ deactivateExtension stab ae =
 --
 -- Returns 'True' to pass message to client.  Returns 'False to drop message.
 chatExtension ::
-  Ptr ()          {- ^ client callback handle  -} ->
   ActiveExtension {- ^ extension               -} ->
   Ptr FgnChat     {- ^ serialized chat message -} ->
   IO Bool         {- ^ allow message           -}
-chatExtension stab ae chat =
+chatExtension ae chat =
   do let f = fgnChat (aeFgn ae)
      if f == nullFunPtr
        then return True
-       else (passMessage ==) <$> runProcessChat f stab (aeSession ae) chat
+       else (passMessage ==) <$> runProcessChat f (aeSession ae) chat
 
 -- | Call all of the process message callbacks in the list of extensions.
 -- This operation marshals the IRC message once and shares that across
@@ -188,28 +188,26 @@ chatExtension stab ae chat =
 --
 -- Returns 'True' to pass message to client.  Returns 'False to drop message.
 notifyExtension ::
-  Ptr ()          {- ^ clientstate stable pointer -} ->
   ActiveExtension {- ^ extension                  -} ->
   Ptr FgnMsg      {- ^ serialized IRC message     -} ->
   IO Bool         {- ^ allow message              -}
-notifyExtension stab ae msg =
+notifyExtension ae msg =
   do let f = fgnMessage (aeFgn ae)
      if f == nullFunPtr
        then return True
-       else (passMessage ==) <$> runProcessMessage f stab (aeSession ae) msg
+       else (passMessage ==) <$> runProcessMessage f (aeSession ae) msg
 
 
 -- | Notify an extension of a client command with the given parameters.
 commandExtension ::
-  Ptr ()          {- ^ client state stableptr -} ->
   Text            {- ^ command                -} ->
   ActiveExtension {- ^ extension to command   -} ->
   IO ()
-commandExtension stab command ae = evalNestedIO $
+commandExtension command ae = evalNestedIO $
   do cmd <- withCommand command
      let f = fgnCommand (aeFgn ae)
      liftIO $ unless (f == nullFunPtr)
-            $ runProcessCommand f stab (aeSession ae) cmd
+            $ runProcessCommand f (aeSession ae) cmd
 
 -- | Marshal a 'RawIrcMsg' into a 'FgnMsg' which will be valid for
 -- the remainder of the computation.

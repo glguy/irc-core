@@ -71,7 +71,7 @@ start1 st config =
                       Nothing -> 0
 
             let st1 = st & clientExtensions . esActive . at i ?~ ae
-            (st2, h) <- clientPark i st1 $ \ptr -> startExtension ptr config ae
+            (st2, h) <- clientPark i st1 (startExtension (clientToken st1) config ae)
 
             -- save handle back into active extension
             return $! st2 & clientExtensions . esActive . ix i %~ \ae' ->
@@ -88,7 +88,7 @@ clientStopExtensions st =
      ifoldlM step st1 aes
   where
     step i st2 ae =
-      do (st3,_) <- clientPark i st2 $ \ptr -> deactivateExtension ptr ae
+      do (st3,_) <- clientPark i st2 (deactivateExtension ae)
          return st3
 
 
@@ -115,7 +115,7 @@ chat1 ::
   IO (ClientState, Bool)  {- ^ new state and allow         -}
 chat1 _    st [] = return (st, True)
 chat1 chat st ((i,ae):aes) =
-  do (st1, allow) <- clientPark i st $ \ptr -> chatExtension ptr ae chat
+  do (st1, allow) <- clientPark i st (chatExtension ae chat)
      if allow then chat1 chat st1 aes
               else return (st1, False)
 
@@ -142,7 +142,7 @@ message1 ::
   IO (ClientState, Bool)  {- ^ new state and allow         -}
 message1 _    st [] = return (st, True)
 message1 chat st ((i,ae):aes) =
-  do (st1, allow) <- clientPark i st $ \ptr -> notifyExtension ptr ae chat
+  do (st1, allow) <- clientPark i st (notifyExtension ae chat)
      if allow then message1 chat st1 aes
               else return (st1, False)
 
@@ -159,8 +159,7 @@ clientCommandExtension name command st =
             (IntMap.toList (view (clientExtensions . esActive) st)) of
         Nothing -> return Nothing
         Just (i,ae) ->
-          do (st', _) <- clientPark i st $ \ptr ->
-                            commandExtension ptr command ae
+          do (st', _) <- clientPark i st (commandExtension command ae)
              return (Just st')
 
 
@@ -168,16 +167,18 @@ clientCommandExtension name command st =
 clientPark ::
   Int              {- ^ extension ID                                        -} ->
   ClientState      {- ^ client state                                        -} ->
-  (Ptr () -> IO a) {- ^ continuation using the stable pointer to the client -} ->
+  IO a             {- ^ continuation using the stable pointer to the client -} ->
   IO (ClientState, a)
 clientPark i st k =
   do let mvar = view (clientExtensions . esMVar) st
      putMVar mvar (i,st)
-     let token = views (clientExtensions . esStablePtr) castStablePtrToPtr st
-     res     <- k token
+     res     <- k
      (_,st') <- takeMVar mvar
      return (st', res)
 
+-- | Get the pointer used by C extensions to reenter the client.
+clientToken :: ClientState -> Ptr ()
+clientToken = views (clientExtensions . esStablePtr) castStablePtrToPtr
 
 -- | Run the next available timer event on a particular extension.
 clientExtTimer ::
@@ -190,6 +191,5 @@ clientExtTimer i st =
        Nothing -> return st
        Just (_, timerId, fun, dat, ae') ->
          do let st1 = set (clientExtensions . esActive . ix i) ae' st
-            (st2,_) <- clientPark i st1 $ \ptr ->
-                         runTimerCallback fun ptr (aeSession ae) dat timerId
+            (st2,_) <- clientPark i st1 (runTimerCallback fun dat timerId)
             return st2

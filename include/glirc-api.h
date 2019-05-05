@@ -44,13 +44,13 @@ struct glirc_command {
 };
 
 typedef void *start_type         (struct glirc *G, const char *path, const struct glirc_string *args, size_t args_len);
-typedef void stop_type           (struct glirc *G, void *S);
-typedef enum process_result process_message_type(struct glirc *G, void *S, const struct glirc_message *);
-typedef enum process_result process_chat_type(struct glirc *G, void *S, const struct glirc_chat *);
-typedef void process_command_type(struct glirc *G, void *S, const struct glirc_command *);
+typedef void stop_type           (void *S);
+typedef enum process_result process_message_type(void *S, const struct glirc_message *);
+typedef enum process_result process_chat_type(void *S, const struct glirc_chat *);
+typedef void process_command_type(void *S, const struct glirc_command *);
 
 typedef long timer_id;
-typedef void timer_callback(struct glirc *G, void *S, void *dat, timer_id);
+typedef void timer_callback(void *dat, timer_id);
 
 struct glirc_extension {
         const char *name;
@@ -88,7 +88,7 @@ int glirc_is_logged_on(struct glirc *G, const char *net, size_t netlen,
                                         const char *tgt, size_t tgtlen);
 char * glirc_resolve_path(struct glirc *G, const char *path, size_t path_len);
 timer_id glirc_set_timer(struct glirc *G, unsigned long millis, timer_callback *cb, void *dat);
-void glirc_cancel_timer(struct glirc *G, timer_id tid);
+void *glirc_cancel_timer(struct glirc *G, timer_id tid);
 
 void glirc_free_string(char *);
 void glirc_free_strings(char **);

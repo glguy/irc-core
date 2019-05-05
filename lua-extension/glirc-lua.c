@@ -163,7 +163,7 @@ static int callback_worker(lua_State *L)
 }
 
 static enum process_result
-callback (struct glirc *G, lua_State *L, const char *name, int nargs)
+callback (lua_State *L, const char *name, int nargs)
 {
                                                // STACK: arguments...
         lua_pushcfunction(L, callback_worker); // STACK: arguments... worker
@@ -174,7 +174,7 @@ callback (struct glirc *G, lua_State *L, const char *name, int nargs)
         if (res != LUA_OK) {
                 size_t msglen = 0;
                 const char *msg = lua_tolstring(L, -1, &msglen);
-                glirc_print(G, ERROR_MESSAGE, msg, msglen);
+                glirc_print(get_glirc(L), ERROR_MESSAGE, msg, msglen);
                 lua_pop(L, 1); // discard error message
                 return PASS_MESSAGE;
         }
@@ -189,10 +189,10 @@ Callback used by client when unloading the Lua extension.
 @function stop
 @tparam extension self Extension module
 */
-static void stop_entrypoint(struct glirc *G, void *L)
+static void stop_entrypoint(void *L)
 {
         if (L == NULL) return;
-        callback(G, L, "stop", 0);
+        callback(L, "stop", 0);
         lua_close(L);
 }
 
@@ -205,13 +205,12 @@ Callback used when client receives message from the server.
 */
 static enum process_result
 message_entrypoint
-  (struct glirc *G,
-   void *L,
+  (void *L,
    const struct glirc_message *msg)
 {
         if (L == NULL) return PASS_MESSAGE;
         push_glirc_message(L, msg);
-        return callback(G, L, "process_message", 1);
+        return callback(L, "process_message", 1);
 }
 
 /***
@@ -223,13 +222,12 @@ Callback used when client submits a chat message.
 */
 static enum process_result
 chat_entrypoint
-  (struct glirc *G,
-   void *L,
+  (void *L,
    const struct glirc_chat *chat)
 {
         if (L == NULL) return PASS_MESSAGE;
         push_glirc_chat(L, chat);
-        return callback(G, L, "process_chat", 1);
+        return callback(L, "process_chat", 1);
 }
 
 /***
@@ -240,13 +238,12 @@ Callback used when client submits an /extension Lua command
 */
 static void
 command_entrypoint
-  (struct glirc *G,
-   void *L,
+  (void *L,
    const struct glirc_command *cmd)
 {
         if (L == NULL) return;
         push_glirc_command(L, cmd);
-        callback(G, L, "process_command", 1);
+        callback(L, "process_command", 1);
 }
 
 /***

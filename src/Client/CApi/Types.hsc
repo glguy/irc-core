@@ -107,27 +107,23 @@ type StartExtension =
 
 -- | @typedef void stop(void *glirc, void *S)@
 type StopExtension =
-  Ptr () {- ^ api token       -} ->
   Ptr () {- ^ extension state -} ->
   IO ()
 
 -- | @typedef enum process_result process_message(void *glirc, void *S, const struct glirc_message *)@
 type ProcessMessage =
-  Ptr ()     {- ^ api token       -} ->
   Ptr ()     {- ^ extention state -} ->
   Ptr FgnMsg {- ^ message to send -} ->
   IO ProcessResult
 
 -- | @typedef void process_command(void *glirc, void *S, const struct glirc_command *)@
 type ProcessCommand =
-  Ptr ()     {- ^ api token       -} ->
   Ptr ()     {- ^ extension state -} ->
   Ptr FgnCmd {- ^ command         -} ->
   IO ()
 
 -- | @typedef void process_chat(void *glirc, void *S, const struct glirc_chat *)@
 type ProcessChat =
-  Ptr ()      {- ^ api token       -} ->
   Ptr ()      {- ^ extension state -} ->
   Ptr FgnChat {- ^ chat info       -} ->
   IO ProcessResult
@@ -137,8 +133,6 @@ type TimerId = #type timer_id
 
 -- | Callback function when timer triggers
 type TimerCallback =
-  Ptr ()  {- ^ api token       -} ->
-  Ptr ()  {- ^ extension state -} ->
   Ptr ()  {- ^ timer state     -} ->
   TimerId {- ^ timer ID        -} ->
   IO ()

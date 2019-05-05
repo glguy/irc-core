@@ -49,7 +49,7 @@ void new_fingerprint (void *, OtrlUserState, const char *, const char *, const c
 void create_privkey(void *, const char *, const char *);
 void create_instag(void *, const char *, const char *);
 void timer_control(void *, unsigned int);
-void timer_entrypoint(struct glirc *, void *, void *, timer_id);
+void timer_entrypoint(void *, timer_id);
 
 OtrlMessageAppOps ops = {
     .policy            = op_policy,
@@ -176,7 +176,7 @@ public:
         }
         timer_active = timer_interval > 0;
         if (timer_active) {
-                timer_id = glirc_set_timer(G, 1000 * timer_interval, timer_entrypoint, nullptr);
+                timer_id = glirc_set_timer(G, 1000 * timer_interval, timer_entrypoint, this);
         }
     }
 
@@ -442,7 +442,7 @@ void create_instag(void *L, const char *accountname, const char *protocol)
 }
 
 // Entry point from client when timer triggers
-void timer_entrypoint(struct glirc *G, void *L, void *dat, timer_id tid) {
+void timer_entrypoint(void *L, timer_id tid) {
 
     GET_opdata;
 
@@ -488,9 +488,8 @@ void *start_entrypoint
   return opdata;
 }
 
-void stop_entrypoint(struct glirc *G, void *L)
+void stop_entrypoint(void *L)
 {
-  (void)G;
   GET_opdata;
   delete opdata;
 }
@@ -571,7 +570,7 @@ process_privmsg(OpData *opdata, const struct glirc_message *msg)
 }
 
 enum process_result
-message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
+message_entrypoint(void *L, const struct glirc_message *msg)
 {
     GET_opdata;
     auto cmd = make_string(msg->command);
@@ -584,9 +583,8 @@ message_entrypoint(struct glirc *G, void *L, const struct glirc_message *msg)
 }
 
 
-enum process_result chat_entrypoint(struct glirc *G, void *L, const struct glirc_chat *chat)
+enum process_result chat_entrypoint(void *L, const struct glirc_chat *chat)
 {
-    (void)G;
     GET_opdata;
 
     auto network = make_string(chat->network);
@@ -813,7 +811,7 @@ void cmd_help(OpData *opdata, const string &params)
 }
 
 void command_entrypoint
-  (struct glirc *G, void *L, const struct glirc_command *cmd)
+  (void *L, const struct glirc_command *cmd)
 {
   GET_opdata;
 
@@ -827,7 +825,7 @@ void command_entrypoint
 
   if (entry == end(cmd_impls)) {
       const char *errmsg = "OTR: Unknown command";
-      glirc_print(G, ERROR_MESSAGE, errmsg, strlen(errmsg));
+      glirc_print(opdata->G, ERROR_MESSAGE, errmsg, strlen(errmsg));
   } else {
       string parameters;
       getline(input, parameters);

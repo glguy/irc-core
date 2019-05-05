@@ -99,7 +99,9 @@ import           Control.Lens
 import           Control.Monad (unless)
 import           Data.Char (chr)
 import           Data.Foldable (traverse_)
+import           Data.Functor.Compose
 import qualified Data.Map as Map
+import           Data.Monoid (First(..))
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -744,17 +746,20 @@ glirc_set_timer stab millis fun ptr =
 
 -- | Type of 'glirc_cancel_timer' extension entry-point
 type Glirc_cancel_timer =
-  Ptr ()               {- ^ api token          -} ->
-  TimerId              {- ^ timer ID           -} ->
-  IO ()
+  Ptr ()               {- ^ api token                   -} ->
+  TimerId              {- ^ timer ID                    -} ->
+  IO (Ptr ())          {- ^ returns held callback state -}
 
 -- | Register a function to be called after a given number of milliseconds
 -- of delay. The returned timer ID can be used to cancel the timer.
 glirc_cancel_timer :: Glirc_cancel_timer
 glirc_cancel_timer stab timerId =
   do mvar <- derefToken stab
-     modifyMVar_ mvar $ \(i,st) ->
-       let st' = overStrict (clientExtensions . esActive . singular (ix i))
-                            (cancelTimer (fromIntegral timerId))
-                            st
-       in st' `seq` return (i,st')
+     modifyMVar mvar $ \(i,st) ->
+       let Compose mb = st & clientExtensions . esActive . ix i
+                   %%~ \ae -> Compose $
+                              do (entry, ae') <- cancelTimer (fromIntegral timerId) ae
+                                 return (First (Just entry), ae')
+       in return $! case mb of
+            Just (First (Just ptr), st') -> ((i,st'), ptr)
+            _ -> ((i, st), nullPtr)

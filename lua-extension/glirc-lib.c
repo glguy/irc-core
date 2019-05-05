@@ -18,10 +18,6 @@ Through this library scripts can send messages, check modes, and more.
 #include "glirc-lib.h"
 #include "glirc-marshal.h"
 
-/* The address of this global variable is used to store a table of
- * the closures associated with timers in the registry. */
-static char timer_closures;
-
 /***
 Send an IRC command on a connected network. Message tags are ignored
 when sending a message.
@@ -545,23 +541,41 @@ static int glirc_lua_resolve_path(lua_State *L)
         return 1;
 }
 
-static void on_timer(struct glirc *G, void *S, void *dat, timer_id tid) {
-        lua_State *L = S;
+struct timer_state {
+        lua_State *L;
+        int fun_ref;
+        int self_ref;
+};
 
-        // get closure from timer closures table
-        lua_rawgetp(L, LUA_REGISTRYINDEX, &timer_closures); // STACK: closures
-        lua_rawgeti(L, -1, tid);                            // STACK: closures closure
+static void free_timer_state(struct timer_state *st) {
+        luaL_unref(st->L, LUA_REGISTRYINDEX, st->fun_ref);
+        luaL_unref(st->L, LUA_REGISTRYINDEX, st->self_ref);
+}
+
+/* Create a new timer state closure around function on top of stack */
+static struct timer_state *new_timer_state(lua_State *L) {
+        struct timer_state * const ts = lua_newuserdata(L, sizeof(struct timer_state));
+        ts->L = L;
+        ts->self_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        ts->fun_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        return ts;
+}
+
+static void on_timer(void *dat, timer_id tid) {
+        struct timer_state * const st = dat;
+        lua_State * const L = st->L;
+
+        // get callback function
+        lua_rawgeti(L, LUA_REGISTRYINDEX, st->fun_ref); // STACK: closure
 
         // remove closure from timer closures table
-        lua_pushnil(L);                                     // STACK: closures closure nil
-        lua_rawseti(L, -3, tid);                            // STACK: closures closure
-        lua_remove(L, -2);                                  // STACK: closure
+        free_timer_state(st);
 
         if (lua_pcall(L, 0, 0, 0)) {
                 // STACK: error
                 size_t len;
                 const char *msg = lua_tolstring(L, -1, &len);
-                glirc_print(G, ERROR_MESSAGE, msg, len);
+                glirc_print(get_glirc(L), ERROR_MESSAGE, msg, len);
                 lua_remove(L, -1);
         }
 }
@@ -588,11 +602,10 @@ static int glirc_lua_set_timer(lua_State *L)
         luaL_checkany(L, 2);
         luaL_checktype(L, 3, LUA_TNONE);
 
-        timer_id tid = glirc_set_timer(get_glirc(L), millis, on_timer, NULL);
+        // Wrap top (2) value into closure
+        struct timer_state * const ts = new_timer_state(L);
 
-        lua_rawgetp(L, LUA_REGISTRYINDEX, &timer_closures);
-        lua_pushvalue(L, 2); // get closure
-        lua_rawseti(L, -2, tid);
+        timer_id tid = glirc_set_timer(get_glirc(L), millis, on_timer, ts);
 
         lua_pushinteger(L, tid);
 
@@ -614,13 +627,11 @@ static int glirc_lua_cancel_timer(lua_State *L)
         lua_Integer tid = luaL_checkinteger(L, 1);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        lua_rawgetp(L, LUA_REGISTRYINDEX, &timer_closures);
+        struct timer_state * const st = glirc_cancel_timer(get_glirc(L), tid);
 
-        if (lua_rawgeti(L, -1, tid)) {
-                glirc_cancel_timer(get_glirc(L), tid);
-
-                lua_pushnil(L);
-                lua_rawseti(L, -3, tid);
+        if (st) {
+                free_timer_state(st);
+                return 0;
         } else {
                 luaL_error(L, "no such timer");
         }
@@ -743,7 +754,4 @@ void glirc_install_lib(lua_State *L)
         
         lua_pushcfunction(L, glirc_lua_print);
         lua_setglobal(L, "print");
-
-        lua_newtable(L);
-        lua_rawsetp(L, LUA_REGISTRYINDEX, &timer_closures);
 }
