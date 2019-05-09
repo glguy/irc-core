@@ -167,7 +167,7 @@ callback (lua_State *L, const char *name, int nargs)
 {
                                                // STACK: arguments...
         lua_pushcfunction(L, callback_worker); // STACK: arguments... worker
-        lua_insert(L, 1);                      // STACK: worker arguments...
+        lua_insert(L, -nargs-1);               // STACK: worker arguments...
         lua_pushstring(L, name);               // STACK: worker arguments... name
         int res = lua_pcall(L, 1+nargs, 1, 0); // STACK: result
 
@@ -179,7 +179,7 @@ callback (lua_State *L, const char *name, int nargs)
                 return PASS_MESSAGE;
         }
 
-        res = lua_toboolean(L, 1);
+        res = lua_toboolean(L, -1);
         lua_pop(L, 1);
         return res ? DROP_MESSAGE : PASS_MESSAGE;
 }
