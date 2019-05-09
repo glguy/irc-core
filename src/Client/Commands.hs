@@ -1182,6 +1182,12 @@ commandsList =
     $ NetworkCommand cmdTestmask simpleNetworkTab
 
   , Command
+      (pure "masktrace")
+      (liftA2 (,) (simpleToken "[nick!]user@host") (optionalArg (simpleToken "[gecos]")))
+      "Outputs a list of local users matching the given masks.\n"
+    $ NetworkCommand cmdMasktrace simpleNetworkTab
+
+  , Command
       (pure "map")
       (pure ())
       "Display network map.\n"
@@ -1802,6 +1808,11 @@ cmdTestline cs st mask =
 cmdTestmask :: NetworkCommand (String, Maybe String)
 cmdTestmask cs st (mask, gecos) =
   do sendMsg cs (ircTestmask (Text.pack mask) (maybe "" Text.pack gecos))
+     commandSuccess st
+
+cmdMasktrace :: NetworkCommand (String, Maybe String)
+cmdMasktrace cs st (mask, gecos) =
+  do sendMsg cs (ircMasktrace (Text.pack mask) (maybe "*" Text.pack gecos))
      commandSuccess st
 
 cmdAway :: NetworkCommand String

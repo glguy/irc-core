@@ -155,7 +155,7 @@ doNetworkEvent st (net, networkEvent) =
   case networkEvent of
     NetworkLine  time line -> doNetworkLine  net time line st
     NetworkError time ex   -> doNetworkError net time ex st
-    NetworkOpen  time      -> doNetworkOpen  net time st
+    NetworkOpen  time msg  -> doNetworkOpen  net time msg st
     NetworkClose time      -> doNetworkClose net time st
 
 -- | Sound the terminal bell assuming that the @BEL@ control code
@@ -171,16 +171,20 @@ processLogEntries =
 doNetworkOpen ::
   Text        {- ^ network name -} ->
   ZonedTime   {- ^ event time   -} ->
+  Maybe Text  {- ^ connection status -} ->
   ClientState {- ^ client state -} ->
   IO ClientState
-doNetworkOpen networkId time st =
+doNetworkOpen networkId time stat st =
   case view (clientConnections . at networkId) st of
     Nothing -> error "doNetworkOpen: Network missing"
     Just cs ->
       do let msg = ClientMessage
                      { _msgTime    = time
                      , _msgNetwork = view csNetwork cs
-                     , _msgBody    = NormalBody "connection opened"
+                     , _msgBody    = NormalBody $
+                        case stat of
+                          Nothing  -> "connection opened"
+                          Just txt -> "connection opened: " <> txt
                      }
          return $! recordNetworkMessage msg
                  $ overStrict (clientConnections . ix networkId . csLastReceived)

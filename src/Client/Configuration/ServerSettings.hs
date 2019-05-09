@@ -49,12 +49,15 @@ module Client.Configuration.ServerSettings
   , ssLogDir
   , ssProtocolFamily
   , ssSts
+  , ssTlsPubkeyFingerprint
+  , ssTlsCertFingerprint
 
   -- * Load function
   , loadDefaultServerSettings
 
   -- * TLS settings
   , UseTls(..)
+  , Fingerprint(..)
 
   ) where
 
@@ -63,14 +66,18 @@ import           Client.Commands.WordCompletion
 import           Client.Configuration.Macros (macroCommandSpec)
 import           Config.Schema.Spec
 import           Control.Lens
+import qualified Data.ByteString as B
 import           Data.Functor.Alt                    ((<!>))
 import           Data.List.NonEmpty (NonEmpty)
+import           Data.ByteString (ByteString)
 import           Data.Maybe (fromMaybe)
 import           Data.Monoid
 import           Data.Text (Text)
+import           Data.List.Split (chunksOf, splitOn)
 import qualified Data.Text as Text
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber, Family(..))
+import           Numeric (readHex)
 import           System.Environment
 
 -- | Static server-level settings
@@ -104,6 +111,8 @@ data ServerSettings = ServerSettings
   , _ssLogDir           :: Maybe FilePath -- ^ Directory to save logs of chat
   , _ssProtocolFamily   :: Maybe Family -- ^ Protocol family to connect with
   , _ssSts              :: !Bool -- ^ Honor STS policies when true
+  , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint)
+  , _ssTlsCertFingerprint :: !(Maybe Fingerprint)
   }
   deriving Show
 
@@ -112,6 +121,12 @@ data UseTls
   = UseTls         -- ^ TLS connection
   | UseInsecureTls -- ^ TLS connection without certificate checking
   | UseInsecure    -- ^ Plain connection
+  deriving Show
+
+data Fingerprint
+  = FingerprintSha1 ByteString
+  | FingerprintSha256 ByteString
+  | FingerprintSha512 ByteString
   deriving Show
 
 makeLenses ''ServerSettings
@@ -154,6 +169,8 @@ loadDefaultServerSettings =
        , _ssLogDir           = Nothing
        , _ssProtocolFamily   = Nothing
        , _ssSts              = True
+       , _ssTlsPubkeyFingerprint = Nothing
+       , _ssTlsCertFingerprint = Nothing
        }
 
 serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
@@ -261,8 +278,29 @@ serverSpec = sectionsSpec "server-settings" $
 
       , req "sts" ssSts yesOrNoSpec
         "Honor server STS policies forcing TLS connections"
+
+      , opt "tls-cert-fingerprint" ssTlsCertFingerprint fingerprintSpec
+        "Check SHA1, SHA256, or SHA512 certificate fingerprint"
+
+      , opt "tls-pubkey-fingerprint" ssTlsPubkeyFingerprint fingerprintSpec
+        "Check SHA1, SHA256, or SHA512 public key fingerprint"
       ]
 
+fingerprintSpec :: ValueSpecs Fingerprint
+fingerprintSpec =
+  customSpec "fingerprint" stringSpec $ \str ->
+    do let strs
+             | ':' `elem` str = splitOn ":" str
+             | otherwise      = chunksOf 2  str
+           readHex' i = case readHex i of
+                          [(x,"")] -> Just x
+                          _        -> Nothing
+       bytes <- B.pack <$> traverse readHex' strs
+       case B.length bytes of
+         20 -> Just (FingerprintSha1   bytes)
+         32 -> Just (FingerprintSha256 bytes)
+         64 -> Just (FingerprintSha512 bytes)
+         _  -> Nothing
 
 -- | Specification for IP protocol family.
 protocolFamilySpec :: ValueSpecs Family

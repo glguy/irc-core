@@ -28,6 +28,7 @@ module Irc.Commands
   , ircList
   , ircLusers
   , ircMap
+  , ircMasktrace
   , ircMode
   , ircMotd
   , ircNick
@@ -223,6 +224,13 @@ ircTestmask ::
   Text {- ^ gecos -} ->
   RawIrcMsg
 ircTestmask mask gecos = rawIrcMsg "TESTMASK" (mask : nonempty gecos)
+
+-- | TRACEMASK command
+ircMasktrace ::
+  Text {- ^ mask  -} ->
+  Text {- ^ gecos -} ->
+  RawIrcMsg
+ircMasktrace mask gecos = rawIrcMsg "MASKTRACE" [mask, gecos]
 
 -- | REMOVE command
 ircRemove ::

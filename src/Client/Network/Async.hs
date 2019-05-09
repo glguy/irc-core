@@ -1,5 +1,5 @@
 {-# Options_GHC -Wno-unused-do-bind #-}
-
+{-# Language OverloadedStrings #-}
 {-|
 Module      : Client.Network.Async
 Description : Event-based network IO
@@ -46,8 +46,12 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.Foldable
 import           Data.Time
+import           Data.List
 import           Irc.RateLimit
 import           Hookup
+import           Data.Text (Text)
+import           Data.Word (Word8)
+import           Numeric (showHex)
 
 
 -- | Handle for a network connection
@@ -62,7 +66,7 @@ data NetworkConnection = NetworkConnection
 -- was created as well as the time at which the message was recieved.
 data NetworkEvent
   -- | Event for successful connection to host
-  = NetworkOpen  !ZonedTime
+  = NetworkOpen  !ZonedTime (Maybe Text)
   -- | Event for a new recieved line (newline removed)
   | NetworkLine  !ZonedTime !ByteString
   -- | Final message indicating the network connection failed
@@ -79,12 +83,20 @@ data TerminationReason
   = PingTimeout      -- ^ sent when ping timer expires
   | ForcedDisconnect -- ^ sent when client commands force disconnect
   | StsUpgrade       -- ^ sent when the client disconnects due to sts policy
+  | BadCertFingerprint ByteString (Maybe ByteString)
+  | BadPubkeyFingerprint ByteString (Maybe ByteString)
   deriving Show
 
 instance Exception TerminationReason where
   displayException PingTimeout      = "connection killed due to ping timeout"
   displayException ForcedDisconnect = "connection killed by client command"
   displayException StsUpgrade       = "connection killed by sts policy"
+  displayException (BadCertFingerprint expect got) =
+       "Expected certificate fingerprint: " ++ formatDigest expect ++
+       "; got: "    ++ maybe "none" formatDigest got
+  displayException (BadPubkeyFingerprint expect got) =
+       "Expected public key fingerprint: " ++ formatDigest expect ++
+       "; got: "    ++ maybe "none" formatDigest got
 
 -- | Schedule a message to be transmitted on the network connection.
 -- These messages are sent unmodified. The message should contain a
@@ -150,7 +162,12 @@ startConnection settings inQueue outQueue =
                (view ssFloodPenalty settings)
                (view ssFloodThreshold settings)
      withConnection settings $ \h ->
-       do reportNetworkOpen inQueue
+       do for_ (view ssTlsCertFingerprint settings)
+            (checkCertFingerprint h)
+          for_ (view ssTlsPubkeyFingerprint settings)
+            (checkPubkeyFingerprint h)
+
+          reportNetworkOpen inQueue
           withAsync (sendLoop h outQueue rate) $ \sender ->
             withAsync (receiveLoop h inQueue) $ \receiver ->
               do res <- waitEitherCatch sender receiver
@@ -160,10 +177,41 @@ startConnection settings inQueue outQueue =
                    Left  (Left e) -> throwIO e
                    Right (Left e) -> throwIO e
 
+checkCertFingerprint :: Connection -> Fingerprint -> IO ()
+checkCertFingerprint h fp =
+  do (expect, got) <-
+       case fp of
+         FingerprintSha1   expect -> (,) expect <$> getPeerCertFingerprintSha1   h
+         FingerprintSha256 expect -> (,) expect <$> getPeerCertFingerprintSha256 h
+         FingerprintSha512 expect -> (,) expect <$> getPeerCertFingerprintSha512 h
+     unless (Just expect == got)
+       (throwIO (BadCertFingerprint expect got))
+
+checkPubkeyFingerprint :: Connection -> Fingerprint -> IO ()
+checkPubkeyFingerprint h fp =
+  do (expect, got) <-
+       case fp of
+         FingerprintSha1   expect -> (,) expect <$> getPeerPubkeyFingerprintSha1   h
+         FingerprintSha256 expect -> (,) expect <$> getPeerPubkeyFingerprintSha256 h
+         FingerprintSha512 expect -> (,) expect <$> getPeerPubkeyFingerprintSha512 h
+     unless (Just expect == got)
+       (throwIO (BadPubkeyFingerprint expect got))
+
 reportNetworkOpen :: TQueue NetworkEvent -> IO ()
 reportNetworkOpen inQueue =
   do now <- getZonedTime
-     atomically (writeTQueue inQueue (NetworkOpen now))
+     atomically (writeTQueue inQueue (NetworkOpen now Nothing))
+
+formatDigest :: ByteString -> String
+formatDigest
+  = intercalate ":"
+  . map showByte
+  . B.unpack
+
+showByte :: Word8 -> String
+showByte x
+  | x < 0x10  = '0' : showHex x ""
+  | otherwise = showHex x ""
 
 sendLoop :: Connection -> TQueue ByteString -> RateLimit -> IO ()
 sendLoop h outQueue rate =

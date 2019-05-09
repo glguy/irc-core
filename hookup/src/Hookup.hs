@@ -48,6 +48,15 @@ module Hookup
   -- * Errors
   ConnectionFailure(..),
   CommandReply(..)
+
+  -- * SSL Information
+  , getPeerCertificate
+  , getPeerCertFingerprintSha1
+  , getPeerCertFingerprintSha256
+  , getPeerCertFingerprintSha512
+  , getPeerPubkeyFingerprintSha1
+  , getPeerPubkeyFingerprintSha256
+  , getPeerPubkeyFingerprintSha512
   ) where
 
 import           Control.Concurrent
@@ -64,13 +73,15 @@ import qualified Network.Socket.ByteString as SocketB
 import           OpenSSL.Session (SSL, SSLContext)
 import qualified OpenSSL as SSL
 import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509 as SSL
 import           OpenSSL.X509.SystemStore
+import           OpenSSL.X509 (X509)
+import qualified OpenSSL.X509 as X509
 import qualified OpenSSL.PEM as PEM
+import qualified OpenSSL.EVP.Digest as Digest
 import           Data.Attoparsec.ByteString (Parser)
 import qualified Data.Attoparsec.ByteString as Parser
 
-import           Hookup.OpenSSL (installVerification)
+import           Hookup.OpenSSL (installVerification, getPubKeyDer)
 import           Hookup.Socks5
 
 
@@ -515,3 +526,53 @@ verificationMode insecure
                   , SSL.vpClientOnce       = True
                   , SSL.vpCallback         = Nothing
                   }
+
+-- | Get peer certificate if one exists.
+getPeerCertificate :: Connection -> IO (Maybe X509.X509)
+getPeerCertificate (Connection _ h) =
+  case h of
+    Socket{} -> return Nothing
+    SSL ssl  -> SSL.getPeerCertificate ssl
+
+getPeerCertFingerprintSha1 :: Connection -> IO (Maybe ByteString)
+getPeerCertFingerprintSha1 = getPeerCertFingerprint "sha1"
+
+getPeerCertFingerprintSha256 :: Connection -> IO (Maybe ByteString)
+getPeerCertFingerprintSha256 = getPeerCertFingerprint "sha256"
+
+getPeerCertFingerprintSha512 :: Connection -> IO (Maybe ByteString)
+getPeerCertFingerprintSha512 = getPeerCertFingerprint "sha512"
+
+getPeerCertFingerprint :: String -> Connection -> IO (Maybe ByteString)
+getPeerCertFingerprint name h =
+   do mb <- getPeerCertificate h
+      case mb of
+        Nothing -> return Nothing
+        Just x509 ->
+          do der <- X509.writeDerX509 x509
+             mbdigest <- Digest.getDigestByName name
+             case mbdigest of
+               Nothing -> return Nothing
+               Just digest -> return $! Just $! Digest.digestLBS digest der
+
+getPeerPubkeyFingerprintSha1 :: Connection -> IO (Maybe ByteString)
+getPeerPubkeyFingerprintSha1 = getPeerPubkeyFingerprint "sha1"
+
+getPeerPubkeyFingerprintSha256 :: Connection -> IO (Maybe ByteString)
+getPeerPubkeyFingerprintSha256 = getPeerPubkeyFingerprint "sha256"
+
+getPeerPubkeyFingerprintSha512 :: Connection -> IO (Maybe ByteString)
+getPeerPubkeyFingerprintSha512 = getPeerPubkeyFingerprint "sha512"
+
+
+getPeerPubkeyFingerprint :: String -> Connection -> IO (Maybe ByteString)
+getPeerPubkeyFingerprint name h =
+   do mb <- getPeerCertificate h
+      case mb of
+        Nothing -> return Nothing
+        Just x509 ->
+          do der <- getPubKeyDer x509
+             mbdigest <- Digest.getDigestByName name
+             case mbdigest of
+               Nothing -> return Nothing
+               Just digest -> return $! Just $! Digest.digestBS digest der
