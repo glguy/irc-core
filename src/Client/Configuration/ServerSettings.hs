@@ -75,6 +75,7 @@ import           Data.Monoid
 import           Data.Text (Text)
 import           Data.List.Split (chunksOf, splitOn)
 import qualified Data.Text as Text
+import           Data.Word (Word8)
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber, Family(..))
 import           Numeric (readHex)
@@ -111,8 +112,8 @@ data ServerSettings = ServerSettings
   , _ssLogDir           :: Maybe FilePath -- ^ Directory to save logs of chat
   , _ssProtocolFamily   :: Maybe Family -- ^ Protocol family to connect with
   , _ssSts              :: !Bool -- ^ Honor STS policies when true
-  , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint)
-  , _ssTlsCertFingerprint :: !(Maybe Fingerprint)
+  , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint) -- ^ optional acceptable public key fingerprint
+  , _ssTlsCertFingerprint   :: !(Maybe Fingerprint) -- ^ optional acceptable certificate fingerprint
   }
   deriving Show
 
@@ -123,10 +124,11 @@ data UseTls
   | UseInsecure    -- ^ Plain connection
   deriving Show
 
+-- | Fingerprint used to validate server certificates.
 data Fingerprint
-  = FingerprintSha1 ByteString
-  | FingerprintSha256 ByteString
-  | FingerprintSha512 ByteString
+  = FingerprintSha1   ByteString -- ^ SHA-1 fingerprint
+  | FingerprintSha256 ByteString -- ^ SHA-2 256-bit fingerprint
+  | FingerprintSha512 ByteString -- ^ SHA-2 512-bit fingerprint
   deriving Show
 
 makeLenses ''ServerSettings
@@ -170,7 +172,6 @@ loadDefaultServerSettings =
        , _ssProtocolFamily   = Nothing
        , _ssSts              = True
        , _ssTlsPubkeyFingerprint = Nothing
-       , _ssTlsCertFingerprint = Nothing
        , _ssTlsCertFingerprint   = Nothing
        }
 
@@ -287,21 +288,34 @@ serverSpec = sectionsSpec "server-settings" $
         "Check SHA1, SHA256, or SHA512 public key fingerprint"
       ]
 
+-- | Match fingerprints in plain hex or colon-delimited bytes.
+-- SHA-1 is 20 bytes. SHA-2-256 is 32 bytes. SHA-2-512 is 64 bytes.
+--
+-- @
+-- 00112233aaFF
+-- 00:11:22:33:aa:FF
+-- @
 fingerprintSpec :: ValueSpecs Fingerprint
 fingerprintSpec =
   customSpec "fingerprint" stringSpec $ \str ->
-    do let strs
-             | ':' `elem` str = splitOn ":" str
-             | otherwise      = chunksOf 2  str
-           readHex' i = case readHex i of
-                          [(x,"")] -> Just x
-                          _        -> Nothing
-       bytes <- B.pack <$> traverse readHex' strs
+    do bytes <- B.pack <$> traverse readWord8 (byteStrs str)
        case B.length bytes of
          20 -> Just (FingerprintSha1   bytes)
          32 -> Just (FingerprintSha256 bytes)
          64 -> Just (FingerprintSha512 bytes)
          _  -> Nothing
+  where
+    -- read a single byte in hex
+    readWord8 :: String -> Maybe Word8
+    readWord8 i =
+      case readHex i of
+        [(x,"")] | 0 <= x, x < 256 -> Just (fromIntegral (x :: Integer))
+        _                           -> Nothing
+
+    byteStrs :: String -> [String]
+    byteStrs str
+      | ':' `elem` str = splitOn ":" str
+      | otherwise      = chunksOf 2  str
 
 -- | Specification for IP protocol family.
 protocolFamilySpec :: ValueSpecs Family
