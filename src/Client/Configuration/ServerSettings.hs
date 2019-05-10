@@ -171,6 +171,7 @@ loadDefaultServerSettings =
        , _ssSts              = True
        , _ssTlsPubkeyFingerprint = Nothing
        , _ssTlsCertFingerprint = Nothing
+       , _ssTlsCertFingerprint   = Nothing
        }
 
 serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
