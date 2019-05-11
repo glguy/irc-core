@@ -107,6 +107,7 @@ library
                        Client.State.Network
                        Client.State.Window
                        Client.View
+                       Client.View.Cert
                        Client.View.ChannelInfo
                        Client.View.Digraphs
                        Client.View.DCCList

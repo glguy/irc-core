@@ -16,6 +16,7 @@ module Client.View
 import           Client.Image.PackedImage
 import           Client.State
 import           Client.State.Focus
+import           Client.View.Cert
 import           Client.View.ChannelInfo
 import           Client.View.Digraphs
 import           Client.View.DCCList
@@ -45,14 +46,15 @@ viewLines focus subfocus w !st =
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel w st
     (_, FocusWindows filt) -> windowsImages filt st
-    (_, FocusDCC) -> dccImages st
-    (_, FocusMentions) -> mentionsViewLines w st
-    (_, FocusPalette) -> paletteViewLines pal
-    (_, FocusDigraphs) -> digraphLines w st
-    (_, FocusKeyMap) -> keyMapLines st
-    (_, FocusHelp mb) -> helpImageLines st mb pal
-    (_, FocusRtsStats) -> rtsStatsLines (view clientRtsStats st) pal
-    (_, FocusIgnoreList) -> ignoreListLines (view clientIgnores st) pal
+    (_, FocusDCC)          -> dccImages st
+    (_, FocusMentions)     -> mentionsViewLines w st
+    (_, FocusPalette)      -> paletteViewLines pal
+    (_, FocusDigraphs)     -> digraphLines w st
+    (_, FocusKeyMap)       -> keyMapLines st
+    (_, FocusHelp mb)      -> helpImageLines st mb pal
+    (_, FocusRtsStats)     -> rtsStatsLines (view clientRtsStats st) pal
+    (_, FocusIgnoreList)   -> ignoreListLines (view clientIgnores st) pal
+    (_, FocusCert)         -> certViewLines st
     _ -> chatMessageImages focus w st
   where
     pal = clientPalette st

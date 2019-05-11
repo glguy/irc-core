@@ -50,23 +50,25 @@ import           Data.List
 import           Irc.RateLimit
 import           Hookup
 import           Data.Text (Text)
+import qualified Data.Text as Text
 import           Data.Word (Word8)
 import           Numeric (showHex)
+import           OpenSSL.X509 (printX509)
 
 
 -- | Handle for a network connection
 data NetworkConnection = NetworkConnection
-  { connOutQueue :: !(TQueue ByteString)
-  , connInQueue  :: !(TQueue NetworkEvent)
-  , connAsync    :: !(Async ())
+  { connOutQueue :: TQueue ByteString
+  , connInQueue  :: TQueue NetworkEvent
+  , connAsync    :: Async ()
   }
 
 -- | The sum of incoming events from a network connection. All events
 -- are annotated with a network ID matching that given when the connection
 -- was created as well as the time at which the message was recieved.
 data NetworkEvent
-  -- | Event for successful connection to host
-  = NetworkOpen  !ZonedTime (Maybe Text)
+  -- | Event for successful connection to host (certificate lines)
+  = NetworkOpen  !ZonedTime [Text]
   -- | Event for a new recieved line (newline removed)
   | NetworkLine  !ZonedTime !ByteString
   -- | Final message indicating the network connection failed
@@ -167,7 +169,7 @@ startConnection settings inQueue outQueue =
           for_ (view ssTlsPubkeyFingerprint settings)
             (checkPubkeyFingerprint h)
 
-          reportNetworkOpen inQueue
+          reportNetworkOpen h inQueue
           withAsync (sendLoop h outQueue rate) $ \sender ->
             withAsync (receiveLoop h inQueue) $ \receiver ->
               do res <- waitEitherCatch sender receiver
@@ -197,10 +199,15 @@ checkPubkeyFingerprint h fp =
      unless (Just expect == got)
        (throwIO (BadPubkeyFingerprint expect got))
 
-reportNetworkOpen :: TQueue NetworkEvent -> IO ()
-reportNetworkOpen inQueue =
+reportNetworkOpen :: Connection -> TQueue NetworkEvent -> IO ()
+reportNetworkOpen h inQueue =
   do now <- getZonedTime
-     atomically (writeTQueue inQueue (NetworkOpen now Nothing))
+     mbX509 <- getPeerCertificate h
+     txts <- case mbX509 of
+               Nothing -> return []
+               Just x509 -> do str <- printX509 x509
+                               return $! reverse (Text.lines (Text.pack str))
+     atomically (writeTQueue inQueue (NetworkOpen now txts))
 
 formatDigest :: ByteString -> String
 formatDigest

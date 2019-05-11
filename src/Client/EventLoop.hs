@@ -171,25 +171,22 @@ processLogEntries =
 doNetworkOpen ::
   Text        {- ^ network name -} ->
   ZonedTime   {- ^ event time   -} ->
-  Maybe Text  {- ^ connection status -} ->
+  [Text]      {- ^ rendered certificate -} ->
   ClientState {- ^ client state -} ->
   IO ClientState
-doNetworkOpen networkId time stat st =
+doNetworkOpen networkId time cert st =
   case view (clientConnections . at networkId) st of
     Nothing -> error "doNetworkOpen: Network missing"
     Just cs ->
       do let msg = ClientMessage
                      { _msgTime    = time
                      , _msgNetwork = view csNetwork cs
-                     , _msgBody    = NormalBody $
-                        case stat of
-                          Nothing  -> "connection opened"
-                          Just txt -> "connection opened: " <> txt
+                     , _msgBody    = NormalBody "connection opened"
                      }
+         let cs' = cs & csLastReceived .~ (Just $! zonedTimeToUTC time)
+                      & csCertificate  .~ cert
          return $! recordNetworkMessage msg
-                 $ overStrict (clientConnections . ix networkId . csLastReceived)
-                              (\old -> old `seq` Just $! zonedTimeToUTC time)
-                              st
+                 $ setStrict (clientConnections . ix networkId) cs' st
 
 -- | Respond to a network connection closing normally.
 doNetworkClose ::

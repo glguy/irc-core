@@ -368,6 +368,7 @@ viewSubfocusLabel pal subfocus =
     FocusHelp mb      -> Just $ string (view palLabel pal) "help" <> opt mb
     FocusIgnoreList   -> Just $ string (view palLabel pal) "ignores"
     FocusRtsStats     -> Just $ string (view palLabel pal) "rtsstats"
+    FocusCert{}       -> Just $ string (view palLabel pal) "cert"
     FocusMasks m      -> Just $ mconcat
       [ string (view palLabel pal) "masks"
       , char defAttr ':'

@@ -43,6 +43,7 @@ module Client.State.Network
   , csPingStatus
   , csLatency
   , csLastReceived
+  , csCertificate
   , csMessageHooks
   , csAuthenticationState
 
@@ -132,6 +133,7 @@ data NetworkState = NetworkState
   , _csLatency      :: !(Maybe NominalDiffTime) -- ^ latency calculated from previous pong
   , _csPingStatus   :: !PingStatus      -- ^ state of ping timer
   , _csLastReceived :: !(Maybe UTCTime) -- ^ time of last message received
+  , _csCertificate  :: ![Text]
   }
   deriving Show
 
@@ -275,6 +277,7 @@ newNetworkState network settings sock ping = NetworkState
   , _csLatency      = Nothing
   , _csNextPingTime = Nothing
   , _csLastReceived = Nothing
+  , _csCertificate  = []
   }
 
 

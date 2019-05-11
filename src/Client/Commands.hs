@@ -417,6 +417,12 @@ commandsList =
     $ ClientCommand cmdUrl noClientTab
 
   , Command
+      (pure "cert")
+      (pure ())
+      "Show the TLS certificate for the current connection.\n"
+    $ NetworkCommand cmdCert noNetworkTab
+
+  , Command
       (pure "help")
       (optionalArg (simpleToken "[command]"))
       "Show command documentation.\n\
@@ -2450,3 +2456,6 @@ cmdOper :: NetworkCommand (String, String)
 cmdOper cs st (user, pass) =
   do sendMsg cs (ircOper (Text.pack user) (Text.pack pass))
      commandSuccess st
+
+cmdCert :: NetworkCommand ()
+cmdCert _ st _ = commandSuccess (changeSubfocus FocusCert st)
