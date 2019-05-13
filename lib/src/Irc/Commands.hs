@@ -14,8 +14,10 @@ module Irc.Commands
   , ircCapEnd
   , ircCapLs
   , ircCapReq
+  , ircChantrace
   , ircCnotice
   , ircCprivmsg
+  , ircEtrace
   , ircInfo
   , ircInvite
   , ircIson
@@ -218,19 +220,31 @@ ircTestline ::
   RawIrcMsg
 ircTestline mask = rawIrcMsg "TESTLINE" [mask]
 
--- | TESTLINE command
+-- | TESTMASK command
 ircTestmask ::
   Text {- ^ mask  -} ->
   Text {- ^ gecos -} ->
   RawIrcMsg
 ircTestmask mask gecos = rawIrcMsg "TESTMASK" (mask : nonempty gecos)
 
--- | TRACEMASK command
+-- | MASKTRACE command
 ircMasktrace ::
   Text {- ^ mask  -} ->
   Text {- ^ gecos -} ->
   RawIrcMsg
 ircMasktrace mask gecos = rawIrcMsg "MASKTRACE" [mask, gecos]
+
+-- | CHANTRACE command
+ircChantrace ::
+  Text {- ^ channel -} ->
+  RawIrcMsg
+ircChantrace channel = rawIrcMsg "CHANTRACE" [channel]
+
+-- | ETRACE command
+ircEtrace ::
+  Text {- ^ argument -} ->
+  RawIrcMsg
+ircEtrace arg = rawIrcMsg "ETRACE" [arg]
 
 -- | REMOVE command
 ircRemove ::
