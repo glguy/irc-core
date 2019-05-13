@@ -1,5 +1,18 @@
 # Revision history for glirc2
 
+## 2.31
+
+* Added TLS fingerprint pinning with `tls-cert-fingerprint` and `tls-pubkey-fingerprint`
+* Addded `/cert` command
+* Improved C API `void*` passing to always pass around a single pointer.
+* Better rendering for `/whois` and `/whowas`
+* Better support for ircop commands, responses, and modes
+* Channel, user, and snomask modes are can be styled
+* Bugfix in textbox rendering for formatted multi-line inputs.
+* Improved `/palette` rendering
+* Switch window focus when *forwarded*
+* Add support for receiving files with DCC (thanks Ruben Astudillo)
+
 ## 2.30
 
 * Implement support for chghost <https://ircv3.net/specs/extensions/chghost-3.2.html>

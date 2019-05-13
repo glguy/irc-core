@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.2.2 -- 2019-05
+
+* Added functions to get TLS peer certificate information
+
 ## 0.2.1 -- 2018-07
 
 * Added `connectWithSocket`, `recv`, `putBuf`, `defaultTlsParams`

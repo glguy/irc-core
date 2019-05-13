@@ -1,5 +1,10 @@
 # Revision history for irc-core
 
+## 2.7.0
+
+* Fix encoding when final argument is empty
+* Add `Wallops` command
+
 ## 2.6.0
 
 * Process CAP commands in library instead of client
