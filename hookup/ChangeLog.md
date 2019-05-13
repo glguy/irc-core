@@ -1,6 +1,6 @@
 # Revision history for hookup
 
-## 0.2.2 -- 2019-05
+## 0.2.3 -- 2019-05
 
 * Added functions to get TLS peer certificate information
 
