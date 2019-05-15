@@ -720,19 +720,19 @@ doAuthenticate param cs =
       | "+"       <- param
       , Just user <- view ssSaslUsername ss
       , Just pass <- view ssSaslPassword ss
-      -> ([ircAuthenticate (encodePlainAuthentication user pass)],
+      -> (ircAuthenticates (encodePlainAuthentication user pass),
           set csAuthenticationState AS_None cs)
 
     AS_ExternalStarted
       | "+"       <- param
       , Just user <- view ssSaslUsername ss
-      -> ([ircAuthenticate (encodeExternalAuthentication user)],
+      -> (ircAuthenticates (encodeExternalAuthentication user),
           set csAuthenticationState AS_None cs)
 
     AS_EcdsaStarted
       | "+"       <- param
       , Just user <- view ssSaslUsername ss
-      -> ([ircAuthenticate (Ecdsa.encodeUsername user)],
+      -> (ircAuthenticates (Ecdsa.encodeUsername user),
           set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
     AS_EcdsaWaitChallenge -> ([], cs) -- handled in Client.EventLoop!

@@ -21,12 +21,12 @@ module Client.Authentication.Ecdsa
   ) where
 
 import           Control.Exception (displayException, try)
-import           Data.ByteString.Base64 as Enc
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import           System.IO.Error (IOError)
 import           System.Process (readProcess)
+import           Irc.Commands (AuthenticatePayload(..))
 
 
 -- | Identifier for SASL ECDSA challenge response authentication
@@ -40,8 +40,8 @@ authenticationMode = "ECDSA-NIST256P-CHALLENGE"
 -- | Encode a username as specified in this authentication mode.
 encodeUsername ::
   Text {- ^ username                 -} ->
-  Text {- ^ base-64 encoded username -}
-encodeUsername = Text.decodeUtf8 . Enc.encode . Text.encodeUtf8
+  AuthenticatePayload {- ^ base-64 encoded username -}
+encodeUsername = AuthenticatePayload . Text.encodeUtf8
 
 
 -- | Compute the response for a given challenge using the @ecdsatool@

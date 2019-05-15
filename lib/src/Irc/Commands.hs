@@ -61,16 +61,20 @@ module Irc.Commands
   , ircZnc
 
   -- * SASL support
+  , AuthenticatePayload(..)
   , ircAuthenticate
+  , ircAuthenticates
   , encodePlainAuthentication
   , encodeExternalAuthentication
   ) where
 
 import           Irc.RawIrcMsg
 import           Irc.Identifier
+import           Data.ByteString (ByteString)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Enc
 
 nonempty :: Text -> [Text]
@@ -407,28 +411,43 @@ ircZnc ::
   RawIrcMsg
 ircZnc = rawIrcMsg "ZNC"
 
--- | AUTHENTICATE command
+-- | Payload for 'ircAuthenticates'
+newtype AuthenticatePayload = AuthenticatePayload ByteString
+  deriving Show
+
 ircAuthenticate ::
   Text {- ^ authentication mechanism -} ->
   RawIrcMsg
 ircAuthenticate msg = rawIrcMsg "AUTHENTICATE" [msg]
 
+-- | AUTHENTICATE command generator. Returns a list
+-- because AUTHENTICATE has a chunking behavior.
+ircAuthenticates ::
+  AuthenticatePayload {- ^ authentication payload -} ->
+  [RawIrcMsg]
+ircAuthenticates (AuthenticatePayload bytes) =
+  map (ircAuthenticate . Text.decodeUtf8) (chunks (Enc.encode bytes))
+  where
+    chunks :: ByteString -> [ByteString]
+    chunks b
+      | B.null b          = ["+"]
+      | B.length b >= 400 = B.take 400 b : chunks (B.drop 400 b)
+      | otherwise         = [b]
+
 -- | Encoding of username and password in PLAIN authentication
 encodePlainAuthentication ::
   Text {- ^ username -} ->
   Text {- ^ password -} ->
-  Text
+  AuthenticatePayload
 encodePlainAuthentication user pass
-  = Text.decodeUtf8
-  $ Enc.encode
+  = AuthenticatePayload
   $ Text.encodeUtf8
   $ Text.intercalate "\0" [user,user,pass]
 
 -- | Encoding of username in EXTERNAL authentication
 encodeExternalAuthentication ::
   Text {- ^ username -} ->
-  Text
-encodeExternalAuthentication user
-  = Text.decodeUtf8
-  $ Enc.encode
-  $ Text.encodeUtf8 user
+  AuthenticatePayload
+encodeExternalAuthentication
+  = AuthenticatePayload
+  . Text.encodeUtf8

@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.7.1
+
+* Add `ircAuthenticates` and `AuthenticatePayload`
+
 ## 2.7.0
 
 * Fix encoding when final argument is empty
