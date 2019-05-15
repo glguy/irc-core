@@ -678,7 +678,7 @@ Right urlPattern =
   compile
     defaultCompOpt
     defaultExecOpt{captureGroups=False}
-    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[-0-9a-zA-Z$_.+!*'(),%?=:@/;]*)?|\
+    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[-0-9a-zA-Z$_.+!*'(),%?=:@/;~]*)?|\
     \<https?://[^>]*>|\
     \\\(https?://[^\\)]*\\)"
 

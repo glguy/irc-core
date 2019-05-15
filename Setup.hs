@@ -9,16 +9,14 @@ This is a default setup script except that it checks that all
 transitive dependencies of this package use free licenses and
 generates a Build module detailing the versions of build tools
 and transitive library dependencies.
-
+ 
 -}
 
 module Main (main) where
 
 import           Control.Monad (unless)
 import           Data.Char (isAlphaNum)
-import           Data.List (delete)
 import           Distribution.InstalledPackageInfo (InstalledPackageInfo, sourcePackageId, license)
-import qualified Distribution.ModuleName as ModuleName
 import           Distribution.PackageDescription hiding (license)
 import           Distribution.Simple
 import           Distribution.Simple.LocalBuildInfo (LocalBuildInfo, installedPkgs, withLibLBI)
@@ -29,8 +27,6 @@ import           Distribution.Verbosity (Verbosity)
 import           System.FilePath ((</>), (<.>))
 
 import           Distribution.Simple.BuildPaths (autogenComponentModulesDir)
-
-import qualified Distribution.SPDX               as SPDX
 
 
 -- | Default Setup main extended to generate a Build module and to validate
@@ -43,43 +39,7 @@ main = defaultMainWithHooks simpleUserHooks
          validateLicenses pkgs
          generateBuildModule (fromFlag (configVerbosity flags)) pkg lbi pkgs
          postConf simpleUserHooks args flags pkg lbi
-
-  , sDistHook = \pkg mbLbi hooks flags ->
-      do let pkg' = forgetBuildModule pkg
-         sDistHook simpleUserHooks pkg' mbLbi hooks flags
   }
-
-
--- | Remove the Build module from the package description. This is needed
--- when building a source distribution tarball because the Build module
--- should be generated dynamically at configuration time.
-forgetBuildModule ::
-  PackageDescription {- ^ package description with Build module    -} ->
-  PackageDescription {- ^ package description without Build module -}
-forgetBuildModule pkg = pkg
-  { library     = forgetInLibrary    <$> library     pkg
-  , executables = forgetInExecutable <$> executables pkg
-  , benchmarks  = forgetInBenchmark  <$> benchmarks  pkg
-  , testSuites  = forgetInTestSuite  <$> testSuites  pkg
-  }
-  where
-    forget = delete (ModuleName.fromString (buildModuleName pkg))
-
-    forgetInBuildInfo x = x
-      { otherModules = forget (otherModules x) }
-
-    forgetInLibrary x = x
-      { exposedModules = forget (exposedModules x)
-      , libBuildInfo   = forgetInBuildInfo (libBuildInfo x) }
-
-    forgetInTestSuite x = x
-      { testBuildInfo = forgetInBuildInfo (testBuildInfo x) }
-
-    forgetInBenchmark x = x
-      { benchmarkBuildInfo = forgetInBuildInfo (benchmarkBuildInfo x) }
-
-    forgetInExecutable x = x
-      { buildInfo = forgetInBuildInfo (buildInfo x) }
 
 
 -- | Compute the name of the Build module for a given package
@@ -137,11 +97,11 @@ validateLicenses ::
   IO ()
 validateLicenses pkgs =
   do let toLicense = either licenseFromSPDX id
-         p pkg   = toLicense (license pkg) `notElem` freeLicenses
-         badPkgs = filter p pkgs
+         isBad pkg = toLicense (license pkg) `notElem` freeLicenses
+         badPkgs   = filter isBad pkgs
 
      unless (null badPkgs) $
-       do mapM_ print [ toLicense (license p) | p <- badPkgs ]
+       do mapM_ print [ toLicense (license pkg) | pkg <- badPkgs ]
           fail "BAD LICENSE"
 
 
