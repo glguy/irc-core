@@ -74,8 +74,6 @@ patterns = map toPattern
     (0, "c", [str|^Nick change: From |]),
     -- Connection limit, more complete regex: ^Too many user connections for [^ ]+![^ ]+@[^ ]+$
     (0, "u", [str|^Too many user connections for |]),
-    -- m_filter hit
-    (0, "u", [str|^FILTER: |]),
     -- Join alerts, more complete regex: ^User [^ ]+ \([^ ]+@[^ ]+\) trying to join #[^ ]* is a possible spambot$
     (1, "a", [str|^User [^ ]+ \([^ ]+\) trying to join #[^ ]* is a possible spambot|]),
     -- Kline hitting user
@@ -90,6 +88,10 @@ patterns = map toPattern
     (0, "k", [str|^Propagated ban for |]),
     -- Chancreate
     (1, "u", [str|^[^ ]+ is creating new channel #|]),
+    -- m_filter
+    (0, "u", [str|^FILTER: |]),
+    (0, "m", [str|^New filters loaded.$|]),
+    (0, "m", [str|^Filtering enabled.$|]),
     -- Failed login
     (0, "f", [str|^Warning: [0-9]+ failed login attempts|]),
     -- Temporary kline added, more complete regex: ^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} added temporary [0-9]+ min. K-Line for \[[^ ]+\] \[.*\]$
