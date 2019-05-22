@@ -71,7 +71,9 @@ data NetworkEvent
   = NetworkOpen  !ZonedTime [Text]
   -- | Event for a new recieved line (newline removed)
   | NetworkLine  !ZonedTime !ByteString
-  -- | Final message indicating the network connection failed
+  -- | Report an overlong line
+  | NetworkWarning !ZonedTime !Warning
+  -- | Report an error on network connection network connection failed
   | NetworkError !ZonedTime !SomeException
   -- | Final message indicating the network connection finished
   | NetworkClose !ZonedTime
@@ -99,6 +101,13 @@ instance Exception TerminationReason where
   displayException (BadPubkeyFingerprint expect got) =
        "Expected public key fingerprint: " ++ formatDigest expect ++
        "; got: "    ++ maybe "none" formatDigest got
+
+newtype Warning = LineTooLong Int
+  deriving Show
+
+instance Exception Warning where
+  displayException (LineTooLong n) =
+    "overlong message length 512 byte limit: " ++ show n ++ " bytes"
 
 -- | Schedule a message to be transmitted on the network connection.
 -- These messages are sent unmodified. The message should contain a
@@ -170,7 +179,7 @@ startConnection settings inQueue outQueue =
             (checkPubkeyFingerprint h)
 
           reportNetworkOpen h inQueue
-          withAsync (sendLoop h outQueue rate) $ \sender ->
+          withAsync (sendLoop h inQueue outQueue rate) $ \sender ->
             withAsync (receiveLoop h inQueue) $ \receiver ->
               do res <- waitEitherCatch sender receiver
                  case res of
@@ -220,19 +229,23 @@ showByte x
   | x < 0x10  = '0' : showHex x ""
   | otherwise = showHex x ""
 
-sendLoop :: Connection -> TQueue ByteString -> RateLimit -> IO ()
-sendLoop h outQueue rate =
+sendLoop :: Connection -> TQueue NetworkEvent -> TQueue ByteString -> RateLimit -> IO ()
+sendLoop h inQueue outQueue rate =
   forever $
     do msg <- atomically (readTQueue outQueue)
        tickRateLimit rate
        Hookup.send h msg
+       let n = B.length msg
+       when (n > ircMaxMessageLength) $
+         do now <- getZonedTime
+            writeTQueue inQueue (NetworkTooLong now n)
 
 ircMaxMessageLength :: Int
 ircMaxMessageLength = 512
 
 receiveLoop :: Connection -> TQueue NetworkEvent -> IO ()
 receiveLoop h inQueue =
-  do mb <- recvLine h (2*ircMaxMessageLength)
+  do mb <- recvLine h (4*ircMaxMessageLength)
      for_ mb $ \msg ->
        do unless (B.null msg) $ -- RFC says to ignore empty messages
             do now <- getZonedTime
