@@ -72,7 +72,6 @@ import           Client.EventLoop.Actions
 import           Client.Image.Palette
 import           Config
 import           Config.Schema
-import           Config.Schema.Load.Error
 import           Control.Exception
 import           Control.Monad                       (unless)
 import           Control.Lens                        hiding (List)
@@ -244,8 +243,7 @@ loadConfiguration mbPath = try $
      case loadValue configurationSpec rawcfg of
        Left e -> throwIO
                $ ConfigurationMalformed path
-               $ show
-               $ prettyValueSpecMismatch e
+               $ displayException e
        Right cfg ->
          do cfg' <- resolvePaths path (cfg def home)
                     >>= validateDirectories path
@@ -283,7 +281,7 @@ validateDirectories cfgPath cfg =
 
 configurationSpec ::
   ValueSpec (ServerSettings -> FilePath -> Configuration)
-configurationSpec = sectionsSpec "" $
+configurationSpec = sectionsSpec "config-file" $
 
   do let sec' def name spec info = fromMaybe def <$> optSection' name spec info
          identifierSetSpec       = HashSet.fromList <$> listSpec identifierSpec
