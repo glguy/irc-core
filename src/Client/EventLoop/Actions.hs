@@ -100,9 +100,11 @@ keyMapEntries (KeyMap m) =
      , (k,a) <- Map.toList m1
      ]
 
-instance Spec Action where
-  valuesSpec = customSpec "action" anyAtomSpec $ \a ->
-                fst <$> HashMap.lookup a actionInfos
+instance HasSpec Action where
+  anySpec = customSpec "action" anyAtomSpec
+          $ \a -> case HashMap.lookup a actionInfos of
+                    Nothing -> Left "unknown action"
+                    Just x  -> Right (fst x)
 
 
 -- | Names and default key bindings for each action.

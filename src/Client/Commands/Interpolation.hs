@@ -65,11 +65,11 @@ instance Show MacroSpec where
 noMacroArguments :: MacroSpec
 noMacroArguments = MacroSpec (pure [])
 
-parseMacroSpecs :: Text -> Maybe MacroSpec
+parseMacroSpecs :: Text -> Either Text MacroSpec
 parseMacroSpecs txt =
   case parseOnly (macroSpecs <* endOfInput) txt of
-    Left{}     -> Nothing
-    Right spec -> Just spec
+    Left e     -> Left (Text.pack e)
+    Right spec -> Right spec
 
 macroSpecs :: Parser MacroSpec
 macroSpecs =
@@ -89,11 +89,11 @@ macroSpecs =
 
 -- | Parse a 'Text' searching for the expansions as specified in
 -- 'ExpansionChunk'. @$$@ is used to escape a single @$@.
-parseExpansion :: Text -> Maybe [ExpansionChunk]
+parseExpansion :: Text -> Either Text [ExpansionChunk]
 parseExpansion txt =
   case parseOnly (many parseChunk <* endOfInput) txt of
-    Left{}       -> Nothing
-    Right chunks -> Just chunks
+    Left e       -> Left (Text.pack e)
+    Right chunks -> Right chunks
 
 parseChunk :: Parser ExpansionChunk
 parseChunk =

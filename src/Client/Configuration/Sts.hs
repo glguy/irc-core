@@ -45,10 +45,10 @@ type StsPolicies = HashMap Text StsPolicy
 
 makeLenses ''StsPolicy
 
-policySpec :: ValueSpecs StsPolicies
+policySpec :: ValueSpec StsPolicies
 policySpec = HashMap.fromList <$> listSpec policyEntry
 
-policyEntry :: ValueSpecs (Text, StsPolicy)
+policyEntry :: ValueSpec (Text, StsPolicy)
 policyEntry =
   sectionsSpec "sts-policy" $
   do hostname   <- reqSection "host" "Hostname"
@@ -102,7 +102,7 @@ savePolicyFile sts =
              writeFile path (encodePolicy sts ++ "\n")) :: IO (Either IOError ())
      return ()
 
-dateTimeSpec :: ValueSpecs UTCTime
+dateTimeSpec :: ValueSpec UTCTime
 dateTimeSpec
   = customSpec "date-time" stringSpec
   $ parseTimeM False defaultTimeLocale dateTimeFormat

@@ -20,19 +20,19 @@ import           Client.Commands.Recognizer
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 
-macroMapSpec :: ValueSpecs (Recognizer Macro)
-macroMapSpec = fromCommands <$> listSpec macroValueSpecs
+macroMapSpec :: ValueSpec (Recognizer Macro)
+macroMapSpec = fromCommands <$> listSpec macroValueSpec
 
-macroValueSpecs :: ValueSpecs (Text, Macro)
-macroValueSpecs = sectionsSpec "macro" $
+macroValueSpec :: ValueSpec (Text, Macro)
+macroValueSpec = sectionsSpec "macro" $
   do name     <- reqSection "name" ""
      spec     <- fromMaybe noMacroArguments
              <$> optSection' "arguments" macroArgumentsSpec ""
      commands <- reqSection' "commands" (oneOrList macroCommandSpec) ""
      return (name, Macro spec commands)
 
-macroArgumentsSpec :: ValueSpecs MacroSpec
-macroArgumentsSpec = customSpec "macro-arguments" valuesSpec parseMacroSpecs
+macroArgumentsSpec :: ValueSpec MacroSpec
+macroArgumentsSpec = customSpec "macro-arguments" anySpec parseMacroSpecs
 
-macroCommandSpec :: ValueSpecs [ExpansionChunk]
-macroCommandSpec = customSpec "macro-command" valuesSpec parseExpansion
+macroCommandSpec :: ValueSpec [ExpansionChunk]
+macroCommandSpec = customSpec "macro-command" anySpec parseExpansion

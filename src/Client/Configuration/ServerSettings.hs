@@ -75,7 +75,6 @@ import           Data.Monoid
 import           Data.Text (Text)
 import           Data.List.Split (chunksOf, splitOn)
 import qualified Data.Text as Text
-import           Data.Word (Word8)
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber, Family(..))
 import           Numeric (readHex)
@@ -175,7 +174,7 @@ loadDefaultServerSettings =
        , _ssTlsCertFingerprint   = Nothing
        }
 
-serverSpec :: ValueSpecs (ServerSettings -> ServerSettings)
+serverSpec :: ValueSpec (ServerSettings -> ServerSettings)
 serverSpec = sectionsSpec "server-settings" $
   composeMaybe <$> sequenceA settings
   where
@@ -192,9 +191,9 @@ serverSpec = sectionsSpec "server-settings" $
       $ set l . Just <$> s <!>
         set l Nothing <$ atomSpec "clear"
 
-    settings :: [SectionSpecs (Maybe (ServerSettings -> ServerSettings))]
+    settings :: [SectionsSpec (Maybe (ServerSettings -> ServerSettings))]
     settings =
-      [ opt "name" ssName valuesSpec
+      [ opt "name" ssName anySpec
         "The name used to identify this server in the client"
 
       , req "hostname" ssHostName stringSpec
@@ -206,22 +205,22 @@ serverSpec = sectionsSpec "server-settings" $
       , req "nick" ssNicks nicksSpec
         "Nicknames to connect with in order"
 
-      , opt "password" ssPassword valuesSpec
+      , opt "password" ssPassword anySpec
         "Server password"
 
-      , req "username" ssUser valuesSpec
+      , req "username" ssUser anySpec
         "Second component of _!_@_ usermask"
 
-      , req "realname" ssReal valuesSpec
+      , req "realname" ssReal anySpec
         "\"GECOS\" name sent to server visible in /whois"
 
-      , req "userinfo" ssUserInfo valuesSpec
+      , req "userinfo" ssUserInfo anySpec
         "CTCP userinfo (currently unused)"
 
-      , opt "sasl-username" ssSaslUsername valuesSpec
+      , opt "sasl-username" ssSaslUsername anySpec
         "Username for SASL authentication to NickServ"
 
-      , opt "sasl-password" ssSaslPassword valuesSpec
+      , opt "sasl-password" ssSaslPassword anySpec
         "Password for SASL authentication to NickServ"
 
       , opt "sasl-ecdsa-key" ssSaslEcdsaFile stringSpec
@@ -254,16 +253,16 @@ serverSpec = sectionsSpec "server-settings" $
       , req "chanserv-channels" ssChanservChannels (listSpec identifierSpec)
         "Channels with ChanServ permissions available"
 
-      , req "flood-penalty" ssFloodPenalty valuesSpec
+      , req "flood-penalty" ssFloodPenalty anySpec
         "RFC 1459 rate limiting, seconds of penalty per message (default 2)"
 
-      , req "flood-threshold" ssFloodThreshold valuesSpec
+      , req "flood-threshold" ssFloodThreshold anySpec
         "RFC 1459 rate limiting, seconds of allowed penalty accumulation (default 10)"
 
-      , req "message-hooks" ssMessageHooks valuesSpec
+      , req "message-hooks" ssMessageHooks anySpec
         "Special message hooks to enable: \"buffextras\" available"
 
-      , req "reconnect-attempts" ssReconnectAttempts valuesSpec
+      , req "reconnect-attempts" ssReconnectAttempts anySpec
         "Number of reconnection attempts on lost connection"
 
       , req "autoconnect" ssAutoconnect yesOrNoSpec
@@ -295,22 +294,23 @@ serverSpec = sectionsSpec "server-settings" $
 -- 00112233aaFF
 -- 00:11:22:33:aa:FF
 -- @
-fingerprintSpec :: ValueSpecs Fingerprint
+fingerprintSpec :: ValueSpec Fingerprint
 fingerprintSpec =
   customSpec "fingerprint" stringSpec $ \str ->
     do bytes <- B.pack <$> traverse readWord8 (byteStrs str)
        case B.length bytes of
-         20 -> Just (FingerprintSha1   bytes)
-         32 -> Just (FingerprintSha256 bytes)
-         64 -> Just (FingerprintSha512 bytes)
-         _  -> Nothing
+         20 -> Right (FingerprintSha1   bytes)
+         32 -> Right (FingerprintSha256 bytes)
+         64 -> Right (FingerprintSha512 bytes)
+         _  -> Left "expected 20, 32, or 64 bytes"
   where
     -- read a single byte in hex
-    readWord8 :: String -> Maybe Word8
     readWord8 i =
       case readHex i of
-        [(x,"")] | 0 <= x, x < 256 -> Just (fromIntegral (x :: Integer))
-        _                           -> Nothing
+        [(x,"")]
+          | 0 <= x, x < 256 -> Right (fromIntegral (x :: Integer))
+          | otherwise -> Left "byte out-of-bounds"
+        _ -> Left "bad hex-encoded byte"
 
     byteStrs :: String -> [String]
     byteStrs str
@@ -318,28 +318,28 @@ fingerprintSpec =
       | otherwise      = chunksOf 2  str
 
 -- | Specification for IP protocol family.
-protocolFamilySpec :: ValueSpecs Family
+protocolFamilySpec :: ValueSpec Family
 protocolFamilySpec =
       AF_INET   <$ atomSpec "inet"
   <!> AF_INET6  <$ atomSpec "inet6"
 
 
-nicksSpec :: ValueSpecs (NonEmpty Text)
-nicksSpec = oneOrNonemptySpec valuesSpec
+nicksSpec :: ValueSpec (NonEmpty Text)
+nicksSpec = oneOrNonemptySpec anySpec
 
 
-useTlsSpec :: ValueSpecs UseTls
+useTlsSpec :: ValueSpec UseTls
 useTlsSpec =
       UseTls         <$ atomSpec "yes"
   <!> UseInsecureTls <$ atomSpec "yes-insecure"
   <!> UseInsecure    <$ atomSpec "no"
 
 
-nickCompletionSpec :: ValueSpecs WordCompletionMode
+nickCompletionSpec :: ValueSpec WordCompletionMode
 nickCompletionSpec =
       defaultNickWordCompleteMode <$ atomSpec "default"
   <!> slackNickWordCompleteMode   <$ atomSpec "slack"
 
 
-identifierSpec :: ValueSpecs Identifier
-identifierSpec = mkId <$> valuesSpec
+identifierSpec :: ValueSpec Identifier
+identifierSpec = mkId <$> anySpec

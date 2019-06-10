@@ -72,10 +72,11 @@ import           Client.EventLoop.Actions
 import           Client.Image.Palette
 import           Config
 import           Config.Schema
+import           Config.Schema.Load.Error
 import           Control.Exception
 import           Control.Monad                       (unless)
 import           Control.Lens                        hiding (List)
-import           Data.Foldable                       (toList, find)
+import           Data.Foldable                       (toList)
 import           Data.Functor.Alt                    ((<!>))
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
@@ -241,37 +242,14 @@ loadConfiguration mbPath = try $
          Right rawcfg -> return rawcfg
 
      case loadValue configurationSpec rawcfg of
-       Left es -> throwIO
-                $ ConfigurationMalformed path
-                $ Text.unpack
-                $ Text.unlines
-                $ map explainLoadError (toList es)
+       Left e -> throwIO
+               $ ConfigurationMalformed path
+               $ show
+               $ prettyValueSpecMismatch e
        Right cfg ->
          do cfg' <- resolvePaths path (cfg def home)
                     >>= validateDirectories path
             return (path, cfg')
-
-
--- | Generate a human-readable explanation of an error arising from
--- an attempt to load a configuration file.
-explainLoadError :: LoadError Position -> Text
-explainLoadError (LoadError pos path problem) =
-  Text.concat [ positionText, " at ", pathText, ": ", problemText]
-
-  where
-    positionText =
-     Text.unwords ["line"  , Text.pack (show (posLine   pos)),
-                   "column", Text.pack (show (posColumn pos))]
-
-    pathText
-      | null path = "top-level"
-      | otherwise = Text.intercalate ":" path
-
-    problemText =
-      case problem of
-        UnusedSection  s -> "unknown section `"          <> s <> "`"
-        MissingSection s -> "missing required section `" <> s <> "`"
-        SpecMismatch   t -> "expected "                  <> t
 
 
 -- | Resolve all the potentially relative file paths in the configuration file
@@ -304,7 +282,7 @@ validateDirectories cfgPath cfg =
     noWriteableMsg = "The download-dir doesn't point to a writeable directory."
 
 configurationSpec ::
-  ValueSpecs (ServerSettings -> FilePath -> Configuration)
+  ValueSpec (ServerSettings -> FilePath -> Configuration)
 configurationSpec = sectionsSpec "" $
 
   do let sec' def name spec info = fromMaybe def <$> optSection' name spec info
@@ -316,7 +294,7 @@ configurationSpec = sectionsSpec "" $
                                "Configuration parameters for IRC servers"
      _configPalette         <- sec' defaultPalette "palette" paletteSpec
                                "Customize the client color choices"
-     _configWindowNames     <- sec' defaultWindowNames "window-names" valuesSpec
+     _configWindowNames     <- sec' defaultWindowNames "window-names" anySpec
                                "Window names to use for quick jumping with jump-modifier key"
      _configJumpModifier    <- sec' [MMeta] "jump-modifier" modifierSpec
                                "Modifier used to jump to a window by name. Defaults to `meta`."
@@ -330,7 +308,7 @@ configurationSpec = sectionsSpec "" $
                                "Extra words to highlight in chat messages"
      _configNickPadding     <- sec' NoPadding "nick-padding" nickPaddingSpec
                                "Amount of space to reserve for nicknames in chat messages"
-     _configIgnores         <- sec' [] "ignores" valuesSpec
+     _configIgnores         <- sec' [] "ignores" anySpec
                                "Set of nicknames to ignore on startup"
      _configActivityBar     <- sec' False  "activity-bar" yesOrNoSpec
                                "Show channel names and message counts for activity on\
@@ -365,7 +343,7 @@ defaultPaddingSide = RightPadding
 -- > nick-padding:
 -- >   side: right
 -- >   width: 16
-nickPaddingSpec :: ValueSpecs PaddingMode
+nickPaddingSpec :: ValueSpec PaddingMode
 nickPaddingSpec = defaultPaddingSide <$> nonnegativeSpec <!> fullNickPaddingSpec
 
 -- | Full nick padding specification:
@@ -373,7 +351,7 @@ nickPaddingSpec = defaultPaddingSide <$> nonnegativeSpec <!> fullNickPaddingSpec
 -- > nick-padding:
 -- >   side: left
 -- >   width: 15
-fullNickPaddingSpec :: ValueSpecs PaddingMode
+fullNickPaddingSpec :: ValueSpec PaddingMode
 fullNickPaddingSpec = sectionsSpec "nick-padding" (sideSec <*> amtSec)
   where
     sideSpec = LeftPadding  <$ atomSpec "left" <!>
@@ -387,7 +365,7 @@ fullNickPaddingSpec = sectionsSpec "nick-padding" (sideSec <*> amtSec)
 
 -- | Parse either a single modifier key or a list of modifier keys:
 -- @meta@, @alt@, @ctrl@
-modifierSpec :: ValueSpecs [Modifier]
+modifierSpec :: ValueSpec [Modifier]
 modifierSpec = toList <$> oneOrNonemptySpec modifier1Spec
   where
     modifier1Spec = namedSpec "modifier"
@@ -397,13 +375,13 @@ modifierSpec = toList <$> oneOrNonemptySpec modifier1Spec
 
 -- | Parse either @one-column@ or @two-column@ and return the corresponding
 -- 'LayoutMode' value.
-layoutSpec :: ValueSpecs LayoutMode
+layoutSpec :: ValueSpec LayoutMode
 layoutSpec = OneColumn <$ atomSpec "one-column"
          <!> TwoColumn <$ atomSpec "two-column"
 
 -- | Parse a single key binding. This can be an action binding, command
 -- binding, or an unbinding specification.
-keyBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
+keyBindingSpec :: ValueSpec (KeyMap -> KeyMap)
 keyBindingSpec = actBindingSpec <!> cmdBindingSpec <!> unbindingSpec
 
 -- | Parse a single action key binding. Action bindings are a map specifying
@@ -411,7 +389,7 @@ keyBindingSpec = actBindingSpec <!> cmdBindingSpec <!> unbindingSpec
 --
 -- > bind: "M-a"
 -- > action: jump-to-activity
-actBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
+actBindingSpec :: ValueSpec (KeyMap -> KeyMap)
 actBindingSpec = sectionsSpec "action-binding" $
   do ~(m,k) <- reqSection' "bind" keySpec
                "Key to be bound (e.g. a, C-b, M-c C-M-d)"
@@ -419,7 +397,7 @@ actBindingSpec = sectionsSpec "action-binding" $
                "Action name (see `/keymap`)"
      return (addKeyBinding m k a)
 
-cmdBindingSpec :: ValueSpecs (KeyMap -> KeyMap)
+cmdBindingSpec :: ValueSpec (KeyMap -> KeyMap)
 cmdBindingSpec = sectionsSpec "command-binding" $
   do ~(m,k) <- reqSection' "bind" keySpec
                "Key to be bound (e.g. a, C-b, M-c C-M-d)"
@@ -427,7 +405,7 @@ cmdBindingSpec = sectionsSpec "command-binding" $
                "Client command to execute (exclude leading `/`)"
      return (addKeyBinding m k (ActCommand cmd))
 
-unbindingSpec :: ValueSpecs (KeyMap -> KeyMap)
+unbindingSpec :: ValueSpec (KeyMap -> KeyMap)
 unbindingSpec = sectionsSpec "remove-binding" $
   do ~(m,k) <- reqSection' "unbind" keySpec
                "Key to be unbound (e.g. a, C-b, M-c C-M-d)"
@@ -435,34 +413,39 @@ unbindingSpec = sectionsSpec "remove-binding" $
 
 
 -- | Custom configuration specification for emacs-style key descriptions
-keySpec :: ValueSpecs ([Modifier], Key)
-keySpec = customSpec "emacs-key" stringSpec parseKey
+keySpec :: ValueSpec ([Modifier], Key)
+keySpec = customSpec "emacs-key" stringSpec
+        $ \key -> case parseKey key of
+                    Nothing -> Left "unknown key"
+                    Just x  -> Right x
 
 
-nonnegativeSpec :: (Ord a, Num a) => ValueSpecs a
-nonnegativeSpec = customSpec "non-negative" numSpec $ \x -> find (0 <=) [x]
+nonnegativeSpec :: (Ord a, Num a) => ValueSpec a
+nonnegativeSpec = customSpec "non-negative" numSpec
+                $ \x -> if x < 0 then Left "negative number"
+                                 else Right x
 
 
-paletteSpec :: ValueSpecs Palette
+paletteSpec :: ValueSpec Palette
 paletteSpec = sectionsSpec "palette" $
   (ala Endo (foldMap . foldMap) ?? defaultPalette) <$> sequenceA fields
 
   where
-    nickColorsSpec :: ValueSpecs (Palette -> Palette)
+    nickColorsSpec :: ValueSpec (Palette -> Palette)
     nickColorsSpec = set palNicks . Vector.fromList . NonEmpty.toList
                  <$> nonemptySpec attrSpec
 
-    modeColorsSpec :: Lens' Palette (HashMap Char Attr) -> ValueSpecs (Palette -> Palette)
+    modeColorsSpec :: Lens' Palette (HashMap Char Attr) -> ValueSpec (Palette -> Palette)
     modeColorsSpec l
       = fmap (set l)
       $ customSpec "modes" (assocSpec attrSpec)
       $ fmap HashMap.fromList
       . traverse (\(mode, attr) ->
           case Text.unpack mode of
-            [m] -> Just (m, attr)
-            _   -> Nothing)
+            [m] -> Right (m, attr)
+            _   -> Left "expected single letter")
 
-    fields :: [SectionSpecs (Maybe (Palette -> Palette))]
+    fields :: [SectionsSpec (Maybe (Palette -> Palette))]
     fields = optSection' "nick-colors" nickColorsSpec
              "Colors used to highlight nicknames"
 
@@ -477,7 +460,7 @@ paletteSpec = sectionsSpec "palette" $
 
            : [ optSection' lbl (set l <$> attrSpec) "" | (lbl, Lens l) <- paletteMap ]
 
-extensionSpec :: ValueSpecs ExtensionConfiguration
+extensionSpec :: ValueSpec ExtensionConfiguration
 extensionSpec = simpleExtensionSpec <!> fullExtensionSpec
 
 -- | Default dynamic linker flags: @RTLD_LOCAL@ and @RTLD_NOW@
@@ -486,7 +469,7 @@ defaultRtldFlags = [RTLD_LOCAL, RTLD_NOW]
 
 -- | Given only a filepath build an extension configuration that
 -- loads the extension using the 'defaultRtldFlags' and no arguments.
-simpleExtensionSpec :: ValueSpecs ExtensionConfiguration
+simpleExtensionSpec :: ValueSpec ExtensionConfiguration
 simpleExtensionSpec =
   do _extensionPath <- stringSpec
      pure ExtensionConfiguration
@@ -497,7 +480,7 @@ simpleExtensionSpec =
 -- | Full extension configuration allows the RTLD flags to be manually
 -- specified. This can be useful if the extension defines symbols that
 -- need to be visible to libraries that the extension is linked against.
-fullExtensionSpec :: ValueSpecs ExtensionConfiguration
+fullExtensionSpec :: ValueSpec ExtensionConfiguration
 fullExtensionSpec =
   sectionsSpec "extension" $
   do _extensionPath      <- reqSection' "path"       stringSpec
@@ -509,7 +492,7 @@ fullExtensionSpec =
                             "Extension-specific configuration arguments"
      pure ExtensionConfiguration {..}
 
-rtldFlagSpec :: ValueSpecs RTLDFlags
+rtldFlagSpec :: ValueSpec RTLDFlags
 rtldFlagSpec = namedSpec "rtld-flag"
              $ RTLD_LOCAL  <$ atomSpec "local"
            <!> RTLD_GLOBAL <$ atomSpec "global"
