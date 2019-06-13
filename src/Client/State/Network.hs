@@ -711,7 +711,8 @@ selectCaps cs offered = supported `intersect` Map.keys capMap
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslUsername ss)
                    , isJust (view ssSaslPassword ss) ||
-                     isJust (view ssSaslEcdsaFile ss) ]
+                     isJust (view ssSaslEcdsaFile ss) ||
+                     isJust (view ssTlsClientCert ss) ]
 
 doAuthenticate :: Text -> NetworkState -> ([RawIrcMsg], NetworkState)
 doAuthenticate param cs =
