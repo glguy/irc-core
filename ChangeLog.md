@@ -1,5 +1,11 @@
 # Revision history for glirc2
 
+## 2.32
+
+* Fix SASL EXTERNAL
+* Better /url matching
+* Support for config-schema improvements
+
 ## 2.31
 
 * Added TLS fingerprint pinning with `tls-cert-fingerprint` and `tls-pubkey-fingerprint`
