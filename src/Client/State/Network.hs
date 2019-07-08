@@ -304,10 +304,10 @@ applyMessage' msgWhen msg cs =
     Ping args -> ([ircPong args], cs)
     Pong _    -> noReply $ doPong msgWhen cs
     Join user chan acct ->
-           noReply
-         $ recordUser user acct
+         ( [ircMode chan []]
+         , recordUser user acct
          $ overChannel chan (joinChannel (userNick user))
-         $ createOnJoin user chan cs
+         $ createOnJoin user chan cs )
 
     Account user acct ->
            noReply
