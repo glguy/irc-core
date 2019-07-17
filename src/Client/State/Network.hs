@@ -47,12 +47,6 @@ module Client.State.Network
   , csMessageHooks
   , csAuthenticationState
 
-  -- * User information
-  , UserAndHost(..)
-  , uhUser
-  , uhHost
-  , uhAccount
-
   -- * Cross-message state
   , Transaction(..)
 
@@ -83,6 +77,7 @@ import qualified Client.Authentication.Ecdsa as Ecdsa
 import           Client.Configuration.ServerSettings
 import           Client.Network.Async
 import           Client.State.Channel
+import           Client.UserHost
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -146,14 +141,6 @@ data AuthenticateState
   | AS_ExternalStarted    -- ^ EXTERNAL mode initiated
   deriving Show
 
--- | Pair of username and hostname. Empty strings represent missing information.
-data UserAndHost = UserAndHost
-  { _uhUser    :: {-# UNPACK #-}!Text -- ^ username
-  , _uhHost    :: {-# UNPACK #-}!Text -- ^ hostname
-  , _uhAccount :: {-# UNPACK #-}!Text -- ^ services account
-  }
-  deriving Show
-
 -- | Status of the ping timer
 data PingStatus
   = PingSent !UTCTime -- ^ ping sent at given time, waiting for pong
@@ -178,7 +165,6 @@ data Transaction
   deriving Show
 
 makeLenses ''NetworkState
-makeLenses ''UserAndHost
 makePrisms ''Transaction
 makePrisms ''PingStatus
 makePrisms ''TimedAction
@@ -312,6 +298,12 @@ applyMessage' msgWhen msg cs =
        reply
          | userNick user == view csNick cs = [ircMode chan []]
          | otherwise = []
+
+      where
+        reply
+          | userNick user == view csNick cs =
+              [ircMode chan [], ircWho [idText chan, "%tuhna,616"]]
+          | otherwise = []
 
     Account user acct ->
            noReply

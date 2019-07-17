@@ -93,6 +93,7 @@ import           Client.State.Channel
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Client.UserHost
 import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens

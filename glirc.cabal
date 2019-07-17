@@ -106,6 +106,7 @@ library
                        Client.State.Focus
                        Client.State.Network
                        Client.State.Window
+                       Client.UserHost
                        Client.View
                        Client.View.Cert
                        Client.View.ChannelInfo

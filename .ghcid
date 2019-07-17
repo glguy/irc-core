@@ -1,1 +1,1 @@
-"--command=cabal v2-repl"
+"--command=cabal v2-repl --repl-options=-Wall"

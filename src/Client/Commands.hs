@@ -42,6 +42,7 @@ import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Client.UserHost
 import           Control.Applicative
 import           Control.Concurrent.Async (cancel)
 import           Control.Exception (displayException, try)

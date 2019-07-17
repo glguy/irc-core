@@ -51,6 +51,7 @@ module Client.Configuration.ServerSettings
   , ssSts
   , ssTlsPubkeyFingerprint
   , ssTlsCertFingerprint
+  , ssShowAccounts
 
   -- * Load function
   , loadDefaultServerSettings
@@ -113,6 +114,7 @@ data ServerSettings = ServerSettings
   , _ssSts              :: !Bool -- ^ Honor STS policies when true
   , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint) -- ^ optional acceptable public key fingerprint
   , _ssTlsCertFingerprint   :: !(Maybe Fingerprint) -- ^ optional acceptable certificate fingerprint
+  , _ssShowAccounts     :: !Bool -- ^ Render account names
   }
   deriving Show
 
@@ -172,6 +174,7 @@ loadDefaultServerSettings =
        , _ssSts              = True
        , _ssTlsPubkeyFingerprint = Nothing
        , _ssTlsCertFingerprint   = Nothing
+       , _ssShowAccounts     = False
        }
 
 serverSpec :: ValueSpec (ServerSettings -> ServerSettings)
@@ -285,6 +288,9 @@ serverSpec = sectionsSpec "server-settings" $
 
       , opt "tls-pubkey-fingerprint" ssTlsPubkeyFingerprint fingerprintSpec
         "Check SHA1, SHA256, or SHA512 public key fingerprint"
+
+      , req "show-accounts" ssShowAccounts yesOrNoSpec
+        "Render account names alongside chat messages"
       ]
 
 -- | Match fingerprints in plain hex or colon-delimited bytes.

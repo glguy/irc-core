@@ -325,13 +325,20 @@ recordChannelMessage network channel msg st
       , rendNicks       = HashSet.fromList (channelUserList network channel' st)
       , rendMyNicks     = highlights
       , rendPalette     = clientPalette st
+      , rendAccounts    = accounts
       }
 
     -- on failure returns mempty/""
-    possibleStatusModes     = view (clientConnection network . csStatusMsg) st
+    cs = st ^?! clientConnection network
+    possibleStatusModes     = view csStatusMsg cs
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
     importance              = msgImportance msg st
     highlights              = clientHighlightsNetwork network st
+
+    accounts =
+      if view (csSettings . ssShowAccounts) cs
+      then view csUsers cs
+      else HashMap.empty
 
 
 recordLogLine ::
