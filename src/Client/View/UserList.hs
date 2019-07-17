@@ -19,6 +19,7 @@ import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
 import           Client.State.Network
+import           Client.UserHost
 import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
