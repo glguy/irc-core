@@ -13,7 +13,7 @@ $ cd /path/to/lua-extension
 $ meson build
 $ cd build
 $ ninja
-$ cp glirc-lua.bundle
+$ cp glirc-lua.bundle ~/.config/glirc/glirc-lua.bundle
 $ cd ..
 $ cp -r plugin-system ~/.config/glirc/lua
 ```
