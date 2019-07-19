@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.3 -- 2019-07
+
+* Changed the hostname resolution exception constructor to be more useful
+
 ## 0.2.3 -- 2019-05
 
 * Added functions to get TLS peer certificate information

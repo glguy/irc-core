@@ -62,6 +62,7 @@ module Hookup
 import           Control.Concurrent
 import           Control.Exception
 import           Control.Monad
+import           System.IO.Error (isDoesNotExistError, ioeGetErrorString)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
@@ -128,7 +129,7 @@ data TlsParams = TlsParams
 -- | Type for errors that can be thrown by this package.
 data ConnectionFailure
   -- | Failure during 'getAddrInfo' resolving remote host
-  = HostnameResolutionFailure IOError
+  = HostnameResolutionFailure HostName String
   -- | Failure during 'connect' to remote host
   | ConnectionFailure [IOError]
   -- | Failure during 'recvLine'
@@ -152,8 +153,8 @@ instance Exception ConnectionFailure where
   displayException (ConnectionFailure xs) =
     "connection attempt failed due to: " ++
       intercalate ", " (map displayException xs)
-  displayException (HostnameResolutionFailure x) =
-    "hostname resolution failed: " ++ displayException x
+  displayException (HostnameResolutionFailure h s) =
+    "hostname resolution failed (" ++ h ++ "): "  ++ s
   displayException SocksAuthenticationError =
     "SOCKS authentication method rejected"
   displayException SocksProtocolError =
@@ -262,7 +263,10 @@ openSocket' family h p =
      res <- try (Socket.getAddrInfo (Just hints) (Just h) (Just (show p)))
      case res of
        Right ais -> attemptConnections [] ais
-       Left  ioe -> throwIO (HostnameResolutionFailure ioe)
+       Left  ioe
+         | isDoesNotExistError ioe ->
+             throwIO (HostnameResolutionFailure h (ioeGetErrorString ioe))
+         | otherwise -> throwIO ioe -- unexpected
 
 
 -- | Try establishing a connection to the services indicated by
