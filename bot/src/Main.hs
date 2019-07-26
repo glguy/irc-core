@@ -97,9 +97,7 @@ sendHello config h =
   do let botNick = Text.pack (configNick config)
          botUser = botNick
          botReal = botNick
-         mode_w  = False
-         mode_i  = True
-     sendMsg config h (ircUser botUser mode_w mode_i botReal)
+     sendMsg config h (ircUser botUser botReal)
      sendMsg config h (ircNick botNick)
 
 eventLoop :: Config -> Connection -> IO ()
