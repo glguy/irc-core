@@ -53,6 +53,7 @@ rules chan msg =
     , rule (partMsg chan) partRe msg
     , rule quitMsg quitRe msg
     , rule nickMsg nickRe msg
+    , rule (kickMsg chan) kickRe msg
     ]
 
 -- | Match the message against the regular expression and use the given
@@ -68,13 +69,14 @@ rule mk re s =
     [_:xs] -> matchRule xs mk
     _      -> Nothing
 
-chatRe, actionRe, joinRe, quitRe, nickRe, partRe :: Regex
+chatRe, actionRe, joinRe, quitRe, nickRe, partRe, kickRe :: Regex
 Right chatRe   = compRe [str|^<([^>]+)> (.*)$|]
 Right actionRe = compRe [str|^\* ([^ ]+) (.*)$|]
 Right joinRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) \(([^@]+)@([^)]+)\) has joined the channel$|]
 Right quitRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has signed off \((.*)\)$|]
 Right nickRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) changed nick to ([^ ]+)$|]
 Right partRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has left the channel( \((.*)\))?$|]
+Right kickRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has been kicked by ([^ ]+) \((.*)\)$|]
 
 -- | Compile a regular expression for using in message matching.
 compRe ::
@@ -152,6 +154,20 @@ nickMsg srv old new =
   Nick
     (userInfo (old <> "@" <> srv))
     (mkId (new <> "@" <> srv))
+
+kickMsg ::
+  Identifier {- ^ channel     -} ->
+  Text       {- ^ server      -} ->
+  Text       {- ^ kickee nick -} ->
+  Text       {- ^ kicker nick -} ->
+  Text       {- ^ reason      -} ->
+  IrcMsg
+kickMsg chan srv kickee kicker reason =
+  Kick
+    (userInfo (kicker <> "@" <> srv))
+    chan
+    (mkId (kickee <> "@" <> srv))
+    reason
 
 -- | Construct dummy user info when we don't know the user or host part.
 userInfo ::
