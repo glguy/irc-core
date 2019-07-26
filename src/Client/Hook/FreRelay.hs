@@ -29,6 +29,8 @@ import           Irc.Identifier (mkId, Identifier)
 import           Irc.UserInfo (UserInfo(..))
 import           StrQuote (str)
 
+-- | Hook for mapping frerelay messages in #dronebl on freenode
+-- to appear like native messages.
 freRelayHook :: MessageHook
 freRelayHook = MessageHook "frerelay" False remap
 
@@ -54,6 +56,7 @@ rules chan msg =
     , rule quitMsg quitRe msg
     , rule nickMsg nickRe msg
     , rule (kickMsg chan) kickRe msg
+    , rule (modeMsg chan) modeRe msg
     ]
 
 -- | Match the message against the regular expression and use the given
@@ -69,7 +72,7 @@ rule mk re s =
     [_:xs] -> matchRule xs mk
     _      -> Nothing
 
-chatRe, actionRe, joinRe, quitRe, nickRe, partRe, kickRe :: Regex
+chatRe, actionRe, joinRe, quitRe, nickRe, partRe, kickRe, modeRe :: Regex
 Right chatRe   = compRe [str|^<([^>]+)> (.*)$|]
 Right actionRe = compRe [str|^\* ([^ ]+) (.*)$|]
 Right joinRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) \(([^@]+)@([^)]+)\) has joined the channel$|]
@@ -77,6 +80,7 @@ Right quitRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has signed off \((.*)\)
 Right nickRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) changed nick to ([^ ]+)$|]
 Right partRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has left the channel( \((.*)\))?$|]
 Right kickRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) has been kicked by ([^ ]+) \((.*)\)$|]
+Right modeRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) sets mode (.*)$|]
 
 -- | Compile a regular expression for using in message matching.
 compRe ::
@@ -169,6 +173,18 @@ kickMsg chan srv kickee kicker reason =
     (mkId (kickee <> "@" <> srv))
     reason
 
+modeMsg ::
+  Identifier {- ^ channel     -} ->
+  Text       {- ^ server      -} ->
+  Text       {- ^ nickname    -} ->
+  Text       {- ^ modes       -} ->
+  IrcMsg
+modeMsg chan srv nick modes =
+  Mode
+    (userInfo (nick <> "@" <> srv))
+    chan
+    (Text.words modes)
+
 -- | Construct dummy user info when we don't know the user or host part.
 userInfo ::
   Text {- ^ nickname -} ->
@@ -177,14 +193,11 @@ userInfo nick = UserInfo (mkId nick) "*" "*"
 
 ------------------------------------------------------------------------
 
+-- | The class allows n-ary functions of the form
+-- `Text -> Text -> ... -> IrcMsg` to be used to exhaustively consume the
+-- matched elements of a regular expression.
 class Rule a where
   matchRule :: [Text] -> a -> Maybe IrcMsg
-
-class RuleArg a where
-  matchArg :: Text -> Maybe a
-
-instance RuleArg Text where
-  matchArg = Just
 
 instance (RuleArg a, Rule b) => Rule (a -> b) where
   matchRule tts f =
@@ -196,3 +209,6 @@ instance Rule IrcMsg where
   matchRule args ircMsg
     | null args = Just ircMsg
     | otherwise = Nothing
+
+class    RuleArg a    where matchArg :: Text -> Maybe a
+instance RuleArg Text where matchArg = Just
