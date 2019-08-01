@@ -16,10 +16,13 @@ extern "C" {
 
 using namespace std;
 
+#define STR(s) #s
+#define XSTR(s) STR(s)
+
 #define NAME "OTR"
 #define PLUGIN_USER "* OTR *"
 #define MAJOR 1
-#define MINOR 0
+#define MINOR 1
 
 // IRC formatting escape sequences
 #define PLAIN    "\17"
@@ -741,7 +744,7 @@ void cmd_status (OpData *opdata, const string &params)
 
   auto context = opdata->get_current_context();
   if (!context) {
-    const char *msg = "No OTR context for current window";
+    const char * const msg = "No OTR context for current window";
     glirc_print(opdata->G, ERROR_MESSAGE, msg, strlen(msg));
     return;
   }
@@ -778,6 +781,19 @@ void cmd_status (OpData *opdata, const string &params)
   print_status(opdata->G, context, "Connection state [%s]", statuses[context->msgstate]);
 }
 
+/*
+ * Print status information for the current context to the chat window
+ */
+void cmd_version (OpData *opdata, const string &params)
+{
+  (void)params;
+
+  ostringstream out;
+  out << "Extension [" BOLD(XSTR(MAJOR) "." XSTR(MINOR)) "] libotr [\002" << otrl_version() << "\002]";
+  const auto str = out.str();
+  glirc_print(opdata->G, NORMAL_MESSAGE, str.c_str(), str.length());
+}
+
 // Command metadata
 struct cmd_impl {
   const char *name; // Name of command
@@ -795,6 +811,7 @@ struct cmd_impl cmd_impls[] = {
   { "end"    , cmd_end    , "Close the current window's OTR context"                },
   { "trust"  , cmd_trust  , "Trust the current remote user's fingerprint"           },
   { "untrust", cmd_untrust, "Revoke trust in the current remote user's fingerprint" },
+  { "version", cmd_version, "Print extension version information"                   },
   { "help"   , cmd_help   , "Show available commands"                               },
 };
 
@@ -805,7 +822,7 @@ void cmd_help(OpData *opdata, const string &params)
   for_each(begin(cmd_impls), end(cmd_impls), [opdata](auto &&c) {
       ostringstream out;
       out << "OTR: " << left << setw(7) << c.name << " - " << c.doc;
-      auto s = out.str();
+      const auto s = out.str();
       glirc_print(opdata->G, NORMAL_MESSAGE, s.c_str(), s.length());
   });
 }
