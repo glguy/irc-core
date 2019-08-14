@@ -369,7 +369,7 @@ fullIrcLineImage !rp body =
 
     Quit nick mbreason ->
       string quietAttr "quit "   <>
-      plainWho nick <>
+      who nick <>
       foldMap (\reason -> string quietAttr " (" <>
                           parseIrcText reason <>
                           string quietAttr ")") mbreason
