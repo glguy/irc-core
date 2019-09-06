@@ -1,4 +1,4 @@
-{-# Language TemplateHaskell, OverloadedStrings, BangPatterns #-}
+{-# Language BlockArguments, TemplateHaskell, OverloadedStrings, BangPatterns #-}
 
 {-|
 Module      : Client.State.Network
@@ -78,6 +78,8 @@ import           Client.Configuration.ServerSettings
 import           Client.Network.Async
 import           Client.State.Channel
 import           Client.UserHost
+import           Client.Hook (MessageHook)
+import           Client.Hooks (messageHooks)
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -120,7 +122,7 @@ data NetworkState = NetworkState
   , _csUsers        :: !(HashMap Identifier UserAndHost) -- ^ user and hostname for other nicks
   , _csModeCount    :: !Int -- ^ maximum mode changes per MODE command
   , _csNetwork      :: !Text -- ^ name of network connection
-  , _csMessageHooks :: ![Text] -- ^ names of message hooks to apply to this connection
+  , _csMessageHooks :: ![MessageHook] -- ^ names of message hooks to apply to this connection
   , _csAuthenticationState :: !AuthenticateState
 
   -- Timing information
@@ -130,7 +132,6 @@ data NetworkState = NetworkState
   , _csLastReceived :: !(Maybe UTCTime) -- ^ time of last message received
   , _csCertificate  :: ![Text]
   }
-  deriving Show
 
 -- | State of the authentication transaction
 data AuthenticateState
@@ -257,7 +258,7 @@ newNetworkState network settings sock ping = NetworkState
   , _csModeCount    = 3
   , _csUsers        = HashMap.empty
   , _csNetwork      = network
-  , _csMessageHooks = view ssMessageHooks settings
+  , _csMessageHooks = buildMessageHooks (view ssMessageHooks settings)
   , _csAuthenticationState = AS_None
   , _csPingStatus   = ping
   , _csLatency      = Nothing
@@ -266,6 +267,10 @@ newNetworkState network settings sock ping = NetworkState
   , _csCertificate  = []
   }
 
+buildMessageHooks :: [HookConfig] -> [MessageHook]
+buildMessageHooks = mapMaybe \(HookConfig name args) ->
+  do hookFun <- HashMap.lookup name messageHooks
+     hookFun args
 
 -- | Used for updates to a 'NetworkState' that require no reply.
 --

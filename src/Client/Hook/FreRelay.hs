@@ -31,15 +31,16 @@ import           StrQuote (str)
 
 -- | Hook for mapping frerelay messages in #dronebl on freenode
 -- to appear like native messages.
-freRelayHook :: MessageHook
-freRelayHook = MessageHook "frerelay" False remap
+freRelayHook :: [Text] -> Maybe MessageHook
+freRelayHook args = Just (MessageHook "frerelay" False (remap (map mkId args)))
 
 -- | Remap messages from frerelay on #dronebl that match one of the
 -- rewrite rules.
-remap :: IrcMsg -> MessageResult
-remap (Privmsg (UserInfo "frerelay" _ _) chan@"#dronebl" msg)
-  | Just sub <- rules chan msg = RemapMessage sub
-remap _ = PassMessage
+remap :: [Identifier] -> IrcMsg -> MessageResult
+remap nicks (Privmsg (UserInfo nick _ _) chan@"#dronebl" msg)
+  | nick `elem` nicks
+  , Just sub <- rules chan msg = RemapMessage sub
+remap _ _ = PassMessage
 
 -- | Generate a replacement message for a chat message from frerelay
 -- when the message matches one of the replacement rules.
