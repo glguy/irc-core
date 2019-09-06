@@ -218,7 +218,7 @@ ircLinePrefix !rp body =
           ui = case rendAccounts rp ^? ix (userNick n) . uhAccount of
                  Just acct
                    | Text.null acct -> "~" <> baseUI
-                   | mkId acct /= userNick n -> baseUI <> "(" <> text' defAttr acct <> ")"
+                   | mkId acct /= userNick n -> baseUI <> "(" <> text' defAttr (cleanText acct) <> ")"
                  _ -> baseUI
   in
   case body of
@@ -332,8 +332,19 @@ fullIrcLineImage !rp body =
       nicks   = rendNicks rp
       rm      = DetailedRender
 
-      who n = string (view palSigil pal) sigils <>
-              coloredUserInfo pal rm myNicks n
+      plainWho = coloredUserInfo pal rm myNicks
+
+      who n =
+        -- sigils
+        string (view palSigil pal) sigils <>
+
+        -- nick!user@host
+        plainWho n <>
+
+        case rendAccounts rp ^? ix (userNick n) . uhAccount of
+          Just acct
+            | not (Text.null acct) -> text' quietAttr ("(" <> cleanText acct <> ")")
+          _ -> ""
   in
   case body of
     Nick old new ->
@@ -344,21 +355,21 @@ fullIrcLineImage !rp body =
 
     Join nick _chan acct ->
       string quietAttr "join " <>
-      coloredUserInfo pal rm myNicks nick <>
+      plainWho nick <>
       if Text.null acct
         then mempty
-        else " " <> text' quietAttr (cleanText acct)
+        else text' quietAttr ("(" <> cleanText acct <> ")")
 
     Part nick _chan mbreason ->
       string quietAttr "part " <>
-      coloredUserInfo pal rm myNicks nick <>
+      who nick <>
       foldMap (\reason -> string quietAttr " (" <>
                           parseIrcText reason <>
                           string quietAttr ")") mbreason
 
     Quit nick mbreason ->
       string quietAttr "quit "   <>
-      coloredUserInfo pal rm myNicks nick   <>
+      plainWho nick <>
       foldMap (\reason -> string quietAttr " (" <>
                           parseIrcText reason <>
                           string quietAttr ")") mbreason
@@ -373,7 +384,7 @@ fullIrcLineImage !rp body =
 
     Topic src _dst txt ->
       string quietAttr "tpic " <>
-      coloredUserInfo pal rm myNicks src <>
+      who src <>
       " changed the topic: " <>
       parseIrcText txt
 
