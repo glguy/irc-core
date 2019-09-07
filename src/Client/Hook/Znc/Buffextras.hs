@@ -29,8 +29,12 @@ import           Irc.UserInfo
 -- | Map ZNC's buffextras messages to native client messages.
 -- Set debugging to pass through buffextras messages that
 -- the hook doesn't understand.
-buffextrasHook :: Bool {- ^ enable debugging -} -> MessageHook
-buffextrasHook = MessageHook "buffextras" False . remap
+buffextrasHook :: [Text] {- ^ arguments -} -> Maybe MessageHook
+buffextrasHook args =
+  case args of
+    []        -> Just (MessageHook "buffextras" False (remap False))
+    ["debug"] -> Just (MessageHook "buffextras" False (remap True))
+    _         -> Nothing
 
 remap ::
   Bool {- ^ enable debugging -} ->

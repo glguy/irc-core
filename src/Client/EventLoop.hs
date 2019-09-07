@@ -25,7 +25,6 @@ import           Client.EventLoop.Actions
 import           Client.EventLoop.Errors (exceptionToLines)
 import           Client.EventLoop.Network (clientResponse)
 import           Client.Hook
-import           Client.Hooks
 import           Client.Image
 import           Client.Image.Layout (scrollAmount)
 import           Client.Log
@@ -279,9 +278,7 @@ doNetworkLine networkId time line st =
                  (stateHook, viewHook)
                       = over both applyMessageHooks
                       $ partition (view messageHookStateful)
-                      $ lookups
-                          (view csMessageHooks cs)
-                          messageHooks
+                      $ view csMessageHooks cs
 
              case stateHook (cookIrcMsg raw) of
                Nothing  -> return st1 -- Message ignored
@@ -323,12 +320,6 @@ computeEffectiveTime time tags = fromMaybe time zncTime
 parseZncTime :: String -> Maybe UTCTime
 parseZncTime = parseTimeM True defaultTimeLocale
              $ iso8601DateFormat (Just "%T%Q%Z")
-
-
--- | Returns the list of values that were stored at the given indexes, if
--- a value was stored at that index.
-lookups :: Ixed m => [Index m] -> m -> [IxValue m]
-lookups ks m = mapMaybe (\k -> preview (ix k) m) ks
 
 
 -- | Update the height and width fields of the client state

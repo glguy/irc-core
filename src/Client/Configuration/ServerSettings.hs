@@ -16,6 +16,7 @@ module Client.Configuration.ServerSettings
   (
   -- * Server settings type
     ServerSettings(..)
+  , HookConfig(..)
   , serverSpec
   , identifierSpec
 
@@ -69,7 +70,7 @@ import           Config.Schema.Spec
 import           Control.Lens
 import qualified Data.ByteString as B
 import           Data.Functor.Alt                    ((<!>))
-import           Data.List.NonEmpty (NonEmpty)
+import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.ByteString (ByteString)
 import           Data.Maybe (fromMaybe)
 import           Data.Monoid
@@ -104,7 +105,7 @@ data ServerSettings = ServerSettings
   , _ssChanservChannels :: ![Identifier] -- ^ Channels with chanserv permissions
   , _ssFloodPenalty     :: !Rational -- ^ Flood limiter penalty (seconds)
   , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
-  , _ssMessageHooks     :: ![Text] -- ^ Initial message hooks
+  , _ssMessageHooks     :: ![HookConfig] -- ^ Initial message hooks
   , _ssName             :: !(Maybe Text) -- ^ The name referencing the server in commands
   , _ssReconnectAttempts:: !Int -- ^ The number of reconnect attempts to make on error
   , _ssAutoconnect      :: !Bool -- ^ Connect to this network on server startup
@@ -116,6 +117,10 @@ data ServerSettings = ServerSettings
   , _ssTlsCertFingerprint   :: !(Maybe Fingerprint) -- ^ optional acceptable certificate fingerprint
   , _ssShowAccounts     :: !Bool -- ^ Render account names
   }
+  deriving Show
+
+-- | Hook name and configuration arguments
+data HookConfig = HookConfig Text [Text]
   deriving Show
 
 -- | Security setting for network connection
@@ -262,7 +267,7 @@ serverSpec = sectionsSpec "server-settings" $
       , req "flood-threshold" ssFloodThreshold anySpec
         "RFC 1459 rate limiting, seconds of allowed penalty accumulation (default 10)"
 
-      , req "message-hooks" ssMessageHooks anySpec
+      , req "message-hooks" ssMessageHooks (listSpec hookSpec)
         "Special message hooks to enable: \"buffextras\" available"
 
       , req "reconnect-attempts" ssReconnectAttempts anySpec
@@ -292,6 +297,11 @@ serverSpec = sectionsSpec "server-settings" $
       , req "show-accounts" ssShowAccounts yesOrNoSpec
         "Render account names alongside chat messages"
       ]
+
+hookSpec :: ValueSpec HookConfig
+hookSpec =
+  flip HookConfig [] <$> anySpec <!>
+  (\(x:|xs) -> HookConfig x xs) <$> nonemptySpec anySpec
 
 -- | Match fingerprints in plain hex or colon-delimited bytes.
 -- SHA-1 is 20 bytes. SHA-2-256 is 32 bytes. SHA-2-512 is 64 bytes.
