@@ -53,6 +53,7 @@ module Client.Configuration.ServerSettings
   , ssTlsPubkeyFingerprint
   , ssTlsCertFingerprint
   , ssShowAccounts
+  , ssCapabilities
 
   -- * Load function
   , loadDefaultServerSettings
@@ -116,6 +117,7 @@ data ServerSettings = ServerSettings
   , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint) -- ^ optional acceptable public key fingerprint
   , _ssTlsCertFingerprint   :: !(Maybe Fingerprint) -- ^ optional acceptable certificate fingerprint
   , _ssShowAccounts     :: !Bool -- ^ Render account names
+  , _ssCapabilities     :: ![Text] -- ^ Extra capabilities to unconditionally request
   }
   deriving Show
 
@@ -180,6 +182,7 @@ loadDefaultServerSettings =
        , _ssTlsPubkeyFingerprint = Nothing
        , _ssTlsCertFingerprint   = Nothing
        , _ssShowAccounts     = False
+       , _ssCapabilities     = []
        }
 
 serverSpec :: ValueSpec (ServerSettings -> ServerSettings)
@@ -296,6 +299,9 @@ serverSpec = sectionsSpec "server-settings" $
 
       , req "show-accounts" ssShowAccounts yesOrNoSpec
         "Render account names alongside chat messages"
+
+      , req "capabilities" ssCapabilities anySpec
+        "Extra capabilities to unconditionally request from the server"
       ]
 
 hookSpec :: ValueSpec HookConfig

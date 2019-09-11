@@ -689,7 +689,9 @@ selectCaps ::
   NetworkState         {- ^ network state  -} ->
   [(Text, Maybe Text)] {- ^ server caps    -} ->
   [Text]               {- ^ caps to enable -}
-selectCaps cs offered = supported `intersect` Map.keys capMap
+selectCaps cs offered = (supported `intersect` Map.keys capMap)
+                        `union`
+                        view (csSettings . ssCapabilities) cs
   where
     capMap = Map.fromList offered
 
