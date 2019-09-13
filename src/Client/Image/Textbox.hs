@@ -107,7 +107,7 @@ renderContent st myNick nicks macros pal c = (leftLen, wholeImg)
   leftCur = take (view Edit.pos cur) (view Edit.text cur)
 
   -- ["one","two"] "three" --> "two one three"
-  leftLen = length leftCur + length leftImgs + sum (map imageWidth leftImgs)
+  leftLen = Vty.wcswidth leftCur + length leftImgs + sum (map imageWidth leftImgs)
 
   rndr = renderLine st pal myNick nicks macros
 
