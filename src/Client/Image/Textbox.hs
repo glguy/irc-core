@@ -108,7 +108,8 @@ renderContent st myNick nicks macros pal c = (leftLen, wholeImg)
 
   -- ["one","two"] "three" --> "two one three"
   leftLen = length leftImgs -- separators
-          + sum (map imageWidth (rndr True leftCur : leftImgs))
+          + sum (map imageWidth leftImgs)
+          + imageWidth (parseIrcText' True (Text.pack leftCur))
 
   rndr = renderLine st pal myNick nicks macros
 
