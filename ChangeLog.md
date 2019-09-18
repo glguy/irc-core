@@ -2,6 +2,14 @@
 
 ## 2.32
 
+* Fixed cursor position with wide characters in input box
+* Added ability to force request capabilities.
+* Generalized `FreRelay` hook
+* Add `show-accounts` setting to make account status visible
+* Query channel modes on join
+
+## 2.32
+
 * Fix SASL EXTERNAL
 * Better /url matching
 * Support for config-schema improvements
