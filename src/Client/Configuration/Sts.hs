@@ -20,6 +20,7 @@ module Client.Configuration.Sts
   ) where
 
 import           Config (Value(..), Section(..), parse, pretty)
+import           Config.Number (integerToNumber)
 import           Config.Schema.Spec
 import           Config.Schema.Load (loadValue)
 import           Control.Exception (try)
@@ -64,7 +65,7 @@ encodePolicy p =
         [ Section () "host"
             (Text () k),
           Section () "port"
-            (Number () 10 (fromIntegral (_stsPort v))),
+            (Number () (integerToNumber (fromIntegral (_stsPort v)))),
           Section () "until"
             (Text ()
                (Text.pack
