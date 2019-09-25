@@ -64,7 +64,7 @@ import qualified Data.ByteString as B
 import           Data.ByteString.Builder (word32BE, toLazyByteString)
 import           Data.ByteString.Lazy (toStrict)
 import           Data.IntMap (Key, IntMap)
-import           Data.IntMap as I hiding (size, empty)
+import qualified Data.IntMap as I hiding (size, empty)
 import           Data.List (find)
 import           Data.Text (Text)
 import qualified Data.Text as Text

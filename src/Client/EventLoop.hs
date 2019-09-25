@@ -18,7 +18,6 @@ module Client.EventLoop
 
 import           Client.CApi (popTimer)
 import           Client.Commands
-import           Client.Network.Async (recv)
 import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDownloadDir)
 import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Actions

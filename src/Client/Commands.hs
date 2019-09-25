@@ -50,7 +50,7 @@ import           Control.Lens
 import           Control.Monad
 import           Data.Foldable
 import           Data.HashSet (HashSet)
-import           Data.List (nub, (\\), elem)
+import           Data.List (nub, (\\))
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.List.Split
 import qualified Data.HashMap.Strict as HashMap
@@ -1195,6 +1195,12 @@ commandsList =
     $ NetworkCommand cmdMasktrace simpleNetworkTab
 
   , Command
+      (pure "trace")
+      (optionalArg (liftA2 (,) (simpleToken "[server | nick]") (optionalArg (simpleToken "[server]"))))
+      "Outputs a list users on a server.\n"
+    $ NetworkCommand cmdTrace simpleNetworkTab
+
+  , Command
       (pure "map")
       (pure ())
       "Display network map.\n"
@@ -1820,6 +1826,16 @@ cmdTestmask cs st (mask, gecos) =
 cmdMasktrace :: NetworkCommand (String, Maybe String)
 cmdMasktrace cs st (mask, gecos) =
   do sendMsg cs (ircMasktrace (Text.pack mask) (maybe "*" Text.pack gecos))
+     commandSuccess st
+
+cmdTrace :: NetworkCommand (Maybe (String, Maybe String))
+cmdTrace cs st args =
+  do let argsList =
+           case args of
+            Nothing           -> []
+            Just (x, Nothing) -> [x]
+            Just (x, Just y)  -> [x, y]
+     sendMsg cs (rawIrcMsg "TRACE" (map Text.pack argsList))
      commandSuccess st
 
 cmdAway :: NetworkCommand String

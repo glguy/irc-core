@@ -24,7 +24,6 @@ import           Config.Number (integerToNumber)
 import           Config.Schema.Spec
 import           Config.Schema.Load (loadValue)
 import           Control.Exception (try)
-import           System.IO.Error (IOError)
 import           Control.Lens (makeLenses)
 import           Data.Maybe (fromMaybe)
 import           Data.Time (UTCTime, defaultTimeLocale, formatTime, parseTimeM, iso8601DateFormat)
@@ -32,7 +31,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import           System.Directory (getXdgDirectory, XdgDirectory(XdgConfig), createDirectoryIfMissing)
-import           System.FilePath (FilePath, (</>), takeDirectory)
+import           System.FilePath ((</>), takeDirectory)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 
@@ -106,7 +105,8 @@ savePolicyFile sts =
 dateTimeSpec :: ValueSpec UTCTime
 dateTimeSpec
   = customSpec "date-time" stringSpec
-  $ parseTimeM False defaultTimeLocale dateTimeFormat
+  $ maybe (Left "unable to parse") Right
+  . parseTimeM False defaultTimeLocale dateTimeFormat
 
 dateTimeFormat :: String
 dateTimeFormat = iso8601DateFormat (Just "%H:%M:%S")

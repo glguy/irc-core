@@ -26,7 +26,6 @@ import           Control.Lens
 import           Data.Foldable (toList)
 import           Data.List (delete, intercalate)
 import           Data.List.NonEmpty (NonEmpty((:|)))
-import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
