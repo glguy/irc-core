@@ -20,8 +20,8 @@ import qualified Data.Text as Text
 import           Data.Text (Text)
 import           Data.Foldable (asum)
 
-import           Text.Regex.TDFA (match, defaultCompOpt, defaultExecOpt)
-import           Text.Regex.TDFA.Text (Regex, compile)
+import           Text.Regex.TDFA (match, defaultCompOpt, defaultExecOpt, Regex)
+import           Text.Regex.TDFA.String (compile)
 
 import           Client.Hook (MessageHook(..), MessageResult(..))
 import           Irc.Message
@@ -69,7 +69,7 @@ rule ::
   Text  {- ^ message            -} ->
   Maybe IrcMsg
 rule mk re s =
-  case match re s of
+  case map (map Text.pack) (match re (Text.unpack s)) of
     [_:xs] -> matchRule xs mk
     _      -> Nothing
 
@@ -87,7 +87,7 @@ Right modeRe   = compRe [str|^\*\*\* \[([^]]+)\] ([^ ]+) sets mode (.*)$|]
 compRe ::
   Text                {- ^ regular expression           -} ->
   Either String Regex {- ^ error or compiled expression -}
-compRe = compile defaultCompOpt defaultExecOpt
+compRe = compile defaultCompOpt defaultExecOpt . Text.unpack
 
 ------------------------------------------------------------------------
 

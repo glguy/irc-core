@@ -24,7 +24,6 @@ import           Control.Exception (displayException, try)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           System.IO.Error (IOError)
 import           System.Process (readProcess)
 import           Irc.Commands (AuthenticatePayload(..))
 
