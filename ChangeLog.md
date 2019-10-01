@@ -1,6 +1,11 @@
 # Revision history for glirc2
 
-## 2.32
+## 2.33.1
+
+* Support for GHC 8.8.1
+* Add `/trace` command
+
+## 2.33
 
 * Fixed cursor position with wide characters in input box
 * Added ability to force request capabilities.
