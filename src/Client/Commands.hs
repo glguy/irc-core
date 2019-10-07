@@ -1184,13 +1184,13 @@ commandsList =
 
   , Command
       (pure "testmask")
-      (liftA2 (,) (simpleToken "[nick!]user@host") (optionalArg (simpleToken "[gecos]")))
+      (liftA2 (,) (simpleToken "[nick!]user@host") (remainingArg "[gecos]"))
       "Test how many local and global clients match a mask.\n"
     $ NetworkCommand cmdTestmask simpleNetworkTab
 
   , Command
       (pure "masktrace")
-      (liftA2 (,) (simpleToken "[nick!]user@host") (optionalArg (simpleToken "[gecos]")))
+      (liftA2 (,) (simpleToken "[nick!]user@host") (remainingArg "[gecos]"))
       "Outputs a list of local users matching the given masks.\n"
     $ NetworkCommand cmdMasktrace simpleNetworkTab
 
@@ -1818,14 +1818,14 @@ cmdTestline cs st mask =
   do sendMsg cs (ircTestline (Text.pack mask))
      commandSuccess st
 
-cmdTestmask :: NetworkCommand (String, Maybe String)
+cmdTestmask :: NetworkCommand (String, String)
 cmdTestmask cs st (mask, gecos) =
-  do sendMsg cs (ircTestmask (Text.pack mask) (maybe "" Text.pack gecos))
+  do sendMsg cs (ircTestmask (Text.pack mask) (Text.pack gecos))
      commandSuccess st
 
-cmdMasktrace :: NetworkCommand (String, Maybe String)
+cmdMasktrace :: NetworkCommand (String, String)
 cmdMasktrace cs st (mask, gecos) =
-  do sendMsg cs (ircMasktrace (Text.pack mask) (maybe "*" Text.pack gecos))
+  do sendMsg cs (ircMasktrace (Text.pack mask) (Text.pack gecos))
      commandSuccess st
 
 cmdTrace :: NetworkCommand (Maybe (String, Maybe String))
