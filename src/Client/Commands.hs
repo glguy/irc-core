@@ -34,6 +34,7 @@ import           Client.Commands.WordCompletion
 import           Client.Configuration
 import           Client.Mask
 import           Client.Message
+import           Client.Image.PackedImage (imageText)
 import           Client.State
 import           Client.State.Channel
 import           Client.State.DCC
@@ -45,7 +46,7 @@ import           Client.State.Window
 import           Client.UserHost
 import           Control.Applicative
 import           Control.Concurrent.Async (cancel)
-import           Control.Exception (displayException, try)
+import           Control.Exception (displayException, try, SomeException)
 import           Control.Lens
 import           Control.Monad
 import           Data.Foldable
@@ -58,6 +59,8 @@ import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
+import qualified Data.Text.Lazy.IO as LText
 import           Data.Time
 import           Irc.Commands
 import           Irc.Identifier
@@ -422,6 +425,12 @@ commandsList =
       (pure ())
       "Show the TLS certificate for the current connection.\n"
     $ NetworkCommand cmdCert noNetworkTab
+
+  , Command
+      (pure "dump")
+      (simpleToken "filename")
+      "Dump current buffer to file.\n"
+    $ ClientCommand cmdDump simpleClientTab
 
   , Command
       (pure "help")
@@ -1557,6 +1566,25 @@ cmdHelp :: ClientCommand (Maybe String)
 cmdHelp st mb = commandSuccess (changeSubfocus focus st)
   where
     focus = FocusHelp (fmap Text.pack mb)
+
+-- | Implementation of @/dump@. Writes detailed contents of focused buffer
+-- to the given filename.
+cmdDump :: ClientCommand String
+cmdDump st fp =
+  do res <- try (LText.writeFile fp (LText.unlines outputLines))
+     case res of
+       Left e  -> commandFailureMsg (Text.pack (displayException (e :: SomeException))) st
+       Right{} -> commandSuccess st
+
+  where
+    focus = view clientFocus st
+    msgs  = preview (clientWindows . ix focus . winMessages) st
+    outputLines =
+      case msgs of
+        Nothing  -> []
+        Just wls -> convert [] wls
+    convert acc Nil = acc
+    convert acc (wl :- wls) = convert (views wlFullImage imageText wl : acc) wls
 
 -- | Tab completion for @/splits[+]@. When given no arguments this
 -- populates the current list of splits, otherwise it tab completes
