@@ -23,6 +23,7 @@ module Client.State.Window
   , winHideMeta
 
   -- * Window lines
+  , WindowLines(..)
   , WindowLine(..)
   , wlSummary
   , wlText
