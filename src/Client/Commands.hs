@@ -219,7 +219,7 @@ tabCompletion ::
   ClientState      {- ^ client state   -} ->
   IO CommandResult {- ^ command result -}
 tabCompletion isReversed st =
-  case snd $ clientLine st of
+  case dropWhile (' ' ==) $ snd $ clientLine st of
     '/':command -> executeCommand (Just isReversed) command st
     _           -> nickTabCompletion isReversed st
 
@@ -2326,9 +2326,9 @@ commandNameCompletion isReversed st =
   do guard (cursorPos == n)
      clientTextBox (wordComplete plainWordCompleteMode isReversed [] possibilities) st
   where
-    n = length leadingPart
+    n = length white + length leadingPart
     (cursorPos, line) = clientLine st
-    leadingPart = takeWhile (/=' ') line
+    (white, leadingPart) = takeWhile (' ' /=) <$> span (' '==) line
     possibilities = Text.cons '/' <$> commandNames
     commandNames = keys commands
                 ++ keys (view (clientConfig . configMacros) st)
