@@ -162,6 +162,7 @@ patterns = map toPattern
     (2, "o", [str|^[^ ]+( \([^ ]+\))? reopened #|]),
     (3, "o", [str|^[^ ]+( \([^ ]+\))? reset the password for the account|]),
     (3, "o", [str|^[^ ]+( \([^ ]+\))? enabled automatic klines on the channel|]),
+    (3, "o", [str|^[^ ]+( \([^ ]+\))? disabled automatic klines on the channel|]),
     (3, "o", [str|^[^ ]+( \([^ ]+\))? forbade the nickname |]),
     (3, "o", [str|^[^ ]+( \([^ ]+\))? unforbade the nickname |]),
     (3, "o", [str|^[^ ]+( \([^ ]+\))? is removing oper class for |]),
