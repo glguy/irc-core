@@ -45,6 +45,7 @@ module Client.Configuration.ServerSettings
   , ssMessageHooks
   , ssName
   , ssReconnectAttempts
+  , ssReconnectError
   , ssAutoconnect
   , ssNickCompletion
   , ssLogDir
@@ -62,6 +63,9 @@ module Client.Configuration.ServerSettings
   , UseTls(..)
   , Fingerprint(..)
 
+  -- * Regex wrapper
+  , KnownRegex(..)
+  , getRegex
   ) where
 
 import           Client.Commands.Interpolation
@@ -82,6 +86,8 @@ import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber, Family(..))
 import           Numeric (readHex)
 import           System.Environment
+import           Text.Regex.TDFA
+import           Text.Regex.TDFA.Text (compile)
 
 -- | Static server-level settings
 data ServerSettings = ServerSettings
@@ -109,6 +115,7 @@ data ServerSettings = ServerSettings
   , _ssMessageHooks     :: ![HookConfig] -- ^ Initial message hooks
   , _ssName             :: !(Maybe Text) -- ^ The name referencing the server in commands
   , _ssReconnectAttempts:: !Int -- ^ The number of reconnect attempts to make on error
+  , _ssReconnectError   :: !(Maybe KnownRegex) -- ^ Regular expression for ERROR messages that trigger reconnect
   , _ssAutoconnect      :: !Bool -- ^ Connect to this network on server startup
   , _ssNickCompletion   :: WordCompletionMode -- ^ Nick completion mode for this server
   , _ssLogDir           :: Maybe FilePath -- ^ Directory to save logs of chat
@@ -120,6 +127,14 @@ data ServerSettings = ServerSettings
   , _ssCapabilities     :: ![Text] -- ^ Extra capabilities to unconditionally request
   }
   deriving Show
+
+-- | Regular expression matched with original source to help with debugging.
+data KnownRegex = KnownRegex Text Regex
+
+getRegex :: KnownRegex -> Regex
+getRegex (KnownRegex _ r) = r
+
+instance Show KnownRegex where show (KnownRegex x _) = show x
 
 -- | Hook name and configuration arguments
 data HookConfig = HookConfig Text [Text]
@@ -174,6 +189,7 @@ loadDefaultServerSettings =
        , _ssMessageHooks     = []
        , _ssName             = Nothing
        , _ssReconnectAttempts= 6 -- six feels great
+       , _ssReconnectError   = Nothing
        , _ssAutoconnect      = False
        , _ssNickCompletion   = defaultNickWordCompleteMode
        , _ssLogDir           = Nothing
@@ -276,6 +292,9 @@ serverSpec = sectionsSpec "server-settings" $
       , req "reconnect-attempts" ssReconnectAttempts anySpec
         "Number of reconnection attempts on lost connection"
 
+      , opt "reconnect-error" ssReconnectError regexSpec
+        "Regular expression for disconnect messages that trigger reconnect."
+
       , req "autoconnect" ssAutoconnect yesOrNoSpec
         "Set to `yes` to automatically connect at client startup"
 
@@ -365,3 +384,9 @@ nickCompletionSpec =
 
 identifierSpec :: ValueSpec Identifier
 identifierSpec = mkId <$> anySpec
+
+regexSpec :: ValueSpec KnownRegex
+regexSpec = customSpec "regex" anySpec $ \str ->
+  case compile defaultCompOpt ExecOption{captureGroups = False} str of
+    Left e  -> Left  (Text.pack e)
+    Right r -> Right (KnownRegex str r)

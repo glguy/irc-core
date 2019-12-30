@@ -33,6 +33,7 @@ import           Irc.Message
 import qualified Client.Authentication.Ecdsa as Ecdsa
 import qualified Data.Text as Text
 import qualified Data.Text.Read as Text
+import           Text.Regex.TDFA.Text as Regex
 
 -- | Client-level responses to specific IRC messages.
 -- This is in contrast to the connection state tracking logic in
@@ -63,6 +64,12 @@ clientResponse now irc cs st =
 
     Cap (CapNew caps)
       | Just stsVal <- join (lookup "sts" caps) -> processSts stsVal cs st
+
+    Error msg
+      | Just rx <- previews (csSettings . ssReconnectError . folded) getRegex cs
+      , Right{} <- Regex.execute rx msg
+      , let discoTime = view csLastReceived cs ->
+         addConnection 1 discoTime Nothing (view csNetwork cs) st
 
     _ -> return st
 

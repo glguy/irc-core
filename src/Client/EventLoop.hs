@@ -193,13 +193,13 @@ doNetworkClose ::
   ClientState {- ^ client state -} ->
   IO ClientState
 doNetworkClose networkId time st =
-  do let (cs,st') = removeNetwork networkId st
+  do let (cs,st1) = removeNetwork networkId st
          msg = ClientMessage
                  { _msgTime    = time
                  , _msgNetwork = view csNetwork cs
                  , _msgBody    = NormalBody "connection closed"
                  }
-     return (recordNetworkMessage msg st')
+     return (recordNetworkMessage msg st1)
 
 
 -- | Respond to a network connection closing abnormally.
@@ -213,14 +213,14 @@ doNetworkError networkId time ex st =
   do let (cs,st1) = removeNetwork networkId st
          st2 = foldl' (\acc msg -> recordError time (view csNetwork cs) (Text.pack msg) acc) st1
              $ exceptionToLines ex
-     reconnectLogic ex cs st2
+     reconnectLogicOnFailure ex cs st2
 
-reconnectLogic ::
+reconnectLogicOnFailure ::
   SomeException {- ^ thread failure reason -} ->
   NetworkState  {- ^ failed network        -} ->
   ClientState   {- ^ client state          -} ->
   IO ClientState
-reconnectLogic ex cs st
+reconnectLogicOnFailure ex cs st
 
   | shouldReconnect =
       do (attempts, mbDisconnectTime) <- computeRetryInfo
@@ -241,7 +241,7 @@ reconnectLogic ex cs st
     shouldReconnect =
       case view csPingStatus cs of
         PingConnecting n _ | n == 0 || n > reconnectAttempts          -> False
-        _ | Just ConnectionFailure{}  <-             fromException ex -> True
+        _ | Just ConnectionFailure{}         <-      fromException ex -> True
           | Just HostnameResolutionFailure{} <-      fromException ex -> True
           | Just PingTimeout         <-              fromException ex -> True
           | Just ResourceVanished    <- ioe_type <$> fromException ex -> True
