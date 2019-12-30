@@ -2126,8 +2126,8 @@ cmdReconnect :: ClientCommand ()
 cmdReconnect st _
   | Just network <- views clientFocus focusNetwork st =
 
-      do tm <- getCurrentTime
-         st' <- addConnection 0 (Just tm) Nothing network =<< abortNetwork network st
+      do let tm = preview (clientConnection network . csLastReceived . folded) st
+         st' <- addConnection 0 tm Nothing network =<< abortNetwork network st
          commandSuccess
            $ changeFocus (NetworkFocus network) st'
 
