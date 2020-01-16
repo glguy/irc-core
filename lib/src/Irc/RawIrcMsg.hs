@@ -263,7 +263,8 @@ buildParams [x]
   | " " `Text.isInfixOf` x || ":" `Text.isPrefixOf` x || Text.null x
   = Builder.char8 ' ' <> Builder.char8 ':' <> Text.encodeUtf8Builder x
 buildParams (x:xs)
-  = Builder.char8 ' ' <> Text.encodeUtf8Builder x <> buildParams xs
+  | Text.null x = Builder.char8 ' ' <> Text.encodeUtf8Builder "*" <> buildParams xs
+  | otherwise   = Builder.char8 ' ' <> Text.encodeUtf8Builder x   <> buildParams xs
 buildParams [] = mempty
 
 -- | When the current input matches the given character parse
