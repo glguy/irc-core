@@ -24,7 +24,6 @@ module Client.Configuration.ServerSettings
   , ssNicks
   , ssUser
   , ssReal
-  , ssUserInfo
   , ssPassword
   , ssSaslUsername
   , ssSaslPassword
@@ -94,7 +93,6 @@ data ServerSettings = ServerSettings
   { _ssNicks            :: !(NonEmpty Text) -- ^ connection nicknames
   , _ssUser             :: !Text -- ^ connection username
   , _ssReal             :: !Text -- ^ connection realname / GECOS
-  , _ssUserInfo         :: !Text -- ^ CTCP userinfo
   , _ssPassword         :: !(Maybe Text) -- ^ server password
   , _ssSaslUsername     :: !(Maybe Text) -- ^ SASL username
   , _ssSaslPassword     :: !(Maybe Text) -- ^ SASL plain password
@@ -168,7 +166,6 @@ loadDefaultServerSettings =
        { _ssNicks         = pure username
        , _ssUser          = username
        , _ssReal          = username
-       , _ssUserInfo      = username
        , _ssPassword      = Text.pack <$> lookup "IRCPASSWORD" env
        , _ssSaslUsername  = Nothing
        , _ssSaslPassword  = Text.pack <$> lookup "SASLPASSWORD" env
@@ -240,9 +237,6 @@ serverSpec = sectionsSpec "server-settings" $
 
       , req "realname" ssReal anySpec
         "\"GECOS\" name sent to server visible in /whois"
-
-      , req "userinfo" ssUserInfo anySpec
-        "CTCP userinfo (currently unused)"
 
       , opt "sasl-username" ssSaslUsername anySpec
         "Username for SASL authentication to NickServ"
