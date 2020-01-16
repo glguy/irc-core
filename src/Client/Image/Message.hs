@@ -243,7 +243,8 @@ ircLinePrefix !rp body =
       string (withForeColor defAttr red) ":"
 
     Privmsg src _ _ -> who src <> ":"
-    Wallops src _   -> who src <> "!!"
+    Wallops src _   ->
+      string (withForeColor defAttr red) "WALL " <> who src <> ":"
 
     Ctcp src _dst "ACTION" _txt ->
       string (withForeColor defAttr blue) "* " <> who src
