@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.7.2
+
+* Replace empty, non-optional parameters with asterisk (`*`)
+
 ## 2.7.1
 
 * Add `ircAuthenticates` and `AuthenticatePayload`
