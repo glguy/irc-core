@@ -1,5 +1,14 @@
 # Revision history for glirc2
 
+## 2.34
+
+* Add `/dump` command
+* Fix command tab-completion with leading spaces
+* Preserve last message timestamp across `/reconnect`
+* Add regular expression for QUIT message that trigger reconnects
+* Removes unused `userinfo` field from configuration
+* Wallops are more noticable now
+
 ## 2.33.1
 
 * Support for GHC 8.8.1
