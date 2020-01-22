@@ -364,7 +364,8 @@ doAction vty action st =
             let upd Nothing = Just $! view clientFocus st
                 upd x       = x
             in return $! Just $! over clientActivityReturn upd out
-        | otherwise = return (Just out)
+        | otherwise = return $! Just
+                     $! set clientActivityReturn Nothing out
 
       changeEditor  f = continue (over clientTextBox f st)
       changeContent f = changeEditor
