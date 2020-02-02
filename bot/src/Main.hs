@@ -100,20 +100,19 @@ sendHello bot =
          nick = Text.pack (configNick config)
          user = nick
          real = nick
-         sasl = (,) <$> configSaslUser config <*> configSaslPass config
 
-     case sasl of
-       Nothing -> pure ()
-       Just{}  -> sendMsg bot (ircCapReq ["sasl"])
+     case (configSaslUser config, configSaslPass config) of
+       (Just u, Just p) ->
+         do sendMsg bot (ircCapReq ["sasl"])
+            authenticateLoop u p bot
+       _ -> pure ()
 
      sendMsg bot (ircUser user real)
      sendMsg bot (ircNick nick)
 
-     case sasl of
-       Nothing -> pure bot { botNick = mkId nick }
-       Just (u,p) -> authenticateLoop u p bot
+     pure bot { botNick = mkId nick }
 
-authenticateLoop :: String -> String -> Bot -> IO Bot
+authenticateLoop :: String -> String -> Bot -> IO ()
 authenticateLoop user pass bot =
   do mb <- readIrcLine (botConnection bot)
      msg <- case mb of
@@ -133,7 +132,6 @@ authenticateLoop user pass bot =
 
        Reply RPL_SASLSUCCESS _ ->
          do sendMsg bot ircCapEnd
-            pure bot
 
        Reply RPL_SASLFAIL    _ -> fail "SASL failed"
        Reply RPL_SASLTOOLONG _ -> fail "SASL failed"
