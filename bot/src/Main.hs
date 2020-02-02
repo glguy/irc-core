@@ -11,6 +11,7 @@ This module provides an example use of irc-core via an echo bot
 module Main (main) where
 
 import           Control.Exception
+import           Data.Foldable (traverse_)
 import           Data.Traversable (for)
 import           Data.String (fromString)
 import qualified Data.Text as Text
@@ -20,19 +21,14 @@ import           Data.Set (Set)
 import           Irc.Codes
 import           Irc.Commands
 import           Irc.Identifier
-import           Irc.Message    (IrcMsg(..), cookIrcMsg)
+import           Irc.Message
 import           Irc.RateLimit  (RateLimit, newRateLimit, tickRateLimit)
 import           Irc.RawIrcMsg  (RawIrcMsg, parseRawIrcMsg, renderRawIrcMsg, asUtf8)
 import           Irc.UserInfo
 import           Hookup
-import           System.Environment
 import           System.Random
 
-data Config = Config
-  { configNick :: String
-  , configHost :: String
-  , configAdmin :: String
-  }
+import           Bot.Config
 
 data Bot = Bot
   { botConfig     :: Config
@@ -48,20 +44,12 @@ main =
      withConnection config $ \h ->
         do rate <- newRateLimit 2 8
            let bot = Bot {
-                 botConfig = config,
-                 botRate = rate,
+                 botConfig     = config,
+                 botRate       = rate,
                  botConnection = h,
-                 botNick = "",
-                 botAdmins = Set.singleton (fromString (configAdmin config))}
+                 botNick       = "",
+                 botAdmins     = Set.fromList (map fromString (configAdmins config))}
            eventLoop =<< sendHello bot
-
--- | Get the hostname from the command-line arguments
-getConfig :: IO Config
-getConfig =
-  do args <- getArgs
-     case args of
-       [n,h,a] -> pure (Config n h a)
-       _       -> fail "Usage: ./bot NICK HOSTNAME ADMIN"
 
 -- | Construct the connection parameters needed for the connection package
 mkParams :: Config -> ConnectionParams
@@ -81,8 +69,7 @@ mkParams config = ConnectionParams
 -- | Open a connection which will stay open for duration of executing
 -- the action returned by the continuation.
 withConnection :: Config -> (Connection -> IO a) -> IO a
-withConnection config k =
-  do bracket (connect (mkParams config)) close k
+withConnection config = bracket (connect (mkParams config)) close
 
 -- | IRC specifies that messages will be up to 512 bytes including the newline
 maxIrcMessage :: Int
@@ -113,9 +100,49 @@ sendHello bot =
          nick = Text.pack (configNick config)
          user = nick
          real = nick
+         sasl = (,) <$> configSaslUser config <*> configSaslPass config
+
+     case sasl of
+       Nothing -> pure ()
+       Just{}  -> sendMsg bot (ircCapReq ["sasl"])
+
      sendMsg bot (ircUser user real)
      sendMsg bot (ircNick nick)
-     pure bot { botNick = mkId nick }
+
+     case sasl of
+       Nothing -> pure bot { botNick = mkId nick }
+       Just (u,p) -> authenticateLoop u p bot
+
+authenticateLoop :: String -> String -> Bot -> IO Bot
+authenticateLoop user pass bot =
+  do mb <- readIrcLine (botConnection bot)
+     msg <- case mb of
+              Nothing -> fail "authenticateLoop: connection failed"
+              Just x  -> pure x
+     case msg of
+       Cap (CapNak ["sasl"]) -> fail "sasl not supported"
+
+       Cap (CapAck ["sasl"]) ->
+         do sendMsg bot (ircAuthenticate "PLAIN")
+            authenticateLoop user pass bot
+
+       Authenticate "+" ->
+         do let payload = encodePlainAuthentication (Text.pack user) (Text.pack pass)
+            traverse_ (sendMsg bot) (ircAuthenticates payload)
+            authenticateLoop user pass bot
+
+       Reply RPL_SASLSUCCESS _ ->
+         do sendMsg bot ircCapEnd
+            pure bot
+
+       Reply RPL_SASLFAIL    _ -> fail "SASL failed"
+       Reply RPL_SASLTOOLONG _ -> fail "SASL failed"
+       Reply RPL_SASLABORTED _ -> fail "SASL failed"
+       Reply RPL_SASLALREADY _ -> fail "SASL failed"
+       Reply RPL_SASLMECHS   _ -> fail "SASL failed"
+
+       _ -> print msg >> authenticateLoop user pass bot
+
 
 eventLoop :: Bot -> IO ()
 eventLoop bot =
