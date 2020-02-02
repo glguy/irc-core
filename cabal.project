@@ -1,8 +1,10 @@
 packages:
   lib/irc-core.cabal
   hookup/hookup.cabal
+  bot/
   glirc.cabal
 
 optional-packages:
   config-schema/
   config-value/
+  vty/
