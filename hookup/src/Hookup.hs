@@ -50,6 +50,7 @@ module Hookup
   CommandReply(..)
 
   -- * SSL Information
+  , getClientCertificate
   , getPeerCertificate
   , getPeerCertFingerprintSha1
   , getPeerCertFingerprintSha256
@@ -305,7 +306,7 @@ socket' ai =
 -- Generalization of Socket
 ------------------------------------------------------------------------
 
-data NetworkHandle = SSL SSL | Socket Socket
+data NetworkHandle = SSL (Maybe X509) SSL | Socket Socket
 
 
 openNetworkHandle ::
@@ -315,22 +316,24 @@ openNetworkHandle ::
 openNetworkHandle params mkSocket =
   case cpTls params of
     Nothing  -> Socket <$> mkSocket
-    Just tls -> SSL <$> startTls tls (cpHost params) mkSocket
+    Just tls ->
+        do (clientCert, ssl) <- startTls tls (cpHost params) mkSocket
+           pure (SSL clientCert ssl)
 
 
 closeNetworkHandle :: NetworkHandle -> IO ()
 closeNetworkHandle (Socket s) = Socket.close s
-closeNetworkHandle (SSL s) =
+closeNetworkHandle (SSL _ s) =
   do SSL.shutdown s SSL.Unidirectional
      traverse_ Socket.close (SSL.sslSocket s)
 
 networkSend :: NetworkHandle -> ByteString -> IO ()
 networkSend (Socket s) = SocketB.sendAll s
-networkSend (SSL    s) = SSL.write       s
+networkSend (SSL  _ s) = SSL.write       s
 
 networkRecv :: NetworkHandle -> Int -> IO ByteString
 networkRecv (Socket s) = SocketB.recv s
-networkRecv (SSL    s) = SSL.read     s
+networkRecv (SSL  _ s) = SSL.read     s
 
 
 ------------------------------------------------------------------------
@@ -472,7 +475,7 @@ startTls ::
   TlsParams {- ^ connection params      -} ->
   String    {- ^ hostname               -} ->
   IO Socket {- ^ socket creation action -} ->
-  IO SSL    {- ^ connected TLS          -}
+  IO (Maybe X509, SSL) {- ^ (client certificate, connected TLS) -}
 startTls tp hostname mkSocket = SSL.withOpenSSL $
   do ctx <- SSL.context
 
@@ -484,8 +487,8 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
      SSL.contextRemoveOption        ctx SSL.SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
 
      -- configure certificates
-     setupCaCertificates ctx          (tpServerCertificate tp)
-     traverse_ (setupCertificate ctx) (tpClientCertificate tp)
+     setupCaCertificates ctx (tpServerCertificate tp)
+     clientCert <- traverse (setupCertificate ctx) (tpClientCertificate tp)
      traverse_ (setupPrivateKey  ctx) (tpClientPrivateKey  tp)
 
      -- add socket to context
@@ -498,7 +501,7 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
 
      SSL.connect ssl
 
-     return ssl
+     return (clientCert, ssl)
 
 
 setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
@@ -508,11 +511,11 @@ setupCaCertificates ctx mbPath =
     Just path -> SSL.contextSetCAFile ctx path
 
 
-setupCertificate :: SSLContext -> FilePath -> IO ()
-setupCertificate ctx path
-  =   SSL.contextSetCertificate ctx
-  =<< PEM.readX509 -- EX
-  =<< readFile path
+setupCertificate :: SSLContext -> FilePath -> IO X509
+setupCertificate ctx path =
+  do x509 <- PEM.readX509 =<< readFile path -- EX
+     SSL.contextSetCertificate ctx x509
+     pure x509
 
 
 setupPrivateKey :: SSLContext -> FilePath -> IO ()
@@ -536,7 +539,14 @@ getPeerCertificate :: Connection -> IO (Maybe X509.X509)
 getPeerCertificate (Connection _ h) =
   case h of
     Socket{} -> return Nothing
-    SSL ssl  -> SSL.getPeerCertificate ssl
+    SSL _ ssl -> SSL.getPeerCertificate ssl
+
+-- | Get peer certificate if one exists.
+getClientCertificate :: Connection -> Maybe X509.X509
+getClientCertificate (Connection _ h) =
+  case h of
+    Socket{} -> Nothing
+    SSL c _  -> c
 
 getPeerCertFingerprintSha1 :: Connection -> IO (Maybe ByteString)
 getPeerCertFingerprintSha1 = getPeerCertFingerprint "sha1"

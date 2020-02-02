@@ -53,7 +53,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Word (Word8)
 import           Numeric (showHex)
-import           OpenSSL.X509 (printX509)
+import           OpenSSL.X509 (X509, printX509)
 
 
 -- | Handle for a network connection
@@ -202,12 +202,20 @@ checkPubkeyFingerprint h fp =
 reportNetworkOpen :: Connection -> TQueue NetworkEvent -> IO ()
 reportNetworkOpen h inQueue =
   do now <- getZonedTime
-     mbX509 <- getPeerCertificate h
-     txts <- case mbX509 of
-               Nothing -> return []
-               Just x509 -> do str <- printX509 x509
-                               return $! reverse (Text.lines (Text.pack str))
+     mbServer <- getPeerCertificate h
+     let mbClient = getClientCertificate h
+     cTxts <- certText "Server" mbServer
+     sTxts <- certText "Client" mbClient
+     let txts = cTxts ++ sTxts
      atomically (writeTQueue inQueue (NetworkOpen now txts))
+
+certText :: String -> Maybe X509 -> IO [Text]
+certText label mbX509 =
+  case mbX509 of
+    Nothing -> pure []
+    Just x509 ->
+      do str <- printX509 x509
+         return $! reverse (Text.lines (Text.pack ("<<" ++ label ++ ">>\n" ++ str)))
 
 formatDigest :: ByteString -> String
 formatDigest
