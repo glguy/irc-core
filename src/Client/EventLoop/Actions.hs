@@ -258,6 +258,8 @@ parseKey = getCompose . go
         "Delete"    -> pure KDel
         "Left"      -> pure KLeft
         "Right"     -> pure KRight
+        "Up"        -> pure KUp
+        "Down"      -> pure KDown
         [c]         -> pure (KChar c)
         'F':xs      -> KFun <$> liftMaybe (readMaybe xs)
         'C':'-':xs  -> modifier MCtrl  *> go xs
@@ -293,4 +295,6 @@ prettyKey KDel      = "Delete"
 prettyKey KBS       = "Backspace"
 prettyKey KLeft     = "Left"
 prettyKey KRight    = "Right"
+prettyKey KUp       = "Up"
+prettyKey KDown     = "Down"
 prettyKey k         = show k
