@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.3.1.0 -- 2020-02
+
+* Added `getClientCertificate`
+
 ## 0.3.0.1 -- 2020-01
 
 * Remove extra-libraries section from cabal file to allow package to work on GHC 8.8.2
