@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                glirc
-version:             2.34
+version:             2.35
 synopsis:            Console IRC client
 description:         Console IRC client
                      .
@@ -154,7 +154,7 @@ library
                        hookup               >=0.3.1  && <0.4,
                        irc-core             >=2.7.1  && <2.8,
                        kan-extensions       >=5.0    && <5.3,
-                       lens                 >=4.14   && <4.19,
+                       lens                 >=4.14   && <4.20,
                        network              >=2.6.2  && <3.2,
                        process              >=1.4.2  && <1.7,
                        psqueues             >=0.2.7  && <0.3,
@@ -169,7 +169,7 @@ library
                        unix                 >=2.7    && <2.8,
                        unordered-containers >=0.2.7  && <0.3,
                        vector               >=0.11   && <0.13,
-                       vty                  >=5.23.1 && <5.27
+                       vty                  >=5.23.1 && <5.28
 
 test-suite test
   type:                exitcode-stdio-1.0

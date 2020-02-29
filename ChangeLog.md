@@ -1,5 +1,8 @@
 # Revision history for glirc2
 
+## 2.35
+* Added client certificate information to `/cert`
+
 ## 2.34
 
 * Add `/dump` command
