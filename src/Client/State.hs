@@ -674,7 +674,7 @@ clientActiveCommand ::
   ClientState           {- ^ client state                     -} ->
   Maybe (String,String) {- ^ command name and argument string -}
 clientActiveCommand st =
-  case break (==' ') (clientFirstLine st) of
+  case break (==' ') (dropWhile (' '==) (clientFirstLine st)) of
     ('/':cmd,_:args) -> Just (cmd,args)
     _                -> Nothing
 
