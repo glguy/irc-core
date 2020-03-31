@@ -1280,12 +1280,11 @@ cmdToggleLayout st _ = commandSuccess (set clientScroll 0 (over clientLayout aux
 cmdClear :: ClientCommand (Maybe (String, Maybe String))
 cmdClear st args =
   case args of
-    Nothing                 -> clearFocus (view clientFocus st)
-    Just ("*", Nothing)     -> clearFocus Unfocused
-    Just (network, Nothing) -> clearFocus (NetworkFocus (Text.pack network))
-    Just (network, Just "*") -> clearNetworkWindows network
-    Just (network, Just channel) ->
-        clearFocus (ChannelFocus (Text.pack network) (mkId (Text.pack channel)))
+    Nothing                      -> clearFocus (view clientFocus st)
+    Just ("*",     Nothing     ) -> clearFocus Unfocused
+    Just (network, Nothing     ) -> clearFocus (NetworkFocus (Text.pack network))
+    Just (network, Just "*"    ) -> clearNetworkWindows network
+    Just (network, Just channel) -> clearFocus (ChannelFocus (Text.pack network) (mkId (Text.pack channel)))
   where
     clearNetworkWindows network
       = commandSuccess
@@ -1297,20 +1296,18 @@ cmdClear st args =
 
     clearFocus1 focus st' = focusEffect (windowEffect st')
       where
-        windowEffect
-          | isActive  = setWindow (Just emptyWindow)
-          | otherwise = setWindow Nothing
+        windowEffect = set (clientWindows . at focus)
+                           (if isActive then Just emptyWindow else Nothing)
 
         focusEffect
-          | not isActive && view clientFocus st' == focus =
-                 if has (clientWindows . ix prev) st'
-                 then changeFocus prev
-                 else advanceFocus
-          | otherwise = id
+          | noChangeNeeded    = id
+          | prevExists        = changeFocus prev
+          | otherwise         = advanceFocus
           where
-            prev = view clientPrevFocus st
+            noChangeNeeded    = isActive || view clientFocus st' /= focus
+            prevExists        = has (clientWindows . ix prev) st'
 
-        setWindow = set (clientWindows . at focus)
+            prev              = view clientPrevFocus st
 
         isActive =
           case focus of
@@ -1595,9 +1592,7 @@ tabSplits isReversed st rest
   -- If no arguments, populate the current splits
   | all (' '==) rest =
      let cmd = unwords $ "/splits"
-                       : map (Text.unpack . renderSplitFocus) currentExtras
-
-         currentExtras = view clientExtraFocus st
+                       : [Text.unpack (renderSplitFocus x) | (x, FocusMessages) <- view clientExtraFocus st]
          newline = Edit.endLine cmd
      in commandSuccess (set (clientTextBox . Edit.line) newline st)
 
@@ -1619,10 +1614,10 @@ tabActiveSplits isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
     completions = currentNetSplits <> currentSplits
-    currentSplits = renderSplitFocus <$> view clientExtraFocus st
+    currentSplits = [renderSplitFocus x | (x, FocusMessages) <- view clientExtraFocus st]
     currentNetSplits =
       [ idText chan
-        | ChannelFocus net chan <- view clientExtraFocus st
+        | (ChannelFocus net chan, FocusMessages) <- view clientExtraFocus st
         , views clientFocus focusNetwork st == Just net
         ]
 
@@ -1630,27 +1625,22 @@ tabActiveSplits isReversed st _ =
 withSplitFocuses ::
   ClientState                   ->
   String                        ->
-  ([Focus] -> IO CommandResult) ->
+  ([(Focus, Subfocus)] -> IO CommandResult) ->
   IO CommandResult
 withSplitFocuses st str k =
   case mb of
     Nothing   -> commandFailureMsg "unable to parse arguments" st
-    Just args -> k args
+    Just args -> k [(x, FocusMessages) | x <- args]
   where
     mb = traverse
            (parseFocus (views clientFocus focusNetwork st))
            (words str)
 
 -- | Parses a single focus name given a default network.
---
--- The default is parameterized over an arbitrary 'Applicative'
--- instance so that if you know the network you can use 'Identity'
--- and if you might not, you can use 'Maybe'
 parseFocus ::
-  Applicative f =>
-  f Text {- ^ default network    -} ->
+  Maybe Text {- ^ default network    -} ->
   String {- ^ @[network:]target@ -} ->
-  f Focus
+  Maybe Focus
 parseFocus mbNet x =
   case break (==':') x of
     ("*","")     -> pure Unfocused
@@ -1679,7 +1669,7 @@ cmdSplitsAdd :: ClientCommand String
 cmdSplitsAdd st str =
   withSplitFocuses st str $ \args ->
     let args'
-          | null args = st ^.. clientFocus
+          | null args = [(view clientFocus st, view clientSubfocus st)]
           | otherwise = args
         extras = nub (args' ++ view clientExtraFocus st)
 
@@ -1691,7 +1681,7 @@ cmdSplitsDel :: ClientCommand String
 cmdSplitsDel st str =
   withSplitFocuses st str $ \args ->
     let args'
-          | null args = st ^.. clientFocus
+          | null args = [(view clientFocus st, view clientSubfocus st)]
           | otherwise = args
         extras = view clientExtraFocus st \\ args'
 

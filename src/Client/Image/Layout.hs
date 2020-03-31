@@ -35,7 +35,7 @@ drawLayout st =
 -- | Layout algorithm for all windows in a single column.
 drawLayoutOne ::
   ClientState            {- ^ client state                 -} ->
-  [Focus]                {- ^ extra window names           -} ->
+  [(Focus, Subfocus)]    {- ^ extra windows                -} ->
   (Int, Int, Int, Image) {- ^ overscroll and final image   -}
 drawLayoutOne st extrafocus =
   (overscroll, pos, nextOffset, output)
@@ -49,21 +49,21 @@ drawLayoutOne st extrafocus =
 
     output = vertCat $ reverse
            $ main
-           : [ drawExtra st w h' foc imgs
-                 | (h', (foc, imgs)) <- zip hs extraLines]
+           : [ drawExtra st w h' foc subfoc imgs
+                 | (h', (foc, subfoc, imgs)) <- zip hs extraLines]
 
     rows = view clientHeight st
 
     -- don't count textbox or the main status line against the main window's height
     saveRows = 1 + imageHeight (statusLineImage w st)
 
-    extraLines = [ (focus', viewLines focus' FocusMessages w st)
-                   | focus' <- extrafocus ]
+    extraLines = [ (focus, subfocus, viewLines focus subfocus w st)
+                   | (focus, subfocus) <- extrafocus ]
 
 -- | Layout algorithm for all windows in a single column.
 drawLayoutTwo ::
   ClientState            {- ^ client state                                -} ->
-  [Focus]                {- ^ extra window names                          -} ->
+  [(Focus, Subfocus)]    {- ^ extra windows                               -} ->
   (Int, Int, Int, Image) {- ^ overscroll, cursor pos, offset, final image -}
 drawLayoutTwo st extrafocus =
   (overscroll, pos, nextOffset, output)
@@ -75,8 +75,8 @@ drawLayoutTwo st extrafocus =
     output = main <|> divider <|> extraImgs
 
     extraImgs = vertCat $ reverse
-             [ drawExtra st wr h' foc imgs
-                 | (h', (foc, imgs)) <- zip hs extraLines]
+             [ drawExtra st wr h' foc subfoc imgs
+                 | (h', (foc, subfoc, imgs)) <- zip hs extraLines]
 
     (overscroll, pos, nextOffset, main) =
         drawMain wl rows scroll st
@@ -85,8 +85,8 @@ drawLayoutTwo st extrafocus =
     divider = charFill (view palWindowDivider pal) ' ' 1 rows
     rows    = view clientHeight st
 
-    extraLines = [ (focus', viewLines focus' FocusMessages wr st)
-                   | focus' <- extrafocus ]
+    extraLines = [ (focus, subfocus, viewLines focus subfocus wr st)
+                   | (focus, subfocus) <- extrafocus ]
 
 drawMain ::
   Int         {- ^ draw width      -} ->
@@ -115,10 +115,11 @@ drawExtra ::
   Int         {- ^ draw width      -} ->
   Int         {- ^ draw height     -} ->
   Focus       {- ^ focus           -} ->
+  Subfocus    {- ^ subfocus        -} ->
   [Image']    {- ^ image lines     -} ->
   Image       {- ^ rendered window -}
-drawExtra st w h focus lineImages =
-    msgImg <-> unpackImage (minorStatusLineImage focus w True st)
+drawExtra st w h focus subfocus lineImages =
+    msgImg <-> unpackImage (minorStatusLineImage focus subfocus w True st)
   where
     (_, msgImg) = messagePane w h 0 lineImages
 

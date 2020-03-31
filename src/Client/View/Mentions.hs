@@ -68,7 +68,7 @@ addMarkers ::
   [Image']      {- ^ mention images and channel labels -}
 addMarkers _ _ [] = []
 addMarkers w !st (!ml : xs)
-  = minorStatusLineImage (mlFocus ml) w False st
+  = minorStatusLineImage (mlFocus ml) FocusMessages w False st
   : concatMap mlImage (ml:same)
  ++ addMarkers w st rest
   where

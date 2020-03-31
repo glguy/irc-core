@@ -164,7 +164,7 @@ data ClientState = ClientState
   , _clientActivityReturn    :: !(Maybe Focus)      -- ^ focus prior to jumping to activity
   , _clientFocus             :: !Focus              -- ^ currently focused buffer
   , _clientSubfocus          :: !Subfocus           -- ^ current view mode
-  , _clientExtraFocus        :: ![Focus]            -- ^ extra messages windows to view
+  , _clientExtraFocus        :: ![(Focus, Subfocus)]-- ^ extra messages windows to view
 
   , _clientConnections       :: !(HashMap Text NetworkState) -- ^ state of active connections
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
@@ -592,15 +592,14 @@ clientTick = set clientBell False
 
 -- | Mark the messages on the current window (and any splits) as seen.
 markSeen :: ClientState -> ClientState
-markSeen st =
-  case view clientSubfocus st of
-    FocusMessages -> foldl' aux st focuses
-    _             -> st
+markSeen st = foldl' aux st messageFocuses
   where
     aux acc focus = overStrict (clientWindows . ix focus) windowSeen acc
 
-    focuses = view clientFocus st
-            : view clientExtraFocus st
+    messageFocuses = [focus | (focus, FocusMessages) <- allFocuses]
+
+    allFocuses = (view clientFocus st, view clientSubfocus st)
+               : view clientExtraFocus st
 
 -- | Add the textbox input to the edit history and clear the textbox.
 consumeInput :: ClientState -> ClientState
@@ -832,12 +831,11 @@ scrollClient amt = over clientScroll $ \n -> max 0 (n + amt)
 
 
 -- | List of extra focuses to display as split windows
-clientExtraFocuses :: ClientState -> [Focus]
+clientExtraFocuses :: ClientState -> [(Focus, Subfocus)]
 clientExtraFocuses st =
-  case view clientSubfocus st of
-    FocusMessages -> view clientFocus st `delete` view clientExtraFocus st
-    _             -> []
-
+  delete
+    (view clientFocus st, view clientSubfocus st)
+    (view clientExtraFocus st)
 
 ------------------------------------------------------------------------
 -- Focus Management
@@ -899,21 +897,26 @@ changeFocus focus st
 
     -- Don't deactivate a window if it's going to stay active
     deactivatePrevious
-      | oldFocus `elem` focus : view clientExtraFocus st = id
+      | (oldFocus, FocusMessages) `elem` (focus, FocusMessages) : view clientExtraFocus st = id
       | otherwise = over (clientWindows . ix oldFocus) windowDeactivate
 
 
 -- | Unified logic for assigning to the extra focuses field that activates
 -- and deactivates windows as needed.
-setExtraFocus :: [Focus] -> ClientState -> ClientState
+setExtraFocus :: [(Focus, Subfocus)] -> ClientState -> ClientState
 setExtraFocus newFocuses st
   = aux windowDeactivate newlyInactive
   $ aux windowActivate   newlyActive
   $ set clientExtraFocus newFocuses st
   where
-    newlyActive = newFocuses \\ (view clientFocus st : view clientExtraFocus st)
+    messagePart x = [focus | (focus, FocusMessages) <- x]
 
-    newlyInactive = view clientExtraFocus st \\ (view clientFocus st : newFocuses)
+    current = (view clientFocus st, view clientSubfocus st)
+
+    newlyActive = messagePart newFocuses \\ messagePart (current : view clientExtraFocus st)
+
+    newlyInactive = messagePart (view clientExtraFocus st)
+                 \\ messagePart (current : newFocuses)
 
     aux f xs st1 =
       foldl' (\acc w -> overStrict (clientWindows . ix w) f acc) st1 xs

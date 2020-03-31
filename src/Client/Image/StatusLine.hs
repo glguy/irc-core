@@ -52,7 +52,7 @@ statusLineImage w st =
       myNickImage st :
       map unpackImage
       [ focusImage (view clientFocus st) st
-      , subfocusImage st
+      , subfocusImage (view clientSubfocus st) st
       , detailImage st
       , nometaImage (view clientFocus st) st
       , scrollImage st
@@ -86,15 +86,17 @@ transientErrorImage txt =
 -- | The minor status line is used when rendering the @/splits@ and
 -- @/mentions@ views to show the associated window name.
 minorStatusLineImage ::
-  Focus {- ^ window name          -} ->
-  Int   {- ^ draw width           -} ->
-  Bool  {- ^ show hidemeta status -} ->
+  Focus       {- ^ window name          -} ->
+  Subfocus    {- ^ subfocus             -} ->
+  Int         {- ^ draw width           -} ->
+  Bool        {- ^ show hidemeta status -} ->
   ClientState {- ^ client state -} ->
   Image'
-minorStatusLineImage focus w showHideMeta st =
+minorStatusLineImage focus subfocus w showHideMeta st =
   content <> mconcat (replicate fillSize bar)
   where
     content = focusImage focus st <>
+              subfocusImage subfocus st <>
               if showHideMeta then nometaImage focus st else mempty
 
     fillSize = max 0 (w - imageWidth content)
@@ -306,11 +308,10 @@ modesImage pal modes = "+" <> foldMap modeImage modes
     modeImage m =
       char (fromMaybe defAttr (view (at m) pal)) m
 
-subfocusImage :: ClientState -> Image'
-subfocusImage st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
+subfocusImage :: Subfocus -> ClientState -> Image'
+subfocusImage subfocus st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
   where
     pal         = clientPalette st
-    subfocus    = view clientSubfocus st
 
 focusImage :: Focus -> ClientState -> Image'
 focusImage focus st = infoBubble $ mconcat
