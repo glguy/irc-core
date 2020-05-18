@@ -161,7 +161,6 @@ data Transaction
   | NamesTransaction [Text]
   | BanTransaction [(Text,MaskListEntry)]
   | WhoTransaction [UserInfo]
-  | CapTransaction
   | CapLsTransaction [(Text, Maybe Text)]
   deriving Show
 
@@ -250,7 +249,7 @@ newNetworkState network settings sock ping = NetworkState
   , _csChannelTypes = defaultChannelTypes
   , _csModeTypes    = defaultModeTypes
   , _csUmodeTypes   = defaultUmodeTypes
-  , _csTransaction  = CapTransaction
+  , _csTransaction  = NoTransaction
   , _csModes        = ""
   , _csSnomask      = ""
   , _csStatusMsg    = ""
@@ -331,8 +330,8 @@ applyMessage' msgWhen msg cs =
          $ overChannels (nickChange (userNick oldNick) newNick) cs
 
     Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
-    Reply RPL_SASLSUCCESS _ -> endCapTransaction cs
-    Reply RPL_SASLFAIL _ -> endCapTransaction cs
+    Reply RPL_SASLSUCCESS _ -> ([ircCapEnd], cs)
+    Reply RPL_SASLFAIL _ -> ([ircCapEnd], cs)
     Reply ERR_NICKNAMEINUSE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
     Reply RPL_HOSTHIDDEN (_:host:_) ->
@@ -377,7 +376,6 @@ doWelcome msgWhen me
   . set csNick me
   . set csNextPingTime (Just $! addUTCTime 30 (zonedTimeToUTC msgWhen))
   . set csPingStatus PingNone
-  . set csTransaction NoTransaction -- wipe out CapTransaction if it was active
 
 -- | Handle 'ERR_NICKNAMEINUSE' errors when connecting.
 doBadNick ::
@@ -753,10 +751,11 @@ doCap cmd cs =
         prevCaps = view (csTransaction . _CapLsTransaction) cs
 
     CapLs CapDone caps
-      | null reqCaps -> endCapTransaction cs
-      | otherwise    -> ([ircCapReq reqCaps], cs)
+      | null reqCaps -> ([ircCapEnd], cs')
+      | otherwise    -> ([ircCapReq reqCaps], cs')
       where
         reqCaps = selectCaps cs (caps ++ view (csTransaction . _CapLsTransaction) cs)
+        cs' = set csTransaction NoTransaction cs
 
     CapNew caps
       | null reqCaps -> ([], cs)
@@ -777,17 +776,12 @@ doCap cmd cs =
           else if isJust (view ssTlsClientCert ss)
             then ( [ircAuthenticate "EXTERNAL"]
                  , set csAuthenticationState AS_ExternalStarted cs)
-          else endCapTransaction cs
+          else ( [ircCapEnd]
+               , cs)
       where
         ss = view csSettings cs
 
-    _ -> endCapTransaction cs
-
-endCapTransaction :: NetworkState -> ([RawIrcMsg], NetworkState)
-endCapTransaction cs =
-  case view csTransaction cs of
-    CapTransaction -> ([ircCapEnd], set csTransaction NoTransaction cs)
-    _              -> ([], cs)
+    _ -> ([ircCapEnd], cs)
 
 initialMessages :: NetworkState -> [RawIrcMsg]
 initialMessages cs
