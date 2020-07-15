@@ -293,7 +293,7 @@ applyMessage' msgWhen msg cs =
   case msg of
     Ping args -> ([ircPong args], cs)
     Pong _    -> noReply $ doPong msgWhen cs
-    Join user chan acct ->
+    Join user chan acct _ ->
          ( reply
          , recordUser user acct
          $ overChannel chan (joinChannel (userNick user))
@@ -339,7 +339,7 @@ applyMessage' msgWhen msg cs =
 
     -- /who <#channel> %tuhna,616
     Reply RPL_WHOSPCRPL [_me,"616",user,host,nick,acct] ->
-       let acct' = if acct == "0" then "" else acct
+       let acct' = if acct == "0" then "*" else acct
        in noReply (recordUser (UserInfo (mkId nick) user host) acct' cs)
 
     Reply code args        -> noReply (doRpl code msgWhen args cs)

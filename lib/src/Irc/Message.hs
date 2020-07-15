@@ -49,7 +49,7 @@ data IrcMsg
   = UnknownMsg !RawIrcMsg -- ^ pass-through for unhandled messages
   | Reply !ReplyCode [Text] -- ^ code arguments
   | Nick !UserInfo !Identifier -- ^ old new
-  | Join !UserInfo !Identifier !Text -- ^ user channel account(extended-join)
+  | Join !UserInfo !Identifier !Text !Text -- ^ user channel account account gecos
   | Part !UserInfo !Identifier (Maybe Text) -- ^ user channel reason
   | Quit !UserInfo (Maybe Text) -- ^ user reason
   | Kick !UserInfo !Identifier !Identifier !Text -- ^ kicker channel kickee comment
@@ -128,13 +128,11 @@ cookIrcMsg msg =
              Nothing         -> Notice user (mkId chan) txt
 
     "JOIN" | Just user <- view msgPrefix msg
-           , chan:rest <- view msgParams msg ->
-
-              Join user (mkId chan)
-            $ case rest of
-                ["*" , _real] -> ""
-                [acct, _real] -> acct
-                _             -> ""
+           , chan:rest <- view msgParams msg
+           , let (a, r) = case rest of
+                            [acct, real] -> (acct, real)
+                            _            -> ("", "") ->
+           Join user (mkId chan) a r
 
     "QUIT" | Just user <- view msgPrefix msg
            , reasons   <- view msgParams msg ->
@@ -213,7 +211,7 @@ msgTarget me msg =
     Nick user _              -> TargetUser (userNick user)
     Mode _ tgt _ | tgt == me -> TargetNetwork
                  | otherwise -> TargetWindow tgt
-    Join _ chan _            -> TargetWindow chan
+    Join _ chan _ _          -> TargetWindow chan
     Part _ chan _            -> TargetWindow chan
     Quit user _              -> TargetUser (userNick user)
     Kick _ chan _ _          -> TargetWindow chan
@@ -250,7 +248,7 @@ msgActor msg =
     UnknownMsg{}  -> Nothing
     Reply{}       -> Nothing
     Nick x _      -> Just x
-    Join x _ _    -> Just x
+    Join x _ _ _  -> Just x
     Part x _ _    -> Just x
     Quit x _      -> Just x
     Kick x _ _ _  -> Just x
@@ -279,7 +277,7 @@ ircMsgText msg =
     UnknownMsg raw -> Text.unwords (view msgCommand raw : view msgParams raw)
     Reply (ReplyCode n) xs -> Text.unwords (Text.pack (show n) : xs)
     Nick x y       -> Text.unwords [renderUserInfo x, idText y]
-    Join x _ _     -> renderUserInfo x
+    Join x _ _ _   -> renderUserInfo x
     Part x _ mb    -> Text.unwords (renderUserInfo x : maybeToList mb)
     Quit x mb      -> Text.unwords (renderUserInfo x : maybeToList mb)
     Kick x _ z r   -> Text.unwords [renderUserInfo x, idText z, r]

@@ -354,12 +354,17 @@ fullIrcLineImage !rp body =
       " is now known as " <>
       coloredIdentifier pal NormalIdentifier myNicks new
 
-    Join nick _chan acct ->
+    Join nick _chan acct gecos ->
       string quietAttr "join " <>
       plainWho nick <>
-      if Text.null acct
-        then mempty
-        else text' quietAttr ("(" <> cleanText acct <> ")")
+      accountPart <> gecosPart
+      where
+        accountPart
+          | Text.null acct = mempty
+          | otherwise      = text' quietAttr ("(" <> cleanText acct <> ")")
+        gecosPart
+          | Text.null gecos = mempty
+          | otherwise       = text' quietAttr (" [" <> cleanText gecos <> "]")
 
     Part nick _chan mbreason ->
       string quietAttr "part " <>

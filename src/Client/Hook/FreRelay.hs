@@ -126,6 +126,7 @@ joinMsg chan srv nick user host =
     (UserInfo (mkId (nick <> "@" <> srv)) user host)
     chan
     "" -- account
+    "" -- gecos
 
 partMsg ::
   Identifier {- ^ channel        -} ->
