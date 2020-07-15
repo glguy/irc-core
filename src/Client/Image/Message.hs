@@ -217,7 +217,7 @@ ircLinePrefix !rp body =
           baseUI    = coloredUserInfo pal rm myNicks n
           ui = case rendAccounts rp ^? ix (userNick n) . uhAccount of
                  Just acct
-                   | Text.null acct -> "~" <> baseUI
+                   | Text.null acct || acct == "*" -> "~" <> baseUI -- unknown status or known unidentified
                    | mkId acct /= userNick n -> baseUI <> "(" <> text' defAttr (cleanText acct) <> ")"
                  _ -> baseUI
   in
