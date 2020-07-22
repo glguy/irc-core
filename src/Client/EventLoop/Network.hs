@@ -125,12 +125,8 @@ processSaslEcdsa ::
   ClientState  {- ^ client state  -} ->
   IO ClientState
 processSaslEcdsa now challenge cs st =
-  case view ssSaslEcdsaFile ss of
-    Nothing ->
-      do sendMsg cs ircCapEnd
-         return $! recordError now (view csNetwork cs) "panic: ecdsatool malformed output" st
-
-    Just path ->
+  case view ssSaslMechanism ss of
+    Just (SaslEcdsa path) ->
       do res <- Ecdsa.computeResponse path challenge
          case res of
            Left e ->
@@ -139,6 +135,10 @@ processSaslEcdsa now challenge cs st =
            Right resp ->
              do sendMsg cs (ircAuthenticate resp)
                 return $! set asLens AS_None st
+
+    _ ->
+      do sendMsg cs ircCapEnd
+         return $! recordError now (view csNetwork cs) "panic: ecdsa mechanism not configured" st
   where
     ss = view csSettings cs
     asLens = clientConnection (view csNetwork cs) . csAuthenticationState

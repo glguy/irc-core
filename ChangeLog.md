@@ -1,5 +1,19 @@
 # Revision history for glirc2
 
+## 2.36
+* Make sasl mechanism specification specific.
+
+  ```
+  sasl-username: "myuser"
+  sasl-mechanism: plain: "mypassword"     -- option 1
+  sasl-mechanism: external                -- option 2
+  sasl-mechanism: ecdsa: "path/to/my.key" -- option 3
+  ```
+
+  Note that now using a client-side TLS certificate is now an independent
+  configuration from using EXTERNAL. To use both you need to configure
+  both!
+
 ## 2.35
 * Added client certificate information to `/cert`
 

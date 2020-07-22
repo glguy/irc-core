@@ -708,29 +708,29 @@ selectCaps cs offered = (supported `intersect` Map.keys capMap)
 
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslUsername ss)
-                   , isJust (view ssSaslPassword ss) ||
-                     isJust (view ssSaslEcdsaFile ss) ||
-                     isJust (view ssTlsClientCert ss) ]
+                   , isJust (view ssSaslMechanism ss) ]
 
 doAuthenticate :: Text -> NetworkState -> ([RawIrcMsg], NetworkState)
 doAuthenticate param cs =
   case view csAuthenticationState cs of
     AS_PlainStarted
-      | "+"       <- param
-      , Just user <- view ssSaslUsername ss
-      , Just pass <- view ssSaslPassword ss
+      | "+"                   <- param
+      , Just user             <- view ssSaslUsername ss
+      , Just (SaslPlain pass) <- view ssSaslMechanism ss
       -> (ircAuthenticates (encodePlainAuthentication user pass),
           set csAuthenticationState AS_None cs)
 
     AS_ExternalStarted
-      | "+"       <- param
-      , Just user <- view ssSaslUsername ss
+      | "+"               <- param
+      , Just user         <- view ssSaslUsername ss
+      , Just SaslExternal <- view ssSaslMechanism ss
       -> (ircAuthenticates (encodeExternalAuthentication user),
           set csAuthenticationState AS_None cs)
 
     AS_EcdsaStarted
-      | "+"       <- param
-      , Just user <- view ssSaslUsername ss
+      | "+"              <- param
+      , Just user        <- view ssSaslUsername ss
+      , Just SaslEcdsa{} <- view ssSaslMechanism ss
       -> (ircAuthenticates (Ecdsa.encodeUsername user),
           set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
@@ -766,20 +766,20 @@ doCap cmd cs =
     CapDel _ -> ([],cs)
 
     CapAck caps
-      | "sasl" `elem` caps && isJust (view ssSaslUsername ss) ->
-          if isJust (view ssSaslEcdsaFile ss)
-            then ( [ircAuthenticate Ecdsa.authenticationMode]
-                 , set csAuthenticationState AS_EcdsaStarted cs)
-          else if isJust (view ssSaslPassword ss)
-            then ( [ircAuthenticate "PLAIN"]
-                 , set csAuthenticationState AS_PlainStarted cs)
-          else if isJust (view ssTlsClientCert ss)
-            then ( [ircAuthenticate "EXTERNAL"]
-                 , set csAuthenticationState AS_ExternalStarted cs)
-          else ( [ircCapEnd]
-               , cs)
-      where
-        ss = view csSettings cs
+      | let ss = view csSettings cs
+      , "sasl" `elem` caps
+      , Just{} <- view ssSaslUsername ss
+      , Just mech <- view ssSaslMechanism ss ->
+        case mech of
+          SaslEcdsa{} ->
+            ([ircAuthenticate Ecdsa.authenticationMode],
+             set csAuthenticationState AS_EcdsaStarted cs)
+          SaslPlain{} ->
+            ([ircAuthenticate "PLAIN"],
+             set csAuthenticationState AS_PlainStarted cs)
+          SaslExternal ->
+            ([ircAuthenticate "EXTERNAL"],
+             set csAuthenticationState AS_ExternalStarted cs)
 
     _ -> ([ircCapEnd], cs)
 

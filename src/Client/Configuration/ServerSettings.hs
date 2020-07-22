@@ -26,8 +26,7 @@ module Client.Configuration.ServerSettings
   , ssReal
   , ssPassword
   , ssSaslUsername
-  , ssSaslPassword
-  , ssSaslEcdsaFile
+  , ssSaslMechanism
   , ssHostName
   , ssPort
   , ssTls
@@ -54,6 +53,12 @@ module Client.Configuration.ServerSettings
   , ssTlsCertFingerprint
   , ssShowAccounts
   , ssCapabilities
+
+  -- * SASL Mechanisms
+  , SaslMechanism(..)
+  , _SaslExternal
+  , _SaslEcdsa
+  , _SaslPlain
 
   -- * Load function
   , loadDefaultServerSettings
@@ -95,8 +100,7 @@ data ServerSettings = ServerSettings
   , _ssReal             :: !Text -- ^ connection realname / GECOS
   , _ssPassword         :: !(Maybe Text) -- ^ server password
   , _ssSaslUsername     :: !(Maybe Text) -- ^ SASL username
-  , _ssSaslPassword     :: !(Maybe Text) -- ^ SASL plain password
-  , _ssSaslEcdsaFile    :: !(Maybe FilePath) -- ^ SASL ecdsa private key
+  , _ssSaslMechanism    :: !(Maybe SaslMechanism) -- ^ SASL mechanism
   , _ssHostName         :: !HostName -- ^ server hostname
   , _ssPort             :: !(Maybe PortNumber) -- ^ server port
   , _ssTls              :: !UseTls -- ^ use TLS to connect
@@ -126,6 +130,13 @@ data ServerSettings = ServerSettings
   }
   deriving Show
 
+-- | SASL mechanisms and configuration data.
+data SaslMechanism
+  = SaslPlain Text     -- | SASL PLAIN - RFC4616 - Password-based authentication
+  | SaslEcdsa FilePath -- | SASL NIST - https://github.com/kaniini/ecdsatool
+  | SaslExternal       -- | SASL EXTERNAL - RFC4422
+  deriving Show
+
 -- | Regular expression matched with original source to help with debugging.
 data KnownRegex = KnownRegex Text Regex
 
@@ -153,6 +164,7 @@ data Fingerprint
   deriving Show
 
 makeLenses ''ServerSettings
+makePrisms ''SaslMechanism
 
 -- | Load the defaults for server settings based on the environment
 -- variables.
@@ -168,8 +180,7 @@ loadDefaultServerSettings =
        , _ssReal          = username
        , _ssPassword      = Text.pack <$> lookup "IRCPASSWORD" env
        , _ssSaslUsername  = Nothing
-       , _ssSaslPassword  = Text.pack <$> lookup "SASLPASSWORD" env
-       , _ssSaslEcdsaFile = Nothing
+       , _ssSaslMechanism = Nothing
        , _ssHostName      = ""
        , _ssPort          = Nothing
        , _ssTls           = UseInsecure
@@ -241,11 +252,8 @@ serverSpec = sectionsSpec "server-settings" $
       , opt "sasl-username" ssSaslUsername anySpec
         "Username for SASL authentication to NickServ"
 
-      , opt "sasl-password" ssSaslPassword anySpec
-        "Password for SASL authentication to NickServ"
-
-      , opt "sasl-ecdsa-key" ssSaslEcdsaFile stringSpec
-        "Path to ECDSA key for non-password SASL authentication"
+      , opt "sasl-mechanism" ssSaslMechanism saslMechanismSpec
+        "SASL authentication mechanism"
 
       , req "tls" ssTls useTlsSpec
         "Set to `yes` to enable secure connect. Set to `yes-insecure` to disable certificate checking."
@@ -316,6 +324,12 @@ serverSpec = sectionsSpec "server-settings" $
       , req "capabilities" ssCapabilities anySpec
         "Extra capabilities to unconditionally request from the server"
       ]
+
+saslMechanismSpec :: ValueSpec SaslMechanism
+saslMechanismSpec =
+  SaslPlain    <$> sectionsSpec "plain" (reqSection "plain" "SASL Password") <!>
+  SaslExternal <$ atomSpec "external" <!>
+  SaslEcdsa    <$> sectionsSpec "ecdsa" (reqSection' "ecdsa" stringSpec "ECDSA private key file")
 
 hookSpec :: ValueSpec HookConfig
 hookSpec =
