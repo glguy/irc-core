@@ -257,7 +257,7 @@ resolvePaths file cfg =
      let resolveServerFilePaths = over (ssTlsClientCert . mapped) res
                                 . over (ssTlsClientKey  . mapped) res
                                 . over (ssTlsServerCert . mapped) res
-                                . over (ssSaslMechanism . mapped . _SaslEcdsa) res
+                                . over (ssSaslMechanism . mapped . _SaslEcdsa . _2) res
                                 . over (ssLogDir        . mapped) res
      return $! over (configExtensions . mapped . extensionPath) res
              . over (configServers    . mapped) resolveServerFilePaths

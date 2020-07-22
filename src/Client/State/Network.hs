@@ -714,24 +714,26 @@ doAuthenticate :: Text -> NetworkState -> ([RawIrcMsg], NetworkState)
 doAuthenticate param cs =
   case view csAuthenticationState cs of
     AS_PlainStarted
-      | "+"                   <- param
-      , Just user             <- view ssSaslUsername ss
-      , Just (SaslPlain pass) <- view ssSaslMechanism ss
-      -> (ircAuthenticates (encodePlainAuthentication user pass),
+      | "+"                           <- param
+      , Just authz                    <- view ssSaslUsername ss
+      , Just (SaslPlain mbAuthc pass) <- view ssSaslMechanism ss
+      , let authc = fromMaybe authz mbAuthc
+      -> (ircAuthenticates (encodePlainAuthentication authz authc pass),
           set csAuthenticationState AS_None cs)
 
     AS_ExternalStarted
       | "+"               <- param
-      , Just user         <- view ssSaslUsername ss
+      , Just authz        <- view ssSaslUsername ss
       , Just SaslExternal <- view ssSaslMechanism ss
-      -> (ircAuthenticates (encodeExternalAuthentication user),
+      -> (ircAuthenticates (encodeExternalAuthentication authz),
           set csAuthenticationState AS_None cs)
 
     AS_EcdsaStarted
-      | "+"              <- param
-      , Just user        <- view ssSaslUsername ss
-      , Just SaslEcdsa{} <- view ssSaslMechanism ss
-      -> (ircAuthenticates (Ecdsa.encodeUsername user),
+      | "+"                        <- param
+      , Just authz                 <- view ssSaslUsername ss
+      , Just (SaslEcdsa mbAuthc _) <- view ssSaslMechanism ss
+      , let authc = fromMaybe authz mbAuthc
+      -> (ircAuthenticates (Ecdsa.encodeAuthentication authz authc),
           set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
     AS_EcdsaWaitChallenge -> ([], cs) -- handled in Client.EventLoop!

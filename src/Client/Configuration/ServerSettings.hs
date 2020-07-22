@@ -132,9 +132,9 @@ data ServerSettings = ServerSettings
 
 -- | SASL mechanisms and configuration data.
 data SaslMechanism
-  = SaslPlain Text     -- | SASL PLAIN - RFC4616 - Password-based authentication
-  | SaslEcdsa FilePath -- | SASL NIST - https://github.com/kaniini/ecdsatool
-  | SaslExternal       -- | SASL EXTERNAL - RFC4422
+  = SaslPlain (Maybe Text) Text -- ^ SASL PLAIN - RFC4616 - Password-based authentication
+  | SaslEcdsa (Maybe Text) FilePath -- ^ SASL NIST - https://github.com/kaniini/ecdsatool
+  | SaslExternal       -- ^ SASL EXTERNAL - RFC4422
   deriving Show
 
 -- | Regular expression matched with original source to help with debugging.
@@ -250,7 +250,7 @@ serverSpec = sectionsSpec "server-settings" $
         "\"GECOS\" name sent to server visible in /whois"
 
       , opt "sasl-username" ssSaslUsername anySpec
-        "Username for SASL authentication to NickServ"
+        "SASL authorization identity"
 
       , opt "sasl-mechanism" ssSaslMechanism saslMechanismSpec
         "SASL authentication mechanism"
@@ -326,10 +326,19 @@ serverSpec = sectionsSpec "server-settings" $
       ]
 
 saslMechanismSpec :: ValueSpec SaslMechanism
-saslMechanismSpec =
-  SaslPlain    <$> sectionsSpec "plain" (reqSection "plain" "SASL Password") <!>
-  SaslExternal <$ atomSpec "external" <!>
-  SaslEcdsa    <$> sectionsSpec "ecdsa" (reqSection' "ecdsa" stringSpec "ECDSA private key file")
+saslMechanismSpec = plain <!> external <!> ecdsa
+  where
+    plain =
+      sectionsSpec "plain-mech" $ SaslPlain <$>
+      optSection "authc" "Authentication identity" <*>
+      reqSection "plain" "Password"
+
+    external = SaslExternal <$ atomSpec "external"
+
+    ecdsa =
+      sectionsSpec "ecdsa-mech" $ SaslEcdsa <$>
+      optSection "authc" "Authentication identity" <*>
+      reqSection' "ecdsa" stringSpec "Private key file"
 
 hookSpec :: ValueSpec HookConfig
 hookSpec =

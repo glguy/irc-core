@@ -16,7 +16,7 @@ in your search path.
 -}
 module Client.Authentication.Ecdsa
   ( authenticationMode
-  , encodeUsername
+  , encodeAuthentication
   , computeResponse
   ) where
 
@@ -37,10 +37,12 @@ authenticationMode = "ECDSA-NIST256P-CHALLENGE"
 
 
 -- | Encode a username as specified in this authentication mode.
-encodeUsername ::
-  Text {- ^ username                 -} ->
-  AuthenticatePayload {- ^ base-64 encoded username -}
-encodeUsername = AuthenticatePayload . Text.encodeUtf8
+encodeAuthentication ::
+  Text {- ^ authorization identity  -} ->
+  Text {- ^ authentication identity -} ->
+  AuthenticatePayload
+encodeAuthentication authz authc =
+  AuthenticatePayload (Text.encodeUtf8 (authz <> "\0" <> authc <> "\0"))
 
 
 -- | Compute the response for a given challenge using the @ecdsatool@

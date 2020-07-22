@@ -436,18 +436,17 @@ ircAuthenticates (AuthenticatePayload bytes) =
 
 -- | Encoding of username and password in PLAIN authentication
 encodePlainAuthentication ::
-  Text {- ^ username -} ->
+  Text {- ^ authorization identity -} ->
+  Text {- ^ authentication identity -} ->
   Text {- ^ password -} ->
   AuthenticatePayload
-encodePlainAuthentication user pass
+encodePlainAuthentication authz authc pass
   = AuthenticatePayload
   $ Text.encodeUtf8
-  $ Text.intercalate "\0" [user,user,pass]
+  $ Text.intercalate "\0" [authz,authc,pass]
 
 -- | Encoding of username in EXTERNAL authentication
 encodeExternalAuthentication ::
-  Text {- ^ username -} ->
+  Text {- ^ authorization identity -} ->
   AuthenticatePayload
-encodeExternalAuthentication
-  = AuthenticatePayload
-  . Text.encodeUtf8
+encodeExternalAuthentication authz = AuthenticatePayload (Text.encodeUtf8 authz)

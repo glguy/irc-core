@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.8
+
+* `encodePlainAuthentication` has separate authorization and authentication identity parameters
+
 ## 2.7.2
 
 * Replace empty, non-optional parameters with asterisk (`*`)
