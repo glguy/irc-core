@@ -1,16 +1,27 @@
 # Revision history for glirc2
 
 ## 2.36
-* Make sasl mechanism specification specific.
+* Make SASL mechanism specification specific and support an optional
+  authorization identity `authzid` used in rare circumstances but
+  supported by SASL.
 
   ```
-  sasl-username: "myuser"
-  sasl-mechanism: plain: "mypassword"     -- option 1
-  sasl-mechanism: external                -- option 2
-  sasl-mechanism: ecdsa: "path/to/my.key" -- option 3
+  sasl: -- example 1
+    mechanism: plain -- sasl defaults to plain if not specified
+    username: "myuser"
+    password: "mypassword"
+
+  sasl: -- example 2
+    mechanism: external
+    authzid: "otheruser" -- optional
+
+  sasl: -- example 3
+    mechanism: ecdsa
+    username: "myuser"
+    private-key: "path/to/my.key"
   ```
 
-  Note that now using a client-side TLS certificate is now an independent
+  Note that now using a client-side TLS certificate is an independent
   configuration from using EXTERNAL. To use both you need to configure
   both!
 
