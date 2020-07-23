@@ -59,8 +59,8 @@ module Client.Configuration.ServerSettings
   , _SaslEcdsa
   , _SaslPlain
 
-  -- * Load function
-  , loadDefaultServerSettings
+  -- * Defaults
+  , defaultServerSettings
 
   -- * TLS settings
   , UseTls(..)
@@ -80,7 +80,6 @@ import qualified Data.ByteString as B
 import           Data.Functor.Alt                    ((<!>))
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.ByteString (ByteString)
-import           Data.Maybe (fromMaybe)
 import           Data.Monoid
 import           Data.Text (Text)
 import           Data.List.Split (chunksOf, splitOn)
@@ -88,7 +87,6 @@ import qualified Data.Text as Text
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber, Family(..))
 import           Numeric (readHex)
-import           System.Environment
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.Text (compile)
 
@@ -164,19 +162,14 @@ data Fingerprint
 makeLenses ''ServerSettings
 makePrisms ''SaslMechanism
 
--- | Load the defaults for server settings based on the environment
--- variables.
---
--- Environment variables @USER@, @IRCPASSSWORD@, and @SASLPASSWORD@ are used.
-loadDefaultServerSettings :: IO ServerSettings
-loadDefaultServerSettings =
-  do env  <- getEnvironment
-     let username = Text.pack (fromMaybe "guest" (lookup "USER" env))
-     return ServerSettings
-       { _ssNicks         = pure username
-       , _ssUser          = username
-       , _ssReal          = username
-       , _ssPassword      = Text.pack <$> lookup "IRCPASSWORD" env
+-- | The defaults for server settings.
+defaultServerSettings :: ServerSettings
+defaultServerSettings =
+  ServerSettings
+       { _ssNicks         = pure "guest"
+       , _ssUser          = "username"
+       , _ssReal          = "realname"
+       , _ssPassword      = Nothing
        , _ssSaslMechanism = Nothing
        , _ssHostName      = ""
        , _ssPort          = Nothing
@@ -327,16 +320,16 @@ saslMechanismSpec = plain <!> external <!> ecdsa
     username = reqSection "username" "Authentication identity"
 
     plain =
-      sectionsSpec "plain-mech" $ SaslPlain <$
+      sectionsSpec "sasl-plain" $ SaslPlain <$
       optSection' "mechanism" (atomSpec "plain") "Mechanism" <*>
       authzid <*> username <*> reqSection "password" "Password"
 
     external =
-      sectionsSpec "external-mech" $ SaslExternal <$ mech "external" <*>
+      sectionsSpec "sasl-external" $ SaslExternal <$ mech "external" <*>
       authzid
 
     ecdsa =
-      sectionsSpec "ecdsa-nist256p-challenge-mech" $
+      sectionsSpec "sasl-ecdsa-nist256p-challenge-mech" $
       SaslEcdsa <$ mech "ecdsa-nist256p-challenge" <*>
       authzid <*> username <*>
       reqSection' "private-key" stringSpec "Private key file"

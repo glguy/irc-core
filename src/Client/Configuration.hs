@@ -232,7 +232,6 @@ loadConfiguration ::
   IO (Either ConfigurationFailure (FilePath, Configuration))
 loadConfiguration mbPath = try $
   do (path,txt) <- readConfigurationFile mbPath
-     def  <- loadDefaultServerSettings
      home <- getHomeDirectory
 
      rawcfg <-
@@ -245,7 +244,7 @@ loadConfiguration mbPath = try $
                $ ConfigurationMalformed path
                $ displayException e
        Right cfg ->
-         do cfg' <- resolvePaths path (cfg def home)
+         do cfg' <- resolvePaths path (cfg defaultServerSettings home)
                     >>= validateDirectories path
             return (path, cfg')
 
