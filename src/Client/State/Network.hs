@@ -707,32 +707,29 @@ selectCaps cs offered = (supported `intersect` Map.keys capMap)
       | otherwise                                    = []
 
     ss = view csSettings cs
-    sasl = ["sasl" | isJust (view ssSaslUsername ss)
-                   , isJust (view ssSaslMechanism ss) ]
+    sasl = ["sasl" | isJust (view ssSaslMechanism ss) ]
 
 doAuthenticate :: Text -> NetworkState -> ([RawIrcMsg], NetworkState)
 doAuthenticate param cs =
   case view csAuthenticationState cs of
     AS_PlainStarted
-      | "+"                           <- param
-      , Just authz                    <- view ssSaslUsername ss
-      , Just (SaslPlain mbAuthc pass) <- view ssSaslMechanism ss
-      , let authc = fromMaybe authz mbAuthc
+      | "+" <- param
+      , Just (SaslPlain mbAuthz authc pass) <- view ssSaslMechanism ss
+      , let authz = fromMaybe "" mbAuthz
       -> (ircAuthenticates (encodePlainAuthentication authz authc pass),
           set csAuthenticationState AS_None cs)
 
     AS_ExternalStarted
-      | "+"               <- param
-      , Just authz        <- view ssSaslUsername ss
-      , Just SaslExternal <- view ssSaslMechanism ss
+      | "+" <- param
+      , Just (SaslExternal mbAuthz) <- view ssSaslMechanism ss
+      , let authz = fromMaybe "" mbAuthz
       -> (ircAuthenticates (encodeExternalAuthentication authz),
           set csAuthenticationState AS_None cs)
 
     AS_EcdsaStarted
-      | "+"                        <- param
-      , Just authz                 <- view ssSaslUsername ss
-      , Just (SaslEcdsa mbAuthc _) <- view ssSaslMechanism ss
-      , let authc = fromMaybe authz mbAuthc
+      | "+" <- param
+      , Just (SaslEcdsa mbAuthz authc _) <- view ssSaslMechanism ss
+      , let authz = fromMaybe authz mbAuthz
       -> (ircAuthenticates (Ecdsa.encodeAuthentication authz authc),
           set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
@@ -770,7 +767,6 @@ doCap cmd cs =
     CapAck caps
       | let ss = view csSettings cs
       , "sasl" `elem` caps
-      , Just{} <- view ssSaslUsername ss
       , Just mech <- view ssSaslMechanism ss ->
         case mech of
           SaslEcdsa{} ->
@@ -779,7 +775,7 @@ doCap cmd cs =
           SaslPlain{} ->
             ([ircAuthenticate "PLAIN"],
              set csAuthenticationState AS_PlainStarted cs)
-          SaslExternal ->
+          SaslExternal{} ->
             ([ircAuthenticate "EXTERNAL"],
              set csAuthenticationState AS_ExternalStarted cs)
 

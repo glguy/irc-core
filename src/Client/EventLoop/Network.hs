@@ -126,7 +126,7 @@ processSaslEcdsa ::
   IO ClientState
 processSaslEcdsa now challenge cs st =
   case view ssSaslMechanism ss of
-    Just (SaslEcdsa _ path) ->
+    Just (SaslEcdsa _ _ path) ->
       do res <- Ecdsa.computeResponse path challenge
          case res of
            Left e ->

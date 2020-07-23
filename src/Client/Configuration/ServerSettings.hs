@@ -25,7 +25,6 @@ module Client.Configuration.ServerSettings
   , ssUser
   , ssReal
   , ssPassword
-  , ssSaslUsername
   , ssSaslMechanism
   , ssHostName
   , ssPort
@@ -99,7 +98,6 @@ data ServerSettings = ServerSettings
   , _ssUser             :: !Text -- ^ connection username
   , _ssReal             :: !Text -- ^ connection realname / GECOS
   , _ssPassword         :: !(Maybe Text) -- ^ server password
-  , _ssSaslUsername     :: !(Maybe Text) -- ^ SASL username
   , _ssSaslMechanism    :: !(Maybe SaslMechanism) -- ^ SASL mechanism
   , _ssHostName         :: !HostName -- ^ server hostname
   , _ssPort             :: !(Maybe PortNumber) -- ^ server port
@@ -132,9 +130,9 @@ data ServerSettings = ServerSettings
 
 -- | SASL mechanisms and configuration data.
 data SaslMechanism
-  = SaslPlain (Maybe Text) Text -- ^ SASL PLAIN - RFC4616 - Password-based authentication
-  | SaslEcdsa (Maybe Text) FilePath -- ^ SASL NIST - https://github.com/kaniini/ecdsatool
-  | SaslExternal       -- ^ SASL EXTERNAL - RFC4422
+  = SaslPlain    (Maybe Text) Text Text -- ^ SASL PLAIN RFC4616 - authzid authcid password
+  | SaslEcdsa    (Maybe Text) Text FilePath -- ^ SASL NIST - https://github.com/kaniini/ecdsatool - authzid keypath
+  | SaslExternal (Maybe Text)      -- ^ SASL EXTERNAL RFC4422 - authzid
   deriving Show
 
 -- | Regular expression matched with original source to help with debugging.
@@ -179,7 +177,6 @@ loadDefaultServerSettings =
        , _ssUser          = username
        , _ssReal          = username
        , _ssPassword      = Text.pack <$> lookup "IRCPASSWORD" env
-       , _ssSaslUsername  = Nothing
        , _ssSaslMechanism = Nothing
        , _ssHostName      = ""
        , _ssPort          = Nothing
@@ -249,11 +246,8 @@ serverSpec = sectionsSpec "server-settings" $
       , req "realname" ssReal anySpec
         "\"GECOS\" name sent to server visible in /whois"
 
-      , opt "sasl-username" ssSaslUsername anySpec
-        "SASL authorization identity"
-
-      , opt "sasl-mechanism" ssSaslMechanism saslMechanismSpec
-        "SASL authentication mechanism"
+      , opt "sasl" ssSaslMechanism saslMechanismSpec
+        "SASL settings"
 
       , req "tls" ssTls useTlsSpec
         "Set to `yes` to enable secure connect. Set to `yes-insecure` to disable certificate checking."
@@ -328,17 +322,23 @@ serverSpec = sectionsSpec "server-settings" $
 saslMechanismSpec :: ValueSpec SaslMechanism
 saslMechanismSpec = plain <!> external <!> ecdsa
   where
-    plain =
-      sectionsSpec "plain-mech" $ SaslPlain <$>
-      optSection "authc" "Authentication identity" <*>
-      reqSection "plain" "Password"
+    mech m   = reqSection' "mechanism" (atomSpec m) "Mechanism"
+    authzid  = optSection "authzid" "Authorization identity"
+    username = reqSection "username" "Authentication identity"
 
-    external = SaslExternal <$ atomSpec "external"
+    plain =
+      sectionsSpec "plain-mech" $ SaslPlain <$
+      optSection' "mechanism" (atomSpec "plain") "Mechanism" <*>
+      authzid <*> username <*> reqSection "password" "Password"
+
+    external =
+      sectionsSpec "external-mech" $ SaslExternal <$ mech "external" <*>
+      authzid
 
     ecdsa =
-      sectionsSpec "ecdsa-mech" $ SaslEcdsa <$>
-      optSection "authc" "Authentication identity" <*>
-      reqSection' "ecdsa" stringSpec "Private key file"
+      sectionsSpec "ecdsa-mech" $ SaslEcdsa <$ mech "ecdsa" <*>
+      authzid <*> username <*>
+      reqSection' "private-key" stringSpec "Private key file"
 
 hookSpec :: ValueSpec HookConfig
 hookSpec =
