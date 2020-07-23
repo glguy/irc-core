@@ -729,7 +729,7 @@ doAuthenticate param cs =
     AS_EcdsaStarted
       | "+" <- param
       , Just (SaslEcdsa mbAuthz authc _) <- view ssSaslMechanism ss
-      , let authz = fromMaybe authz mbAuthz
+      , let authz = fromMaybe authc mbAuthz
       -> (ircAuthenticates (Ecdsa.encodeAuthentication authz authc),
           set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
