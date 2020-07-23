@@ -16,7 +16,7 @@
     authzid: "otheruser" -- optional
 
   sasl: -- example 3
-    mechanism: ecdsa
+    mechanism: ecdsa-nist256p-challenge
     username: "myuser"
     private-key: "path/to/my.key"
   ```

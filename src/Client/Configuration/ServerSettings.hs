@@ -336,7 +336,8 @@ saslMechanismSpec = plain <!> external <!> ecdsa
       authzid
 
     ecdsa =
-      sectionsSpec "ecdsa-mech" $ SaslEcdsa <$ mech "ecdsa" <*>
+      sectionsSpec "ecdsa-nist256p-challenge-mech" $
+      SaslEcdsa <$ mech "ecdsa-nist256p-challenge" <*>
       authzid <*> username <*>
       reqSection' "private-key" stringSpec "Private key file"
 
