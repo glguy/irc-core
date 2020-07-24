@@ -38,11 +38,9 @@ import           Client.State.DCC (isSend)
 import           Client.State.Window
 import           Client.UserHost
 import           Control.Lens
-import           Control.Monad (mfilter)
 import           Data.Char
 import           Data.Hashable (hash)
 import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import           Data.List
@@ -65,7 +63,7 @@ data MessageRendererParams = MessageRendererParams
   , rendNicks      :: HashSet Identifier -- ^ nicknames to highlight
   , rendMyNicks    :: HashSet Identifier -- ^ nicknames to highlight in red
   , rendPalette    :: Palette -- ^ nick color palette
-  , rendAccounts   :: HashMap Identifier UserAndHost
+  , rendAccounts   :: Maybe (HashMap Identifier UserAndHost)
   }
 
 -- | Default 'MessageRendererParams' with no sigils or nicknames specified
@@ -76,7 +74,7 @@ defaultRenderParams = MessageRendererParams
   , rendNicks       = HashSet.empty
   , rendMyNicks     = HashSet.empty
   , rendPalette     = defaultPalette
-  , rendAccounts    = HashMap.empty
+  , rendAccounts    = Nothing
   }
 
 
@@ -216,13 +214,19 @@ ircLinePrefix !rp body =
       who n   = string (view palSigil pal) sigils <> ui
         where
           baseUI    = coloredUserInfo pal rm myNicks n
-          mbAcct    = mfilter (\acct -> not (Text.null acct || acct == "*"))
-                    $ rendAccounts rp ^? ix (userNick n) . uhAccount
-          ui = case mbAcct of
-                 Just acct
-                   | mkId acct == userNick n -> baseUI
-                   | otherwise -> baseUI <> "(" <> text' defAttr (cleanText acct) <> ")"
-                 Nothing -> "~" <> baseUI
+          ui = case rendAccounts rp of
+                 Nothing -> baseUI -- not tracking any accounts
+                 Just accts ->
+                   let isKnown acct = not (Text.null acct || acct == "*")
+                       mbAcct = accts
+                             ^? ix (userNick n)
+                              . uhAccount
+                              . filtered isKnown in
+                   case mbAcct of
+                     Just acct
+                       | mkId acct == userNick n -> baseUI
+                       | otherwise -> baseUI <> "(" <> text' defAttr (cleanText acct) <> ")"
+                     Nothing -> "~" <> baseUI
   in
   case body of
     Join       {} -> mempty
@@ -345,7 +349,7 @@ fullIrcLineImage !rp body =
         -- nick!user@host
         plainWho n <>
 
-        case rendAccounts rp ^? ix (userNick n) . uhAccount of
+        case rendAccounts rp ^? folded . ix (userNick n) . uhAccount of
           Just acct
             | not (Text.null acct) -> text' quietAttr ("(" <> cleanText acct <> ")")
           _ -> ""

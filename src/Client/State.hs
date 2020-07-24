@@ -338,8 +338,8 @@ recordChannelMessage network channel msg st
 
     accounts =
       if view (csSettings . ssShowAccounts) cs
-      then view csUsers cs
-      else HashMap.empty
+      then Just (view csUsers cs)
+      else Nothing
 
 
 recordLogLine ::
