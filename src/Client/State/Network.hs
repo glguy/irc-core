@@ -46,6 +46,7 @@ module Client.State.Network
   , csCertificate
   , csMessageHooks
   , csAuthenticationState
+  , csSeed
 
   -- * Cross-message state
   , Transaction(..)
@@ -81,6 +82,7 @@ import           Client.UserHost
 import           Client.Hook (MessageHook)
 import           Client.Hooks (messageHooks)
 import           Control.Lens
+import qualified Control.Monad.ST as ST
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -105,6 +107,7 @@ import           Irc.Modes
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
+import qualified System.Random.MWC as Random
 
 -- | State tracked for each IRC connection
 data NetworkState = NetworkState
@@ -131,6 +134,9 @@ data NetworkState = NetworkState
   , _csPingStatus   :: !PingStatus      -- ^ state of ping timer
   , _csLastReceived :: !(Maybe UTCTime) -- ^ time of last message received
   , _csCertificate  :: ![Text]
+
+  -- Randomization
+  , _csSeed         :: Random.Seed
   }
 
 -- | State of the authentication transaction
@@ -241,8 +247,9 @@ newNetworkState ::
   ServerSettings    {- ^ server settings           -} ->
   NetworkConnection {- ^ active network connection -} ->
   PingStatus        {- ^ initial ping status       -} ->
+  Random.Seed       {- ^ initial random seed       -} ->
   NetworkState      {- ^ new network state         -}
-newNetworkState network settings sock ping = NetworkState
+newNetworkState network settings sock ping seed = NetworkState
   { _csUserInfo     = UserInfo "*" "" ""
   , _csChannels     = HashMap.empty
   , _csSocket       = sock
@@ -264,6 +271,7 @@ newNetworkState network settings sock ping = NetworkState
   , _csNextPingTime = Nothing
   , _csLastReceived = Nothing
   , _csCertificate  = []
+  , _csSeed         = seed
   }
 
 buildMessageHooks :: [HookConfig] -> [MessageHook]
@@ -385,7 +393,22 @@ doBadNick ::
 doBadNick badNick cs =
   case NonEmpty.dropWhile (badNick/=) (view (csSettings . ssNicks) cs) of
     _:next:_ -> ([ircNick next], cs)
-    _        -> ([], cs)
+    _        -> doRandomNick cs
+
+-- | Pick a random nickname now that we've run out of choices
+doRandomNick :: NetworkState -> ([RawIrcMsg], NetworkState)
+doRandomNick cs = ([ircNick candidate], cs')
+  where
+    limit       = 9 -- RFC 2812 puts the maximum nickname length as low as 9!
+    range       = (0, 99999::Int) -- up to 5 random digits
+    suffix      = show n
+    primaryNick = NonEmpty.head (view (csSettings . ssNicks) cs)
+    candidate   = Text.take (limit-length suffix) primaryNick <> Text.pack suffix
+    cs'         = set csSeed seed' cs
+
+    (n, seed')  = ST.runST (do gen <- Random.restore (view csSeed cs)
+                               (,) <$> Random.uniformR range gen <*> Random.save gen
+                           )
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> NetworkState -> NetworkState
 doTopic when user chan topic =

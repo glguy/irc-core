@@ -153,6 +153,7 @@ import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
 import           RtsStats (Stats)
+import qualified System.Random.MWC as Random
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
 
@@ -755,7 +756,9 @@ addConnection attempts lastTime stsUpgrade network st =
             delay
             settings1
 
-     let cs = newNetworkState network settings1 c (PingConnecting attempts lastTime)
+     seed <- Random.withSystemRandom (Random.asGenIO Random.save)
+
+     let cs = newNetworkState network settings1 c (PingConnecting attempts lastTime) seed
      traverse_ (sendMsg cs) (initialMessages cs)
 
      return $ set (clientConnections . at network) (Just cs) st
