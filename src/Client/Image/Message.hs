@@ -38,6 +38,7 @@ import           Client.State.DCC (isSend)
 import           Client.State.Window
 import           Client.UserHost
 import           Control.Lens
+import           Control.Monad (mfilter)
 import           Data.Char
 import           Data.Hashable (hash)
 import           Data.HashMap.Strict (HashMap)
@@ -215,11 +216,13 @@ ircLinePrefix !rp body =
       who n   = string (view palSigil pal) sigils <> ui
         where
           baseUI    = coloredUserInfo pal rm myNicks n
-          ui = case rendAccounts rp ^? ix (userNick n) . uhAccount of
+          mbAcct    = mfilter (\acct -> not (Text.null acct || acct == "*"))
+                    $ rendAccounts rp ^? ix (userNick n) . uhAccount
+          ui = case mbAcct of
                  Just acct
-                   | Text.null acct || acct == "*" -> "~" <> baseUI -- unknown status or known unidentified
-                   | mkId acct /= userNick n -> baseUI <> "(" <> text' defAttr (cleanText acct) <> ")"
-                 _ -> baseUI
+                   | mkId acct == userNick n -> baseUI
+                   | otherwise -> baseUI <> "(" <> text' defAttr (cleanText acct) <> ")"
+                 Nothing -> "~" <> baseUI
   in
   case body of
     Join       {} -> mempty
