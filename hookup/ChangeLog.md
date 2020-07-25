@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.4
+
+* Added ability to specify TLS private key password
+
 ## 0.3.1.0 -- 2020-02
 
 * Added `getClientCertificate`

@@ -1,6 +1,9 @@
 # Revision history for glirc2
 
 ## 2.36
+
+* Add TLS key PEM password configuration
+* Make all configuration file passwords able to be loaded from executing a command
 * Make SASL mechanism specification specific and support an optional
   authorization identity `authzid` used in rare circumstances but
   supported by SASL.

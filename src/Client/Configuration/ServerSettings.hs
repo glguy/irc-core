@@ -31,6 +31,7 @@ module Client.Configuration.ServerSettings
   , ssTls
   , ssTlsClientCert
   , ssTlsClientKey
+  , ssTlsClientKeyPassword
   , ssTlsServerCert
   , ssTlsCiphers
   , ssConnectCmds
@@ -112,6 +113,7 @@ data ServerSettings = ServerSettings
   , _ssTls              :: !UseTls -- ^ use TLS to connect
   , _ssTlsClientCert    :: !(Maybe FilePath) -- ^ path to client TLS certificate
   , _ssTlsClientKey     :: !(Maybe FilePath) -- ^ path to client TLS key
+  , _ssTlsClientKeyPassword :: !(Maybe Secret) -- ^ client key PEM password
   , _ssTlsServerCert    :: !(Maybe FilePath) -- ^ additional CA certificates for validating server
   , _ssTlsCiphers       :: String            -- ^ OpenSSL cipher suite
   , _ssConnectCmds      :: ![[ExpansionChunk]] -- ^ commands to execute upon successful connection
@@ -191,6 +193,7 @@ defaultServerSettings =
        , _ssTls           = UseInsecure
        , _ssTlsClientCert = Nothing
        , _ssTlsClientKey  = Nothing
+       , _ssTlsClientKeyPassword = Nothing
        , _ssTlsServerCert = Nothing
        , _ssTlsCiphers    = "HIGH"
        , _ssConnectCmds   = []
@@ -265,6 +268,9 @@ serverSpec = sectionsSpec "server-settings" $
 
       , opt "tls-client-key" ssTlsClientKey stringSpec
         "Path to TLS client key"
+
+      , opt "tls-client-key-password" ssTlsClientKeyPassword anySpec
+        "Password for decrypting TLS client key PEM file"
 
       , opt "tls-server-cert" ssTlsServerCert stringSpec
         "Path to CA certificate bundle"
@@ -429,8 +435,9 @@ instance Exception SecretException
 -- Throws 'SecretException'
 loadSecrets :: ServerSettings -> IO ServerSettings
 loadSecrets =
-  traverseOf (ssPassword      . _Just                  ) (loadSecret "server password") >=>
-  traverseOf (ssSaslMechanism . _Just . _SaslPlain . _3) (loadSecret "SASL password")
+  traverseOf (ssPassword             . _Just                  ) (loadSecret "server password") >=>
+  traverseOf (ssSaslMechanism        . _Just . _SaslPlain . _3) (loadSecret "SASL password") >=>
+  traverseOf (ssTlsClientKeyPassword . _Just                  ) (loadSecret "TLS key password")
 
 -- | Run a command if found and replace it with the first line of stdout result.
 loadSecret :: String -> Secret -> IO Secret

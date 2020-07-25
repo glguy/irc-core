@@ -23,27 +23,37 @@ import           Client.Configuration.ServerSettings
 import           Control.Applicative
 import           Control.Exception  (bracket)
 import           Control.Lens
-import           Network.Socket     (PortNumber)
+import qualified Data.Text.Encoding as Text
+import           Network.Socket (PortNumber)
 import           Hookup
 
 buildConnectionParams :: ServerSettings -> ConnectionParams
 buildConnectionParams args =
-  let tlsParams = TlsParams
-                    (view ssTlsClientCert args)
-                    (view ssTlsClientKey  args <|> view ssTlsClientCert args)
-                    (view ssTlsServerCert args)
-                    (view ssTlsCiphers    args)
 
-      family =
-        case view ssProtocolFamily args of
-          Nothing -> defaultFamily
-          Just pf -> pf
+  let tlsParams insecure = TlsParams
+        { tpClientCertificate  = view ssTlsClientCert args
+        , tpClientPrivateKey   = view ssTlsClientKey args <|> view ssTlsClientCert args
+        , tpClientPrivateKeyPassword = privateKeyPassword
+        , tpServerCertificate  = view ssTlsServerCert args
+        , tpCipherSuite        = view ssTlsCiphers args
+        , tpInsecure           = insecure
+        }
+
+      privateKeyPassword =
+        case view ssTlsClientKeyPassword args of
+          Just (SecretText str) -> PwBS (Text.encodeUtf8 str)
+          _                     -> PwNone
 
       useSecure =
         case view ssTls args of
           UseInsecure    -> Nothing
           UseInsecureTls -> Just (tlsParams True)
           UseTls         -> Just (tlsParams False)
+
+      family =
+        case view ssProtocolFamily args of
+          Nothing -> defaultFamily
+          Just pf -> pf
 
       proxySettings = view ssSocksHost args <&> \host ->
                         SocksParams

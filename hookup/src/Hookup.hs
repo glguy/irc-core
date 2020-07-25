@@ -41,6 +41,7 @@ module Hookup
   ConnectionParams(..),
   SocksParams(..),
   TlsParams(..),
+  PEM.PemPasswordSupply(..),
   defaultFamily,
   defaultTlsParams,
 
@@ -122,6 +123,7 @@ data SocksParams = SocksParams
 data TlsParams = TlsParams
   { tpClientCertificate  :: Maybe FilePath -- ^ Path to client certificate
   , tpClientPrivateKey   :: Maybe FilePath -- ^ Path to client private key
+  , tpClientPrivateKeyPassword :: PEM.PemPasswordSupply -- ^ Private key decryption password
   , tpServerCertificate  :: Maybe FilePath -- ^ Path to CA certificate bundle
   , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. @\"HIGH\"@)
   , tpInsecure           :: Bool -- ^ Disables certificate checking when 'True'
@@ -186,6 +188,7 @@ defaultTlsParams :: TlsParams
 defaultTlsParams = TlsParams
   { tpClientCertificate  = Nothing
   , tpClientPrivateKey   = Nothing
+  , tpClientPrivateKeyPassword = PEM.PwNone
   , tpServerCertificate  = Nothing -- use system provided CAs
   , tpCipherSuite        = "HIGH"
   , tpInsecure           = False
@@ -489,7 +492,7 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
      -- configure certificates
      setupCaCertificates ctx (tpServerCertificate tp)
      clientCert <- traverse (setupCertificate ctx) (tpClientCertificate tp)
-     traverse_ (setupPrivateKey  ctx) (tpClientPrivateKey  tp)
+     traverse_ (setupPrivateKey ctx (tpClientPrivateKeyPassword tp)) (tpClientPrivateKey tp)
 
      -- add socket to context
      -- creation of the socket is delayed until this point to avoid
@@ -518,10 +521,10 @@ setupCertificate ctx path =
      pure x509
 
 
-setupPrivateKey :: SSLContext -> FilePath -> IO ()
-setupPrivateKey ctx path =
+setupPrivateKey :: SSLContext -> PEM.PemPasswordSupply -> FilePath -> IO ()
+setupPrivateKey ctx password path =
   do str <- readFile path -- EX
-     key <- PEM.readPrivateKey str PEM.PwNone -- TODO: add password support
+     key <- PEM.readPrivateKey str password
      SSL.contextSetPrivateKey ctx key
 
 
