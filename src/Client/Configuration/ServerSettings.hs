@@ -59,6 +59,11 @@ module Client.Configuration.ServerSettings
   , _SaslEcdsa
   , _SaslPlain
 
+  -- * Secrets
+  , Secret(..)
+  , SecretException(..)
+  , loadSecrets
+
   -- * Defaults
   , defaultServerSettings
 
@@ -75,18 +80,23 @@ import           Client.Commands.Interpolation
 import           Client.Commands.WordCompletion
 import           Client.Configuration.Macros (macroCommandSpec)
 import           Config.Schema.Spec
+import           Control.Exception (Exception, displayException, throwIO, try)
 import           Control.Lens
+import           Control.Monad ((>=>))
 import qualified Data.ByteString as B
 import           Data.Functor.Alt                    ((<!>))
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.ByteString (ByteString)
 import           Data.Monoid
 import           Data.Text (Text)
+import qualified Data.List.NonEmpty as NonEmpty
 import           Data.List.Split (chunksOf, splitOn)
 import qualified Data.Text as Text
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber, Family(..))
 import           Numeric (readHex)
+import qualified System.Exit as Exit
+import qualified System.Process as Process
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.Text (compile)
 
@@ -95,7 +105,7 @@ data ServerSettings = ServerSettings
   { _ssNicks            :: !(NonEmpty Text) -- ^ connection nicknames
   , _ssUser             :: !Text -- ^ connection username
   , _ssReal             :: !Text -- ^ connection realname / GECOS
-  , _ssPassword         :: !(Maybe Text) -- ^ server password
+  , _ssPassword         :: !(Maybe Secret) -- ^ server password
   , _ssSaslMechanism    :: !(Maybe SaslMechanism) -- ^ SASL mechanism
   , _ssHostName         :: !HostName -- ^ server hostname
   , _ssPort             :: !(Maybe PortNumber) -- ^ server port
@@ -126,9 +136,14 @@ data ServerSettings = ServerSettings
   }
   deriving Show
 
+data Secret
+  = SecretText Text    -- ^ Constant text
+  | SecretCommand (NonEmpty Text) -- ^ Command to generate text
+  deriving Show
+
 -- | SASL mechanisms and configuration data.
 data SaslMechanism
-  = SaslPlain    (Maybe Text) Text Text -- ^ SASL PLAIN RFC4616 - authzid authcid password
+  = SaslPlain    (Maybe Text) Text Secret -- ^ SASL PLAIN RFC4616 - authzid authcid password
   | SaslEcdsa    (Maybe Text) Text FilePath -- ^ SASL NIST - https://github.com/kaniini/ecdsatool - authzid keypath
   | SaslExternal (Maybe Text)      -- ^ SASL EXTERNAL RFC4422 - authzid
   deriving Show
@@ -379,7 +394,6 @@ protocolFamilySpec =
 nicksSpec :: ValueSpec (NonEmpty Text)
 nicksSpec = oneOrNonemptySpec anySpec
 
-
 useTlsSpec :: ValueSpec UseTls
 useTlsSpec =
       UseTls         <$ atomSpec "yes"
@@ -401,3 +415,30 @@ regexSpec = customSpec "regex" anySpec $ \str ->
   case compile defaultCompOpt ExecOption{captureGroups = False} str of
     Left e  -> Left  (Text.pack e)
     Right r -> Right (KnownRegex str r)
+
+instance HasSpec Secret where
+  anySpec = SecretText <$> textSpec <!>
+            SecretCommand <$> sectionsSpec "command" (reqSection "command" "Command and arguments to execute to secret")
+
+data SecretException = SecretException String String
+  deriving Show
+
+instance Exception SecretException
+
+-- | Run the secret commands in a server configuration replacing them with secret text.
+-- Throws 'SecretException'
+loadSecrets :: ServerSettings -> IO ServerSettings
+loadSecrets =
+  traverseOf (ssPassword      . _Just                  ) (loadSecret "server password") >=>
+  traverseOf (ssSaslMechanism . _Just . _SaslPlain . _3) (loadSecret "SASL password")
+
+-- | Run a command if found and replace it with the first line of stdout result.
+loadSecret :: String -> Secret -> IO Secret
+loadSecret _ (SecretText txt) = pure (SecretText txt)
+loadSecret label (SecretCommand (cmd NonEmpty.:| args)) =
+  do let u = Text.unpack
+     res <- try (Process.readProcessWithExitCode (u cmd) (map u args) "")
+     case res of
+       Right (Exit.ExitSuccess,out,_) -> pure (SecretText (Text.pack (takeWhile ('\n' /=) out)))
+       Right (Exit.ExitFailure{},_,err) -> throwIO (SecretException label err)
+       Left ioe -> throwIO (SecretException label (displayException (ioe::IOError)))

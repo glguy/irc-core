@@ -729,10 +729,31 @@ addConnection attempts lastTime stsUpgrade network st =
                      , _ssHostName = Text.unpack network
                      }
 
-         settings = fromMaybe defSettings
-                  $ preview (clientConfig . configServers . ix network) st
+     eSettings0 <-
+       try $
+       loadSecrets $
+       fromMaybe defSettings $
+       preview (clientConfig . configServers . ix network) st
 
-     now <- getCurrentTime
+     case eSettings0 of
+       Left (SecretException label err) ->
+         do now <- getZonedTime
+            let txt = "Failed loading secret \x02" <> label <> "\x02: " <> err
+            pure $! recordError now network (Text.pack txt) st
+
+       Right settings0 ->
+         do settings1 <- applyStsPolicy stsUpgrade settings0 st
+            -- don't bother delaying on the first reconnect
+            let delay = 15 * max 0 (attempts - 1)
+            c <- createConnection delay settings1
+            seed <- Random.withSystemRandom (Random.asGenIO Random.save)
+            let cs = newNetworkState network settings1 c (PingConnecting attempts lastTime) seed
+            traverse_ (sendMsg cs) (initialMessages cs)
+            pure (set (clientConnections . at network) (Just cs) st)
+
+applyStsPolicy :: Maybe Int -> ServerSettings -> ClientState -> IO ServerSettings
+applyStsPolicy stsUpgrade settings st =
+  do now <- getCurrentTime
      let stsUpgrade'
            | Just{} <- stsUpgrade = stsUpgrade
            | UseInsecure <- view ssTls settings
@@ -741,28 +762,10 @@ addConnection attempts lastTime stsUpgrade network st =
            , now < view stsExpiration policy
            = Just (view stsPort policy)
            | otherwise = Nothing
-
-         settings1 =
-           case stsUpgrade' of
-             Just port -> set ssPort (Just (fromIntegral port))
-                        $ set ssTls UseTls settings
-             Nothing   -> settings
-
-
-         -- don't bother delaying on the first reconnect
-         delay = 15 * max 0 (attempts - 1)
-
-     c <- createConnection
-            delay
-            settings1
-
-     seed <- Random.withSystemRandom (Random.asGenIO Random.save)
-
-     let cs = newNetworkState network settings1 c (PingConnecting attempts lastTime) seed
-     traverse_ (sendMsg cs) (initialMessages cs)
-
-     return $ set (clientConnections . at network) (Just cs) st
-
+     pure $ case stsUpgrade' of
+              Just port -> set ssPort (Just (fromIntegral port))
+                         $ set ssTls UseTls settings
+              Nothing   -> settings
 
 applyMessageToClientState ::
   ZonedTime                  {- ^ timestamp                -} ->

@@ -737,7 +737,7 @@ doAuthenticate param cs =
   case view csAuthenticationState cs of
     AS_PlainStarted
       | "+" <- param
-      , Just (SaslPlain mbAuthz authc pass) <- view ssSaslMechanism ss
+      , Just (SaslPlain mbAuthz authc (SecretText pass)) <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
       -> (ircAuthenticates (encodePlainAuthentication authz authc pass),
           set csAuthenticationState AS_None cs)
@@ -807,7 +807,7 @@ doCap cmd cs =
 initialMessages :: NetworkState -> [RawIrcMsg]
 initialMessages cs
    = [ ircCapLs ]
-  ++ [ ircPass pass | Just pass <- [view ssPassword ss]]
+  ++ [ ircPass pass | Just (SecretText pass) <- [view ssPassword ss]]
   ++ [ ircNick (views ssNicks NonEmpty.head ss)
      , ircUser (view ssUser ss) (view ssReal ss)
      ]
