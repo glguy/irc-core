@@ -650,24 +650,42 @@ clientMatcher st =
            Nothing -> Nothing
            Just r  -> Just r
 
-buildMatcher :: String -> Maybe Matcher
-buildMatcher = go (True, 0, 0)
-  where
-    go (sensitive, b, a) reStr =
-      case dropWhile (' '==) reStr of
-        '-' : 'i' : ' ' : reStr'                                            -> go (False, b, a) reStr'
-        '-' : 'A' : reStr' | [(a' , ' ':reStr'')] <- reads reStr', a'  >= 0 -> go (sensitive, b, a') reStr''
-        '-' : 'B' : reStr' | [(b' , ' ':reStr'')] <- reads reStr', b'  >= 0 -> go (sensitive, b', a) reStr''
-        '-' : 'C' : reStr' | [(num, ' ':reStr'')] <- reads reStr', num >= 0 -> go (sensitive, num, num) reStr''
-        '-' : '-' : reStr' -> finish (sensitive, b, a) (drop 1 reStr')
-        _ -> finish (sensitive, b, a) reStr
+data MatcherArgs = MatcherArgs
+  { argAfter     :: !Int
+  , argBefore    :: !Int
+  , argInvert    :: !Bool
+  , argSensitive :: !Bool
+  }
 
-    finish (sensitive, b, a) reStr =
-      case compile defaultCompOpt{caseSensitive=sensitive}
+defaultMatcherArgs :: MatcherArgs
+defaultMatcherArgs = MatcherArgs
+  { argAfter     = 0
+  , argBefore    = 0
+  , argInvert    = False
+  , argSensitive = True
+  }
+
+buildMatcher :: String -> Maybe Matcher
+buildMatcher = go defaultMatcherArgs
+  where
+    go !args reStr =
+      case dropWhile (' '==) reStr of
+        '-' : 'i' : ' ' : reStr' -> go args{argSensitive=False} reStr'
+        '-' : 'v' : ' ' : reStr' -> go args{argInvert=True} reStr'
+        '-' : 'A' : reStr' | [(a,' ':reStr'')] <- reads reStr', a>=0 -> go args{argAfter=a} reStr''
+        '-' : 'B' : reStr' | [(b,' ':reStr'')] <- reads reStr', b>=0 -> go args{argBefore=b} reStr''
+        '-' : 'C' : reStr' | [(c,' ':reStr'')] <- reads reStr', c>=0 -> go args{argAfter=c,argBefore=c} reStr''
+        '-' : '-' : ' ' : reStr' -> finish args reStr'
+        _ -> finish args reStr
+
+    finish args reStr =
+      case compile defaultCompOpt{caseSensitive=argSensitive args}
                    defaultExecOpt{captureGroups=False}
                    reStr of
         Left{}  -> Nothing
-        Right r -> Just (Matcher b a (matchTest r . LText.unpack))
+        Right r
+          | argInvert args -> Just (Matcher (argBefore args) (argAfter args) (not . matchTest r . LText.unpack))
+          | otherwise      -> Just (Matcher (argBefore args) (argAfter args) (      matchTest r . LText.unpack))
 
 -- | Compute the command and arguments currently in the textbox.
 clientActiveCommand ::

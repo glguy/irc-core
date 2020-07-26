@@ -706,6 +706,7 @@ commandsList =
       \    -Bn  Show n messages before match\n\
       \    -Cn  Show n messages before and after match\n\
       \    -i   Case insensitive match\n\
+      \    -v   Invert pattern match\n\
       \    --   Stop processing flags\n\
       \\n\
       \Clear the regular expression by calling this without an argument.\n\
