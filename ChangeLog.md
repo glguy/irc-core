@@ -2,6 +2,9 @@
 
 ## 2.36
 
+* Support specifying `bind-hostname` to pick a local address to connect
+  from in favor of `protocol-family`. To pick a protocol family you
+  can now specify `bind-hostname: "0.0.0.0"` or `bind-hostname: "::"`
 * Add TLS key PEM password configuration
 * Make all configuration file passwords able to be loaded from executing a command
 * Make SASL mechanism specification specific and support an optional

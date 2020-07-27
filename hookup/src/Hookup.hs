@@ -42,7 +42,6 @@ module Hookup
   SocksParams(..),
   TlsParams(..),
   PEM.PemPasswordSupply(..),
-  defaultFamily,
   defaultTlsParams,
 
 
@@ -70,7 +69,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import           Data.Foldable
 import           Data.List (intercalate, partition)
-import           Network.Socket (Socket, AddrInfo, PortNumber, HostName, Family)
+import           Network.Socket (AddrInfo, HostName, PortNumber, SockAddr, Socket, Family)
 import qualified Network.Socket as Socket
 import qualified Network.Socket.ByteString as SocketB
 import           OpenSSL.Session (SSL, SSLContext)
@@ -92,24 +91,21 @@ import           Hookup.Socks5
 --
 -- Common defaults for fields: 'defaultFamily', 'defaultTlsParams'
 --
--- The address family can be specified in order to force only
--- IPv4 or IPv6 to be used. The default behavior is to support both.
--- It can be useful to specify exactly one of these in the case that
--- the other is misconfigured and a hostname is resolving to both.
---
 -- When a 'SocksParams' is provided the connection will be established
 -- using a SOCKS (version 5) proxy.
 --
 -- When a 'TlsParams' is provided the connection negotiate TLS at connect
 -- time in order to protect the stream.
+--
+-- The binding hostname can be used to force the connect to use a particular
+-- interface or IP protocol version.
 data ConnectionParams = ConnectionParams
-  { cpFamily :: Family           -- ^ IP Protocol family (default 'AF_UNSPEC')
-  , cpHost  :: HostName          -- ^ Destination host
+  { cpHost  :: HostName          -- ^ Destination host
   , cpPort  :: PortNumber        -- ^ Destination TCP port
   , cpSocks :: Maybe SocksParams -- ^ Optional SOCKS parameters
   , cpTls   :: Maybe TlsParams   -- ^ Optional TLS parameters
+  , cpBind  :: Maybe HostName    -- ^ Source address to bind
   }
-
 
 -- | SOCKS connection parameters
 data SocksParams = SocksParams
@@ -178,10 +174,6 @@ instance Exception ConnectionFailure where
       AddrNotSupported  -> "address type not supported"
       CommandReply n    -> "unknown reply " ++ show n
 
--- | Default 'Family' value is unspecified and allows both INET and INET6.
-defaultFamily :: Socket.Family
-defaultFamily = Socket.AF_UNSPEC
-
 -- | Default values for TLS that use no client certificates, use
 -- system CA root, @\"HIGH\"@ cipher suite, and which validate hostnames.
 defaultTlsParams :: TlsParams
@@ -203,9 +195,9 @@ defaultTlsParams = TlsParams
 openSocket :: ConnectionParams -> IO Socket
 openSocket params =
   case cpSocks params of
-    Nothing -> openSocket' (cpFamily params) (cpHost params) (cpPort params)
+    Nothing -> openSocket' (cpHost params) (cpPort params) (cpBind params)
     Just sp ->
-      do sock <- openSocket' (cpFamily params) (spHost sp) (spPort sp)
+      do sock <- openSocket' (spHost sp) (spPort sp) (cpBind params)
          (sock <$ socksConnect sock (cpHost params) (cpPort params))
            `onException` Socket.close sock
 
@@ -256,29 +248,56 @@ validateResponse response =
     (throwIO (SocksError (rspReply response)))
 
 
-openSocket' :: Family -> HostName -> PortNumber -> IO Socket
-openSocket' family h p =
-  do let hints = Socket.defaultHints
-           { Socket.addrFamily     = family
-           , Socket.addrSocketType = Socket.Stream
-           , Socket.addrFlags      = [Socket.AI_ADDRCONFIG
-                                     ,Socket.AI_NUMERICSERV]
-           }
-     res <- try (Socket.getAddrInfo (Just hints) (Just h) (Just (show p)))
+openSocket' ::
+  HostName       {- ^ destination      -} ->
+  PortNumber     {- ^ destination port -} ->
+  Maybe HostName {- ^ source           -} ->
+  IO Socket      {- ^ connected socket -}
+openSocket' h p mbBind =
+  do mbSrc <- traverse (resolve Nothing) mbBind
+     dst   <- resolve (Just p) h
+     let pairs = interleaveAddressFamilies (matchBindAddrs mbSrc dst)
+     when (null pairs)
+       (throwIO (HostnameResolutionFailure h "No source/destination address family match"))
+     attempt pairs
+
+hints :: AddrInfo
+hints = Socket.defaultHints
+  { Socket.addrSocketType = Socket.Stream
+  , Socket.addrFlags      = [Socket.AI_ADDRCONFIG, Socket.AI_NUMERICSERV]
+  }
+
+resolve :: Maybe PortNumber -> HostName -> IO [AddrInfo]
+resolve mbPort host =
+  do res <- try (Socket.getAddrInfo (Just hints) (Just host) (show<$>mbPort))
      case res of
-       Right ais -> attempt (interleaveAddressFamilies ais)
-       Left  ioe
+       Right ais -> return ais
+       Left ioe
          | isDoesNotExistError ioe ->
-             throwIO (HostnameResolutionFailure h (ioeGetErrorString ioe))
+             throwIO (HostnameResolutionFailure host (ioeGetErrorString ioe))
          | otherwise -> throwIO ioe -- unexpected
 
+-- | When no bind address is specified return the full list of destination
+-- addresses with no bind address specified.
+--
+-- When bind addresses are specified return a subset of the destination list
+-- matched up with the first address from the bind list that has the
+-- correct address family.
+matchBindAddrs :: Maybe [AddrInfo] -> [AddrInfo] -> [(Maybe SockAddr, AddrInfo)]
+matchBindAddrs Nothing    dst = [ (Nothing, x) | x <- dst ]
+matchBindAddrs (Just src) dst =
+  [ (Just (Socket.addrAddress s), d)
+  | d <- dst
+  , let ss = [s | s <- src, Socket.addrFamily d == Socket.addrFamily s]
+  , s <- take 1 ss ]
+
 attempt ::
-  [Socket.AddrInfo] {- ^ candidate AddrInfos -} ->
+  [(Maybe SockAddr, AddrInfo)] {- ^ candidate AddrInfos -} ->
   IO Socket         {- ^ connected socket    -}
-attempt ais =
+attempt xs =
   do comm    <- newEmptyMVar
-     threads <- zipWithM (attemptThread comm) [0..] ais
-     s       <- gather (length ais) [] comm
+     threads <- zipWithM (attemptThread comm) [0..] xs
+     s       <- gather (length xs) [] comm
 
      -- kill the other attempts and don't bother waiting for that to finish
      forkIO (traverse_ killThread threads)
@@ -288,13 +307,13 @@ attempt ais =
 attemptThread ::
   MVar (Either IOError Socket) ->
   Int {- 0-based attempt index -} ->
-  AddrInfo ->
+  (Maybe SockAddr, AddrInfo) ->
   IO ThreadId
-attemptThread comm i ai =
+attemptThread comm i (mbSrc, ai) =
   forkIO $
   do let connAttemptDelay = 150 * 1000 -- 150ms
      threadDelay (connAttemptDelay * i)
-     putMVar comm =<< try (connectToAddrInfo ai)
+     putMVar comm =<< try (connectToAddrInfo mbSrc ai)
 
 -- Either gather all of the errors possible and throw an exception or
 -- return the first successful socket.
@@ -311,11 +330,11 @@ gather n exs comm =
        Left ex -> gather (n-1) (ex:exs) comm
 
 -- | Alternate list of addresses between IPv6 and other (IPv4) addresses.
-interleaveAddressFamilies :: [AddrInfo] -> [AddrInfo]
-interleaveAddressFamilies ais = interleave sixes others
+interleaveAddressFamilies :: [(Maybe SockAddr, AddrInfo)] -> [(Maybe SockAddr, AddrInfo)]
+interleaveAddressFamilies xs = interleave sixes others
   where
-    (sixes, others) = partition is6 ais
-    is6 ai = Socket.AF_INET6 == Socket.addrFamily ai
+    (sixes, others) = partition is6 xs
+    is6 x = Socket.AF_INET6 == Socket.addrFamily (snd x)
 
     interleave (x:xs) (y:ys) = x : y : interleave xs ys
     interleave []     ys     = ys
@@ -323,10 +342,12 @@ interleaveAddressFamilies ais = interleave sixes others
 
 -- | Create a socket and connect to the service identified
 -- by the given 'AddrInfo' and return the connected socket.
-connectToAddrInfo :: AddrInfo -> IO Socket
-connectToAddrInfo info
-  = bracketOnError (socket' info) Socket.close
-  $ \s -> s <$ Socket.connect s (Socket.addrAddress info)
+connectToAddrInfo :: Maybe SockAddr -> AddrInfo -> IO Socket
+connectToAddrInfo mbSrc info
+  = bracketOnError (socket' info) Socket.close $ \s ->
+    do traverse_ (Socket.bind s) mbSrc
+       Socket.connect s (Socket.addrAddress info)
+       pure s
 
 -- | Open a 'Socket' using the parameters from an 'AddrInfo'
 socket' :: AddrInfo -> IO Socket

@@ -47,7 +47,7 @@ module Client.Configuration.ServerSettings
   , ssAutoconnect
   , ssNickCompletion
   , ssLogDir
-  , ssProtocolFamily
+  , ssBindHostName
   , ssSts
   , ssTlsPubkeyFingerprint
   , ssTlsCertFingerprint
@@ -94,7 +94,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import           Data.List.Split (chunksOf, splitOn)
 import qualified Data.Text as Text
 import           Irc.Identifier (Identifier, mkId)
-import           Network.Socket (HostName, PortNumber, Family(..))
+import           Network.Socket (HostName, PortNumber)
 import           Numeric (readHex)
 import qualified System.Exit as Exit
 import qualified System.Process as Process
@@ -129,7 +129,7 @@ data ServerSettings = ServerSettings
   , _ssAutoconnect      :: !Bool -- ^ Connect to this network on server startup
   , _ssNickCompletion   :: WordCompletionMode -- ^ Nick completion mode for this server
   , _ssLogDir           :: Maybe FilePath -- ^ Directory to save logs of chat
-  , _ssProtocolFamily   :: Maybe Family -- ^ Protocol family to connect with
+  , _ssBindHostName     :: Maybe HostName -- ^ Local bind host
   , _ssSts              :: !Bool -- ^ Honor STS policies when true
   , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint) -- ^ optional acceptable public key fingerprint
   , _ssTlsCertFingerprint   :: !(Maybe Fingerprint) -- ^ optional acceptable certificate fingerprint
@@ -209,7 +209,7 @@ defaultServerSettings =
        , _ssAutoconnect      = False
        , _ssNickCompletion   = defaultNickWordCompleteMode
        , _ssLogDir           = Nothing
-       , _ssProtocolFamily   = Nothing
+       , _ssBindHostName     = Nothing
        , _ssSts              = True
        , _ssTlsPubkeyFingerprint = Nothing
        , _ssTlsCertFingerprint   = Nothing
@@ -314,8 +314,8 @@ serverSpec = sectionsSpec "server-settings" $
       , opt "log-dir" ssLogDir stringSpec
         "Path to log file directory for this server"
 
-      , opt "protocol-family" ssProtocolFamily protocolFamilySpec
-        "IP protocol family to use for this connection"
+      , opt "bind-hostname" ssBindHostName stringSpec
+        "Source address to bind to before connecting"
 
       , req "sts" ssSts yesOrNoSpec
         "Honor server STS policies forcing TLS connections"
@@ -389,13 +389,6 @@ fingerprintSpec =
     byteStrs str
       | ':' `elem` str = splitOn ":" str
       | otherwise      = chunksOf 2  str
-
--- | Specification for IP protocol family.
-protocolFamilySpec :: ValueSpec Family
-protocolFamilySpec =
-      AF_INET   <$ atomSpec "inet"
-  <!> AF_INET6  <$ atomSpec "inet6"
-
 
 nicksSpec :: ValueSpec (NonEmpty Text)
 nicksSpec = oneOrNonemptySpec anySpec

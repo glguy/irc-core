@@ -4,6 +4,8 @@
 
 * Added ability to specify TLS private key password
 
+* Replace protocol family selection with more general bind hostname selection
+
 ## 0.3.1.0 -- 2020-02
 
 * Added `getClientCertificate`

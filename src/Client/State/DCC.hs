@@ -73,8 +73,7 @@ import           Hookup
 import           Irc.Identifier (Identifier, idText)
 import           Irc.Message (IrcMsg(..))
 import           Irc.UserInfo (UserInfo(..), uiNick)
-import           Network.Socket ( HostName, PortNumber, Family(..)
-                                , hostAddressToTuple )
+import           Network.Socket (HostName, PortNumber, hostAddressToTuple)
 import           System.FilePath ((</>), takeFileName)
 import           System.IO (withFile, IOMode(..), openFile, hClose, hFileSize)
 
@@ -185,7 +184,7 @@ startDownload dir key updChan offer@(DCCOffer _ _ from port name totalSize offse
                                     wait outThread
   where
     param = ConnectionParams
-              { cpFamily = AF_INET
+              { cpBind   = Just "0.0.0.0" -- only support IPv4
               , cpHost   = from
               , cpPort   = port
               , cpSocks  = Nothing

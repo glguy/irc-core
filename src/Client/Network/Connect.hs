@@ -50,22 +50,17 @@ buildConnectionParams args =
           UseInsecureTls -> Just (tlsParams True)
           UseTls         -> Just (tlsParams False)
 
-      family =
-        case view ssProtocolFamily args of
-          Nothing -> defaultFamily
-          Just pf -> pf
-
       proxySettings = view ssSocksHost args <&> \host ->
                         SocksParams
                           host
                           (view ssSocksPort args)
 
   in ConnectionParams
-    { cpFamily = family
-    , cpHost  = view ssHostName args
+    { cpHost  = view ssHostName args
     , cpPort  = ircPort args
     , cpTls   = useSecure
     , cpSocks = proxySettings
+    , cpBind  = view ssBindHostName args
     }
 
 
