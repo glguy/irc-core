@@ -69,7 +69,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import           Data.Foldable
-import           Data.List (intercalate)
+import           Data.List (intercalate, partition)
 import           Network.Socket (Socket, AddrInfo, PortNumber, HostName, Family)
 import qualified Network.Socket as Socket
 import qualified Network.Socket.ByteString as SocketB
@@ -266,28 +266,59 @@ openSocket' family h p =
            }
      res <- try (Socket.getAddrInfo (Just hints) (Just h) (Just (show p)))
      case res of
-       Right ais -> attemptConnections [] ais
+       Right ais -> attempt (interleaveAddressFamilies ais)
        Left  ioe
          | isDoesNotExistError ioe ->
              throwIO (HostnameResolutionFailure h (ioeGetErrorString ioe))
          | otherwise -> throwIO ioe -- unexpected
 
-
--- | Try establishing a connection to the services indicated by
--- a given list of 'AddrInfo' values. Either return a socket that
--- has successfully connected to one of the candidate 'AddrInfo's
--- or throw a 'ConnectionFailure' exception will all of the
--- encountered errors.
-attemptConnections ::
-  [IOError]         {- ^ accumulated errors  -} ->
+attempt ::
   [Socket.AddrInfo] {- ^ candidate AddrInfos -} ->
   IO Socket         {- ^ connected socket    -}
-attemptConnections exs [] = throwIO (ConnectionFailure exs)
-attemptConnections exs (ai:ais) =
-  do res <- try (connectToAddrInfo ai)
+attempt ais =
+  do comm    <- newEmptyMVar
+     threads <- zipWithM_ attemptThread [0..] ais
+     s       <- gather (length ais) [] comm
+
+     -- kill the other attempts and don't bother waiting for that to finish
+     forkIO (traverse_ killThread threads)
+
+     pure s
+
+attemptThread ::
+  Int {- 0-based attempt index -} ->
+  AddrInfo ->
+  IO ThreadId
+attemptThread i ai =
+  forkIO $
+  do let connAttemptDelay = 150 * 1000 -- 150ms
+     threadDelay (connAttemptDelay * i)
+     putMVar comm =<< try (connectToAddrInfo ai)
+
+-- Either gather all of the errors possible and throw an exception or
+-- return the first successful socket.
+gather ::
+  Int {- ^ potential errors remaining -} ->
+  [IOError] {- ^ errors gathered so far -} ->
+  MVar (Either IOError Socket) ->
+  IO Socket
+gather 0 exs _ = throwIO (ConnectionFailure exs)
+gather n exs comm =
+  do res <- takeMVar comm
      case res of
-       Left ex -> attemptConnections (ex:exs) ais
-       Right s -> return s
+       Right s -> pure s
+       Left ex -> gather (n-1) (ex:exs) comm
+
+-- | Alternate list of addresses between IPv6 and other (IPv4) addresses.
+interleaveAddressFamilies :: [AddrInfo] -> [AddrInfo]
+interleaveAddressFamilies ais = merge sixes others
+  where
+    (sixes, others) = partition is6 ais
+    is6 ai = Socket.AF_INET6 == Socket.addrFamily ai
+
+    interleave (x:xs) (y:ys) = x : y : interleave xs ys
+    interleave []     ys     = ys
+    interleave xs     []     = xs
 
 -- | Create a socket and connect to the service identified
 -- by the given 'AddrInfo' and return the connected socket.
