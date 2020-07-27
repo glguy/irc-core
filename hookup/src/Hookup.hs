@@ -277,7 +277,7 @@ attempt ::
   IO Socket         {- ^ connected socket    -}
 attempt ais =
   do comm    <- newEmptyMVar
-     threads <- zipWithM_ attemptThread [0..] ais
+     threads <- zipWithM (attemptThread comm) [0..] ais
      s       <- gather (length ais) [] comm
 
      -- kill the other attempts and don't bother waiting for that to finish
@@ -286,10 +286,11 @@ attempt ais =
      pure s
 
 attemptThread ::
+  MVar (Either IOError Socket) ->
   Int {- 0-based attempt index -} ->
   AddrInfo ->
   IO ThreadId
-attemptThread i ai =
+attemptThread comm i ai =
   forkIO $
   do let connAttemptDelay = 150 * 1000 -- 150ms
      threadDelay (connAttemptDelay * i)
@@ -311,7 +312,7 @@ gather n exs comm =
 
 -- | Alternate list of addresses between IPv6 and other (IPv4) addresses.
 interleaveAddressFamilies :: [AddrInfo] -> [AddrInfo]
-interleaveAddressFamilies ais = merge sixes others
+interleaveAddressFamilies ais = interleave sixes others
   where
     (sixes, others) = partition is6 ais
     is6 ai = Socket.AF_INET6 == Socket.addrFamily ai
