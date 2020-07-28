@@ -295,14 +295,11 @@ attempt ::
   [(Maybe SockAddr, AddrInfo)] {- ^ candidate AddrInfos -} ->
   IO Socket         {- ^ connected socket    -}
 attempt xs =
+  mask $ \unmask ->
   do comm    <- newEmptyMVar
      threads <- zipWithM (attemptThread comm) [0..] xs
-     s       <- gather (length xs) [] comm
-
-     -- kill the other attempts and don't bother waiting for that to finish
-     forkIO (traverse_ killThread threads)
-
-     pure s
+     unmask (gather (length xs) [] comm)
+       `finally` forkIO (traverse_ killThread threads)
 
 attemptThread ::
   MVar (Either IOError Socket) ->
