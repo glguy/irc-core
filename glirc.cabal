@@ -17,6 +17,7 @@ category:            Network
 extra-source-files:  ChangeLog.md README.md
                      exec/linux_exported_symbols.txt
                      exec/macos_exported_symbols.txt
+extra-doc-files:     glirc.1
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
 tested-with:         GHC==8.6.5
