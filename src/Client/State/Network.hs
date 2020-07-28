@@ -340,8 +340,14 @@ applyMessage' msgWhen msg cs =
     Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
     Reply RPL_SASLSUCCESS _ -> ([ircCapEnd], cs)
     Reply RPL_SASLFAIL _ -> ([ircCapEnd], cs)
+
     Reply ERR_NICKNAMEINUSE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
+    Reply ERR_BANNEDNICK (_:badnick:_)
+      | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
+    Reply ERR_ERRONEUSNICKNAME (_:badnick:_)
+      | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
+
     Reply RPL_HOSTHIDDEN (_:host:_) ->
         noReply (set (csUserInfo . uiHost) host cs)
 

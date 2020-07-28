@@ -1,0 +1,63 @@
+.TH GLIRC2 1 2020-07-27 "Glirc IRC client"
+.SH NAME
+Glirc \- an IRC client
+.SH SYNOPSIS
+.B glirc2
+[--config=PATH] [--noconnect] [--version] [--full-version]
+[--config-format] [--help] networks...
+.SH DESCRIPTION
+.B Glirc
+is a fully-featured console IRC client. It focuses on providing both
+high-detail and concise views of an IRC connection. It provides an
+advantaged line-editing environment including syntax-highlighting,
+multi-line buffering, and argument placeholders.
+.SH OPTIONS
+.TP
+.BI "\-c, \-\-config="PATH
+use
+.I PATH
+instead of ~/.config/glirc/config
+.TP
+.BI "\-!, \-\-noconnect"
+disable autoconnecting
+.TP
+.BI "\-v, \-\-version"
+print version information
+.TP
+.BI "\-\-full\-version"
+show detailed version information
+.TP
+.BI "\-\-config\-format"
+show configuration file format
+.TP
+.BI "\-h, \-\-help"
+show help message
+.TP
+.I networks
+networks to connect to on startup
+.SH NOTES
+.B Glirc2
+has online documentation available inside with /help and online at
+https://github.com/glguy/irc-core/wiki
+.SH FILES
+.TP
+.I ~/.config/glirc/config
+configuration file
+.I ~/.config/glirc/sts.cfg
+Strict Transport Security state
+.SH EXAMPLES
+Sample simple configuration file. More detail available at
+https://github.com/glguy/irc-core/wiki/Configuration-File
+
+.RS
+defaults:
+  nick: "glircuser"
+  tls:  yes
+
+servers:
+  * name:     "freenode"
+    hostname: "chat.freenode.net"
+
+  * name:     "oftc"
+    hostname: "irc.oftc.net"
+.RE
