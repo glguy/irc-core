@@ -5,7 +5,7 @@ Copyright   : (c) Eric Mertens, 2016
 License     : ISC
 Maintainer  : emertens@gmail.com
 
-Entry point into glirc2. This module sets up VTY and launches the client.
+Entry point into glirc. This module sets up VTY and launches the client.
 -}
 module Main where
 

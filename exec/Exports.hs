@@ -5,7 +5,7 @@ Copyright   : (c) Eric Mertens, 2017
 License     : ISC
 Maintainer  : emertens@gmail.com
 
-Entry point into glirc2 from the C API
+Entry point into glirc from the C API
 
 -}
 module Exports () where

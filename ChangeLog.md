@@ -1,7 +1,8 @@
-# Revision history for glirc2
+# Revision history for glirc
 
 ## 2.36
 
+* **Changed executable name to `glirc`**
 * Support specifying `bind-hostname` to pick a local address to connect
   from in favor of `protocol-family`. To pick a protocol family you
   can now specify `bind-hostname: "0.0.0.0"` or `bind-hostname: "::"`

@@ -377,7 +377,7 @@ commandsList =
       (pure ())
       "Show the key binding map.\n\
       \\n\
-      \Key bindings can be changed in configuration file. See `glirc2 --config-format`.\n"
+      \Key bindings can be changed in configuration file. See `glirc --config-format`.\n"
     $ ClientCommand cmdKeyMap noClientTab
 
   , Command

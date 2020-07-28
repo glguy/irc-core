@@ -31,7 +31,7 @@ source-repository head
   location: git://github.com/glguy/irc-core.git
   branch: v2
 
-executable glirc2
+executable glirc
   main-is:             Main.hs
   other-modules:       Exports
   ghc-options:         -threaded -rtsopts

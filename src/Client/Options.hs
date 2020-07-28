@@ -126,18 +126,18 @@ printConfigFormat =
      print (generateDocs configurationSpec)
 
 helpTxt :: String
-helpTxt = usageInfo "glirc2 [FLAGS] INITIAL_NETWORKS..." options
+helpTxt = usageInfo "glirc [FLAGS] INITIAL_NETWORKS..." options
 
 tryHelpTxt :: String
 tryHelpTxt =
-  "Run 'glirc2 --help' to see a list of available command line options."
+  "Run 'glirc --help' to see a list of available command line options."
 
 -- version information ---------------------------------------------
 
 versionTxt :: String
 versionTxt = unlines
   [ "glirc-" ++ showVersion version ++ gitHashTxt ++ gitDirtyTxt
-  , "Copyright 2016 Eric Mertens"
+  , "Copyright 2016-2020 Eric Mertens"
   ]
 
 fullVersionTxt :: String

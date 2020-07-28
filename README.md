@@ -87,7 +87,7 @@ Learn more about this file format at [config-value](http://hackage.haskell.org/p
 -- vim: filetype=config-value
 -- Grab the Vim syntax highlighting file from the config-value package
 
--- Learn more about these settings with `glirc2 --config-format`
+-- Learn more about these settings with `glirc --config-format`
 
 -- Defaults used when not specified on command line
 defaults:
