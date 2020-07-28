@@ -345,9 +345,19 @@ interleaveAddressFamilies xs = interleave sixes others
 connectToAddrInfo :: Maybe SockAddr -> AddrInfo -> IO Socket
 connectToAddrInfo mbSrc info
   = bracketOnError (socket' info) Socket.close $ \s ->
-    do traverse_ (Socket.bind s) mbSrc
+    do traverse_ (bind' s) mbSrc
        Socket.connect s (Socket.addrAddress info)
        pure s
+
+-- | A version of 'Socket.bind' that doesn't bother binding on the wildcard
+-- address. The effect of binding on a wildcard address in this library
+-- is to pick an address family. Because of the matching done earlier this
+-- is unnecessary for client connections and causes a local port to be
+-- unnecessarily fixed early.
+bind' :: Socket -> SockAddr -> IO ()
+bind' _ (Socket.SockAddrInet _ 0) = pure ()
+bind' _ (Socket.SockAddrInet6 _ _ (0,0,0,0) _) = pure ()
+bind' s a = Socket.bind s a
 
 -- | Open a 'Socket' using the parameters from an 'AddrInfo'
 socket' :: AddrInfo -> IO Socket
