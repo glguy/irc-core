@@ -964,6 +964,24 @@ commandsList =
        \  /dcc clear  #n : remove the #n offer from the list \n\
        \  /dcc cancel #n : cancel the download #n \n\n"
     $ ClientCommand cmdDcc noClientTab
+
+  , Command
+      (pure "monitor")
+      (extensionArg "[+-CLS]" monitorArgs)
+      "\^BSubcommands:\^B\n\
+      \\n\
+      \    /monitor + target[,target2]* - Add nicknames to monitor list\n\
+      \    /monitor - target[,target2]* - Remove nicknames to monitor list\n\
+      \    /monitor C                   - Clear monitor list\n\
+      \    /monitor L                   - Show monitor list\n\
+      \    /monitor S                   - Show status of nicknames on monitor list\n\
+      \\n\
+      \\^BDescription:\^B\n\
+      \\n\
+      \    Monitor is a protocol for getting server-side notifications\n\
+      \    when users become online/offline.\n"
+    $ NetworkCommand cmdMonitor simpleNetworkTab
+
   ------------------------------------------------------------------------
   ] , CommandSection "IRC queries"
   ------------------------------------------------------------------------
@@ -2197,6 +2215,22 @@ modeParamArgs st str =
          let (req,opt) = foldr (countFlags types) ([],[]) flags
          return ((str:) <$> tokenList req (map (++"?") opt))
 
+monitorArgs :: ClientState -> String -> Maybe (Args ClientState (Char, Maybe String))
+monitorArgs _ str =
+  case str of
+    "+" -> Just (wrap '+' (simpleToken "target[,target2]*"))
+    "-" -> Just (wrap '-' (simpleToken "target[,target2]*"))
+    "C" -> Just (pure ('C', Nothing))
+    "L" -> Just (pure ('L', Nothing))
+    "S" -> Just (pure ('S', Nothing))
+    _   -> Nothing
+  where
+    wrap c = fmap (\s -> (c, Just s))
+
+cmdMonitor :: NetworkCommand (Char, Maybe String)
+cmdMonitor cs st (c, mbTargets) =
+  do sendMsg cs (ircMonitor (Text.singleton c : fmap Text.pack (toList mbTargets)))
+     commandSuccess st
 
 -- | This function computes the list of required and optional parameters
 -- corresponding to the flags that have been entered.

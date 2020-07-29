@@ -35,6 +35,7 @@ module Irc.Commands
   , ircMotd
   , ircNick
   , ircNotice
+  , ircMonitor
   , ircOper
   , ircPart
   , ircPass
@@ -129,6 +130,11 @@ ircMode ::
   [Text]     {- ^ parameters -} ->
   RawIrcMsg
 ircMode tgt params = rawIrcMsg "MODE" (idText tgt : params)
+
+ircMonitor ::
+  [Text] {- ^ parameters -} ->
+  RawIrcMsg
+ircMonitor params = rawIrcMsg "MONITOR" params
 
 -- | WHOIS command
 ircWhois ::
