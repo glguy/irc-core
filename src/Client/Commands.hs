@@ -49,6 +49,7 @@ import           Control.Concurrent.Async (cancel)
 import           Control.Exception (displayException, try, SomeException)
 import           Control.Lens
 import           Control.Monad
+import           Data.Char (toUpper)
 import           Data.Foldable
 import           Data.HashSet (HashSet)
 import           Data.List (nub, (\\))
@@ -2215,21 +2216,21 @@ modeParamArgs st str =
          let (req,opt) = foldr (countFlags types) ([],[]) flags
          return ((str:) <$> tokenList req (map (++"?") opt))
 
-monitorArgs :: ClientState -> String -> Maybe (Args ClientState (Char, Maybe String))
+monitorArgs :: ClientState -> String -> Maybe (Args ClientState [String])
 monitorArgs _ str =
-  case str of
+  case toUpper <$> str of
     "+" -> Just (wrap '+' (simpleToken "target[,target2]*"))
     "-" -> Just (wrap '-' (simpleToken "target[,target2]*"))
-    "C" -> Just (pure ('C', Nothing))
-    "L" -> Just (pure ('L', Nothing))
-    "S" -> Just (pure ('S', Nothing))
+    "C" -> Just (pure ["C"])
+    "L" -> Just (pure ["L"])
+    "S" -> Just (pure ["S"])
     _   -> Nothing
   where
-    wrap c = fmap (\s -> (c, Just s))
+    wrap c = fmap (\s -> [[c], s])
 
-cmdMonitor :: NetworkCommand (Char, Maybe String)
-cmdMonitor cs st (c, mbTargets) =
-  do sendMsg cs (ircMonitor (Text.singleton c : fmap Text.pack (toList mbTargets)))
+cmdMonitor :: NetworkCommand [String]
+cmdMonitor cs st args =
+  do sendMsg cs (ircMonitor (fmap Text.pack args))
      commandSuccess st
 
 -- | This function computes the list of required and optional parameters
