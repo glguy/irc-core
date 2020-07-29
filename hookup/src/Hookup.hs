@@ -291,26 +291,24 @@ matchBindAddrs (Just src) dst =
   , let ss = [s | s <- src, Socket.addrFamily d == Socket.addrFamily s]
   , s <- take 1 ss ]
 
+connAttemptDelay :: Int
+connAttemptDelay = 150 * 1000 -- 150ms
+
 attempt ::
   [(Maybe SockAddr, AddrInfo)] {- ^ candidate AddrInfos -} ->
   IO Socket         {- ^ connected socket    -}
 attempt xs =
-  mask $ \unmask ->
-  do comm    <- newEmptyMVar
-     threads <- zipWithM (attemptThread comm) [0..] xs
-     unmask (gather (length xs) [] comm)
-       `finally` forkIO (traverse_ killThread threads)
+  do comm <- newEmptyMVar
 
-attemptThread ::
-  MVar (Either IOError Socket) ->
-  Int {- 0-based attempt index -} ->
-  (Maybe SockAddr, AddrInfo) ->
-  IO ThreadId
-attemptThread comm i (mbSrc, ai) =
-  forkIO $
-  do let connAttemptDelay = 150 * 1000 -- 150ms
-     threadDelay (connAttemptDelay * i)
-     putMVar comm =<< try (connectToAddrInfo mbSrc ai)
+     let mkThread i (mbSrc, ai) =
+           forkIOWithUnmask $ \unmask ->
+           unmask $
+           do threadDelay (connAttemptDelay * i)
+              putMVar comm =<< try (connectToAddrInfo mbSrc ai)
+
+     bracket (zipWithM mkThread [0..] xs)
+             (traverse_ killThread)
+             (\_ -> gather (length xs) [] comm)
 
 -- Either gather all of the errors possible and throw an exception or
 -- return the first successful socket.
