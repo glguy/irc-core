@@ -32,10 +32,10 @@ module Irc.Commands
   , ircMap
   , ircMasktrace
   , ircMode
+  , ircMonitor
   , ircMotd
   , ircNick
   , ircNotice
-  , ircMonitor
   , ircOper
   , ircPart
   , ircPass
@@ -50,6 +50,7 @@ module Irc.Commands
   , ircTestmask
   , ircTime
   , ircTopic
+  , ircTrace
   , ircUnkline
   , ircUser
   , ircUserhost
@@ -298,7 +299,7 @@ ircIson nicks = rawIrcMsg "ISON" [Text.unwords nicks]
 
 -- | TIME command
 ircTime ::
-  Text {- ^ servername -} ->
+  Text {- ^ optional servername -} ->
   RawIrcMsg
 ircTime = rawIrcMsg "TIME" . nonempty
 
@@ -316,7 +317,7 @@ ircUserip = rawIrcMsg "USERIP"
 
 -- | USERS command
 ircUsers ::
-  Text {- ^ server -} ->
+  Text {- ^ optional servername -} ->
   RawIrcMsg
 ircUsers = rawIrcMsg "USERS" . nonempty
 
@@ -388,6 +389,14 @@ ircAdmin ::
   Text {- ^ target -} ->
   RawIrcMsg
 ircAdmin = rawIrcMsg "ADMIN" . nonempty
+
+-- | TRACE command
+--
+-- > TRACE [<target>]
+ircTrace ::
+  [Text] {- ^ params -} ->
+  RawIrcMsg
+ircTrace = rawIrcMsg "TRACE"
 
 -- | USER command
 ircUser ::

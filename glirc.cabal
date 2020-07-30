@@ -62,13 +62,21 @@ library
                        Client.CApi.Exports
                        Client.CApi.Types
                        Client.Commands
-                       Client.Commands.Arguments.Spec
                        Client.Commands.Arguments.Parser
                        Client.Commands.Arguments.Renderer
+                       Client.Commands.Arguments.Spec
+                       Client.Commands.Channel
+                       Client.Commands.Chat
                        Client.Commands.Exec
                        Client.Commands.Interpolation
+                       Client.Commands.Operator
+                       Client.Commands.Queries
                        Client.Commands.Recognizer
+                       Client.Commands.TabCompletion
+                       Client.Commands.Types
+                       Client.Commands.Window
                        Client.Commands.WordCompletion
+                       Client.Commands.ZNC
                        Client.Configuration
                        Client.Configuration.Colors
                        Client.Configuration.Macros
