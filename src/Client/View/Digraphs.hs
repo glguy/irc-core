@@ -32,11 +32,10 @@ digraphLines w st
   = map (mconcat . intersperse sep)
   $ chunksOf entriesPerLine
   $ map (text' defAttr)
-  $ matcher
+  $ clientFilter st LText.fromStrict
   $ map (Text.pack . drawEntry)
   $ Text.chunksOf 3 digraphs
   where
-    matcher        = maybe id (\m -> filter (matcherPred m . LText.fromStrict)) (clientMatcher st)
     entriesPerLine = max 1 -- just in case?
                    $ (w + sepWidth) `quot` (entryWidth + sepWidth)
 

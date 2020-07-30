@@ -59,12 +59,10 @@ maskListImages' entries w st = countImage : images
                  char (view palLabel pal) '/' <>
                  string defAttr (show (HashMap.size entries))
 
-    matcher = maybe (const True) matcherPred (clientMatcher st) . LText.fromStrict
-
-    matcher' (mask,entry) = matcher mask || matcher (view maskListSetter entry)
+    filterOn (mask,entry) = LText.fromChunks [mask, " ", view maskListSetter entry]
 
     entryList = sortBy (flip (comparing (view (_2 . maskListTime))))
-              $ filter matcher'
+              $ clientFilter st filterOn
               $ HashMap.toList entries
 
     renderWhen = formatTime defaultTimeLocale " %F %T"

@@ -50,7 +50,9 @@ module Client.State
 
   -- * Client operations
   , withClientState
-  , clientMatcher, Matcher(..), buildMatcher
+  , clientIsFiltered
+  , clientFilter
+  , buildMatcher
   , clientToggleHideMeta
   , clientHighlightsNetwork
   , channelUserList
@@ -124,6 +126,7 @@ import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Client.State.DCC
+import           ContextFilter
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
@@ -649,6 +652,20 @@ clientMatcher st =
     _ -> case view clientRegex st of
            Nothing -> Nothing
            Just r  -> Just r
+
+clientIsFiltered :: ClientState -> Bool
+clientIsFiltered = isJust . clientMatcher
+
+clientFilter :: ClientState -> (a -> LText.Text) -> [a] -> [a]
+clientFilter st f xs =
+  case clientMatcher st of
+    Nothing -> xs
+    Just m  ->
+      filterContext
+        (matcherBefore m)
+        (matcherAfter m)
+        (matcherPred m . f)
+        xs
 
 data MatcherArgs = MatcherArgs
   { argAfter     :: !Int

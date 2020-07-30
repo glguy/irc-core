@@ -31,7 +31,6 @@ import           Data.List
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.UserInfo
-import           ContextFilter (filterContext)
 
 
 chatMessageImages :: Focus -> Int -> ClientState -> [Image']
@@ -41,9 +40,9 @@ chatMessageImages focus w st =
     Just win ->
       let msgs     = toListOf each (view winMessages win)
           hideMeta = view winHideMeta win in
-      case clientMatcher st of
-        Just (Matcher a b p) -> windowLineProcessor hideMeta (filterContext b a (views wlText p) msgs)
-        Nothing ->
+      if clientIsFiltered st
+        then windowLineProcessor hideMeta (clientFilter st (view wlText) msgs)
+        else
           case view winMarker win of
             Nothing -> windowLineProcessor hideMeta msgs
             Just n  ->

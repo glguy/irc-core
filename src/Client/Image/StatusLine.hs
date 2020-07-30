@@ -115,10 +115,9 @@ scrollImage st
 -- | Indicate when the client is potentially showing a subset of the
 -- available chat messages.
 filterImage :: ClientState -> Image'
-filterImage st =
-  case clientMatcher st of
-    Nothing -> mempty
-    Just {} -> infoBubble (string attr "filtered")
+filterImage st
+  | clientIsFiltered st = infoBubble (string attr "filtered")
+  | otherwise           = mempty
   where
     pal  = clientPalette st
     attr = view palError pal

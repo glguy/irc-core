@@ -21,14 +21,15 @@ import           Data.Ord
 import           Graphics.Vty.Attributes
 import           Graphics.Vty.Input
 
--- | Render the lines of a table showing all of the available digraph entries
+-- | Show the client keybindings
 keyMapLines ::
   ClientState {- ^ client state -} ->
   [Image']    {- ^ output lines -}
-keyMapLines
-  = renderEntries
-  . keyMapEntries
-  . view (clientConfig . configKeyMap)
+keyMapLines st
+  = clientFilter st imageText
+  $ renderEntries
+  $ keyMapEntries
+  $ view (clientConfig . configKeyMap) st
 
 renderEntries :: [([Modifier], Key, Action)] -> [Image']
 renderEntries entries =

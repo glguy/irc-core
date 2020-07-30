@@ -53,8 +53,6 @@ userListImages' cs channel st =
   where
     countImage = drawSigilCount pal (map snd usersList)
 
-    matcher = maybe (const True) matcherPred (clientMatcher st)
-
     myNicks = clientHighlights cs st
 
     renderUser (ident, sigils) =
@@ -63,10 +61,10 @@ userListImages' cs channel st =
 
     gap = char defAttr ' '
 
-    matcher' (ident,sigils) = matcher (LText.fromChunks [Text.pack sigils, idText ident])
+    filterOn (ident,sigils) = LText.fromChunks [Text.pack sigils, idText ident]
 
     usersList = sortBy (comparing fst)
-              $ filter matcher'
+              $ clientFilter st filterOn
               $ HashMap.toList usersHashMap
 
     pal = clientPalette st
@@ -106,8 +104,6 @@ userInfoImages network channel st =
 userInfoImages' :: NetworkState -> Identifier -> ClientState -> [Image']
 userInfoImages' cs channel st = countImage : map renderEntry usersList
   where
-    matcher = maybe (const True) matcherPred (clientMatcher st)
-
     countImage = drawSigilCount pal (map snd usersList)
 
     myNicks = clientHighlights cs st
@@ -119,8 +115,8 @@ userInfoImages' cs channel st = countImage : map renderEntry usersList
       coloredUserInfo pal DetailedRender myNicks info <>
       " " <> text' (view palMeta pal) (cleanText acct)
 
-    matcher' ((info, acct),sigils) =
-      matcher (LText.fromChunks [Text.pack sigils, renderUserInfo info, " ", acct])
+    filterOn ((info, acct),sigils) =
+      LText.fromChunks [Text.pack sigils, renderUserInfo info, " ", acct]
 
     userInfos = view csUsers cs
 
@@ -130,7 +126,7 @@ userInfoImages' cs channel st = countImage : map renderEntry usersList
         Nothing                  -> (UserInfo nick "" "", "")
 
     usersList = sortBy (flip (comparing (userNick . fst . fst)))
-              $ filter matcher'
+              $ clientFilter st filterOn
               $ map (over _1 toInfo)
               $ HashMap.toList usersHashMap
 

@@ -26,7 +26,6 @@ import           Client.State.Window
 import           Control.Lens
 import qualified Data.Map as Map
 import           Data.Time (UTCTime)
-import           ContextFilter (filterContext)
 
 -- | Generate the list of message lines marked important ordered by
 -- time. Each run of lines from the same channel will be grouped
@@ -42,10 +41,9 @@ mentionsViewLines w st = addMarkers w st entries
     padAmt = view (clientConfig . configNickPadding) st
     palette = clientPalette st
 
-    filt =
-      case clientMatcher st of
-        Nothing -> filter (\x -> WLImportant == view wlImportance x)
-        Just (Matcher b a p) -> filterContext b a (views wlText p)
+    filt
+      | clientIsFiltered st = filter (\x -> WLImportant == view wlImportance x)
+      | otherwise           = clientFilter st (view wlText)
 
     entries = merge
               [windowEntries filt palette w padAmt detail n focus v
