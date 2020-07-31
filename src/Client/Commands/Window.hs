@@ -9,19 +9,21 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Window (windowCommands, parseFocus) where
 
-import           Control.Applicative
-import           Data.Foldable
-import           Data.List ((\\), nub)
-import           Control.Lens
-import           Client.State
-import           Client.State.Focus
 import           Client.Commands.Arguments.Spec
-import           Client.Commands.WordCompletion
 import           Client.Commands.TabCompletion
 import           Client.Commands.Types
+import           Client.Commands.WordCompletion
+import           Client.Image.PackedImage
 import           Client.Mask (buildMask)
+import           Client.State
+import           Client.State.Focus
 import           Client.State.Network
-import           Client.State.Window (emptyWindow)
+import           Client.State.Window (emptyWindow, WindowLines((:-), Nil), wlFullImage, winMessages)
+import           Control.Applicative
+import           Control.Exception
+import           Control.Lens
+import           Data.Foldable
+import           Data.List ((\\), nub)
 import qualified Client.State.EditBox as Edit
 import           Data.HashSet (HashSet)
 import           Data.List.NonEmpty (NonEmpty((:|)))
@@ -29,6 +31,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
+import qualified Data.Text.Lazy.IO as LText
 import           Irc.Identifier
 
 windowCommands :: CommandSection
@@ -205,6 +209,12 @@ windowCommands = CommandSection "Window management"
       \\n\
       \\^B/grep\^O is case-sensitive.\n"
     $ ClientCommand cmdGrep simpleClientTab
+
+  , Command
+      (pure "dump")
+      (simpleToken "filename")
+      "Dump current buffer to file.\n"
+    $ ClientCommand cmdDump simpleClientTab
 
   , Command
       (pure "mentions")
@@ -477,3 +487,22 @@ channelWindowsOnNetwork ::
 channelWindowsOnNetwork network st =
   [ chan | ChannelFocus net chan <- Map.keys (view clientWindows st)
          , net == network ]
+
+-- | Implementation of @/dump@. Writes detailed contents of focused buffer
+-- to the given filename.
+cmdDump :: ClientCommand String
+cmdDump st fp =
+  do res <- try (LText.writeFile fp (LText.unlines outputLines))
+     case res of
+       Left e  -> commandFailureMsg (Text.pack (displayException (e :: SomeException))) st
+       Right{} -> commandSuccess st
+
+  where
+    focus = view clientFocus st
+    msgs  = preview (clientWindows . ix focus . winMessages) st
+    outputLines =
+      case msgs of
+        Nothing  -> []
+        Just wls -> convert [] wls
+    convert acc Nil = acc
+    convert acc (wl :- wls) = convert (views wlFullImage imageText wl : acc) wls

@@ -33,38 +33,33 @@ import           Client.Commands.Recognizer
 import           Client.Commands.WordCompletion
 import           Client.Configuration
 import           Client.Message
-import           Client.Image.PackedImage (imageText)
 import           Client.State
-import           Client.State.DCC
 import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Control.Applicative
-import           Control.Concurrent.Async (cancel)
-import           Control.Exception (displayException, try, SomeException)
+import           Control.Exception (displayException, try)
 import           Control.Lens
 import           Control.Monad
 import           Data.Foldable
-import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Lazy.IO as LText
 import           Data.Time (ZonedTime, getZonedTime)
 import           Irc.Commands
 import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.Message
 import           RtsStats (getStats)
-import           System.Directory (doesDirectoryExist)
-import           System.FilePath ((</>))
 import           System.Process
 
 import           Client.Commands.Channel (channelCommands)
-import           Client.Commands.Chat (chatCommands, chatCommand', executeChat, cmdCtcp)
+import           Client.Commands.Chat (chatCommands, chatCommand', executeChat)
+import           Client.Commands.Connection (connectionCommands)
+import           Client.Commands.DCC (dccCommands)
 import           Client.Commands.Operator (operatorCommands)
 import           Client.Commands.Queries (queryCommands)
+import           Client.Commands.Toggles (togglesCommands)
 import           Client.Commands.Window (windowCommands)
 import           Client.Commands.ZNC (zncCommands)
 import           Client.Commands.TabCompletion
@@ -323,18 +318,6 @@ commandsList =
     $ ClientCommand cmdUrl noClientTab
 
   , Command
-      (pure "cert")
-      (pure ())
-      "Show the TLS certificate for the current connection.\n"
-    $ NetworkCommand cmdCert noNetworkTab
-
-  , Command
-      (pure "dump")
-      (simpleToken "filename")
-      "Dump current buffer to file.\n"
-    $ ClientCommand cmdDump simpleClientTab
-
-  , Command
       (pure "help")
       (optionalArg (simpleToken "[command]"))
       "Show command documentation.\n\
@@ -344,195 +327,15 @@ commandsList =
     $ ClientCommand cmdHelp tabHelp
 
   ------------------------------------------------------------------------
-  ] , CommandSection "View toggles"
-  ------------------------------------------------------------------------
+  ],
 
-  [ Command
-      (pure "toggle-detail")
-      (pure ())
-      "Toggle detailed message view.\n"
-    $ ClientCommand cmdToggleDetail noClientTab
-
-  , Command
-      (pure "toggle-activity-bar")
-      (pure ())
-      "Toggle detailed detailed activity information in status bar.\n"
-    $ ClientCommand cmdToggleActivityBar noClientTab
-
-  , Command
-      (pure "toggle-show-ping")
-      (pure ())
-      "Toggle visibility of ping round-trip time.\n"
-    $ ClientCommand cmdToggleShowPing noClientTab
-
-  , Command
-      (pure "toggle-metadata")
-      (pure ())
-      "Toggle visibility of metadata in chat windows.\n"
-    $ ClientCommand cmdToggleMetadata noClientTab
-
-  , Command
-      (pure "toggle-layout")
-      (pure ())
-      "Toggle multi-window layout mode.\n"
-    $ ClientCommand cmdToggleLayout noClientTab
-
-  ------------------------------------------------------------------------
-  ] , CommandSection "Connection commands"
-  ------------------------------------------------------------------------
-
-  [ Command
-      (pure "connect")
-      (simpleToken "network")
-      "Connect to \^Bnetwork\^B by name.\n\
-      \\n\
-      \If no name is configured the hostname is the 'name'.\n"
-    $ ClientCommand cmdConnect tabConnect
-
-  , Command
-      (pure "reconnect")
-      (pure ())
-      "Reconnect to the current network.\n"
-    $ ClientCommand cmdReconnect noClientTab
-
-  , Command
-      (pure "disconnect")
-      (pure ())
-      "Immediately terminate the current network connection.\n\
-      \\n\
-      \See also: /quit /exit\n"
-    $ NetworkCommand cmdDisconnect noNetworkTab
-
-  , Command
-      (pure "quit")
-      (remainingArg "reason")
-      "Gracefully disconnect the current network connection.\n\
-      \\n\
-      \\^Breason\^B: optional quit reason\n\
-      \\n\
-      \See also: /disconnect /exit\n"
-    $ NetworkCommand cmdQuit   simpleNetworkTab
-
-  ], windowCommands, chatCommands, queryCommands, channelCommands,
-     zncCommands, operatorCommands,
-
-  CommandSection "DCC"
-
-  [ Command
-      (pure "dcc")
-      (liftA2 (,) (optionalArg (simpleToken "[accept|cancel|clear|resume]"))
-                               optionalNumberArg)
-      "Main access to the DCC subsystem with the following subcommands:\n\n\
-       \  /dcc           : Access to a list of pending offer and downloads\n\
-       \  /dcc accept #n : start downloading the #n pending offer\n\
-       \  /dcc resume #n : same as accept but appending to the file on `download-dir`\n\
-       \  /dcc clear  #n : remove the #n offer from the list \n\
-       \  /dcc cancel #n : cancel the download #n \n\n"
-    $ ClientCommand cmdDcc noClientTab
-  ]
-  ]
+  togglesCommands, connectionCommands, windowCommands, chatCommands,
+  queryCommands, channelCommands, zncCommands, operatorCommands,
+  dccCommands ]
 
 -- | Implementation of @/exit@ command.
 cmdExit :: ClientCommand ()
 cmdExit st _ = return (CommandQuit st)
-
-cmdToggleDetail :: ClientCommand ()
-cmdToggleDetail st _ = commandSuccess (over clientDetailView not st)
-
-cmdToggleActivityBar :: ClientCommand ()
-cmdToggleActivityBar st _ = commandSuccess (over clientActivityBar not st)
-
-cmdToggleShowPing :: ClientCommand ()
-cmdToggleShowPing st _ = commandSuccess (over clientShowPing not st)
-
-cmdToggleMetadata :: ClientCommand ()
-cmdToggleMetadata st _ = commandSuccess (clientToggleHideMeta st)
-
-cmdToggleLayout :: ClientCommand ()
-cmdToggleLayout st _ = commandSuccess (set clientScroll 0 (over clientLayout aux st))
-  where
-    aux OneColumn = TwoColumn
-    aux TwoColumn = OneColumn
-
--- | Implementation of @/dcc [(cancel|accept|resume)] [key]
-cmdDcc :: ClientCommand (Maybe String, Maybe Int)
-cmdDcc st (Nothing, Nothing) = commandSuccess (changeSubfocus FocusDCC st)
-cmdDcc st (Just cmd, Just key) = checkAndBranch st cmd key
-cmdDcc st _ = commandFailureMsg "Invalid syntax" st
-
-checkAndBranch :: ClientState -> String -> Int -> IO CommandResult
-checkAndBranch st cmd key
-  | isCancel, NotExist <- curKeyStatus
-      = commandFailureMsg "No such DCC entry" st
-  | isCancel, curKeyStatus == Pending
-      = commandSuccess
-      $ set (clientDCC . dsOffers . ix key . dccStatus) UserKilled st
-  | isCancel, curKeyStatus /= Downloading
-      = commandFailureMsg "Transfer already stopped" st
-  | isCancel = cancel threadId *> commandSuccess st
-
-  | isClear, NotExist <- curKeyStatus
-      = commandFailureMsg "No such DCC entry" st
-  | isClear, curKeyStatus `elem` [Downloading, Pending]
-      = commandFailureMsg "Cancel the download first" st
-  | isClear = commandSuccess
-            $ set (clientDCC . dsOffers    . at key) Nothing
-            $ set (clientDCC . dsTransfers . at key) Nothing st
-
-  | isAcceptOrResume, curKeyStatus `elem` alreadyAcceptedSet
-      = commandFailureMsg "Offer already accepted" st
-  | isAcceptOrResume, NotExist <- curKeyStatus
-      = commandFailureMsg "No such DCC entry" st
-  | isAcceptOrResume
-      = do isDirectory <- doesDirectoryExist downloadPath
-           msize       <- getFileOffset downloadPath
-           case (isDirectory, msize, cmd, mcs) of
-             (True, _, _, _)      -> commandFailureMsg "DCC transfer would overwrite a directory" st
-             (_, Nothing, _, _)   -> acceptOffer -- resume from 0 is accept
-             (_, _, "accept", _)  -> acceptOffer -- overwrite file
-             (_, Just size, "resume", Just cs) -> resumeOffer size cs
-             _ -> commandFailureMsg "Unknown case" st
-
-  | otherwise = commandFailureMsg "Invalid syntax" st
-  where
-    -- General
-    isAcceptOrResume = cmd `elem` ["accept", "resume"]
-    isCancel         = cmd == "cancel"
-    isClear          = cmd == "clear"
-    dccState         = view clientDCC st
-    curKeyStatus     = statusAtKey key dccState
-    alreadyAcceptedSet = [ CorrectlyFinished, UserKilled, LostConnection
-                         , Downloading]
-
-    -- For cancel, other cases handled on the guards
-    threadId = st ^?! clientDCC . dsTransfers . ix key . dtThread . _Just
-
-    -- Common values for resume or accept
-    Just offer   = view (clientDCC . dsOffers . at key) st -- guarded exist
-    updChan      = view clientDCCUpdates st
-    downloadDir  = view (clientConfig . configDownloadDir) st
-    downloadPath = downloadDir </> _dccFileName offer
-    mcs          = preview (clientConnection (_dccNetwork offer)) st
-
-    -- Actual workhorses for the commands
-    acceptOffer =
-        do newDCCState <- supervisedDownload downloadDir key updChan dccState
-           commandSuccess (set clientDCC newDCCState st)
-
-    resumeOffer size cs =
-        let newOffer = offer { _dccOffset = size }
-            (target, txt) = resumeMsg size newOffer
-            st' = set (clientDCC . dsOffers . at key) (Just newOffer) st
-        in cmdCtcp cs st' (target, "DCC", txt)
-
-cmdConnect :: ClientCommand String
-cmdConnect st networkStr =
-  do -- abort any existing connection before connecting
-     let network = Text.pack networkStr
-     st' <- addConnection 0 Nothing Nothing network =<< abortNetwork network st
-     commandSuccess
-       $ changeFocus (NetworkFocus network) st'
-
 
 -- | Implementation of @/palette@ command. Set subfocus to Palette.
 cmdPalette :: ClientCommand ()
@@ -562,63 +365,11 @@ cmdHelp st mb = commandSuccess (changeSubfocus focus st)
   where
     focus = FocusHelp (fmap Text.pack mb)
 
--- | Implementation of @/dump@. Writes detailed contents of focused buffer
--- to the given filename.
-cmdDump :: ClientCommand String
-cmdDump st fp =
-  do res <- try (LText.writeFile fp (LText.unlines outputLines))
-     case res of
-       Left e  -> commandFailureMsg (Text.pack (displayException (e :: SomeException))) st
-       Right{} -> commandSuccess st
-
-  where
-    focus = view clientFocus st
-    msgs  = preview (clientWindows . ix focus . winMessages) st
-    outputLines =
-      case msgs of
-        Nothing  -> []
-        Just wls -> convert [] wls
-    convert acc Nil = acc
-    convert acc (wl :- wls) = convert (views wlFullImage imageText wl : acc) wls
-
 tabHelp :: Bool -> ClientCommand String
 tabHelp isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] commandNames isReversed st
   where
     commandNames = fst <$> expandAliases (concatMap cmdSectionCmds commandsList)
-
--- | @/connect@ tab completes known server names
-tabConnect :: Bool -> ClientCommand String
-tabConnect isReversed st _ =
-  simpleTabCompletion plainWordCompleteMode [] networks isReversed st
-  where
-    networks = views clientConnections              HashMap.keys st
-            ++ views (clientConfig . configServers) HashMap.keys st
-
-cmdQuit :: NetworkCommand String
-cmdQuit cs st rest =
-  do let msg = Text.pack rest
-     sendMsg cs (ircQuit msg)
-     commandSuccess st
-
-cmdDisconnect :: NetworkCommand ()
-cmdDisconnect cs st _ =
-  do st' <- abortNetwork (view csNetwork cs) st
-     commandSuccess st'
-
--- | Reconnect to the currently focused network. It's possible
--- that we're not currently connected to a network, so
--- this is implemented as a client command.
-cmdReconnect :: ClientCommand ()
-cmdReconnect st _
-  | Just network <- views clientFocus focusNetwork st =
-
-      do let tm = preview (clientConnection network . csLastReceived . folded) st
-         st' <- addConnection 0 tm Nothing network =<< abortNetwork network st
-         commandSuccess
-           $ changeFocus (NetworkFocus network) st'
-
-  | otherwise = commandFailureMsg "command requires focused network" st
 
 -- | Implementation of @/reload@
 --
@@ -778,6 +529,3 @@ openUrl opener url st =
      case res of
        Left e  -> commandFailureMsg (Text.pack (displayException (e :: IOError))) st
        Right{} -> commandSuccess st
-
-cmdCert :: NetworkCommand ()
-cmdCert _ st _ = commandSuccess (changeSubfocus FocusCert st)
