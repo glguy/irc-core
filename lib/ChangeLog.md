@@ -3,6 +3,8 @@
 ## 2.8
 
 * `encodePlainAuthentication` has separate authorization and authentication identity parameters
+* Add `ircMonitor` and `ircTrace`
+* Add realname field to `Join` for use with `extended-join`
 
 ## 2.7.2
 

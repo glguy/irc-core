@@ -3,8 +3,8 @@
 ## 0.4
 
 * Added ability to specify TLS private key password
-
 * Replace protocol family selection with more general bind hostname selection
+* Implement staggered, concurrent connection strategy based on RFC 8305
 
 ## 0.3.1.0 -- 2020-02
 

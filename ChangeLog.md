@@ -3,6 +3,10 @@
 ## 2.36
 
 * **Changed executable name to `glirc`**
+* Allow all windows (not just chat message windows) to be added as split-screen targets
+* Chose a random nickname when list of alternatives is exhausted
+* Add simple man page
+* Add `/monitor`
 * Support specifying `bind-hostname` to pick a local address to connect
   from in favor of `protocol-family`. To pick a protocol family you
   can now specify `bind-hostname: "0.0.0.0"` or `bind-hostname: "::"`
