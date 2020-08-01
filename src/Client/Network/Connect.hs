@@ -27,52 +27,40 @@ import qualified Data.Text.Encoding as Text
 import           Network.Socket (PortNumber)
 import           Hookup
 
+tlsParams :: ServerSettings -> TlsParams
+tlsParams ss = TlsParams
+  { tpClientCertificate  = view ssTlsClientCert ss
+  , tpClientPrivateKey   = view ssTlsClientKey ss <|> view ssTlsClientCert ss
+  , tpServerCertificate  = view ssTlsServerCert ss
+  , tpCipherSuite        = view ssTlsCiphers ss
+  , tpInsecure           = not (view ssTlsVerify ss)
+  , tpClientPrivateKeyPassword =
+      case view ssTlsClientKeyPassword ss of
+        Just (SecretText str) -> PwBS (Text.encodeUtf8 str)
+        _                     -> PwNone
+  }
+
+proxyParams :: ServerSettings -> Maybe SocksParams
+proxyParams ss =
+  view ssSocksHost ss <&> \host ->
+  SocksParams host (view ssSocksPort ss)
+
 buildConnectionParams :: ServerSettings -> ConnectionParams
-buildConnectionParams args =
-
-  let tlsParams insecure = TlsParams
-        { tpClientCertificate  = view ssTlsClientCert args
-        , tpClientPrivateKey   = view ssTlsClientKey args <|> view ssTlsClientCert args
-        , tpClientPrivateKeyPassword = privateKeyPassword
-        , tpServerCertificate  = view ssTlsServerCert args
-        , tpCipherSuite        = view ssTlsCiphers args
-        , tpInsecure           = insecure
-        }
-
-      privateKeyPassword =
-        case view ssTlsClientKeyPassword args of
-          Just (SecretText str) -> PwBS (Text.encodeUtf8 str)
-          _                     -> PwNone
-
-      useSecure =
-        case view ssTls args of
-          UseInsecure    -> Nothing
-          UseInsecureTls -> Just (tlsParams True)
-          UseTls         -> Just (tlsParams False)
-
-      proxySettings = view ssSocksHost args <&> \host ->
-                        SocksParams
-                          host
-                          (view ssSocksPort args)
-
-  in ConnectionParams
-    { cpHost  = view ssHostName args
-    , cpPort  = ircPort args
-    , cpTls   = useSecure
-    , cpSocks = proxySettings
-    , cpBind  = view ssBindHostName args
-    }
-
+buildConnectionParams ss = ConnectionParams
+  { cpHost  = view ssHostName ss
+  , cpPort  = ircPort ss
+  , cpTls   = if view ssTls ss then Just (tlsParams ss) else Nothing
+  , cpSocks = proxyParams ss
+  , cpBind  = view ssBindHostName ss
+  }
 
 ircPort :: ServerSettings -> PortNumber
 ircPort args =
   case view ssPort args of
     Just p -> fromIntegral p
-    Nothing ->
-      case view ssTls args of
-        UseInsecure -> 6667
-        _           -> 6697
-
+    Nothing
+      | view ssTls args -> 6697
+      | otherwise       -> 6667
 
 -- | Create a new 'Connection' which will be closed when the continuation
 -- finishes.

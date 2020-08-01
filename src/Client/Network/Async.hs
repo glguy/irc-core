@@ -170,14 +170,12 @@ startConnection settings inQueue outQueue =
             (checkPubkeyFingerprint h)
 
           reportNetworkOpen h inQueue
-          withAsync (sendLoop h outQueue rate) $ \sender ->
-            withAsync (receiveLoop h inQueue) $ \receiver ->
-              do res <- waitEitherCatch sender receiver
-                 case res of
-                   Left  Right{}  -> fail "PANIC: sendLoop returned"
-                   Right Right{}  -> return ()
-                   Left  (Left e) -> throwIO e
-                   Right (Left e) -> throwIO e
+
+          res <- race (sendLoop h outQueue rate)
+                      (receiveLoop h inQueue)
+          case res of
+            Left {} -> fail "PANIC: sendLoop returned"
+            Right{} -> return ()
 
 checkCertFingerprint :: Connection -> Fingerprint -> IO ()
 checkCertFingerprint h fp =

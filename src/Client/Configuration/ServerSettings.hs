@@ -29,6 +29,7 @@ module Client.Configuration.ServerSettings
   , ssHostName
   , ssPort
   , ssTls
+  , ssTlsVerify
   , ssTlsClientCert
   , ssTlsClientKey
   , ssTlsClientKeyPassword
@@ -110,12 +111,16 @@ data ServerSettings = ServerSettings
   , _ssSaslMechanism    :: !(Maybe SaslMechanism) -- ^ SASL mechanism
   , _ssHostName         :: !HostName -- ^ server hostname
   , _ssPort             :: !(Maybe PortNumber) -- ^ server port
-  , _ssTls              :: !UseTls -- ^ use TLS to connect
+  , _ssTls              :: !Bool -- ^ use TLS to connect
+  , _ssTlsVerify        :: !Bool -- ^ verify TLS hostname
   , _ssTlsClientCert    :: !(Maybe FilePath) -- ^ path to client TLS certificate
   , _ssTlsClientKey     :: !(Maybe FilePath) -- ^ path to client TLS key
   , _ssTlsClientKeyPassword :: !(Maybe Secret) -- ^ client key PEM password
   , _ssTlsServerCert    :: !(Maybe FilePath) -- ^ additional CA certificates for validating server
   , _ssTlsCiphers       :: String            -- ^ OpenSSL cipher suite
+  , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint) -- ^ optional acceptable public key fingerprint
+  , _ssTlsCertFingerprint   :: !(Maybe Fingerprint) -- ^ optional acceptable certificate fingerprint
+  , _ssSts              :: !Bool -- ^ Honor STS policies when true
   , _ssConnectCmds      :: ![[ExpansionChunk]] -- ^ commands to execute upon successful connection
   , _ssSocksHost        :: !(Maybe HostName) -- ^ hostname of SOCKS proxy
   , _ssSocksPort        :: !PortNumber -- ^ port of SOCKS proxy
@@ -130,9 +135,6 @@ data ServerSettings = ServerSettings
   , _ssNickCompletion   :: WordCompletionMode -- ^ Nick completion mode for this server
   , _ssLogDir           :: Maybe FilePath -- ^ Directory to save logs of chat
   , _ssBindHostName     :: Maybe HostName -- ^ Local bind host
-  , _ssSts              :: !Bool -- ^ Honor STS policies when true
-  , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint) -- ^ optional acceptable public key fingerprint
-  , _ssTlsCertFingerprint   :: !(Maybe Fingerprint) -- ^ optional acceptable certificate fingerprint
   , _ssShowAccounts     :: !Bool -- ^ Render account names
   , _ssCapabilities     :: ![Text] -- ^ Extra capabilities to unconditionally request
   }
@@ -190,12 +192,16 @@ defaultServerSettings =
        , _ssSaslMechanism = Nothing
        , _ssHostName      = ""
        , _ssPort          = Nothing
-       , _ssTls           = UseInsecure
+       , _ssTls           = False
+       , _ssTlsVerify     = True
        , _ssTlsClientCert = Nothing
        , _ssTlsClientKey  = Nothing
        , _ssTlsClientKeyPassword = Nothing
        , _ssTlsServerCert = Nothing
        , _ssTlsCiphers    = "HIGH"
+       , _ssTlsPubkeyFingerprint = Nothing
+       , _ssTlsCertFingerprint   = Nothing
+       , _ssSts              = True
        , _ssConnectCmds   = []
        , _ssSocksHost     = Nothing
        , _ssSocksPort     = 1080
@@ -210,9 +216,6 @@ defaultServerSettings =
        , _ssNickCompletion   = defaultNickWordCompleteMode
        , _ssLogDir           = Nothing
        , _ssBindHostName     = Nothing
-       , _ssSts              = True
-       , _ssTlsPubkeyFingerprint = Nothing
-       , _ssTlsCertFingerprint   = Nothing
        , _ssShowAccounts     = False
        , _ssCapabilities     = []
        }
@@ -260,8 +263,11 @@ serverSpec = sectionsSpec "server-settings" $
       , opt "sasl" ssSaslMechanism saslMechanismSpec
         "SASL settings"
 
-      , req "tls" ssTls useTlsSpec
-        "Set to `yes` to enable secure connect. Set to `yes-insecure` to disable certificate checking."
+      , req "tls" ssTls yesOrNoSpec
+        "Use TLS to connect (default no)"
+
+      , req "tls-verify" ssTlsVerify yesOrNoSpec
+        "Enable server certificate hostname verification (default yes)"
 
       , opt "tls-client-cert" ssTlsClientCert stringSpec
         "Path to TLS client certificate"
@@ -392,13 +398,6 @@ fingerprintSpec =
 
 nicksSpec :: ValueSpec (NonEmpty Text)
 nicksSpec = oneOrNonemptySpec anySpec
-
-useTlsSpec :: ValueSpec UseTls
-useTlsSpec =
-      UseTls         <$ atomSpec "yes"
-  <!> UseInsecureTls <$ atomSpec "yes-insecure"
-  <!> UseInsecure    <$ atomSpec "no"
-
 
 nickCompletionSpec :: ValueSpec WordCompletionMode
 nickCompletionSpec =
