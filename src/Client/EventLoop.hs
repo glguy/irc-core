@@ -55,6 +55,7 @@ import           Data.Time
 import           GHC.IO.Exception (IOErrorType(..), ioe_type)
 import           Graphics.Vty
 import           Irc.Message
+import           Irc.Codes
 import           Irc.RawIrcMsg
 import           LensUtils
 import           Hookup (ConnectionFailure(..))
@@ -153,7 +154,8 @@ doNetworkEvent st (net, networkEvent) =
   case networkEvent of
     NetworkLine  time line -> doNetworkLine  net time line st
     NetworkError time ex   -> doNetworkError net time ex st
-    NetworkOpen  time msg  -> doNetworkOpen  net time msg st
+    NetworkOpen  time      -> doNetworkOpen  net time st
+    NetworkTLS   txts      -> doNetworkTLS   net txts st
     NetworkClose time      -> doNetworkClose net time st
 
 -- | Sound the terminal bell assuming that the @BEL@ control code
@@ -169,10 +171,9 @@ processLogEntries =
 doNetworkOpen ::
   Text        {- ^ network name -} ->
   ZonedTime   {- ^ event time   -} ->
-  [Text]      {- ^ rendered certificate -} ->
   ClientState {- ^ client state -} ->
   IO ClientState
-doNetworkOpen networkId time cert st =
+doNetworkOpen networkId time st =
   case view (clientConnections . at networkId) st of
     Nothing -> error "doNetworkOpen: Network missing"
     Just cs ->
@@ -182,9 +183,20 @@ doNetworkOpen networkId time cert st =
                      , _msgBody    = NormalBody "connection opened"
                      }
          let cs' = cs & csLastReceived .~ (Just $! zonedTimeToUTC time)
-                      & csCertificate  .~ cert
          return $! recordNetworkMessage msg
                  $ setStrict (clientConnections . ix networkId) cs' st
+
+-- | Update the TLS certificates for a connection
+doNetworkTLS ::
+  Text   {- ^ network name      -} ->
+  [Text] {- ^ certificate lines -} ->
+  ClientState ->
+  IO ClientState
+doNetworkTLS network cert st =
+  pure $! over (clientConnections . ix network) upd st
+  where
+    upd = set csCertificate cert
+        . set (csPingStatus . _PingConnecting . _3) NoRestriction
 
 -- | Respond to a network connection closing normally.
 doNetworkClose ::
@@ -231,7 +243,7 @@ reconnectLogicOnFailure ex cs st
   where
     computeRetryInfo =
       case view csPingStatus cs of
-        PingConnecting n tm                   -> pure (n+1, tm)
+        PingConnecting n tm _                 -> pure (n+1, tm)
         _ | Just tm <- view csLastReceived cs -> pure (1, Just tm)
           | otherwise                         -> do now <- getCurrentTime
                                                     pure (1, Just now)
@@ -240,7 +252,7 @@ reconnectLogicOnFailure ex cs st
 
     shouldReconnect =
       case view csPingStatus cs of
-        PingConnecting n _ | n == 0 || n > reconnectAttempts          -> False
+        PingConnecting n _ _ | n == 0 || n > reconnectAttempts        -> False
         _ | Just ConnectionFailure{}         <-      fromException ex -> True
           | Just HostnameResolutionFailure{} <-      fromException ex -> True
           | Just PingTimeout         <-              fromException ex -> True
@@ -263,9 +275,16 @@ doNetworkLine networkId time line st =
     Just cs ->
       let network = view csNetwork cs in
       case parseRawIrcMsg (asUtf8 line) of
+        _ | PingConnecting _ _ WaitTLSRestriction <- view csPingStatus cs ->
+          st <$ abortConnection StartTLSFailed (view csSocket cs)
+
+        Just raw
+          | PingConnecting _ _ StartTLSRestriction <- view csPingStatus cs ->
+          startTLSLine networkId cs st raw
+
         Nothing ->
           do let msg = Text.pack ("Malformed message: " ++ show line)
-             return $! recordError time (view csNetwork cs) msg st
+             return $! recordError time network msg st
 
         Just raw ->
           do (st1,passed) <- clientNotifyExtensions network raw st
@@ -304,6 +323,29 @@ doNetworkLine networkId time line st =
                     traverse_ (sendMsg cs) replies
                     clientResponse time' irc cs st3
 
+-- Highly restricted message handler for messages sent before STARTTLS
+-- has completed.
+startTLSLine :: Text -> NetworkState -> ClientState -> RawIrcMsg -> IO ClientState
+startTLSLine network cs st raw =
+  do now <- getZonedTime
+     let irc = cookIrcMsg raw
+         myNick = view csNick cs
+         target = msgTarget myNick irc
+         msg = ClientMessage
+             { _msgTime    = now
+             , _msgNetwork = network
+             , _msgBody    = IrcBody irc
+             }
+         st1 = recordIrcMessage network target msg st
+
+     case irc of
+       Notice{} -> pure st1
+       Reply RPL_STARTTLS _ ->
+         do upgrade (view csSocket cs)
+            pure (set ( clientConnections . ix network . csPingStatus
+                      . _PingConnecting . _3)
+                      WaitTLSRestriction st1)
+       _ -> st1 <$ abortConnection StartTLSFailed (view csSocket cs)
 
 -- | Find the ZNC provided server time
 computeEffectiveTime :: ZonedTime -> [TagEntry] -> ZonedTime

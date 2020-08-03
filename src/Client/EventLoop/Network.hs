@@ -55,11 +55,6 @@ clientResponse now irc cs st =
       , view clientFocus st == ChannelFocus network (mkId src) ->
          return $! set clientFocus (ChannelFocus network (mkId dst)) st
 
-    Reply RPL_STARTTLS _ ->
-      st <$ case view (csSettings . ssTls) cs of
-              TlsStart -> upgrade (view csSocket cs)
-              _ -> pure ()
-
     Authenticate challenge
       | AS_EcdsaWaitChallenge <- view csAuthenticationState cs ->
          processSaslEcdsa now challenge cs st
@@ -77,7 +72,6 @@ clientResponse now irc cs st =
          addConnection 1 discoTime Nothing (view csNetwork cs) st
 
     _ -> return st
-
 
 processSts ::
   Text         {- ^ STS parameter string -} ->
@@ -169,5 +163,5 @@ processConnectCmd now cs st0 cmdTxt =
  where
  disco =
    case view csPingStatus cs of
-     PingConnecting _ tm -> tm
-     _                   -> Nothing
+     PingConnecting _ tm _ -> tm
+     _                     -> Nothing

@@ -782,7 +782,12 @@ addConnection attempts lastTime stsUpgrade network st =
             let delay = 15 * max 0 (attempts - 1)
             c <- createConnection delay settings1
             seed <- Random.withSystemRandom (Random.asGenIO Random.save)
-            let cs = newNetworkState network settings1 c (PingConnecting attempts lastTime) seed
+            let restrict = case view ssTls settings1 of
+                             TlsStart -> StartTLSRestriction
+                             TlsYes   -> WaitTLSRestriction
+                             TlsNo    -> NoRestriction
+                cs = newNetworkState network settings1 c
+                       (PingConnecting attempts lastTime restrict) seed
             traverse_ (sendMsg cs) (initialMessages cs)
             pure (set (clientConnections . at network) (Just cs) st)
 

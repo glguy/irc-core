@@ -21,6 +21,7 @@ module Client.State.Network
   -- * Connection state
     NetworkState(..)
   , AuthenticateState(..)
+  , ConnectRestriction(..)
   , newNetworkState
 
   -- * Lenses
@@ -152,7 +153,13 @@ data AuthenticateState
 data PingStatus
   = PingSent !UTCTime -- ^ ping sent at given time, waiting for pong
   | PingNone          -- ^ not waiting for a pong
-  | PingConnecting !Int !(Maybe UTCTime) -- ^ number of attempts, last known connection time
+  | PingConnecting !Int !(Maybe UTCTime) !ConnectRestriction -- ^ number of attempts, last known connection time
+  deriving Show
+
+data ConnectRestriction
+  = NoRestriction       -- ^ no message restriction
+  | StartTLSRestriction -- ^ STARTTLS hasn't finished
+  | WaitTLSRestriction  -- ^ No messages allowed until TLS starts
   deriving Show
 
 -- | Timer-based events

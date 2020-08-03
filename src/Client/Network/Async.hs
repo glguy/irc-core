@@ -75,7 +75,9 @@ upgrade c = join (swapMVar (connUpgrade c) (pure ()))
 -- was created as well as the time at which the message was recieved.
 data NetworkEvent
   -- | Event for successful connection to host (certificate lines)
-  = NetworkOpen  !ZonedTime [Text]
+  = NetworkOpen  !ZonedTime
+  -- | Event indicating TLS is in effect
+  | NetworkTLS  [Text]
   -- | Event for a new recieved line (newline removed)
   | NetworkLine  !ZonedTime !ByteString
   -- | Report an error on network connection network connection failed
@@ -92,6 +94,7 @@ data TerminationReason
   = PingTimeout      -- ^ sent when ping timer expires
   | ForcedDisconnect -- ^ sent when client commands force disconnect
   | StsUpgrade       -- ^ sent when the client disconnects due to sts policy
+  | StartTLSFailed   -- ^ STARTTLS was expected by server had an error
   | BadCertFingerprint ByteString (Maybe ByteString)
   | BadPubkeyFingerprint ByteString (Maybe ByteString)
   deriving Show
@@ -100,6 +103,7 @@ instance Exception TerminationReason where
   displayException PingTimeout      = "connection killed due to ping timeout"
   displayException ForcedDisconnect = "connection killed by client command"
   displayException StsUpgrade       = "connection killed by sts policy"
+  displayException StartTLSFailed   = "connection killed due to failed STARTTLS"
   displayException (BadCertFingerprint expect got) =
        "Expected certificate fingerprint: " ++ formatDigest expect ++
        "; got: "    ++ maybe "none" formatDigest got
@@ -189,7 +193,11 @@ startConnection settings inQueue outQueue upgradeMVar h =
     presend =
       case view ssTls settings of
         TlsNo  -> True <$ putMVar upgradeMVar (pure ())
-        TlsYes -> True <$ putMVar upgradeMVar (pure ())
+        TlsYes ->
+          do txts <- describeCertificates h
+             putMVar upgradeMVar (pure ())
+             atomically (writeTQueue inQueue (NetworkTLS txts))
+             pure True
         TlsStart ->
           do Hookup.send h "STARTTLS\n"
              r <- withAsync receiveMain $ \t ->
@@ -202,6 +210,8 @@ startConnection settings inQueue outQueue upgradeMVar h =
                -- pre-receiver was killed by a call to 'upgrade'
                Left e | Just AsyncCancelled <- fromException e ->
                   do Hookup.upgradeTls (tlsParams settings) (view ssHostName settings) h
+                     txts <- describeCertificates h
+                     atomically (writeTQueue inQueue (NetworkTLS txts))
                      pure True
 
                -- something else went wrong with network IO
@@ -237,12 +247,15 @@ checkPubkeyFingerprint h fp =
 reportNetworkOpen :: Connection -> TQueue NetworkEvent -> IO ()
 reportNetworkOpen h inQueue =
   do now <- getZonedTime
-     mbServer <- getPeerCertificate h
+     atomically (writeTQueue inQueue (NetworkOpen now))
+
+describeCertificates :: Connection -> IO [Text]
+describeCertificates h =
+  do mbServer <- getPeerCertificate h
      mbClient <- getClientCertificate h
      cTxts <- certText "Server" mbServer
      sTxts <- certText "Client" mbClient
-     let txts = cTxts ++ sTxts
-     atomically (writeTQueue inQueue (NetworkOpen now txts))
+     pure (cTxts ++ sTxts)
 
 certText :: String -> Maybe X509 -> IO [Text]
 certText label mbX509 =

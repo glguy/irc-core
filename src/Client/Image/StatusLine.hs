@@ -147,7 +147,7 @@ latencyImage st = either id id $
 
        PingSent {} -> latencyBubble "wait"
 
-       PingConnecting n _ ->
+       PingConnecting n _ _ ->
          infoBubble (string (view palLatency pal) "connecting" <> retryImage n)
 
        PingNone -> mempty -- just connected no ping sent yet
