@@ -48,7 +48,6 @@ import qualified Data.ByteString as B
 import           Data.Foldable
 import           Data.Time
 import           Data.List
-import           Data.Void
 import           Irc.RateLimit
 import           Hookup
 import           Data.Text (Text)
@@ -137,7 +136,8 @@ createConnection delay settings =
 
       supervisor <- async $
                       threadDelay (delay * 1000000) >>
-                      startConnection settings inQueue outQueue upgradeMVar
+                      withConnection settings
+                        (startConnection settings inQueue outQueue upgradeMVar)
 
       let recordFailure :: SomeException -> IO ()
           recordFailure ex =
@@ -170,54 +170,49 @@ startConnection ::
   TQueue NetworkEvent ->
   TQueue ByteString ->
   MVar (IO ()) ->
+  Connection ->
   IO ()
-startConnection settings inQueue outQueue upgradeMVar =
-     withConnection settings $ \h ->
-       do reportNetworkOpen h inQueue
-          case view ssTls settings of
-            TlsStart -> starttls h
-            _ -> do putMVar upgradeMVar (pure ()) -- make upgrade a no-op
-                    finish h
+startConnection settings inQueue outQueue upgradeMVar h =
+  do reportNetworkOpen h inQueue
+     ready <- presend
+     when ready $
+       do checkFingerprints
+          race_ receiveMain sendMain
   where
-    -- Use the STARTTLS handshake. No sender thread will be started
-    -- until the TLS session is established, but a receive loop is
-    -- started to catch all messages up to the RPL_STARTTLS reply.
-    starttls h =
-      do Hookup.send h "STARTTLS\n"
-         r <- withAsync (receiveLoop h inQueue) $ \t ->
-                do putMVar upgradeMVar (cancel t)
-                   waitCatch t
-         case r of
-           -- network connection closed
-           Right () -> pure ()
+    receiveMain = receiveLoop h inQueue
 
-           -- pre-receiver was killed by a call to 'upgrade'
-           Left e | Just AsyncCancelled <- fromException e ->
-              do Hookup.upgradeTls
-                   (tlsParams settings)
-                   (view ssHostName settings)
-                   h
-                 finish h
+    sendMain =
+      do rate <- newRateLimit (view ssFloodPenalty   settings)
+                              (view ssFloodThreshold settings)
+         sendLoop h outQueue rate
 
-           -- something else went wrong with network IO
-           Left e -> throwIO e
+    presend =
+      case view ssTls settings of
+        TlsNo  -> True <$ putMVar upgradeMVar (pure ())
+        TlsYes -> True <$ putMVar upgradeMVar (pure ())
+        TlsStart ->
+          do Hookup.send h "STARTTLS\n"
+             r <- withAsync receiveMain $ \t ->
+                    do putMVar upgradeMVar (cancel t)
+                       waitCatch t
+             case r of
+               -- network connection closed
+               Right () -> pure False
 
-    -- Any TLS session that needs to be established has been,
-    -- create the sender and permanent receiver thread
-    finish h =
-      do  for_ (view ssTlsCertFingerprint settings)
-            (checkCertFingerprint h)
-          for_ (view ssTlsPubkeyFingerprint settings)
-            (checkPubkeyFingerprint h)
+               -- pre-receiver was killed by a call to 'upgrade'
+               Left e | Just AsyncCancelled <- fromException e ->
+                  do Hookup.upgradeTls (tlsParams settings) (view ssHostName settings) h
+                     pure True
 
-          res <- race (receiveLoop h inQueue)
-                      (sendLoop h outQueue =<<
-                       newRateLimit
-                            (view ssFloodPenalty settings)
-                            (view ssFloodThreshold settings))
-          case res of
-            Right v -> absurd v
-            Left () -> pure ()
+               -- something else went wrong with network IO
+               Left e -> throwIO e
+
+    checkFingerprints =
+      case view ssTls settings of
+        TlsNo -> pure ()
+        _ ->
+          do for_ (view ssTlsCertFingerprint   settings) (checkCertFingerprint   h)
+             for_ (view ssTlsPubkeyFingerprint settings) (checkPubkeyFingerprint h)
 
 checkCertFingerprint :: Connection -> Fingerprint -> IO ()
 checkCertFingerprint h fp =
