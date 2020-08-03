@@ -55,6 +55,11 @@ clientResponse now irc cs st =
       , view clientFocus st == ChannelFocus network (mkId src) ->
          return $! set clientFocus (ChannelFocus network (mkId dst)) st
 
+    Reply RPL_STARTTLS _ ->
+      st <$ case view (csSettings . ssTls) cs of
+              TlsStart -> upgrade (view csSocket cs)
+              _ -> pure ()
+
     Authenticate challenge
       | AS_EcdsaWaitChallenge <- view csAuthenticationState cs ->
          processSaslEcdsa now challenge cs st
@@ -81,10 +86,10 @@ processSts ::
   IO ClientState
 processSts txt cs st =
   case view (csSettings . ssTls) cs of
-    _     | views (csSettings . ssSts) not cs -> return st -- sts disabled
-    False | Just port     <- mbPort           -> upgradeConnection port
-    True  | Just duration <- mbDuration       -> setStsPolicy duration
-    _                                         -> return st
+    _      | views (csSettings . ssSts) not cs -> return st -- sts disabled
+    TlsNo  | Just port     <- mbPort           -> upgradeConnection port
+    TlsYes | Just duration <- mbDuration       -> setStsPolicy duration
+    _                                          -> return st
 
   where
     entries    = splitEntry <$> Text.splitOn "," txt

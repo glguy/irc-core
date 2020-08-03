@@ -368,7 +368,7 @@ pattern RPL_CHANREDIR               = ReplyCode 663
 pattern RPL_SERVMODEIS              = ReplyCode 664
 pattern RPL_OTHERUMODEIS            = ReplyCode 665
 pattern RPL_ENDOF_GENERIC           = ReplyCode 666
-pattern RPL_WHOWASDETAILS           = ReplyCode 670
+pattern RPL_STARTTLS                = ReplyCode 670
 pattern RPL_WHOISSECURE             = ReplyCode 671
 pattern RPL_UNKNOWNMODES            = ReplyCode 672
 pattern RPL_CANNOTSETMODES          = ReplyCode 673
@@ -379,6 +379,7 @@ pattern RPL_YOURLANGUAGEIS          = ReplyCode 687
 pattern RPL_LANGUAGE                = ReplyCode 688
 pattern RPL_WHOISSTAFF              = ReplyCode 689
 pattern RPL_WHOISLANGUAGE           = ReplyCode 690
+pattern ERR_STARTTLS                = ReplyCode 691
 pattern RPL_MODLIST                 = ReplyCode 702
 pattern RPL_ENDOFMODLIST            = ReplyCode 703
 pattern RPL_HELPSTART               = ReplyCode 704
@@ -797,7 +798,7 @@ replyCodeInfoTable
   , (RPL_SERVMODEIS            , ReplyCodeInfo CommandReply "serv-mode-is")
   , (RPL_OTHERUMODEIS          , ReplyCodeInfo CommandReply "other-umode-is")
   , (RPL_ENDOF_GENERIC         , ReplyCodeInfo CommandReply "end-of-generic")
-  , (RPL_WHOWASDETAILS         , ReplyCodeInfo CommandReply "whowas-details")
+  , (RPL_STARTTLS              , ReplyCodeInfo CommandReply "start-tls")
   , (RPL_WHOISSECURE           , ReplyCodeInfo CommandReply "whois-secure")
   , (RPL_UNKNOWNMODES          , ReplyCodeInfo CommandReply "unknown-modes")
   , (RPL_CANNOTSETMODES        , ReplyCodeInfo CommandReply "cannot-set-modes")
@@ -808,6 +809,7 @@ replyCodeInfoTable
   , (RPL_LANGUAGE              , ReplyCodeInfo CommandReply "language")
   , (RPL_WHOISSTAFF            , ReplyCodeInfo CommandReply "whois-staff")
   , (RPL_WHOISLANGUAGE         , ReplyCodeInfo CommandReply "who-is-language")
+  , (ERR_STARTTLS              , ReplyCodeInfo CommandReply "err-start-tls")
   , (RPL_MODLIST               , ReplyCodeInfo CommandReply "mod-list")
   , (RPL_ENDOFMODLIST          , ReplyCodeInfo CommandReply "end-of-modlist")
   , (RPL_HELPSTART             , ReplyCodeInfo CommandReply "help-start")

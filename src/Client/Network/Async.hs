@@ -28,6 +28,7 @@ module Client.Network.Async
   , createConnection
   , Client.Network.Async.send
   , Client.Network.Async.recv
+  , upgrade
 
   -- * Abort connections
   , abortConnection
@@ -47,6 +48,7 @@ import qualified Data.ByteString as B
 import           Data.Foldable
 import           Data.Time
 import           Data.List
+import           Data.Void
 import           Irc.RateLimit
 import           Hookup
 import           Data.Text (Text)
@@ -61,7 +63,13 @@ data NetworkConnection = NetworkConnection
   { connOutQueue :: TQueue ByteString
   , connInQueue  :: TQueue NetworkEvent
   , connAsync    :: Async ()
+  , connUpgrade  :: MVar (IO ())
   }
+
+-- | Signals that the server is ready to initiate the TLS handshake.
+-- This is a no-op when not in a starttls state.
+upgrade :: NetworkConnection -> IO ()
+upgrade c = join (swapMVar (connUpgrade c) (pure ()))
 
 -- | The sum of incoming events from a network connection. All events
 -- are annotated with a network ID matching that given when the connection
@@ -125,9 +133,11 @@ createConnection delay settings =
    do outQueue <- newTQueueIO
       inQueue  <- newTQueueIO
 
+      upgradeMVar <- newEmptyMVar
+
       supervisor <- async $
                       threadDelay (delay * 1000000) >>
-                      startConnection settings inQueue outQueue
+                      startConnection settings inQueue outQueue upgradeMVar
 
       let recordFailure :: SomeException -> IO ()
           recordFailure ex =
@@ -151,6 +161,7 @@ createConnection delay settings =
         { connOutQueue = outQueue
         , connInQueue  = inQueue
         , connAsync    = supervisor
+        , connUpgrade  = upgradeMVar
         }
 
 
@@ -158,24 +169,55 @@ startConnection ::
   ServerSettings ->
   TQueue NetworkEvent ->
   TQueue ByteString ->
+  MVar (IO ()) ->
   IO ()
-startConnection settings inQueue outQueue =
-  do rate <- newRateLimit
-               (view ssFloodPenalty settings)
-               (view ssFloodThreshold settings)
+startConnection settings inQueue outQueue upgradeMVar =
      withConnection settings $ \h ->
-       do for_ (view ssTlsCertFingerprint settings)
+       do reportNetworkOpen h inQueue
+          case view ssTls settings of
+            TlsStart -> starttls h
+            _ -> do putMVar upgradeMVar (pure ()) -- make upgrade a no-op
+                    finish h
+  where
+    -- Use the STARTTLS handshake. No sender thread will be started
+    -- until the TLS session is established, but a receive loop is
+    -- started to catch all messages up to the RPL_STARTTLS reply.
+    starttls h =
+      do Hookup.send h "STARTTLS\n"
+         r <- withAsync (receiveLoop h inQueue) $ \t ->
+                do putMVar upgradeMVar (cancel t)
+                   waitCatch t
+         case r of
+           -- network connection closed
+           Right () -> pure ()
+
+           -- pre-receiver was killed by a call to 'upgrade'
+           Left e | Just AsyncCancelled <- fromException e ->
+              do Hookup.upgradeTls
+                   (tlsParams settings)
+                   (view ssHostName settings)
+                   h
+                 finish h
+
+           -- something else went wrong with network IO
+           Left e -> throwIO e
+
+    -- Any TLS session that needs to be established has been,
+    -- create the sender and permanent receiver thread
+    finish h =
+      do  for_ (view ssTlsCertFingerprint settings)
             (checkCertFingerprint h)
           for_ (view ssTlsPubkeyFingerprint settings)
             (checkPubkeyFingerprint h)
 
-          reportNetworkOpen h inQueue
-
-          res <- race (sendLoop h outQueue rate)
-                      (receiveLoop h inQueue)
+          res <- race (receiveLoop h inQueue)
+                      (sendLoop h outQueue =<<
+                       newRateLimit
+                            (view ssFloodPenalty settings)
+                            (view ssFloodThreshold settings))
           case res of
-            Left {} -> fail "PANIC: sendLoop returned"
-            Right{} -> return ()
+            Right v -> absurd v
+            Left () -> pure ()
 
 checkCertFingerprint :: Connection -> Fingerprint -> IO ()
 checkCertFingerprint h fp =
@@ -201,7 +243,7 @@ reportNetworkOpen :: Connection -> TQueue NetworkEvent -> IO ()
 reportNetworkOpen h inQueue =
   do now <- getZonedTime
      mbServer <- getPeerCertificate h
-     let mbClient = getClientCertificate h
+     mbClient <- getClientCertificate h
      cTxts <- certText "Server" mbServer
      sTxts <- certText "Client" mbClient
      let txts = cTxts ++ sTxts
@@ -226,12 +268,12 @@ showByte x
   | x < 0x10  = '0' : showHex x ""
   | otherwise = showHex x ""
 
-sendLoop :: Connection -> TQueue ByteString -> RateLimit -> IO ()
+sendLoop :: Connection -> TQueue ByteString -> RateLimit -> IO a
 sendLoop h outQueue rate =
   forever $
-    do msg <- atomically (readTQueue outQueue)
-       tickRateLimit rate
-       Hookup.send h msg
+  do msg <- atomically (readTQueue outQueue)
+     tickRateLimit rate
+     Hookup.send h msg
 
 ircMaxMessageLength :: Int
 ircMaxMessageLength = 512

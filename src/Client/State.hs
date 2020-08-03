@@ -791,7 +791,7 @@ applyStsPolicy stsUpgrade settings st =
   do now <- getCurrentTime
      let stsUpgrade'
            | Just{} <- stsUpgrade = stsUpgrade
-           | False <- view ssTls settings
+           | TlsNo <- view ssTls settings
            , let host = Text.pack (view ssHostName settings)
            , Just policy <- view (clientStsPolicy . at host) st
            , now < view stsExpiration policy
@@ -799,7 +799,7 @@ applyStsPolicy stsUpgrade settings st =
            | otherwise = Nothing
      pure $ case stsUpgrade' of
               Just port -> set ssPort (Just (fromIntegral port))
-                         $ set ssTls True settings
+                         $ set ssTls TlsYes settings
               Nothing   -> settings
 
 applyMessageToClientState ::

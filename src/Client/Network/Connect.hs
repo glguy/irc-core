@@ -17,6 +17,7 @@ network connection library.
 module Client.Network.Connect
   ( withConnection
   , ircPort
+  , tlsParams
   ) where
 
 import           Client.Configuration.ServerSettings
@@ -49,7 +50,10 @@ buildConnectionParams :: ServerSettings -> ConnectionParams
 buildConnectionParams ss = ConnectionParams
   { cpHost  = view ssHostName ss
   , cpPort  = ircPort ss
-  , cpTls   = if view ssTls ss then Just (tlsParams ss) else Nothing
+  , cpTls   = case view ssTls ss of
+                TlsYes   -> Just (tlsParams ss)
+                TlsNo    -> Nothing
+                TlsStart -> Nothing
   , cpSocks = proxyParams ss
   , cpBind  = view ssBindHostName ss
   }
@@ -58,9 +62,11 @@ ircPort :: ServerSettings -> PortNumber
 ircPort args =
   case view ssPort args of
     Just p -> fromIntegral p
-    Nothing
-      | view ssTls args -> 6697
-      | otherwise       -> 6667
+    Nothing ->
+      case view ssTls args of
+        TlsYes   -> 6697
+        TlsNo    -> 6667
+        TlsStart -> 6667
 
 -- | Create a new 'Connection' which will be closed when the continuation
 -- finishes.

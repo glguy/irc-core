@@ -72,6 +72,7 @@ module Client.Configuration.ServerSettings
   -- * TLS settings
   , UseTls(..)
   , Fingerprint(..)
+  , TlsMode(..)
 
   -- * Regex wrapper
   , KnownRegex(..)
@@ -111,7 +112,7 @@ data ServerSettings = ServerSettings
   , _ssSaslMechanism    :: !(Maybe SaslMechanism) -- ^ SASL mechanism
   , _ssHostName         :: !HostName -- ^ server hostname
   , _ssPort             :: !(Maybe PortNumber) -- ^ server port
-  , _ssTls              :: !Bool -- ^ use TLS to connect
+  , _ssTls              :: !TlsMode -- ^ use TLS to connect
   , _ssTlsVerify        :: !Bool -- ^ verify TLS hostname
   , _ssTlsClientCert    :: !(Maybe FilePath) -- ^ path to client TLS certificate
   , _ssTlsClientKey     :: !(Maybe FilePath) -- ^ path to client TLS key
@@ -138,6 +139,9 @@ data ServerSettings = ServerSettings
   , _ssShowAccounts     :: !Bool -- ^ Render account names
   , _ssCapabilities     :: ![Text] -- ^ Extra capabilities to unconditionally request
   }
+  deriving Show
+
+data TlsMode = TlsYes | TlsNo | TlsStart
   deriving Show
 
 data Secret
@@ -192,7 +196,7 @@ defaultServerSettings =
        , _ssSaslMechanism = Nothing
        , _ssHostName      = ""
        , _ssPort          = Nothing
-       , _ssTls           = False
+       , _ssTls           = TlsNo
        , _ssTlsVerify     = True
        , _ssTlsClientCert = Nothing
        , _ssTlsClientKey  = Nothing
@@ -263,7 +267,7 @@ serverSpec = sectionsSpec "server-settings" $
       , opt "sasl" ssSaslMechanism saslMechanismSpec
         "SASL settings"
 
-      , req "tls" ssTls yesOrNoSpec
+      , req "tls" ssTls tlsModeSpec
         "Use TLS to connect (default no)"
 
       , req "tls-verify" ssTlsVerify yesOrNoSpec
@@ -338,6 +342,12 @@ serverSpec = sectionsSpec "server-settings" $
       , req "capabilities" ssCapabilities anySpec
         "Extra capabilities to unconditionally request from the server"
       ]
+
+tlsModeSpec :: ValueSpec TlsMode
+tlsModeSpec =
+  TlsYes   <$ atomSpec "yes"      <!>
+  TlsNo    <$ atomSpec "no"       <!>
+  TlsStart <$ atomSpec "starttls"
 
 saslMechanismSpec :: ValueSpec SaslMechanism
 saslMechanismSpec = plain <!> external <!> ecdsa

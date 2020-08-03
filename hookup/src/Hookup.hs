@@ -30,6 +30,7 @@ module Hookup
   connect,
   connectWithSocket,
   close,
+  upgradeTls,
 
   -- * Reading and writing data
   recv,
@@ -404,7 +405,10 @@ networkRecv (SSL  _ s) = SSL.read     s
 -- | A connection to a network service along with its read buffer
 -- used for line-oriented protocols. The connection could be a plain
 -- network connection, SOCKS connected, or TLS.
-data Connection = Connection (MVar ByteString) NetworkHandle
+data Connection =
+  Connection
+  {-# UNPACK #-} !(MVar ByteString)
+  {-# UNPACK #-} !(MVar NetworkHandle)
 
 -- | Open network connection to TCP service specified by
 -- the given parameters.
@@ -418,8 +422,7 @@ connect ::
   IO Connection    {- ^ open connection -}
 connect params =
   do h <- openNetworkHandle params (openSocket params)
-     b <- newMVar B.empty
-     return (Connection b h)
+     Connection <$> newMVar B.empty <*> newMVar h
 
 -- | Create a new 'Connection' using an already connected socket.
 -- This will attempt to start TLS if configured but will ignore
@@ -433,14 +436,13 @@ connectWithSocket ::
   IO Connection    {- ^ open connection  -}
 connectWithSocket params sock =
   do h <- openNetworkHandle params (return sock)
-     b <- newMVar B.empty
-     return (Connection b h)
+     Connection <$> newMVar B.empty <*> newMVar h
 
 -- | Close network connection.
 close ::
   Connection {- ^ open connection -} ->
   IO ()
-close (Connection _ h) = closeNetworkHandle h
+close (Connection _ m) = withMVar m $ \h -> closeNetworkHandle h
 
 -- | Receive the next chunk from the stream. This operation will first
 -- return the buffer if it contains a non-empty chunk. Otherwise it will
@@ -451,11 +453,13 @@ recv ::
   Connection    {- ^ open connection              -} ->
   Int           {- ^ maximum underlying recv size -} ->
   IO ByteString {- ^ next chunk from stream       -}
-recv (Connection buf h) n =
-  do bufChunk <- swapMVar buf B.empty
-     if B.null bufChunk
-       then networkRecv h n
-       else return bufChunk
+recv (Connection bufVar hVar) n =
+  modifyMVar bufVar $ \bufChunk ->
+  do if B.null bufChunk
+       then do h <- readMVar hVar
+               bs <- networkRecv h n
+               return (B.empty, bs)
+       else return (B.empty, bufChunk)
 
 -- | Receive a line from the network connection. Both
 -- @"\\r\\n"@ and @"\\n"@ are recognized.
@@ -472,14 +476,15 @@ recvLine ::
   Connection            {- ^ open connection            -} ->
   Int                   {- ^ maximum line length        -} ->
   IO (Maybe ByteString) {- ^ next line or end-of-stream -}
-recvLine (Connection buf h) n =
-  modifyMVar buf $ \bs ->
-    go (B.length bs) bs []
+recvLine (Connection bufVar hVar) n =
+  modifyMVar bufVar $ \bs ->
+    do h <- readMVar hVar
+       go h (B.length bs) bs []
   where
     -- bsn: cached length of concatenation of (bs:bss)
     -- bs : most recent chunk
     -- bss: other chunks ordered from most to least recent
-    go bsn bs bss =
+    go h bsn bs bss =
       case B8.elemIndex '\n' bs of
         Just i -> return (B.tail b, -- tail drops newline
                           Just (cleanEnd (B.concat (reverse (a:bss)))))
@@ -491,7 +496,7 @@ recvLine (Connection buf h) n =
              if B.null more -- connection closed
                then if bsn == 0 then return (B.empty, Nothing)
                                 else throwIO LineTruncated
-               else go (bsn + B.length more) more (bs:bss)
+               else go h (bsn + B.length more) more (bs:bss)
 
 
 -- | Push a 'ByteString' onto the buffer so that it will be the first
@@ -502,8 +507,8 @@ putBuf ::
   Connection {- ^ connection         -} ->
   ByteString {- ^ new head of buffer -} ->
   IO ()
-putBuf (Connection buf h) bs =
-  modifyMVar_ buf (\old -> return $! B.append bs old)
+putBuf (Connection bufVar _) bs =
+  modifyMVar_ bufVar (\old -> return $! B.append bs old)
 
 
 -- | Remove the trailing @'\\r'@ if one is found.
@@ -521,8 +526,24 @@ send ::
   Connection {- ^ open connection -} ->
   ByteString {- ^ chunk           -} ->
   IO ()
-send (Connection _ h) = networkSend h
+send (Connection _ hVar) bs =
+  do h <- readMVar hVar
+     networkSend h bs
 
+
+upgradeTls ::
+  TlsParams {- ^ connection params -} ->
+  String {- ^ hostname -} ->
+  Connection ->
+  IO ()
+upgradeTls tp hostname (Connection bufVar hVar) =
+  modifyMVar_ bufVar $ \buf ->
+  modifyMVar  hVar   $ \h ->
+  case h of
+    SSL{} -> return (h, buf)
+    Socket s ->
+      do (cert, ssl) <- startTls tp hostname (pure s)
+         return (SSL cert ssl, B.empty)
 
 ------------------------------------------------------------------------
 
@@ -597,17 +618,19 @@ verificationMode insecure
 
 -- | Get peer certificate if one exists.
 getPeerCertificate :: Connection -> IO (Maybe X509.X509)
-getPeerCertificate (Connection _ h) =
+getPeerCertificate (Connection _ hVar) =
+  withMVar hVar $ \h ->
   case h of
     Socket{} -> return Nothing
     SSL _ ssl -> SSL.getPeerCertificate ssl
 
 -- | Get peer certificate if one exists.
-getClientCertificate :: Connection -> Maybe X509.X509
-getClientCertificate (Connection _ h) =
-  case h of
-    Socket{} -> Nothing
-    SSL c _  -> c
+getClientCertificate :: Connection -> IO (Maybe X509.X509)
+getClientCertificate (Connection _ hVar) =
+  do h <- readMVar hVar
+     return $ case h of
+                Socket{} -> Nothing
+                SSL c _  -> c
 
 getPeerCertFingerprintSha1 :: Connection -> IO (Maybe ByteString)
 getPeerCertFingerprintSha1 = getPeerCertFingerprint "sha1"
