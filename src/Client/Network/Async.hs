@@ -177,7 +177,7 @@ startConnection ::
   Connection ->
   IO ()
 startConnection settings inQueue outQueue upgradeMVar h =
-  do reportNetworkOpen h inQueue
+  do reportNetworkOpen inQueue
      ready <- presend
      when ready $
        do checkFingerprints
@@ -244,8 +244,8 @@ checkPubkeyFingerprint h fp =
      unless (Just expect == got)
        (throwIO (BadPubkeyFingerprint expect got))
 
-reportNetworkOpen :: Connection -> TQueue NetworkEvent -> IO ()
-reportNetworkOpen h inQueue =
+reportNetworkOpen :: TQueue NetworkEvent -> IO ()
+reportNetworkOpen inQueue =
   do now <- getZonedTime
      atomically (writeTQueue inQueue (NetworkOpen now))
 

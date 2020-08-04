@@ -32,7 +32,6 @@ import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
 import           Client.Commands.WordCompletion
 import           Client.Configuration
-import           Client.Message
 import           Client.State
 import           Client.State.Extensions
 import           Client.State.Focus
@@ -45,7 +44,7 @@ import           Control.Monad
 import           Data.Foldable
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Time (ZonedTime, getZonedTime)
+import           Data.Time (getZonedTime)
 import           Irc.Commands
 import           Irc.Identifier
 import           Irc.RawIrcMsg
@@ -54,6 +53,7 @@ import           RtsStats (getStats)
 import           System.Process
 
 import           Client.Commands.Channel (channelCommands)
+import           Client.Commands.Certificate (newCertificateCommand)
 import           Client.Commands.Chat (chatCommands, chatCommand', executeChat)
 import           Client.Commands.Connection (connectionCommands)
 import           Client.Commands.DCC (dccCommands)
@@ -317,6 +317,8 @@ commandsList =
       \ URL to open counting back from the most recent.\n"
     $ ClientCommand cmdUrl noClientTab
 
+  , newCertificateCommand
+
   , Command
       (pure "help")
       (optionalArg (simpleToken "[command]"))
@@ -497,14 +499,6 @@ cmdExec st rest =
 
     failure now es =
       commandFailure $! foldl' (flip (recordError now "")) st (map Text.pack es)
-
-recordSuccess :: ZonedTime -> ClientState -> Text -> ClientState
-recordSuccess now ste m =
-  recordNetworkMessage ClientMessage
-    { _msgTime    = now
-    , _msgBody    = NormalBody m
-    , _msgNetwork = ""
-    } ste
 
 
 cmdUrl :: ClientCommand (Maybe Int)

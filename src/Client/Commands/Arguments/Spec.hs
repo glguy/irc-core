@@ -18,6 +18,7 @@ module Client.Commands.Arguments.Spec
   , numberArg
   , optionalNumberArg
   , extensionArg
+  , tokenArg
 
   , ArgumentShape(..)
   , Arg(..)

@@ -82,6 +82,7 @@ module Client.State
   , recordNetworkMessage
   , recordError
   , recordIrcMessage
+  , recordSuccess
 
   -- * Focus manipulation
   , changeFocus
@@ -308,6 +309,13 @@ abortNetwork network st =
                   -- unassociate this network name from this network id
                   return $! over clientConnections (sans network) st
 
+recordSuccess :: ZonedTime -> ClientState -> Text -> ClientState
+recordSuccess now ste m =
+  recordNetworkMessage ClientMessage
+    { _msgTime    = now
+    , _msgBody    = NormalBody m
+    , _msgNetwork = ""
+    } ste
 
 -- | Add a message to the window associated with a given channel
 recordChannelMessage ::

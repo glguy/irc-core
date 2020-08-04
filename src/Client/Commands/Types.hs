@@ -84,4 +84,3 @@ commandFailure = return . CommandFailure
 commandFailureMsg :: Text -> ClientState -> IO CommandResult
 commandFailureMsg e st =
   return $! CommandFailure $! set clientErrorMsg (Just e) st
-
