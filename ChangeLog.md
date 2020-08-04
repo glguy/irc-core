@@ -1,5 +1,11 @@
 # Revision history for glirc
 
+## 2.37
+
+* Add `/new-self-signed-certificate PATH [keysize]` to make it easier to configure secure services logon
+* Add STARTTLS support: `tls:` configuration settings are now: `yes`, `no`, `starttls`
+* Add separate `tls-verify: no` setting for disabling hostname verification instead of old `tls: yes-insecure`
+
 ## 2.36
 
 * **Changed executable name to `glirc`**
