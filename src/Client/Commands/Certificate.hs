@@ -64,10 +64,10 @@ newCertificateCommand =
       \    servers:\n\
       \      * name:                    \"fn\"\n\
       \        hostname:                \"chat.freenode.net\"\n\
-      \        sasl: mechanism:         external\n"
+      \        sasl: mechanism:         external\n\
       \        tls:                     yes\n\
       \        tls-client-cert:         \"my.pem\"\n\
-      \        tls-client-key-password: \"SeCrEt\"\n\
+      \        tls-client-key-password: \"SeCrEt\"\n"
     (ClientCommand cmdNewCert noClientTab)
 
 cmdNewCert :: ClientCommand (String, Maybe (Int, String))
