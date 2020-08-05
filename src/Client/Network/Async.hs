@@ -46,15 +46,19 @@ import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.Foldable
-import           Data.Time
 import           Data.List
-import           Irc.RateLimit
-import           Hookup
+import           Data.List.Split (chunksOf)
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Data.Time
+import           Data.Traversable
 import           Data.Word (Word8)
+import           Hookup
+import           Hookup.OpenSSL (getPubKeyDer)
+import           Irc.RateLimit
 import           Numeric (showHex)
-import           OpenSSL.X509 (X509, printX509)
+import qualified OpenSSL.EVP.Digest as Digest
+import           OpenSSL.X509 (X509, printX509, writeDerX509)
 
 
 -- | Handle for a network connection
@@ -255,7 +259,7 @@ describeCertificates h =
      mbClient <- getClientCertificate h
      cTxts <- certText "Server" mbServer
      sTxts <- certText "Client" mbClient
-     pure (cTxts ++ sTxts)
+     pure (reverse (cTxts ++ sTxts))
 
 certText :: String -> Maybe X509 -> IO [Text]
 certText label mbX509 =
@@ -263,7 +267,34 @@ certText label mbX509 =
     Nothing -> pure []
     Just x509 ->
       do str <- printX509 x509
-         return $! reverse (Text.lines (Text.pack ("<<" ++ label ++ ">>\n" ++ str)))
+         fps <- getFingerprints x509
+         pure $ map Text.pack
+              $ ('\^B' : label)
+              : map colorize (lines str ++ fps)
+  where
+    colorize x@(' ':_) = x
+    colorize xs = "\^C07" ++ xs
+
+getFingerprints :: X509 -> IO [String]
+getFingerprints x509 =
+  do certDer <- writeDerX509 x509
+     spkiDer <- getPubKeyDer x509
+     xss <- for ["sha1", "sha256", "sha512"] $ \alg ->
+              do mb <- Digest.getDigestByName alg
+                 pure $ case mb of
+                   Nothing -> []
+                   Just d ->
+                       ("Certificate " ++ alg ++ " fingerprint:")
+                     : fingerprintLines (Digest.digestLBS d certDer)
+                    ++ ("SPKI " ++ alg ++ " fingerprint:")
+                     : fingerprintLines (Digest.digestBS d spkiDer)
+     pure (concat xss)
+
+fingerprintLines :: ByteString -> [String]
+fingerprintLines
+  = map ("    "++)
+  . chunksOf (16*3)
+  . formatDigest
 
 formatDigest :: ByteString -> String
 formatDigest

@@ -14,12 +14,12 @@ module Client.View.Cert
 
 import           Client.Image.PackedImage
 import           Client.Image.Palette
+import           Client.Image.MircFormatting
 import           Client.State
 import           Client.State.Focus
 import           Client.State.Network
 import           Control.Lens
 import           Data.Text (Text)
-import           Graphics.Vty.Attributes
 
 -- | Render the lines used in a channel mask list
 certViewLines ::
@@ -29,7 +29,7 @@ certViewLines st
   , Just cs <- preview (clientConnection network) st
   , let xs = view csCertificate cs
   , not (null xs)
-  = text' defAttr <$> xs
+  = parseIrcText <$> xs
 
   | otherwise = [text' (view palError pal) "No certificate available"]
   where
