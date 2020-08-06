@@ -42,8 +42,8 @@ mentionsViewLines w st = addMarkers w st entries
     palette = clientPalette st
 
     filt
-      | clientIsFiltered st = filter (\x -> WLImportant == view wlImportance x)
-      | otherwise           = clientFilter st (view wlText)
+      | clientIsFiltered st = clientFilter st (view wlText)
+      | otherwise           = filter (\x -> WLImportant == view wlImportance x)
 
     entries = merge
               [windowEntries filt palette w padAmt detail n focus v
