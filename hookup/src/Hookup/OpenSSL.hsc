@@ -31,8 +31,6 @@ import qualified Data.ByteString.Internal as B
 -- Bindings to password callback
 ------------------------------------------------------------------------
 
-foreign import ccall "&hookup_pem_passwd_cb" hookup_pem_passwd_cb :: FunPtr PemPasswdCb
-
 -- int pem_passwd_cb(char *buf, int size, int rwflag, void *userdata);
 type PemPasswdCb = Ptr CChar -> CInt -> CInt -> Ptr () -> IO CInt
 
@@ -48,8 +46,7 @@ foreign import ccall unsafe "SSL_CTX_set_default_passwd_cb_userdata"
 installPasswordCallback :: SSLContext -> CString -> IO ()
 installPasswordCallback ctx password =
   withContext ctx $ \ctxPtr ->
-  do sslCtxSetDefaultPasswdCb ctxPtr hookup_pem_passwd_cb
-     sslCtxSetDefaultPasswdCbUserdata ctxPtr (castPtr password)
+  sslCtxSetDefaultPasswdCbUserdata ctxPtr (castPtr password)
 
 ------------------------------------------------------------------------
 -- Bindings to hostname verification interface

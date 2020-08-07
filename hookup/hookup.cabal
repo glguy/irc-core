@@ -32,8 +32,6 @@ library
   other-modules:
     Hookup.Socks5
 
-  c-sources: cbits/pass.c
-
   build-depends:
     base                  >=4.11 && <4.15,
     network               >=3.0  && <3.2,
