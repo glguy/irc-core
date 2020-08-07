@@ -593,9 +593,10 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
 withPassword :: SSLContext -> Maybe String -> IO () -> IO ()
 withPassword ctx mbPassword m =
   withCString (fromMaybe "" mbPassword) $ \ptr ->
-  do installPasswordCallback ctx ptr
-     m
-     installPasswordCallback ctx nullPtr
+  bracket_
+    (installPasswordCallback ctx ptr)
+    (installPasswordCallback ctx nullPtr)
+    m
 
 setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
 setupCaCertificates ctx mbPath =
