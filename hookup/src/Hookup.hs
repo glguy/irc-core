@@ -70,6 +70,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import           Data.Foldable
 import           Data.List (intercalate, partition)
+import           Data.Maybe (fromMaybe)
 import           Foreign.C.String (CString, withCString)
 import           Foreign.Ptr (nullPtr)
 import           Network.Socket (AddrInfo, HostName, PortNumber, SockAddr, Socket, Family)
@@ -114,7 +115,6 @@ data SocksParams = SocksParams
   { spHost :: HostName   -- ^ SOCKS server host
   , spPort :: PortNumber -- ^ SOCKS server port
   }
-
 
 -- | TLS connection parameters. These parameters are passed to
 -- OpenSSL when making a secure connection.
@@ -560,7 +560,6 @@ startTls ::
   IO Socket {- ^ socket creation action -} ->
   IO (Maybe X509, SSL) {- ^ (client certificate, connected TLS) -}
 startTls tp hostname mkSocket = SSL.withOpenSSL $
-  withPassword (tpClientPrivateKeyPassword tp) $ \password ->
   do ctx <- SSL.context
 
      -- configure context
@@ -574,8 +573,10 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
      -- configure certificates
      setupCaCertificates ctx (tpServerCertificate tp)
      clientCert <- traverse (setupCertificate ctx) (tpClientCertificate tp)
-     installPasswordCallback ctx password
-     traverse_ (SSL.contextSetPrivateKeyFile ctx) (tpClientPrivateKey tp)
+
+     for_ (tpClientPrivateKey tp) $ \path ->
+       withPassword ctx (tpClientPrivateKeyPassword tp) $
+         SSL.contextSetPrivateKeyFile ctx path
 
      -- add socket to context
      -- creation of the socket is delayed until this point to avoid
@@ -589,9 +590,12 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
 
      return (clientCert, ssl)
 
-withPassword :: Maybe String -> (CString -> IO a) -> IO a
-withPassword Nothing k = k nullPtr
-withPassword (Just password) k = withCString password k
+withPassword :: SSLContext -> Maybe String -> IO () -> IO ()
+withPassword ctx mbPassword m =
+  withCString (fromMaybe "" mbPassword) $ \ptr ->
+  do installPasswordCallback ctx ptr
+     m
+     installPasswordCallback ctx nullPtr
 
 setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
 setupCaCertificates ctx mbPath =
