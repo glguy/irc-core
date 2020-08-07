@@ -70,6 +70,8 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import           Data.Foldable
 import           Data.List (intercalate, partition)
+import           Foreign.C.String (CString, withCString)
+import           Foreign.Ptr (nullPtr)
 import           Network.Socket (AddrInfo, HostName, PortNumber, SockAddr, Socket, Family)
 import qualified Network.Socket as Socket
 import qualified Network.Socket.ByteString as SocketB
@@ -84,9 +86,8 @@ import qualified OpenSSL.EVP.Digest as Digest
 import           Data.Attoparsec.ByteString (Parser)
 import qualified Data.Attoparsec.ByteString as Parser
 
-import           Hookup.OpenSSL (installVerification, getPubKeyDer)
+import           Hookup.OpenSSL
 import           Hookup.Socks5
-
 
 -- | Parameters for 'connect'.
 --
@@ -120,7 +121,7 @@ data SocksParams = SocksParams
 data TlsParams = TlsParams
   { tpClientCertificate  :: Maybe FilePath -- ^ Path to client certificate
   , tpClientPrivateKey   :: Maybe FilePath -- ^ Path to client private key
-  , tpClientPrivateKeyPassword :: PEM.PemPasswordSupply -- ^ Private key decryption password
+  , tpClientPrivateKeyPassword :: Maybe String -- ^ Private key decryption password
   , tpServerCertificate  :: Maybe FilePath -- ^ Path to CA certificate bundle
   , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. @\"HIGH\"@)
   , tpInsecure           :: Bool -- ^ Disables certificate checking when 'True'
@@ -181,7 +182,7 @@ defaultTlsParams :: TlsParams
 defaultTlsParams = TlsParams
   { tpClientCertificate  = Nothing
   , tpClientPrivateKey   = Nothing
-  , tpClientPrivateKeyPassword = PEM.PwNone
+  , tpClientPrivateKeyPassword = Nothing
   , tpServerCertificate  = Nothing -- use system provided CAs
   , tpCipherSuite        = "HIGH"
   , tpInsecure           = False
@@ -559,6 +560,7 @@ startTls ::
   IO Socket {- ^ socket creation action -} ->
   IO (Maybe X509, SSL) {- ^ (client certificate, connected TLS) -}
 startTls tp hostname mkSocket = SSL.withOpenSSL $
+  withPassword (tpClientPrivateKeyPassword tp) $ \password ->
   do ctx <- SSL.context
 
      -- configure context
@@ -568,10 +570,12 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
      SSL.contextAddOption           ctx SSL.SSL_OP_ALL
      SSL.contextRemoveOption        ctx SSL.SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
 
+
      -- configure certificates
      setupCaCertificates ctx (tpServerCertificate tp)
      clientCert <- traverse (setupCertificate ctx) (tpClientCertificate tp)
-     traverse_ (setupPrivateKey ctx (tpClientPrivateKeyPassword tp)) (tpClientPrivateKey tp)
+     installPasswordCallback ctx password
+     traverse_ (SSL.contextSetPrivateKeyFile ctx) (tpClientPrivateKey tp)
 
      -- add socket to context
      -- creation of the socket is delayed until this point to avoid
@@ -585,6 +589,9 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
 
      return (clientCert, ssl)
 
+withPassword :: Maybe String -> (CString -> IO a) -> IO a
+withPassword Nothing k = k nullPtr
+withPassword (Just password) k = withCString password k
 
 setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
 setupCaCertificates ctx mbPath =
@@ -598,13 +605,6 @@ setupCertificate ctx path =
   do x509 <- PEM.readX509 =<< readFile path -- EX
      SSL.contextSetCertificate ctx x509
      pure x509
-
-
-setupPrivateKey :: SSLContext -> PEM.PemPasswordSupply -> FilePath -> IO ()
-setupPrivateKey ctx password path =
-  do str <- readFile path -- EX
-     key <- PEM.readPrivateKey str password
-     SSL.contextSetPrivateKey ctx key
 
 
 verificationMode :: Bool {- ^ insecure -} -> SSL.VerificationMode

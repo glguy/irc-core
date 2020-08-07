@@ -24,7 +24,7 @@ import           Client.Configuration.ServerSettings
 import           Control.Applicative
 import           Control.Exception  (bracket)
 import           Control.Lens
-import qualified Data.Text.Encoding as Text
+import qualified Data.Text as Text
 import           Network.Socket (PortNumber)
 import           Hookup
 
@@ -37,8 +37,8 @@ tlsParams ss = TlsParams
   , tpInsecure           = not (view ssTlsVerify ss)
   , tpClientPrivateKeyPassword =
       case view ssTlsClientKeyPassword ss of
-        Just (SecretText str) -> PwBS (Text.encodeUtf8 str)
-        _                     -> PwNone
+        Just (SecretText str) -> Just (Text.unpack str)
+        _                     -> Nothing
   }
 
 proxyParams :: ServerSettings -> Maybe SocksParams

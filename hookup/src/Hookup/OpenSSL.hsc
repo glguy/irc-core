@@ -15,16 +15,41 @@ Maintainer  : emertens@gmail.com
 #error "OpenSSL 1.0.2 or later is required. This version was released in Jan 2015 and adds hostname verification"
 #endif
 
-module Hookup.OpenSSL (installVerification, getPubKeyDer) where
+module Hookup.OpenSSL (installPasswordCallback, installVerification, getPubKeyDer) where
 
 import           Control.Monad (unless)
-import           Foreign.C (CString(..), CSize(..), CUInt(..), CInt(..), withCStringLen)
-import           Foreign.Ptr (Ptr, castPtr, nullPtr)
+import           Foreign.C (CString(..), CSize(..), CUInt(..), CInt(..), withCStringLen, CChar(..))
+import           Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr)
+import           Foreign.StablePtr (StablePtr, deRefStablePtr, castPtrToStablePtr)
 import           Foreign.Marshal (with)
 import           OpenSSL.Session (SSLContext, SSLContext_, withContext)
 import           OpenSSL.X509 (withX509Ptr, X509, X509_)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Internal as B
+
+------------------------------------------------------------------------
+-- Bindings to password callback
+------------------------------------------------------------------------
+
+foreign import ccall "&hookup_pem_passwd_cb" hookup_pem_passwd_cb :: FunPtr PemPasswdCb
+
+-- int pem_passwd_cb(char *buf, int size, int rwflag, void *userdata);
+type PemPasswdCb = Ptr CChar -> CInt -> CInt -> Ptr () -> IO CInt
+
+-- void SSL_CTX_set_default_passwd_cb(SSL_CTX *ctx, pem_password_cb *cb);
+foreign import ccall unsafe "SSL_CTX_set_default_passwd_cb"
+  sslCtxSetDefaultPasswdCb :: Ptr SSLContext_ -> FunPtr PemPasswdCb -> IO ()
+
+-- void SSL_CTX_set_default_passwd_cb_userdata(SSL_CTX *ctx, void *u);
+foreign import ccall unsafe "SSL_CTX_set_default_passwd_cb_userdata"
+  sslCtxSetDefaultPasswdCbUserdata ::
+    Ptr SSLContext_ -> Ptr a -> IO ()
+
+installPasswordCallback :: SSLContext -> CString -> IO ()
+installPasswordCallback ctx password =
+  withContext ctx $ \ctxPtr ->
+  do sslCtxSetDefaultPasswdCb ctxPtr hookup_pem_passwd_cb
+     sslCtxSetDefaultPasswdCbUserdata ctxPtr (castPtr password)
 
 ------------------------------------------------------------------------
 -- Bindings to hostname verification interface
