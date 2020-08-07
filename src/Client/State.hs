@@ -157,7 +157,7 @@ import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
 import           RtsStats (Stats)
-import qualified System.Random.MWC as Random
+import qualified System.Random as Random
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
 
@@ -789,7 +789,7 @@ addConnection attempts lastTime stsUpgrade network st =
             -- don't bother delaying on the first reconnect
             let delay = 15 * max 0 (attempts - 1)
             c <- createConnection delay settings1
-            seed <- Random.withSystemRandom (Random.asGenIO Random.save)
+            seed <- Random.newStdGen
             let restrict = case view ssTls settings1 of
                              TlsStart -> StartTLSRestriction
                              TlsYes   -> WaitTLSRestriction

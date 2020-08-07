@@ -83,7 +83,6 @@ import           Client.UserHost
 import           Client.Hook (MessageHook)
 import           Client.Hooks (messageHooks)
 import           Control.Lens
-import qualified Control.Monad.ST as ST
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -108,7 +107,7 @@ import           Irc.Modes
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
-import qualified System.Random.MWC as Random
+import qualified System.Random as Random
 
 -- | State tracked for each IRC connection
 data NetworkState = NetworkState
@@ -137,7 +136,7 @@ data NetworkState = NetworkState
   , _csCertificate  :: ![Text]
 
   -- Randomization
-  , _csSeed         :: Random.Seed
+  , _csSeed         :: Random.StdGen
   }
 
 -- | State of the authentication transaction
@@ -254,7 +253,7 @@ newNetworkState ::
   ServerSettings    {- ^ server settings           -} ->
   NetworkConnection {- ^ active network connection -} ->
   PingStatus        {- ^ initial ping status       -} ->
-  Random.Seed       {- ^ initial random seed       -} ->
+  Random.StdGen     {- ^ initial random seed       -} ->
   NetworkState      {- ^ new network state         -}
 newNetworkState network settings sock ping seed = NetworkState
   { _csUserInfo     = UserInfo "*" "" ""
@@ -417,11 +416,8 @@ doRandomNick cs = ([ircNick candidate], cs')
     suffix      = show n
     primaryNick = NonEmpty.head (view (csSettings . ssNicks) cs)
     candidate   = Text.take (limit-length suffix) primaryNick <> Text.pack suffix
-    cs'         = set csSeed seed' cs
 
-    (n, seed')  = ST.runST (do gen <- Random.restore (view csSeed cs)
-                               (,) <$> Random.uniformR range gen <*> Random.save gen
-                           )
+    (n, cs')    = cs & csSeed %%~ Random.uniformR range
 
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> NetworkState -> NetworkState
 doTopic when user chan topic =
