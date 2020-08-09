@@ -594,7 +594,7 @@ setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
 setupCaCertificates ctx mbPath =
   case mbPath of
     Nothing   -> contextLoadSystemCerts ctx
-    Just path -> SSL.contextSetCAFile ctx path
+    Just path -> withDefaultPassword Nothing (SSL.contextSetCAFile ctx path)
 
 
 setupCertificate :: SSLContext -> FilePath -> IO X509
