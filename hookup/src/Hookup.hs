@@ -71,7 +71,7 @@ import qualified Data.ByteString.Char8 as B8
 import           Data.Foldable
 import           Data.List (intercalate, partition)
 import           Data.Maybe (fromMaybe)
-import           Foreign.C.String (CString, withCString)
+import           Foreign.C.String (withCStringLen)
 import           Foreign.Ptr (nullPtr)
 import           Network.Socket (AddrInfo, HostName, PortNumber, SockAddr, Socket, Family)
 import qualified Network.Socket as Socket
@@ -121,7 +121,7 @@ data SocksParams = SocksParams
 data TlsParams = TlsParams
   { tpClientCertificate  :: Maybe FilePath -- ^ Path to client certificate
   , tpClientPrivateKey   :: Maybe FilePath -- ^ Path to client private key
-  , tpClientPrivateKeyPassword :: Maybe String -- ^ Private key decryption password
+  , tpClientPrivateKeyPassword :: Maybe ByteString -- ^ Private key decryption password
   , tpServerCertificate  :: Maybe FilePath -- ^ Path to CA certificate bundle
   , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. @\"HIGH\"@)
   , tpInsecure           :: Bool -- ^ Disables certificate checking when 'True'
@@ -575,7 +575,7 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
      clientCert <- traverse (setupCertificate ctx) (tpClientCertificate tp)
 
      for_ (tpClientPrivateKey tp) $ \path ->
-       withPassword ctx (tpClientPrivateKeyPassword tp) $
+       withDefaultPassword ctx (tpClientPrivateKeyPassword tp) $
          SSL.contextSetPrivateKeyFile ctx path
 
      -- add socket to context
@@ -589,14 +589,6 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
      SSL.connect ssl
 
      return (clientCert, ssl)
-
-withPassword :: SSLContext -> Maybe String -> IO () -> IO ()
-withPassword ctx mbPassword m =
-  withCString (fromMaybe "" mbPassword) $ \ptr ->
-  bracket_
-    (installPasswordCallback ctx ptr)
-    (installPasswordCallback ctx nullPtr)
-    m
 
 setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
 setupCaCertificates ctx mbPath =

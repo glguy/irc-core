@@ -15,21 +15,32 @@ Maintainer  : emertens@gmail.com
 #error "OpenSSL 1.0.2 or later is required. This version was released in Jan 2015 and adds hostname verification"
 #endif
 
-module Hookup.OpenSSL (installPasswordCallback, installVerification, getPubKeyDer) where
+module Hookup.OpenSSL (withDefaultPassword, installVerification, getPubKeyDer) where
 
+import           Control.Exception (bracket, bracket_)
 import           Control.Monad (unless)
-import           Foreign.C (CString(..), CSize(..), CUInt(..), CInt(..), withCStringLen, CChar(..))
-import           Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr)
+import           Foreign.C (CStringLen, CString(..), CSize(..), CUInt(..), CInt(..), withCStringLen, CChar(..))
+import           Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr, nullFunPtr)
 import           Foreign.StablePtr (StablePtr, deRefStablePtr, castPtrToStablePtr)
 import           Foreign.Marshal (with)
 import           OpenSSL.Session (SSLContext, SSLContext_, withContext)
 import           OpenSSL.X509 (withX509Ptr, X509, X509_)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.Unsafe as Unsafe
 
 ------------------------------------------------------------------------
 -- Bindings to password callback
 ------------------------------------------------------------------------
+
+foreign import ccall unsafe "hookup_new_userdata"
+  hookup_new_userdata :: CString -> CInt -> IO (Ptr ())
+
+foreign import ccall unsafe "hookup_free_userdata"
+  hookup_free_userdata :: Ptr () -> IO ()
+
+foreign import ccall "&hookup_pem_passwd_cb"
+  hookup_pem_passwd_cb :: FunPtr PemPasswdCb
 
 -- int pem_passwd_cb(char *buf, int size, int rwflag, void *userdata);
 type PemPasswdCb = Ptr CChar -> CInt -> CInt -> Ptr () -> IO CInt
@@ -43,10 +54,20 @@ foreign import ccall unsafe "SSL_CTX_set_default_passwd_cb_userdata"
   sslCtxSetDefaultPasswdCbUserdata ::
     Ptr SSLContext_ -> Ptr a -> IO ()
 
-installPasswordCallback :: SSLContext -> CString -> IO ()
-installPasswordCallback ctx password =
-  withContext ctx $ \ctxPtr ->
-  sslCtxSetDefaultPasswdCbUserdata ctxPtr (castPtr password)
+withDefaultPassword :: SSLContext -> Maybe ByteString -> IO a -> IO a
+withDefaultPassword ctx mbBs m =
+  withCPassword mbBs $ \ptr len ->
+  bracket (hookup_new_userdata ptr len) hookup_free_userdata $ \ud ->
+  bracket_ (setup hookup_pem_passwd_cb ud) (setup nullFunPtr nullPtr) m
+
+  where
+  withCPassword Nothing k = k nullPtr (-1)
+  withCPassword (Just bs) k = Unsafe.unsafeUseAsCStringLen bs $ \(ptr, len) -> k ptr (fromIntegral len)
+
+  setup cb ud =
+    withContext ctx $ \ctxPtr ->
+    do sslCtxSetDefaultPasswdCb         ctxPtr cb
+       sslCtxSetDefaultPasswdCbUserdata ctxPtr ud
 
 ------------------------------------------------------------------------
 -- Bindings to hostname verification interface
