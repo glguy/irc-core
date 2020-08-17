@@ -266,7 +266,7 @@ openSocket' h p mbBind =
 hints :: AddrInfo
 hints = Socket.defaultHints
   { Socket.addrSocketType = Socket.Stream
-  , Socket.addrFlags      = [Socket.AI_ADDRCONFIG, Socket.AI_NUMERICSERV]
+  , Socket.addrFlags      = [Socket.AI_NUMERICSERV]
   }
 
 resolve :: Maybe PortNumber -> HostName -> IO [AddrInfo]
