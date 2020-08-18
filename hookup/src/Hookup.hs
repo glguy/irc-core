@@ -1,3 +1,4 @@
+{-# Language BlockArguments #-}
 {-|
 Module      : Hookup
 Description : Network connections generalized over TLS and SOCKS
@@ -61,6 +62,8 @@ module Hookup
   , getPeerPubkeyFingerprintSha512
   ) where
 
+import           Control.Concurrent.Async
+import           Control.Concurrent.STM
 import           Control.Concurrent
 import           Control.Exception
 import           Control.Monad
@@ -298,33 +301,47 @@ connAttemptDelay = 150 * 1000 -- 150ms
 
 attempt ::
   [(Maybe SockAddr, AddrInfo)] {- ^ candidate AddrInfos -} ->
-  IO Socket         {- ^ connected socket    -}
-attempt xs =
-  do comm <- newEmptyMVar
+  IO Socket {- ^ connected socket    -}
+attempt xs = mask_ (managerStart [] [] xs)
 
-     let mkThread i (mbSrc, ai) =
-           forkIOWithUnmask $ \unmask ->
-           unmask $
-           do threadDelay (connAttemptDelay * i)
-              putMVar comm =<< try (connectToAddrInfo mbSrc ai)
+managerStart errors threads [] = manager errors threads []
+managerStart errors threads (q:qs) =
+  do thread <- async (uncurry connectToAddrInfo q)
+     manager errors (thread:threads) qs
 
-     bracket (zipWithM mkThread [0..] xs)
-             (traverse_ killThread)
-             (\_ -> gather (length xs) [] comm)
-
--- Either gather all of the errors possible and throw an exception or
--- return the first successful socket.
-gather ::
-  Int {- ^ potential errors remaining -} ->
-  [IOError] {- ^ errors gathered so far -} ->
-  MVar (Either IOError Socket) ->
+manager ::
+  [IOError] ->
+  [Async Socket] ->
+  [(Maybe SockAddr, AddrInfo)] ->
   IO Socket
-gather 0 exs _ = throwIO (ConnectionFailure exs)
-gather n exs comm =
-  do res <- takeMVar comm
-     case res of
-       Right s -> pure s
-       Left ex -> gather (n-1) (ex:exs) comm
+manager errors [] [] = throwIO (ConnectionFailure errors)
+manager errors threads queue =
+  do fresh <- mkFresh
+     next <- atomically (fresh `orElse` finish [] threads)
+             `onException` forkIO (traverse_ cancel threads)
+     next
+  where
+    mkFresh :: IO (STM (IO Socket))
+    mkFresh
+      | null queue = pure retry
+      | otherwise  = do tv <- registerDelay connAttemptDelay
+                        pure do check =<< readTVar tv
+                                pure (managerStart errors threads queue)
+
+    finish :: [Async Socket] -> [Async Socket] -> STM (IO Socket)
+    finish threads' [] = retry
+    finish threads' (t:ts) = finish1 (threads' ++ ts) t `orElse` finish (t:threads') ts
+
+    finish1 :: [Async Socket] -> Async Socket -> STM (IO Socket)
+    finish1 threads' t =
+      do res <- waitCatchSTM t
+         pure case res of
+           Right s -> s <$ forkIO (traverse_ cancel threads')
+           Left e -> errors' `seq` managerStart errors' threads' queue
+             where
+               errors' = case fromException e of
+                           Just ioe -> ioe:errors
+                           Nothing -> errors
 
 -- | Alternate list of addresses between IPv6 and other (IPv4) addresses.
 interleaveAddressFamilies :: [(Maybe SockAddr, AddrInfo)] -> [(Maybe SockAddr, AddrInfo)]
