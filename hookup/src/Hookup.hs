@@ -265,7 +265,7 @@ openSocket' h p mbBind =
      let pairs = interleaveAddressFamilies (matchBindAddrs mbSrc dst)
      when (null pairs)
        (throwIO (HostnameResolutionFailure h "No source/destination address family match"))
-     res <- concurrentAttempts connAttemptDelay (uncurry connectToAddrInfo <$> pairs)
+     res <- concurrentAttempts connAttemptDelay Socket.close (uncurry connectToAddrInfo <$> pairs)
      case res of
        Left es -> throwIO (ConnectionFailure [ioe | e <- es, Just ioe <- [fromException e]])
        Right s -> pure s
