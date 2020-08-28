@@ -353,6 +353,8 @@ applyMessage' msgWhen msg cs =
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
     Reply ERR_ERRONEUSNICKNAME (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
+    Reply ERR_UNAVAILRESOURCE (_:badnick:_)
+      | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
 
     Reply RPL_HOSTHIDDEN (_:host:_) ->
         noReply (set (csUserInfo . uiHost) host cs)
