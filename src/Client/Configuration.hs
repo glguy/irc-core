@@ -71,6 +71,7 @@ import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Actions
 import           Client.Image.Palette
 import           Config
+import           Config.Macro
 import           Config.Schema
 import           Control.Exception
 import           Control.Monad                       (unless)
@@ -239,7 +240,14 @@ loadConfiguration mbPath = try $
          Left e -> throwIO (ConfigurationParseFailed path (displayException e))
          Right rawcfg -> return rawcfg
 
-     case loadValue configurationSpec rawcfg of
+     expcfg <-
+       case expandMacros rawcfg of
+         Left (UndeclaredVariable a var) -> badMacro path a ("undeclared variable: " ++ Text.unpack var)
+         Left (BadInclude a)             -> badMacro path a "bad @include"
+         Left (UnknownDirective a dir)   -> badMacro path a ("unknown directive: @" ++ Text.unpack dir)
+         Right expcfg                    -> pure expcfg
+
+     case loadValue configurationSpec expcfg of
        Left e -> throwIO
                $ ConfigurationMalformed path
                $ displayException e
@@ -248,6 +256,12 @@ loadConfiguration mbPath = try $
                     >>= validateDirectories path
             return (path, cfg')
 
+badMacro :: FilePath -> Position -> String -> IO a
+badMacro path posn msg =
+  throwIO $ ConfigurationMalformed path
+          $ "line "    ++ show (posLine   posn) ++
+            " column " ++ show (posColumn posn) ++
+            ": "       ++ msg
 
 -- | Resolve all the potentially relative file paths in the configuration file
 resolvePaths :: FilePath -> Configuration -> IO Configuration
