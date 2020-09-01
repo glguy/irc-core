@@ -119,7 +119,7 @@ getOptions =
 
 printConfigFormat :: IO ()
 printConfigFormat =
-  do path <- getNewConfigPath
+  do path <- getConfigPath
      putStrLn ""
      putStrLn ("Default configuration file path: " ++ path)
      putStrLn ""

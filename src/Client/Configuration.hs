@@ -52,7 +52,7 @@ module Client.Configuration
   , loadConfiguration
 
   -- * Resolving paths
-  , getNewConfigPath
+  , getConfigPath
 
   -- * Specification
   , configurationSpec
@@ -87,14 +87,12 @@ import           Data.Maybe
 import           Data.Monoid                         (Endo(..))
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
-import qualified Data.Text.IO                        as Text
 import qualified Data.Vector                         as Vector
 import           Graphics.Vty.Input.Events (Modifier(..), Key(..))
 import           Graphics.Vty.Attributes             (Attr)
 import           Irc.Identifier                      (Identifier)
 import           System.Directory
 import           System.FilePath
-import           System.IO.Error
 import           System.Posix.DynamicLinker          (RTLDFlags(..))
 
 -- | Top-level client configuration information. When connecting to a
@@ -171,58 +169,11 @@ makeLenses ''ExtensionConfiguration
 defaultWindowNames :: Text
 defaultWindowNames = "1234567890qwertyuiop!@#$%^&*()QWERTYUIOP"
 
--- | Uses 'getAppUserDataDirectory' to find @~/.glirc/config@
-getOldConfigPath :: IO FilePath
-getOldConfigPath =
-  do dir <- getAppUserDataDirectory "glirc"
-     return (dir </> "config")
-
 -- | Uses 'getXdgDirectory' 'XdgConfig' to find @~/.config/glirc/config@
-getNewConfigPath :: IO FilePath
-getNewConfigPath =
+getConfigPath :: IO FilePath
+getConfigPath =
   do dir <- getXdgDirectory XdgConfig "glirc"
      return (dir </> "config")
-
--- | Empty configuration file used when no path is specified
--- and the configuration file is missing.
-emptyConfigFile :: Text
-emptyConfigFile = "{}\n"
-
--- | Attempt to read a file using the given handler when
--- a file does not exist. On failure a 'ConfigurationReadFailed'
--- exception is throw.
-readFileCatchNotFound ::
-  FilePath {- ^ file to read -} ->
-  (IOError -> IO (FilePath, Text)) {- ^ error handler for not found case -} ->
-  IO (FilePath, Text)
-readFileCatchNotFound path onNotFound =
-  do res <- try (Text.readFile path)
-     case res of
-       Left e | isDoesNotExistError e -> onNotFound e
-              | otherwise -> throwIO (ConfigurationReadFailed (show e))
-       Right txt -> return (path, txt)
-
--- | Either read a configuration file from one of the default
--- locations, in which case no configuration found is equivalent
--- to an empty configuration, or from the specified file where
--- no configuration found is an error.
-readConfigurationFile ::
-  Maybe FilePath {- ^ just file or use default search paths -} ->
-  IO (FilePath, Text)
-readConfigurationFile mbPath =
-  case mbPath of
-
-    Just path ->
-      readFileCatchNotFound path $ \e ->
-        throwIO (ConfigurationReadFailed (show e))
-
-    Nothing ->
-      do newPath <- getNewConfigPath
-         readFileCatchNotFound newPath $ \_ ->
-           do oldPath <- getOldConfigPath
-              readFileCatchNotFound oldPath $ \_ ->
-                return ("", emptyConfigFile)
-
 
 -- | Load the configuration file defaulting to @~/.glirc/config@.
 --
@@ -232,50 +183,51 @@ loadConfiguration ::
   Maybe FilePath {- ^ path to configuration file -} ->
   IO (Either ConfigurationFailure (FilePath, Configuration))
 loadConfiguration mbPath = try $
-  do (path,txt) <- readConfigurationFile mbPath
-     home <- getHomeDirectory
+  do path <- case mbPath of
+               Nothing -> getConfigPath
+               Just p  -> pure p
+
+     ctx <- newFilePathContext path
 
      rawcfg <-
-       case parse txt of
-         Left e -> throwIO (ConfigurationParseFailed path (displayException e))
-         Right rawcfg -> return rawcfg
+       loadFileWithMacros (\txt _ -> resolveFilePath ctx (Text.unpack txt)) path
+        `catches`
+        [Handler $ \e -> case e of
+           LoadFileParseError fp pe -> throwIO (ConfigurationParseFailed fp (displayException pe))
+           LoadFileMacroError (UndeclaredVariable a var) -> badMacro a ("undeclared variable: " ++ Text.unpack var)
+           LoadFileMacroError (BadSplice a)              -> badMacro a "bad @include"
+           LoadFileMacroError (BadLoad a)                -> badMacro a "bad @load"
+           LoadFileMacroError (UnknownDirective a dir)   -> badMacro a ("unknown directive: @" ++ Text.unpack dir)
+        ,Handler $ \e -> throwIO (ConfigurationReadFailed (displayException (e :: IOError)))
+        ]
 
-     expcfg <-
-       case expandMacros rawcfg of
-         Left (UndeclaredVariable a var) -> badMacro path a ("undeclared variable: " ++ Text.unpack var)
-         Left (BadInclude a)             -> badMacro path a "bad @include"
-         Left (UnknownDirective a dir)   -> badMacro path a ("unknown directive: @" ++ Text.unpack dir)
-         Right expcfg                    -> pure expcfg
-
-     case loadValue configurationSpec expcfg of
+     case loadValue configurationSpec rawcfg of
        Left e -> throwIO
                $ ConfigurationMalformed path
                $ displayException e
        Right cfg ->
-         do cfg' <- resolvePaths path (cfg defaultServerSettings home)
-                    >>= validateDirectories path
+         do cfg' <- validateDirectories path (resolvePaths ctx (cfg defaultServerSettings (fpHome ctx)))
             return (path, cfg')
 
-badMacro :: FilePath -> Position -> String -> IO a
-badMacro path posn msg =
+badMacro :: FilePosition -> String -> IO a
+badMacro (FilePosition path posn) msg =
   throwIO $ ConfigurationMalformed path
           $ "line "    ++ show (posLine   posn) ++
             " column " ++ show (posColumn posn) ++
             ": "       ++ msg
 
 -- | Resolve all the potentially relative file paths in the configuration file
-resolvePaths :: FilePath -> Configuration -> IO Configuration
-resolvePaths file cfg =
-  do res <- resolveFilePath <$> newFilePathContext file
-     let resolveServerFilePaths = over (ssTlsClientCert . mapped) res
-                                . over (ssTlsClientKey  . mapped) res
-                                . over (ssTlsServerCert . mapped) res
-                                . over (ssSaslMechanism . mapped . _SaslEcdsa . _3) res
-                                . over (ssLogDir        . mapped) res
-     return $! over (configExtensions . mapped . extensionPath) res
-             . over (configServers    . mapped) resolveServerFilePaths
-             . over configDownloadDir res
-             $ cfg
+resolvePaths :: FilePathContext -> Configuration -> Configuration
+resolvePaths ctx =
+  let res = resolveFilePath ctx
+      resolveServerFilePaths = over (ssTlsClientCert . mapped) res
+                             . over (ssTlsClientKey  . mapped) res
+                             . over (ssTlsServerCert . mapped) res
+                             . over (ssSaslMechanism . mapped . _SaslEcdsa . _3) res
+                             . over (ssLogDir        . mapped) res
+  in over (configExtensions . mapped . extensionPath) res
+   . over (configServers    . mapped) resolveServerFilePaths
+   . over configDownloadDir res
 
 -- | Check if the `download-dir` is actually a directory and writeable,
 --   throw a ConfigurationMalformed exception if it isn't.
