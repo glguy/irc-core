@@ -189,8 +189,8 @@ loadConfiguration mbPath = try $
 
      ctx <- newFilePathContext path
 
-     rawcfg <-
-       loadFileWithMacros (\txt _ -> resolveFilePath ctx (Text.unpack txt)) path
+     let toPath txt _ = pure (resolveFilePath ctx (Text.unpack txt))
+     rawcfg <- loadFileWithMacros toPath path
         `catches`
         [Handler $ \e -> case e of
            LoadFileParseError fp pe -> throwIO (ConfigurationParseFailed fp (displayException pe))
