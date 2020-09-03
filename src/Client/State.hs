@@ -408,6 +408,7 @@ msgImportance msg st =
           | isMe tgt  -> WLImportant
           | otherwise -> checkTxt txt
         Ctcp{} -> WLNormal
+        Wallops{} -> WLImportant
         Part who _ _ | isMe (userNick who) -> WLImportant
                      | otherwise           -> WLBoring
         Kick _ _ kicked _ | isMe kicked -> WLImportant
