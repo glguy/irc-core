@@ -63,8 +63,8 @@ module Client.State.Network
 
   -- * NetworkState update
   , Apply(..)
-  , ApplyAction(..)
   , applyMessage
+  , hideMessage
 
   -- * Timer information
   , PingStatus(..)
@@ -289,16 +289,25 @@ buildMessageHooks = mapMaybe \(HookConfig name args) ->
   do hookFun <- HashMap.lookup name messageHooks
      hookFun args
 
-data Apply = Apply ApplyAction [RawIrcMsg] NetworkState
+data Apply = Apply [RawIrcMsg] NetworkState
 
-data ApplyAction = ApplyShow | ApplyHide
+hideMessage :: IrcMsg -> Bool
+hideMessage m =
+  case m of
+    Authenticate{} -> True
+    BatchStart{} -> True
+    BatchEnd{} -> True
+    Ping{} -> True
+    Pong{} -> True
+    Reply RPL_WHOSPCRPL [_,"616",_,_,_,_] -> True
+    _ -> False
 
 -- | Used for updates to a 'NetworkState' that require no reply.
 noReply :: NetworkState -> Apply
 noReply = reply []
 
 reply :: [RawIrcMsg] -> NetworkState -> Apply
-reply = Apply ApplyShow
+reply = Apply
 
 overChannel :: Identifier -> (ChannelState -> ChannelState) -> NetworkState -> NetworkState
 overChannel chan = overStrict (csChannels . ix chan)
@@ -314,10 +323,8 @@ applyMessage msgWhen msg cs
 applyMessage' :: ZonedTime -> IrcMsg -> NetworkState -> Apply
 applyMessage' msgWhen msg cs =
   case msg of
-    BatchStart{} -> Apply ApplyHide [] cs
-    BatchEnd{} -> Apply ApplyHide [] cs
-    Ping args -> Apply ApplyHide [ircPong args] cs
-    Pong _    -> Apply ApplyHide [] (doPong msgWhen cs)
+    Ping args -> reply [ircPong args] cs
+    Pong _    -> noReply (doPong msgWhen cs)
     Join user chan acct _ ->
          reply response
          $ recordUser user acct
@@ -373,7 +380,7 @@ applyMessage' msgWhen msg cs =
     -- /who <#channel> %tuhna,616
     Reply RPL_WHOSPCRPL [_me,"616",user,host,nick,acct] ->
        let acct' = if acct == "0" then "*" else acct
-       in Apply ApplyHide [] (recordUser (UserInfo (mkId nick) user host) acct' cs)
+       in noReply (recordUser (UserInfo (mkId nick) user host) acct' cs)
 
     Reply code args        -> doRpl code msgWhen args cs
     Cap cmd                -> doCap cmd cs
@@ -511,7 +518,7 @@ doRpl cmd msgWhen args cs =
     RPL_NAMREPLY ->
       case args of
         _me:_sym:_tgt:x:_ ->
-           Apply ApplyHide [] $
+           noReply $
            over csTransaction
                 (\t -> let xs = view _NamesTransaction t
                        in xs `seq` NamesTransaction (x:xs))
@@ -520,7 +527,7 @@ doRpl cmd msgWhen args cs =
 
     RPL_ENDOFNAMES ->
       case args of
-        _me:tgt:_ -> Apply ApplyHide [] (loadNamesList (mkId tgt) cs)
+        _me:tgt:_ -> noReply (loadNamesList (mkId tgt) cs)
         _         -> noReply cs
 
     RPL_BANLIST ->
@@ -765,29 +772,29 @@ doAuthenticate param cs =
       | "+" <- param
       , Just (SaslPlain mbAuthz authc (SecretText pass)) <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
-      -> Apply ApplyHide
-               (ircAuthenticates (encodePlainAuthentication authz authc pass))
-               (set csAuthenticationState AS_None cs)
+      -> reply
+           (ircAuthenticates (encodePlainAuthentication authz authc pass))
+           (set csAuthenticationState AS_None cs)
 
     AS_ExternalStarted
       | "+" <- param
       , Just (SaslExternal mbAuthz) <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
-      -> Apply ApplyHide
-               (ircAuthenticates (encodeExternalAuthentication authz))
-               (set csAuthenticationState AS_None cs)
+      -> reply
+           (ircAuthenticates (encodeExternalAuthentication authz))
+           (set csAuthenticationState AS_None cs)
 
     AS_EcdsaStarted
       | "+" <- param
       , Just (SaslEcdsa mbAuthz authc _) <- view ssSaslMechanism ss
       , let authz = fromMaybe authc mbAuthz
-      -> Apply ApplyHide
-               (ircAuthenticates (Ecdsa.encodeAuthentication authz authc))
-               (set csAuthenticationState AS_EcdsaWaitChallenge cs)
+      -> reply
+           (ircAuthenticates (Ecdsa.encodeAuthentication authz authc))
+           (set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
-    AS_EcdsaWaitChallenge -> Apply ApplyHide [] cs -- handled in Client.EventLoop!
+    AS_EcdsaWaitChallenge -> noReply cs -- handled in Client.EventLoop!
 
-    _ -> Apply ApplyHide [ircCapEnd] cs -- really shouldn't happen
+    _ -> reply [ircCapEnd] cs -- really shouldn't happen
 
   where
     ss = view csSettings cs

@@ -821,11 +821,11 @@ applyMessageToClientState ::
   Text                       {- ^ network name             -} ->
   NetworkState               {- ^ network connection state -} ->
   ClientState                {- ^ client state             -} ->
-  ([RawIrcMsg], Maybe DCCUpdate, ApplyAction, ClientState) {- ^ response , DCC updates, updated state -}
+  ([RawIrcMsg], Maybe DCCUpdate, ClientState) {- ^ response , DCC updates, updated state -}
 applyMessageToClientState time irc network cs st =
-  cs' `seq` (reply, dccUp, action, st')
+  cs' `seq` (reply, dccUp, st')
   where
-    Apply action reply cs' = applyMessage time irc cs
+    Apply reply cs' = applyMessage time irc cs
     (st', dccUp) = queueDCCTransfer network irc
                  $ applyWindowRenames network irc
                  $ set (clientConnections . ix network) cs' st
