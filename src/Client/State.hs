@@ -463,7 +463,6 @@ recordIrcMessage ::
 recordIrcMessage network target msg st =
   updateTransientError (NetworkFocus network) msg $
   case target of
-    TargetHidden      -> st
     TargetNetwork     -> recordNetworkMessage msg st
     TargetWindow chan -> recordChannelMessage network chan msg st
     TargetUser user   ->
@@ -822,11 +821,11 @@ applyMessageToClientState ::
   Text                       {- ^ network name             -} ->
   NetworkState               {- ^ network connection state -} ->
   ClientState                {- ^ client state             -} ->
-  ([RawIrcMsg], Maybe DCCUpdate, ClientState) {- ^ response , DCC updates, updated state -}
+  ([RawIrcMsg], Maybe DCCUpdate, ApplyAction, ClientState) {- ^ response , DCC updates, updated state -}
 applyMessageToClientState time irc network cs st =
-  cs' `seq` (reply, dccUp, st')
+  cs' `seq` (reply, dccUp, action, st')
   where
-    (reply, cs') = applyMessage time irc cs
+    Apply action reply cs' = applyMessage time irc cs
     (st', dccUp) = queueDCCTransfer network irc
                  $ applyWindowRenames network irc
                  $ set (clientConnections . ix network) cs' st

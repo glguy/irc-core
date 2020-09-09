@@ -59,8 +59,12 @@ module Client.State.Network
   -- * Messages interactions
   , sendMsg
   , initialMessages
-  , applyMessage
   , squelchIrcMsg
+
+  -- * NetworkState update
+  , Apply(..)
+  , ApplyAction(..)
+  , applyMessage
 
   -- * Timer information
   , PingStatus(..)
@@ -285,11 +289,16 @@ buildMessageHooks = mapMaybe \(HookConfig name args) ->
   do hookFun <- HashMap.lookup name messageHooks
      hookFun args
 
+data Apply = Apply ApplyAction [RawIrcMsg] NetworkState
+
+data ApplyAction = ApplyShow | ApplyHide
+
 -- | Used for updates to a 'NetworkState' that require no reply.
---
--- @noReply x = ([], x)@
-noReply :: NetworkState -> ([RawIrcMsg], NetworkState)
-noReply x = ([], x)
+noReply :: NetworkState -> Apply
+noReply = reply []
+
+reply :: [RawIrcMsg] -> NetworkState -> Apply
+reply = Apply ApplyShow
 
 overChannel :: Identifier -> (ChannelState -> ChannelState) -> NetworkState -> NetworkState
 overChannel chan = overStrict (csChannels . ix chan)
@@ -297,24 +306,26 @@ overChannel chan = overStrict (csChannels . ix chan)
 overChannels :: (ChannelState -> ChannelState) -> NetworkState -> NetworkState
 overChannels = overStrict (csChannels . traverse)
 
-applyMessage :: ZonedTime -> IrcMsg -> NetworkState -> ([RawIrcMsg], NetworkState)
+applyMessage :: ZonedTime -> IrcMsg -> NetworkState -> Apply
 applyMessage msgWhen msg cs
   = applyMessage' msgWhen msg
   $ set csLastReceived (Just $! zonedTimeToUTC msgWhen) cs
 
-applyMessage' :: ZonedTime -> IrcMsg -> NetworkState -> ([RawIrcMsg], NetworkState)
+applyMessage' :: ZonedTime -> IrcMsg -> NetworkState -> Apply
 applyMessage' msgWhen msg cs =
   case msg of
-    Ping args -> ([ircPong args], cs)
-    Pong _    -> noReply $ doPong msgWhen cs
+    BatchStart{} -> Apply ApplyHide [] cs
+    BatchEnd{} -> Apply ApplyHide [] cs
+    Ping args -> Apply ApplyHide [ircPong args] cs
+    Pong _    -> Apply ApplyHide [] (doPong msgWhen cs)
     Join user chan acct _ ->
-         ( reply
-         , recordUser user acct
+         reply response
+         $ recordUser user acct
          $ overChannel chan (joinChannel (userNick user))
-         $ createOnJoin user chan cs )
+         $ createOnJoin user chan cs
      where
        showAccounts = view (csSettings . ssShowAccounts) cs
-       reply
+       response
          | userNick user == view csNick cs =
               ircMode chan [] :
               [ircWho [idText chan, "%tuhna,616"] | showAccounts ]
@@ -344,8 +355,8 @@ applyMessage' msgWhen msg cs =
          $ overChannels (nickChange (userNick oldNick) newNick) cs
 
     Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
-    Reply RPL_SASLSUCCESS _ -> ([ircCapEnd], cs)
-    Reply RPL_SASLFAIL _ -> ([ircCapEnd], cs)
+    Reply RPL_SASLSUCCESS _ -> reply [ircCapEnd] cs
+    Reply RPL_SASLFAIL _ -> reply [ircCapEnd] cs
 
     Reply ERR_NICKNAMEINUSE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
@@ -362,12 +373,12 @@ applyMessage' msgWhen msg cs =
     -- /who <#channel> %tuhna,616
     Reply RPL_WHOSPCRPL [_me,"616",user,host,nick,acct] ->
        let acct' = if acct == "0" then "*" else acct
-       in noReply (recordUser (UserInfo (mkId nick) user host) acct' cs)
+       in Apply ApplyHide [] (recordUser (UserInfo (mkId nick) user host) acct' cs)
 
-    Reply code args        -> noReply (doRpl code msgWhen args cs)
+    Reply code args        -> doRpl code msgWhen args cs
     Cap cmd                -> doCap cmd cs
     Authenticate param     -> doAuthenticate param cs
-    Mode who target (modes:params)  -> doMode msgWhen who target modes params cs
+    Mode who target (modes:params) -> doMode msgWhen who target modes params cs
     Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
     _                      -> noReply cs
   where
@@ -392,7 +403,8 @@ pruneUsers cs = over csUsers (`HashMap.intersection` u) cs
 doWelcome ::
   ZonedTime  {- ^ message received -} ->
   Identifier {- ^ my nickname      -} ->
-  NetworkState -> ([RawIrcMsg], NetworkState)
+  NetworkState ->
+  Apply
 doWelcome msgWhen me
   = noReply
   . set csNick me
@@ -403,15 +415,15 @@ doWelcome msgWhen me
 doBadNick ::
   Text {- ^ bad nickname -} ->
   NetworkState ->
-  ([RawIrcMsg], NetworkState) {- ^ replies, updated state -}
+  Apply
 doBadNick badNick cs =
   case NonEmpty.dropWhile (badNick/=) (view (csSettings . ssNicks) cs) of
-    _:next:_ -> ([ircNick next], cs)
+    _:next:_ -> reply [ircNick next] cs
     _        -> doRandomNick cs
 
 -- | Pick a random nickname now that we've run out of choices
-doRandomNick :: NetworkState -> ([RawIrcMsg], NetworkState)
-doRandomNick cs = ([ircNick candidate], cs')
+doRandomNick :: NetworkState -> Apply
+doRandomNick cs = reply [ircNick candidate] cs'
   where
     limit       = 9 -- RFC 2812 puts the maximum nickname length as low as 9!
     range       = (0, 99999::Int) -- up to 5 random digits
@@ -437,36 +449,38 @@ parseTimeParam txt =
       Just $! posixSecondsToUTCTime (fromInteger i)
     _ -> Nothing
 
-doRpl :: ReplyCode -> ZonedTime -> [Text] -> NetworkState -> NetworkState
-doRpl cmd msgWhen args =
+doRpl :: ReplyCode -> ZonedTime -> [Text] -> NetworkState -> Apply
+doRpl cmd msgWhen args cs =
   case cmd of
     RPL_UMODEIS ->
-      \ns ->
       case args of
         _me:modes:params
-          | Just xs <- splitModes (view csUmodeTypes ns) modes params ->
-                 doMyModes xs
-               $ set csModes "" ns -- reset modes
-        _ -> ns
+          | Just xs <- splitModes (view csUmodeTypes cs) modes params ->
+                 noReply
+               $ doMyModes xs
+               $ set csModes "" cs -- reset modes
+        _ -> noReply cs
 
     RPL_SNOMASK ->
       case args of
         _me:snomask0:_
           | Just snomask <- Text.stripPrefix "+" snomask0 ->
-           set csSnomask (Text.unpack snomask)
-        _             -> id
+           noReply (set csSnomask (Text.unpack snomask) cs)
+        _ -> noReply cs
 
     RPL_NOTOPIC ->
       case args of
-        _me:chan:_ -> overChannel
+        _me:chan:_ -> noReply
+                    $ overChannel
                         (mkId chan)
                         (setTopic "" . set chanTopicProvenance Nothing)
-        _          -> id
+                        cs
+        _ -> noReply cs
 
     RPL_TOPIC ->
       case args of
-        _me:chan:topic:_ -> overChannel (mkId chan) (setTopic topic)
-        _                -> id
+        _me:chan:topic:_ -> noReply (overChannel (mkId chan) (setTopic topic) cs)
+        _                -> noReply cs
 
     RPL_TOPICWHOTIME ->
       case args of
@@ -475,99 +489,102 @@ doRpl cmd msgWhen args =
                        { _topicAuthor = parseUserInfo who
                        , _topicTime   = when
                        }
-          in overChannel (mkId chan) (set chanTopicProvenance (Just prov))
-        _ -> id
+          in noReply (overChannel (mkId chan) (set chanTopicProvenance (Just prov)) cs)
+        _ -> noReply cs
 
     RPL_CREATIONTIME ->
       case args of
         _me:chan:whenTxt:_ | Just when <- parseTimeParam whenTxt ->
-          overChannel (mkId chan) (set chanCreation (Just when))
-        _ -> id
+          noReply (overChannel (mkId chan) (set chanCreation (Just when)) cs)
+        _ -> noReply cs
 
     RPL_CHANNEL_URL ->
       case args of
         _me:chan:urlTxt:_ ->
-          overChannel (mkId chan) (set chanUrl (Just urlTxt))
-        _ -> id
+          noReply (overChannel (mkId chan) (set chanUrl (Just urlTxt)) cs)
+        _ -> noReply cs
 
-    RPL_MYINFO -> myinfo args
+    RPL_MYINFO -> noReply (myinfo args cs)
 
-    RPL_ISUPPORT -> isupport args
+    RPL_ISUPPORT -> noReply (isupport args cs)
 
     RPL_NAMREPLY ->
       case args of
         _me:_sym:_tgt:x:_ ->
+           Apply ApplyHide [] $
            over csTransaction
                 (\t -> let xs = view _NamesTransaction t
                        in xs `seq` NamesTransaction (x:xs))
-        _ -> id
+                cs
+        _ -> noReply cs
 
     RPL_ENDOFNAMES ->
       case args of
-        _me:tgt:_ -> loadNamesList (mkId tgt)
-        _         -> id
+        _me:tgt:_ -> Apply ApplyHide [] (loadNamesList (mkId tgt) cs)
+        _         -> noReply cs
 
     RPL_BANLIST ->
       case args of
-        _me:_tgt:mask:who:whenTxt:_ -> recordListEntry mask who whenTxt
-        _                           -> id
+        _me:_tgt:mask:who:whenTxt:_ -> noReply (recordListEntry mask who whenTxt cs)
+        _                           -> noReply cs
 
     RPL_ENDOFBANLIST ->
       case args of
-        _me:tgt:_ -> saveList 'b' tgt
-        _         -> id
+        _me:tgt:_ -> noReply (saveList 'b' tgt cs)
+        _         -> noReply cs
 
     RPL_QUIETLIST ->
       case args of
-        _me:_tgt:_q:mask:who:whenTxt:_ -> recordListEntry mask who whenTxt
-        _                              -> id
+        _me:_tgt:_q:mask:who:whenTxt:_ -> noReply (recordListEntry mask who whenTxt cs)
+        _                              -> noReply cs
 
     RPL_ENDOFQUIETLIST ->
       case args of
-        _me:tgt:_ -> saveList 'q' tgt
-        _         -> id
+        _me:tgt:_ -> noReply (saveList 'q' tgt cs)
+        _         -> noReply cs
 
     RPL_INVEXLIST ->
       case args of
-        _me:_tgt:mask:who:whenTxt:_ -> recordListEntry mask who whenTxt
-        _                           -> id
+        _me:_tgt:mask:who:whenTxt:_ -> noReply (recordListEntry mask who whenTxt cs)
+        _                           -> noReply cs
 
     RPL_ENDOFINVEXLIST ->
       case args of
-        _me:tgt:_ -> saveList 'I' tgt
-        _         -> id
+        _me:tgt:_ -> noReply (saveList 'I' tgt cs)
+        _         -> noReply cs
 
     RPL_EXCEPTLIST ->
       case args of
-        _me:_tgt:mask:who:whenTxt:_ -> recordListEntry mask who whenTxt
-        _                           -> id
+        _me:_tgt:mask:who:whenTxt:_ -> noReply (recordListEntry mask who whenTxt cs)
+        _                           -> noReply cs
 
     RPL_ENDOFEXCEPTLIST ->
       case args of
-        _me:tgt:_ -> saveList 'e' tgt
-        _         -> id
+        _me:tgt:_ -> noReply (saveList 'e' tgt cs)
+        _         -> noReply cs
 
     RPL_WHOREPLY ->
       case args of
         _me:_tgt:uname:host:_server:nick:_ ->
-          over csTransaction $ \t ->
+          noReply $
+          over csTransaction (\t ->
             let !x  = UserInfo (mkId nick) uname host
                 !xs = view _WhoTransaction t
-            in WhoTransaction (x : xs)
-        _ -> id
+            in WhoTransaction (x : xs))
+            cs
+        _ -> noReply cs
 
-    RPL_ENDOFWHO -> massRegistration
+    RPL_ENDOFWHO -> noReply (massRegistration cs)
 
     RPL_CHANNELMODEIS ->
       case args of
         _me:chan:modes:params ->
-              snd -- channel mode reply shouldn't trigger messages
-            . doMode msgWhen who chanId modes params
-            . set (csChannels . ix chanId . chanModes) Map.empty
+              doMode msgWhen who chanId modes params
+            $ set (csChannels . ix chanId . chanModes) Map.empty cs
             where chanId = mkId chan
                   !who = UserInfo "*" "" ""
-        _ -> id
-    _ -> id
+        _ -> noReply cs
+    _ -> noReply cs
 
 
 -- | Add an entry to a mode list transaction
@@ -646,23 +663,21 @@ doMode ::
   Identifier {- ^ channel        -} ->
   Text       {- ^ mode flags     -} ->
   [Text]     {- ^ mode parameters -} ->
-  NetworkState -> ([RawIrcMsg], NetworkState)
+  NetworkState ->
+  Apply
 doMode when who target modes args cs
   | view csNick cs == target
   , Just xs <- splitModes (view csUmodeTypes cs) modes args =
         noReply (doMyModes xs cs)
 
   | isChannelIdentifier cs target
-  , Just xs <- splitModes (view csModeTypes cs) modes args =
-        let cs' = doChannelModes when who target xs cs
+  , Just xs <- splitModes (view csModeTypes cs) modes args
+  , let cs' = doChannelModes when who target xs cs =
 
-            finish | iHaveOp target cs' = popQueue
-                   | otherwise          = noReply
-
-        in finish cs'
-  where
-    popQueue :: NetworkState -> ([RawIrcMsg], NetworkState)
-    popQueue = csChannels . ix target . chanQueuedModeration <<.~ []
+    if iHaveOp target cs'
+      then let (response, cs_) = cs' & csChannels . ix target . chanQueuedModeration <<.~ []
+           in reply response cs_
+      else noReply cs'
 
 doMode _ _ _ _ _ cs = noReply cs -- ignore bad mode command
 
@@ -743,39 +758,42 @@ selectCaps cs offered = (supported `intersect` Map.keys capMap)
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslMechanism ss) ]
 
-doAuthenticate :: Text -> NetworkState -> ([RawIrcMsg], NetworkState)
+doAuthenticate :: Text -> NetworkState -> Apply
 doAuthenticate param cs =
   case view csAuthenticationState cs of
     AS_PlainStarted
       | "+" <- param
       , Just (SaslPlain mbAuthz authc (SecretText pass)) <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
-      -> (ircAuthenticates (encodePlainAuthentication authz authc pass),
-          set csAuthenticationState AS_None cs)
+      -> Apply ApplyHide
+               (ircAuthenticates (encodePlainAuthentication authz authc pass))
+               (set csAuthenticationState AS_None cs)
 
     AS_ExternalStarted
       | "+" <- param
       , Just (SaslExternal mbAuthz) <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
-      -> (ircAuthenticates (encodeExternalAuthentication authz),
-          set csAuthenticationState AS_None cs)
+      -> Apply ApplyHide
+               (ircAuthenticates (encodeExternalAuthentication authz))
+               (set csAuthenticationState AS_None cs)
 
     AS_EcdsaStarted
       | "+" <- param
       , Just (SaslEcdsa mbAuthz authc _) <- view ssSaslMechanism ss
       , let authz = fromMaybe authc mbAuthz
-      -> (ircAuthenticates (Ecdsa.encodeAuthentication authz authc),
-          set csAuthenticationState AS_EcdsaWaitChallenge cs)
+      -> Apply ApplyHide
+               (ircAuthenticates (Ecdsa.encodeAuthentication authz authc))
+               (set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
-    AS_EcdsaWaitChallenge -> ([], cs) -- handled in Client.EventLoop!
+    AS_EcdsaWaitChallenge -> Apply ApplyHide [] cs -- handled in Client.EventLoop!
 
-    _ -> ([ircCapEnd], cs) -- really shouldn't happen
+    _ -> Apply ApplyHide [ircCapEnd] cs -- really shouldn't happen
 
   where
     ss = view csSettings cs
 
 
-doCap :: CapCmd -> NetworkState -> ([RawIrcMsg], NetworkState)
+doCap :: CapCmd -> NetworkState -> Apply
 doCap cmd cs =
   case cmd of
     (CapLs CapMore caps) ->
@@ -784,19 +802,19 @@ doCap cmd cs =
         prevCaps = view (csTransaction . _CapLsTransaction) cs
 
     CapLs CapDone caps
-      | null reqCaps -> ([ircCapEnd], cs')
-      | otherwise    -> ([ircCapReq reqCaps], cs')
+      | null reqCaps -> reply [ircCapEnd] cs'
+      | otherwise    -> reply [ircCapReq reqCaps] cs'
       where
         reqCaps = selectCaps cs (caps ++ view (csTransaction . _CapLsTransaction) cs)
         cs' = set csTransaction NoTransaction cs
 
     CapNew caps
-      | null reqCaps -> ([], cs)
-      | otherwise    -> ([ircCapReq reqCaps], cs)
+      | null reqCaps -> noReply cs
+      | otherwise    -> reply [ircCapReq reqCaps] cs
       where
         reqCaps = selectCaps cs caps
 
-    CapDel _ -> ([],cs)
+    CapDel _ -> noReply cs
 
     CapAck caps
       | let ss = view csSettings cs
@@ -804,16 +822,16 @@ doCap cmd cs =
       , Just mech <- view ssSaslMechanism ss ->
         case mech of
           SaslEcdsa{} ->
-            ([ircAuthenticate Ecdsa.authenticationMode],
-             set csAuthenticationState AS_EcdsaStarted cs)
+            reply [ircAuthenticate Ecdsa.authenticationMode]
+                  (set csAuthenticationState AS_EcdsaStarted cs)
           SaslPlain{} ->
-            ([ircAuthenticate "PLAIN"],
-             set csAuthenticationState AS_PlainStarted cs)
+            reply [ircAuthenticate "PLAIN"]
+                  (set csAuthenticationState AS_PlainStarted cs)
           SaslExternal{} ->
-            ([ircAuthenticate "EXTERNAL"],
-             set csAuthenticationState AS_ExternalStarted cs)
+            reply [ircAuthenticate "EXTERNAL"]
+                  (set csAuthenticationState AS_ExternalStarted cs)
 
-    _ -> ([ircCapEnd], cs)
+    _ -> reply [ircCapEnd] cs
 
 initialMessages :: NetworkState -> [RawIrcMsg]
 initialMessages cs

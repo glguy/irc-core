@@ -199,7 +199,6 @@ data MessageTarget
   = TargetUser   !Identifier -- ^ Metadata update for a user
   | TargetWindow !Identifier -- ^ Directed message to channel or from user
   | TargetNetwork            -- ^ Network-level message
-  | TargetHidden             -- ^ Completely hidden message
   deriving (Show)
 
 -- | Target information for the window that could be appropriate to
@@ -220,14 +219,14 @@ msgTarget me msg =
     Ctcp src tgt _ _         -> directed src tgt
     CtcpNotice src tgt _ _   -> directed src tgt
     Notice  src tgt _        -> directed src tgt
-    Authenticate{}           -> TargetHidden
-    Ping{}                   -> TargetHidden
-    Pong{}                   -> TargetHidden
+    Authenticate{}           -> TargetNetwork
+    Ping{}                   -> TargetNetwork
+    Pong{}                   -> TargetNetwork
     Error{}                  -> TargetNetwork
     Cap{}                    -> TargetNetwork
     Reply code args          -> replyTarget code args
-    BatchStart{}             -> TargetHidden
-    BatchEnd{}               -> TargetHidden
+    BatchStart{}             -> TargetNetwork
+    BatchEnd{}               -> TargetNetwork
     Account user _           -> TargetUser (userNick user)
     Chghost user _ _         -> TargetUser (userNick user)
     Wallops src _            -> TargetWindow (userNick src)

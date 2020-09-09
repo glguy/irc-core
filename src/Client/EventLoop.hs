@@ -303,21 +303,25 @@ doNetworkLine networkId time line st =
                Just irc ->
                  do -- state with message recorded
                     -- record messages *before* applying state changes
-                    let st2 =
-                          case viewHook irc of
-                            Nothing   -> st1 -- Message hidden
-                            Just irc' -> recordIrcMessage network target msg st1
-                              where
-                                myNick = view csNick cs
-                                target = msgTarget myNick irc
-                                msg = ClientMessage
-                                        { _msgTime    = time'
-                                        , _msgNetwork = network
-                                        , _msgBody    = IrcBody irc'
-                                        }
 
-                    let (replies, dccUp, st3) =
-                          applyMessageToClientState time irc networkId cs st2
+                    let (replies, dccUp, action, st2) =
+                          applyMessageToClientState time irc networkId cs st1
+
+                    let st3 =
+                          case viewHook irc of
+                            Nothing   -> st2 -- Message hidden
+                            Just irc' ->
+                              case action of
+                                ApplyHide -> st2
+                                ApplyShow -> recordIrcMessage network target msg st2
+                                  where
+                                    myNick = view csNick cs
+                                    target = msgTarget myNick irc
+                                    msg = ClientMessage
+                                            { _msgTime    = time'
+                                            , _msgNetwork = network
+                                            , _msgBody    = IrcBody irc'
+                                            }
 
                     traverse_ (atomically . writeTChan (view clientDCCUpdates st3)) dccUp
                     traverse_ (sendMsg cs) replies

@@ -195,7 +195,7 @@ loadConfiguration mbPath = try $
         [Handler $ \e -> case e of
            LoadFileParseError fp pe -> throwIO (ConfigurationParseFailed fp (displayException pe))
            LoadFileMacroError (UndeclaredVariable a var) -> badMacro a ("undeclared variable: " ++ Text.unpack var)
-           LoadFileMacroError (BadSplice a)              -> badMacro a "bad @include"
+           LoadFileMacroError (BadSplice a)              -> badMacro a "bad @splice"
            LoadFileMacroError (BadLoad a)                -> badMacro a "bad @load"
            LoadFileMacroError (UnknownDirective a dir)   -> badMacro a ("unknown directive: @" ++ Text.unpack dir)
         ,Handler $ \e -> throwIO (ConfigurationReadFailed (displayException (e :: IOError)))
