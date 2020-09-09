@@ -207,7 +207,7 @@ msgTarget :: Identifier -> IrcMsg -> MessageTarget
 msgTarget me msg =
   case msg of
     UnknownMsg{}             -> TargetNetwork
-    Nick user _              -> TargetUser (userNick user)
+    Nick user newNick        -> TargetUser newNick
     Mode _ tgt _ | tgt == me -> TargetNetwork
                  | otherwise -> TargetWindow tgt
     Join _ chan _ _          -> TargetWindow chan
