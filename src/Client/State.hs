@@ -670,8 +670,8 @@ clientFilter st f xs =
     Nothing -> xs
     Just m  ->
       filterContext
+        (matcherAfter m) -- client messages are stored in descending order
         (matcherBefore m)
-        (matcherAfter m)
         (matcherPred m . f)
         xs
 
