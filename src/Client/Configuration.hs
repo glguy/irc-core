@@ -94,6 +94,7 @@ import           Irc.Identifier                      (Identifier)
 import           System.Directory
 import           System.FilePath
 import           System.Posix.DynamicLinker          (RTLDFlags(..))
+import           System.IO.Error
 
 -- | Top-level client configuration information. When connecting to a
 -- server configuration from '_configServers' is used where possible,
@@ -198,7 +199,12 @@ loadConfiguration mbPath = try $
            LoadFileMacroError (BadSplice a)              -> badMacro a "bad @splice"
            LoadFileMacroError (BadLoad a)                -> badMacro a "bad @load"
            LoadFileMacroError (UnknownDirective a dir)   -> badMacro a ("unknown directive: @" ++ Text.unpack dir)
-        ,Handler $ \e -> throwIO (ConfigurationReadFailed (displayException (e :: IOError)))
+        ,Handler $ \e ->
+            if isDoesNotExistError e &&
+               isNothing mbPath &&
+               ioeGetFileName e == Just path
+            then pure (Sections (FilePosition path (Position 0 0 0)) [])
+            else throwIO (ConfigurationReadFailed (displayException e))
         ]
 
      case loadValue configurationSpec rawcfg of
