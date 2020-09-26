@@ -5,6 +5,8 @@
 * Add `/new-self-signed-certificate PATH [keysize]` to make it easier to configure secure services logon
 * Add STARTTLS support: `tls:` configuration settings are now: `yes`, `no`, `starttls`
 * Add separate `tls-verify: no` setting for disabling hostname verification instead of old `tls: yes-insecure`
+* Configuration file supports `$` macros and `@load` / `@splice` directives from config-value
+* Updates for hookup library improvements to concurrent connect algorithm
 
 ## 2.36
 
