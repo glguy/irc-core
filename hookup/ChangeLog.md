@@ -1,5 +1,11 @@
 # Revision history for hookup
 
+## 0.5
+
+* Don't use `AI_ADDRCONFIG` flag
+* Support all client-side certificates supported by OpenSSL (rather than just RSA/DSA)
+* Add support for STARTTLS
+
 ## 0.4
 
 * Added ability to specify TLS private key password
