@@ -136,6 +136,7 @@ patterns = map toPattern
     (1, "m", [str|^Rehashing .* by request of system console\.$|]),
     (2, "m", [str|^Updating database by request of [^ ]+( \([^ ]+\))?\.$|]),
     (2, "m", [str|^Rehashing .* by request of [^ ]+( \([^ ]+\))?\.$|]),
+    (2, "m", [str|.* is rehashing server config file$|]),
     (3, "m", [str|^".*", line [0-9+]|]), -- configuration syntax error!
     (0, "m", [str|^Ignoring attempt from [^ ]+( \([^ ]+\))? to set login name for|]),
     (1, "m", [str|^binding listener socket: 99 \(Cannot assign requested address\)$|]),

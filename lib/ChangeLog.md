@@ -1,5 +1,10 @@
 # Revision history for irc-core
 
+## 2.9
+
+* Move message hiding logic out of the IRC library
+* Add message code for STARTTLS
+
 ## 2.8
 
 * `encodePlainAuthentication` has separate authorization and authentication identity parameters
