@@ -65,6 +65,7 @@ data Action
   | ActColor
   | ActItalic
   | ActUnderline
+  | ActStrikethrough
   | ActReverseVideo
   | ActClearFormat
   | ActInsertEnter
@@ -133,6 +134,7 @@ actionInfos =
   ,("bold"              , (ActBold             , [ctrl (KChar 'b')]))
   ,("color"             , (ActColor            , [ctrl (KChar 'c')]))
   ,("italic"            , (ActItalic           , [ctrl (KChar ']')]))
+  ,("strikethrough"     , (ActStrikethrough    , [ctrl (KChar '^')]))
   ,("underline"         , (ActUnderline        , [ctrl (KChar '_')]))
   ,("clear-format"      , (ActClearFormat      , [ctrl (KChar 'o')]))
   ,("reverse-video"     , (ActReverseVideo     , [ctrl (KChar 'v')]))

@@ -446,6 +446,7 @@ doAction vty action st =
     ActBold              -> changeEditor (Edit.insert '\^B')
     ActColor             -> changeEditor (Edit.insert '\^C')
     ActItalic            -> changeEditor (Edit.insert '\^]')
+    ActStrikethrough     -> changeEditor (Edit.insert '\^^')
     ActUnderline         -> changeEditor (Edit.insert '\^_')
     ActClearFormat       -> changeEditor (Edit.insert '\^O')
     ActReverseVideo      -> changeEditor (Edit.insert '\^V')
