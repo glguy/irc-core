@@ -28,6 +28,9 @@ import           Numeric (showHex)
 columns :: [Image'] -> Image'
 columns = mconcat . intersperse (char defAttr ' ')
 
+indent :: Image' -> Image'
+indent x = "   " <> x
+
 -- | Generate lines used for @/palette@. These lines show
 -- all the colors used in the current palette as well as
 -- the colors available for use in palettes.
@@ -38,25 +41,20 @@ paletteViewLines pal = reverse $
   , ""
   , columns (paletteEntries pal)
   , ""
-
   , "Current client palette nick highlight colors:"
   , ""
-  , columns (nickHighlights pal)
-  , ""
-
+  ] ++
+  nickHighlights pal ++
+  [ ""
   , "Chat formatting modes:"
   , ""
   , "   C-b  C-_       C-]    C-v     C-^           C-o"
   , parseIrcText "   \^Bbold\^B \^_underline\^_ \^]italic\^] \^Vreverse\^V \^^strikethrough\^^ reset"
   , ""
-
   , "Chat formatting colors: C-c[foreground[,background]]"
   , ""
   ] ++
-
-  colorTable
-
-  ++
+  colorTable ++
   [ ""
   , "Available terminal palette colors (hex)"
   , ""
@@ -68,14 +66,13 @@ terminalColorTable =
   isoColors :
   "" : colorBox 0x10 ++
   "" : colorBox 0x7c ++
-  "" : "   " <> foldMap (\c -> colorBlock showPadHex c (Color240 (fromIntegral (c-16)))) [0xe8 .. 0xf3]
-     : "   " <> foldMap (\c -> colorBlock showPadHex c (Color240 (fromIntegral (c-16)))) [0xf4 .. 0xff]
+  "" : indent (foldMap (\c -> colorBlock showPadHex c (Color240 (fromIntegral (c-16)))) [0xe8 .. 0xf3])
+     : indent (foldMap (\c -> colorBlock showPadHex c (Color240 (fromIntegral (c-16)))) [0xf4 .. 0xff])
      : []
 
 colorBox :: Int -> [Image']
 colorBox start =
-  [ "   " <>
-     columns
+  [ indent $ columns
       [ mconcat
           [ colorBlock showPadHex k (Color240 (fromIntegral (k - 16)))
           | k <- [j, j+6 .. j + 30 ] ]
@@ -93,11 +90,11 @@ isLight (Color240 c) =
 
 
 isoColors :: Image'
-isoColors = "   " <> foldMap (\c -> colorBlock showPadHex c (ISOColor (fromIntegral c))) [0 .. 15]
+isoColors = indent (foldMap (\c -> colorBlock showPadHex c (ISOColor (fromIntegral c))) [0 .. 15])
 
 colorTable :: [Image']
 colorTable
-  = map (\imgs -> mconcat ("   " : imgs))
+  = map (indent . mconcat)
   $ chunksOf 8 [ colorBlock showPadDec i (mircColors Vector.! i) | i <- [0 .. 15] ]
   ++ [[]]
   ++ chunksOf 12 [ colorBlock showPadDec i (mircColors Vector.! i) | i <- [16 .. 98] ]
@@ -124,6 +121,8 @@ paletteEntries pal =
 
 nickHighlights :: Palette -> [Image']
 nickHighlights pal =
-  [ string attr "nicks"
-  | attr <- toListOf (palNicks . folded) pal
+  [ indent (columns line)
+  | line <- chunksOf 8
+            [ string attr "nicks"
+            | attr <- views palNicks Vector.toList pal ]
   ]
