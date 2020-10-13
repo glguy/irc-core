@@ -20,7 +20,7 @@ module Client.Image.MircFormatting
   ) where
 
 import           Client.Image.PackedImage as I
-import           Control.Applicative ((<|>))
+import           Control.Applicative ((<|>), empty)
 import           Control.Lens
 import           Data.Attoparsec.Text as Parse
 import           Data.Bits
@@ -30,6 +30,7 @@ import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
+import           Numeric (readHex)
 
 makeLensesFor
   [ ("attrForeColor", "foreColorLens")
@@ -63,10 +64,18 @@ pIrcLine explicit fmt =
            do rest <- pIrcLine explicit fmt
               return (text' fmt txt <> rest)
        Just (ControlSegment '\^C') ->
-           do (numberText, colorNumbers) <- match pColorNumbers
+           do (numberText, colorNumbers) <- match (pColorNumbers pColorNumber)
               rest <- pIrcLine explicit (applyColors colorNumbers fmt)
               return $ if explicit
                          then controlImage '\^C'
+                              <> text' defAttr numberText
+                              <> rest
+                          else rest
+       Just (ControlSegment '\^D') ->
+           do (numberText, colorNumbers) <- match (pColorNumbers pColorHex)
+              rest <- pIrcLine explicit (applyColors colorNumbers fmt)
+              return $ if explicit
+                         then controlImage '\^D'
                               <> text' defAttr numberText
                               <> rest
                           else rest
@@ -80,20 +89,28 @@ pIrcLine explicit fmt =
             mbFmt' = applyControlEffect c fmt
             next   = pIrcLine explicit (fromMaybe fmt mbFmt')
 
-pColorNumbers :: Parser (Maybe (MaybeDefault Color, Maybe (MaybeDefault Color)))
-pColorNumbers = option Nothing $
-  do n       <- pNumber
-     Just fc <- pure (mircColor n)
-     bc      <- optional $
-                  do m       <- Parse.char ',' *> pNumber
-                     Just bc <- pure (mircColor m)
-                     pure bc
+pColorNumbers ::
+  Parser (MaybeDefault Color) ->
+  Parser (Maybe (MaybeDefault Color, Maybe (MaybeDefault Color)))
+pColorNumbers color = option Nothing $
+  do fc <- color
+     bc <- optional (Parse.char ',' *> color)
      return (Just (fc,bc))
 
+pColorNumber :: Parser (MaybeDefault Color)
+pColorNumber =
+  do d1 <- digit
+     ds <- option [] (return <$> digit)
+     case mircColor (read (d1:ds)) of
+       Just c -> pure c
+       Nothing -> empty
+
+pColorHex :: Parser (MaybeDefault Color)
+pColorHex = SetTo <$> (rgbColor' <$> p <*> p <*> p)
   where
-    pNumber = do d1 <- digit
-                 ds <- option [] (return <$> digit)
-                 return $! read (d1:ds)
+    p = do x <- satisfy isHexDigit
+           y <- satisfy isHexDigit
+           pure (fst (head (readHex [x,y])))
 
 optional :: Parser a -> Parser (Maybe a)
 optional p = option Nothing (Just <$> p)
