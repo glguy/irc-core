@@ -55,6 +55,7 @@ styleSpec = namedSpec "style" $
   <!> reverseVideo <$ atomSpec "reverse-video"
   <!> standout     <$ atomSpec "standout"
   <!> underline    <$ atomSpec "underline"
+  <!> strikethrough<$ atomSpec "strikethrough"
 
 
 -- | Parse a color. Support formats are:
