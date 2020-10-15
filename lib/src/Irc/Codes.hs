@@ -571,7 +571,7 @@ replyCodeInfoTable
   , (RPL_ISON                  , ReplyCodeInfo CommandReply "ison")
   , (RPL_TEXT                  , ReplyCodeInfo CommandReply "text")
   , (RPL_UNAWAY                , ReplyCodeInfo CommandReply "unaway")
-  , (RPL_NOWAWAY               , ReplyCodeInfo CommandReply "nowaway")
+  , (RPL_NOWAWAY               , ReplyCodeInfo CommandReply "now-away")
   , (RPL_WHOISREGNICK          , ReplyCodeInfo CommandReply "whois-regnick")
   , (RPL_SUSERHOST             , ReplyCodeInfo CommandReply "suserhost")
   , (RPL_NOTIFYACTION          , ReplyCodeInfo CommandReply "notify-action")
