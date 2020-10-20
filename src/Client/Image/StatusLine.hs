@@ -33,7 +33,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
 import qualified Graphics.Vty.Image as Vty
-import           Irc.Identifier (Identifier, idText)
+import           Irc.Identifier (idText)
 import           Numeric
 
 bar :: Image'
@@ -275,16 +275,15 @@ makeLines w (x:xs) = go x xs
 myNickImage :: ClientState -> Vty.Image
 myNickImage st =
   case view clientFocus st of
-    NetworkFocus network      -> nickPart network Nothing
-    ChannelFocus network chan -> nickPart network (Just chan)
+    NetworkFocus network      -> nickPart network
+    ChannelFocus network _    -> nickPart network
     Unfocused                 -> Vty.emptyImage
   where
     pal = clientPalette st
-    nickPart network mbChan =
+    nickPart network =
       case preview (clientConnection network) st of
         Nothing -> Vty.emptyImage
-        Just cs -> Vty.string (view palSigil pal) myChanModes
-           Vty.<|> Vty.text' defAttr (idText nick)
+        Just cs -> Vty.text' defAttr (idText nick)
            Vty.<|> parens defAttr
                      (unpackImage $
                       modesImage (view palUModes pal) (view csModes cs) <>
@@ -295,11 +294,6 @@ myNickImage st =
             snomaskImage
               | null (view csSnomask cs) = ""
               | otherwise                = " " <> modesImage (view palSnomask pal) (view csSnomask cs)
-
-            myChanModes =
-              case mbChan of
-                Nothing   -> []
-                Just chan -> view (csChannels . ix chan . chanUsers . ix nick) cs
 
 modesImage :: HashMap Char Attr -> String -> Image'
 modesImage pal modes = "+" <> foldMap modeImage modes
@@ -327,6 +321,7 @@ focusImage focus st = infoBubble $ mconcat
                     preview (ix i) windowNames
 
 
+
 parens :: Attr -> Vty.Image -> Vty.Image
 parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'
 
@@ -341,16 +336,23 @@ viewFocusLabel st focus =
     ChannelFocus network channel ->
       text' (view palLabel pal) network <>
       char defAttr ':' <>
+      string (view palSigil pal) sigils <>
       text' (view palLabel pal) (idText channel) <>
-      channelModesImage network channel st
+      channelModes
 
-channelModesImage :: Text -> Identifier -> ClientState -> Image'
-channelModesImage network channel st =
-  case preview (clientConnection network . csChannels . ix channel . chanModes) st of
-    Just modeMap | not (null modeMap) -> " " <> modesImage (view palCModes pal) (Map.keys modeMap)
-    _                                 -> mempty
-  where
-    pal = clientPalette st
+      where
+        (sigils, channelModes) =
+          case preview (clientConnection network) st of
+            Nothing -> ("", mempty)
+            Just cs ->
+               ( let nick = view csNick cs in
+                 view (csChannels . ix channel . chanUsers . ix nick) cs
+
+               , case preview (csChannels . ix channel . chanModes) cs of
+                    Just modeMap | not (null modeMap) ->
+                        " " <> modesImage (view palCModes pal) (Map.keys modeMap)
+                    _ -> mempty
+               )
 
 viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image'
 viewSubfocusLabel pal subfocus =
