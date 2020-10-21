@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings, BangPatterns #-}
+{-# Language OverloadedStrings, BangPatterns, ViewPatterns #-}
 {-|
 Module      : Client.Image.Message
 Description : Renderer for message lines
@@ -546,6 +546,7 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_CREATIONTIME -> creationTimeParamsImage
         RPL_INVITING     -> params_2_3_Image
         RPL_TESTLINE     -> testlineParamsImage
+        RPL_STATSLINKINFO-> linkInfoParamsImage
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
@@ -635,12 +636,26 @@ renderReplyCode pal rm code@(ReplyCode w) params =
           text' defAttr msg
         _ -> rawParamsImage
 
+    linkInfoParamsImage =
+      case params of
+        [_, name, sendQ, sendM, sendK, recvM, recvK, Text.words -> conn : idle : caps] ->
+          text' defAttr name <>
+          label " sendQ" <> text' defAttr sendQ <>
+          label " sendM" <> text' defAttr sendM <>
+          label " sendK" <> text' defAttr sendK <>
+          label " recvM" <> text' defAttr recvM <>
+          label " recvK" <> text' defAttr recvK <>
+          label " since" <> string defAttr (prettyTime 1 (Text.unpack conn)) <>
+          label " idle"  <> string defAttr (prettyTime 1 (Text.unpack idle)) <>
+          label " caps"  <> text' defAttr (Text.unwords caps)
+        _ -> rawParamsImage
+
 -- | Transform string representing seconds in POSIX time to pretty format.
 prettyUnixTime :: String -> String
 prettyUnixTime str =
   case parseTimeM False defaultTimeLocale "%s" str of
     Nothing -> str
-    Just t  -> formatTime defaultTimeLocale "%A %B %e, %Y %H:%M:%S %Z" (t :: UTCTime)
+    Just t  -> formatTime defaultTimeLocale "%A %B %m, %Y %H:%M:%S %Z" (t :: UTCTime)
 
 -- | Render string representing seconds into days, hours, minutes, and seconds.
 prettyTime :: Int -> String -> String
