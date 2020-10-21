@@ -547,6 +547,7 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_INVITING     -> params_2_3_Image
         RPL_TESTLINE     -> testlineParamsImage
         RPL_STATSLINKINFO-> linkInfoParamsImage
+        RPL_STATSILINE   -> authLineParamsImage
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
@@ -649,6 +650,40 @@ renderReplyCode pal rm code@(ReplyCode w) params =
           label " idle"  <> string defAttr (prettyTime 1 (Text.unpack idle)) <>
           label " caps"  <> text' defAttr (Text.unwords caps)
         _ -> rawParamsImage
+
+    authLineParamsImage =
+      case params of
+        [_, "I", name, pass, mask, port, klass] ->
+          text' defAttr name <>
+          (if pass == "<NULL>" then mempty else label " pass" <> text' defAttr pass) <>
+          label " mask" <> text' defAttr mask' <>
+          (if port == "0" then mempty else label " port" <> text' defAttr port) <>
+          label " class" <> text' defAttr klass <>
+          (if null special then mempty else
+            label " special" <> text' defAttr (Text.unwords special))
+          where
+            (mask', special) = parseILinePrefix mask
+        _ -> rawParamsImage
+
+parseILinePrefix :: Text -> (Text, [Text])
+parseILinePrefix = go []
+  where
+    go special mask =
+      case Text.uncons mask of
+        Just (getSpecial -> Just s, mask') -> go (s:special) mask'
+        _ -> (mask, reverse special)
+
+    getSpecial x =
+      case x of
+        '-' -> Just "no-tilde"
+        '+' -> Just "need-ident"
+        '=' -> Just "spoof-IP"
+        '|' -> Just "flood-exempt"
+        '$' -> Just "dnsbl-exempt"
+        '^' -> Just "kline-exempt"
+        '>' -> Just "limits-exempt"
+        _   -> Nothing
+
 
 -- | Transform string representing seconds in POSIX time to pretty format.
 prettyUnixTime :: String -> String
