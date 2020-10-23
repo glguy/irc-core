@@ -548,6 +548,7 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_TESTLINE     -> testlineParamsImage
         RPL_STATSLINKINFO-> linkInfoParamsImage
         RPL_STATSILINE   -> authLineParamsImage
+        RPL_TESTMASKGECOS-> testmaskGecosParamsImage
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
@@ -663,6 +664,15 @@ renderReplyCode pal rm code@(ReplyCode w) params =
             label " special" <> text' defAttr (Text.unwords special))
           where
             (mask', special) = parseILinePrefix mask
+        _ -> rawParamsImage
+
+    testmaskGecosParamsImage =
+      case params of
+        [_, local, remote, mask, gecos, _txt] ->
+          text' defAttr mask <>
+          (if gecos == "*" then mempty else label " gecos"  <> text' defAttr gecos) <>
+          label " local"  <> text' defAttr local <>
+          label " remote" <> text' defAttr remote
         _ -> rawParamsImage
 
 parseILinePrefix :: Text -> (Text, [Text])
