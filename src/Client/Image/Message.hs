@@ -549,6 +549,10 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_STATSLINKINFO-> linkInfoParamsImage
         RPL_STATSILINE   -> authLineParamsImage
         RPL_TESTMASKGECOS-> testmaskGecosParamsImage
+        RPL_LOCALUSERS   -> lusersParamsImage
+        RPL_GLOBALUSERS  -> lusersParamsImage
+        RPL_LUSEROP      -> countParamsImage
+        RPL_LUSERCHANNELS-> countParamsImage
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
@@ -673,6 +677,16 @@ renderReplyCode pal rm code@(ReplyCode w) params =
           (if gecos == "*" then mempty else label " gecos"  <> text' defAttr gecos) <>
           label " local"  <> text' defAttr local <>
           label " remote" <> text' defAttr remote
+        _ -> rawParamsImage
+
+    lusersParamsImage =
+      case params of
+        [_, n, m, _txt] -> text' defAttr n <> label " max"  <> text' defAttr m
+        _ -> rawParamsImage
+
+    countParamsImage =
+      case params of
+        [_, n, _txt] -> text' defAttr n
         _ -> rawParamsImage
 
 parseILinePrefix :: Text -> (Text, [Text])
