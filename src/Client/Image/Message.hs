@@ -110,6 +110,9 @@ cleanChar x
 cleanText :: Text -> Text
 cleanText = Text.map cleanChar
 
+ctxt :: Text -> Image'
+ctxt = text' defAttr . cleanText
+
 errorPrefix ::
   MessageRendererParams ->
   Image'
@@ -225,7 +228,7 @@ ircLinePrefix !rp body =
                    case mbAcct of
                      Just acct
                        | mkId acct == userNick n -> baseUI
-                       | otherwise -> baseUI <> "(" <> text' defAttr (cleanText acct) <> ")"
+                       | otherwise -> baseUI <> "(" <> ctxt acct <> ")"
                      Nothing -> "~" <> baseUI
   in
   case body of
@@ -318,14 +321,14 @@ ircLineImage !rp body =
 
     Reply code params -> renderReplyCode pal NormalRender code params
     UnknownMsg irc ->
-      text' defAttr (view msgCommand irc) <>
+      ctxt (view msgCommand irc) <>
       char defAttr ' ' <>
       separatedParams (view msgParams irc)
-    Cap cmd           -> text' defAttr (cleanText (capCmdText cmd))
+    Cap cmd           -> ctxt (capCmdText cmd)
     Mode _ _ params   -> ircWords params
 
-    Account _ acct -> if Text.null acct then "*" else text' defAttr (cleanText acct)
-    Chghost _ user host -> text' defAttr (cleanText user) <> " " <> text' defAttr (cleanText host)
+    Account _ acct -> if Text.null acct then "*" else ctxt acct
+    Chghost _ user host -> ctxt user <> " " <> ctxt host
 
 -- | Render a chat message given a rendering mode, the sigils of the user
 -- who sent the message, and a list of nicknames to highlight.
@@ -453,14 +456,14 @@ fullIrcLineImage !rp body =
     UnknownMsg irc ->
       foldMap (\ui -> coloredUserInfo pal rm myNicks ui <> char defAttr ' ')
         (view msgPrefix irc) <>
-      text' defAttr (view msgCommand irc) <>
+      ctxt (view msgCommand irc) <>
       char defAttr ' ' <>
       separatedParams (view msgParams irc)
 
     Cap cmd ->
       text' (withForeColor defAttr magenta) (renderCapCmd cmd) <>
-      text' defAttr ": " <>
-      text' defAttr (cleanText (capCmdText cmd))
+      ": " <>
+      ctxt (capCmdText cmd)
 
     Mode nick _chan params ->
       string quietAttr "mode " <>
@@ -474,12 +477,12 @@ fullIrcLineImage !rp body =
     Account src acct ->
       string quietAttr "acct " <>
       who src <> ": " <>
-      if Text.null acct then "*" else text' defAttr (cleanText acct)
+      if Text.null acct then "*" else ctxt acct
 
     Chghost user newuser newhost ->
       string quietAttr "chng " <>
       who user <> ": " <>
-      text' defAttr (cleanText newuser) <> " " <> text' defAttr (cleanText newhost)
+      ctxt newuser <> " " <> ctxt newhost
 
 
 renderCapCmd :: CapCmd -> Text
@@ -506,9 +509,7 @@ ircWords :: [Text] -> Image'
 ircWords = mconcat . intersperse (char defAttr ' ') . map parseIrcText
 
 replyCodePrefix :: ReplyCode -> Image'
-replyCodePrefix code =
-  text' attr (replyCodeText info) <>
-  char defAttr ':'
+replyCodePrefix code = text' attr (replyCodeText info) <> ":"
   where
     info = replyCodeInfo code
 
@@ -547,12 +548,19 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_INVITING     -> params_2_3_Image
         RPL_TESTLINE     -> testlineParamsImage
         RPL_STATSLINKINFO-> linkInfoParamsImage
+        RPL_STATSPLINE   -> portParamsImage
         RPL_STATSILINE   -> authLineParamsImage
+        RPL_STATSDLINE   -> dlineParamsImage
+        RPL_STATSQLINE   -> banlineParamsImage "Q"
+        RPL_STATSXLINE   -> banlineParamsImage "X"
+        RPL_STATSKLINE   -> klineParamsImage
         RPL_TESTMASKGECOS-> testmaskGecosParamsImage
         RPL_LOCALUSERS   -> lusersParamsImage
         RPL_GLOBALUSERS  -> lusersParamsImage
-        RPL_LUSEROP      -> countParamsImage
-        RPL_LUSERCHANNELS-> countParamsImage
+        RPL_LUSEROP      -> singleParamsImage
+        RPL_LUSERCHANNELS-> singleParamsImage
+        RPL_ENDOFSTATS   -> singleParamsImage
+        ERR_NOPRIVS      -> singleParamsImage
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
@@ -592,7 +600,7 @@ renderReplyCode pal rm code@(ReplyCode w) params =
       case params of
         [_, _, who, time] ->
           label "set by" <>
-          text' defAttr who <>
+          ctxt who <>
           label " at" <>
           string defAttr (prettyUnixTime (Text.unpack time))
         _ -> rawParamsImage
@@ -605,11 +613,11 @@ renderReplyCode pal rm code@(ReplyCode w) params =
     whoisUserParamsImage =
       case params of
         [_, nick, user, host, _, real] ->
-          text' (withStyle defAttr bold) nick <>
+          text' (withStyle defAttr bold) (cleanText nick) <>
           text' (view palLabel pal) "!" <>
-          parseIrcText' False user <>
+          ctxt user <>
           text' (view palLabel pal) "@" <>
-          parseIrcText' False host <>
+          ctxt host <>
           label " gecos" <>
           parseIrcText' False real
         _ -> rawParamsImage
@@ -633,60 +641,90 @@ renderReplyCode pal rm code@(ReplyCode w) params =
     testlineParamsImage =
       case params of
         [_, name, mins, mask, msg] ->
-          text' defAttr name <>
-          label " duration" <>
-          string defAttr (prettyTime 60 (Text.unpack mins)) <>
-          label " mask" <>
-          text' defAttr mask <>
-          label " reason" <>
-          text' defAttr msg
+          ctxt name <>
+          label " duration" <> string defAttr (prettyTime 60 (Text.unpack mins)) <>
+          label " mask"     <> ctxt mask <>
+          label " reason"   <> ctxt msg
         _ -> rawParamsImage
 
     linkInfoParamsImage =
       case params of
         [_, name, sendQ, sendM, sendK, recvM, recvK, Text.words -> conn : idle : caps] ->
-          text' defAttr name <>
-          label " sendQ" <> text' defAttr sendQ <>
-          label " sendM" <> text' defAttr sendM <>
-          label " sendK" <> text' defAttr sendK <>
-          label " recvM" <> text' defAttr recvM <>
-          label " recvK" <> text' defAttr recvK <>
+          ctxt name <>
+          label " sendQ" <> ctxt sendQ <>
+          label " sendM" <> ctxt sendM <>
+          label " sendK" <> ctxt sendK <>
+          label " recvM" <> ctxt recvM <>
+          label " recvK" <> ctxt recvK <>
           label " since" <> string defAttr (prettyTime 1 (Text.unpack conn)) <>
           label " idle"  <> string defAttr (prettyTime 1 (Text.unpack idle)) <>
-          label " caps"  <> text' defAttr (Text.unwords caps)
+          label " caps"  <> ctxt (Text.unwords caps)
         _ -> rawParamsImage
 
     authLineParamsImage =
       case params of
         [_, "I", name, pass, mask, port, klass] ->
-          text' defAttr name <>
-          (if pass == "<NULL>" then mempty else label " pass" <> text' defAttr pass) <>
-          label " mask" <> text' defAttr mask' <>
-          (if port == "0" then mempty else label " port" <> text' defAttr port) <>
-          label " class" <> text' defAttr klass <>
+          ctxt name <>
+          (if pass == "<NULL>" then mempty else label " pass" <> ctxt pass) <>
+          label " mask" <> ctxt mask' <>
+          (if port == "0" then mempty else label " port" <> ctxt port) <>
+          label " class" <> ctxt klass <>
           (if null special then mempty else
-            label " special" <> text' defAttr (Text.unwords special))
+            label " special" <> ctxt (Text.unwords special))
           where
             (mask', special) = parseILinePrefix mask
+        _ -> rawParamsImage
+
+    banlineParamsImage expect =
+      case params of
+        [_, letter, hits, mask, reason] | letter == expect ->
+          ctxt mask <>
+          label " reason" <> ctxt reason <>
+          label " hits" <> ctxt hits
         _ -> rawParamsImage
 
     testmaskGecosParamsImage =
       case params of
         [_, local, remote, mask, gecos, _txt] ->
-          text' defAttr mask <>
-          (if gecos == "*" then mempty else label " gecos"  <> text' defAttr gecos) <>
-          label " local"  <> text' defAttr local <>
-          label " remote" <> text' defAttr remote
+          ctxt mask <>
+          (if gecos == "*" then mempty else label " gecos" <> ctxt gecos) <>
+          label " local"  <> ctxt local <>
+          label " remote" <> ctxt remote
+        _ -> rawParamsImage
+
+    portParamsImage =
+      case params of
+        [_, "P", port, host, count, flags] ->
+          ctxt port <>
+          label " host"  <> ctxt host <>
+          label " count" <> ctxt count <>
+          label " flags" <> ctxt flags
+        _ -> rawParamsImage
+
+    dlineParamsImage =
+      case params of
+        [_, "D", host, reason] ->
+          ctxt host <>
+          label " reason" <> ctxt reason
+        _ -> rawParamsImage
+
+    klineParamsImage =
+      case params of
+        [_, flag, host, "*", user, reason] ->
+          ctxt flag <>
+          label " host"  <> ctxt host <>
+          (if user == "*" then mempty else label " user" <> ctxt user) <>
+          label " reason" <> ctxt reason
         _ -> rawParamsImage
 
     lusersParamsImage =
       case params of
-        [_, n, m, _txt] -> text' defAttr n <> label " max"  <> text' defAttr m
+        [_, n, m, _txt] -> ctxt n <> label " max"  <> ctxt m
         _ -> rawParamsImage
 
-    countParamsImage =
+    singleParamsImage =
       case params of
-        [_, n, _txt] -> text' defAttr n
+        [_, n, _txt] -> ctxt n
         _ -> rawParamsImage
 
 parseILinePrefix :: Text -> (Text, [Text])
@@ -745,7 +783,7 @@ coloredIdentifier ::
   Identifier          {- ^ identifier to draw -} ->
   Image'
 coloredIdentifier palette icm myNicks ident =
-  text' color (idText ident)
+  text' color (cleanText (idText ident))
   where
     color
       | ident `HashSet.member` myNicks =
@@ -779,12 +817,12 @@ coloredUserInfo palette DetailedRender myNicks !ui =
     quietAttr = view palMeta palette
     aux x xs
       | Text.null xs = mempty
-      | otherwise    = char quietAttr x <> text' quietAttr xs
+      | otherwise    = char quietAttr x <> text' quietAttr (cleanText xs)
 
 -- | Render an identifier without using colors. This is useful for metadata.
 quietIdentifier :: Palette -> Identifier -> Image'
 quietIdentifier palette ident =
-  text' (view palMeta palette) (idText ident)
+  text' (view palMeta palette) (cleanText (idText ident))
 
 -- | Parse message text to construct an image. If the text has formatting
 -- control characters in it then the text will be rendered according to
@@ -814,7 +852,7 @@ highlightNicks palette myNicks nicks txt = foldMap highlight1 txtParts
     allNicks = HashSet.union myNicks nicks
     highlight1 part
       | HashSet.member partId allNicks = coloredIdentifier palette PrivmsgIdentifier myNicks partId
-      | otherwise                      = text' defAttr part
+      | otherwise                      = ctxt part
       where
         partId = mkId part
 

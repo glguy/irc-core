@@ -16,7 +16,7 @@ module Client.Image.StatusLine
   , minorStatusLineImage
   ) where
 
-import           Client.Image.Message (cleanText)
+import           Client.Image.Message (cleanChar, cleanText)
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
@@ -231,7 +231,7 @@ activityBarImages st
                     Vty.char defAttr '[' Vty.<|>
                     Vty.char (view palWindowName pal) i Vty.<|>
                     Vty.char defAttr ':' Vty.<|>
-                    Vty.text' (view palLabel pal) focusText Vty.<|>
+                    Vty.text' (view palLabel pal) (cleanText focusText) Vty.<|>
                     Vty.char defAttr ':' Vty.<|>
                     Vty.string attr (show n) Vty.<|>
                     Vty.char defAttr ']'
@@ -283,7 +283,7 @@ myNickImage st =
     nickPart network =
       case preview (clientConnection network) st of
         Nothing -> Vty.emptyImage
-        Just cs -> Vty.text' defAttr (idText nick)
+        Just cs -> Vty.text' defAttr (cleanText (idText nick))
            Vty.<|> parens defAttr
                      (unpackImage $
                       modesImage (view palUModes pal) (view csModes cs) <>
@@ -332,12 +332,12 @@ viewFocusLabel st focus =
     Unfocused ->
       char (view palError pal) '*'
     NetworkFocus network ->
-      text' (view palLabel pal) network
+      text' (view palLabel pal) (cleanText network)
     ChannelFocus network channel ->
-      text' (view palLabel pal) network <>
+      text' (view palLabel pal) (cleanText network) <>
       char defAttr ':' <>
-      string (view palSigil pal) sigils <>
-      text' (view palLabel pal) (idText channel) <>
+      string (view palSigil pal) (cleanChar <$> sigils) <>
+      text' (view palLabel pal) (cleanText (idText channel)) <>
       channelModes
 
       where

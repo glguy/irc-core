@@ -83,7 +83,6 @@ pattern RPL_STATSPLINE              = ReplyCode 220
 pattern RPL_UMODEIS                 = ReplyCode 221
 pattern RPL_SQLINE_NICK             = ReplyCode 222
 pattern RPL_STATSDLINE              = ReplyCode 225
-pattern RPL_STATSZLINE              = ReplyCode 225
 pattern RPL_STATSCOUNT              = ReplyCode 226
 pattern RPL_SERVICEINFO             = ReplyCode 231
 pattern RPL_ENDOFSERVICES           = ReplyCode 232
@@ -168,7 +167,6 @@ pattern RPL_NOCHANPASS              = ReplyCode 326
 pattern RPL_CHPASSUNKNOWN           = ReplyCode 327
 pattern RPL_CHANNEL_URL             = ReplyCode 328
 pattern RPL_CREATIONTIME            = ReplyCode 329
-pattern RPL_WHOWAS_TIME             = ReplyCode 330
 pattern RPL_WHOISACCOUNT            = ReplyCode 330
 pattern RPL_NOTOPIC                 = ReplyCode 331
 pattern RPL_TOPIC                   = ReplyCode 332
@@ -513,7 +511,6 @@ replyCodeInfoTable
   , (RPL_UMODEIS               , ReplyCodeInfo CommandReply "umode-is")
   , (RPL_SQLINE_NICK           , ReplyCodeInfo CommandReply "sqline-nick")
   , (RPL_STATSDLINE            , ReplyCodeInfo CommandReply "stats-dline")
-  , (RPL_STATSZLINE            , ReplyCodeInfo CommandReply "stats-zline")
   , (RPL_STATSCOUNT            , ReplyCodeInfo CommandReply "stats-count")
   , (RPL_SERVICEINFO           , ReplyCodeInfo CommandReply "service-info")
   , (RPL_ENDOFSERVICES         , ReplyCodeInfo CommandReply "end-of-services")
@@ -598,7 +595,6 @@ replyCodeInfoTable
   , (RPL_CHPASSUNKNOWN         , ReplyCodeInfo CommandReply "chpass-unknown")
   , (RPL_CHANNEL_URL           , ReplyCodeInfo CommandReply "channel-url")
   , (RPL_CREATIONTIME          , ReplyCodeInfo CommandReply "creation-time")
-  , (RPL_WHOWAS_TIME           , ReplyCodeInfo CommandReply "whowas-time")
   , (RPL_WHOISACCOUNT          , ReplyCodeInfo CommandReply "whois-account")
   , (RPL_NOTOPIC               , ReplyCodeInfo CommandReply "notopic")
   , (RPL_TOPIC                 , ReplyCodeInfo CommandReply "topic")
