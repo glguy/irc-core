@@ -14,6 +14,7 @@ window.
 module Client.Image.StatusLine
   ( statusLineImage
   , minorStatusLineImage
+  , clientTitle
   ) where
 
 import           Client.Image.Message (cleanChar, cleanText)
@@ -35,6 +36,14 @@ import           Graphics.Vty.Attributes
 import qualified Graphics.Vty.Image as Vty
 import           Irc.Identifier (idText)
 import           Numeric
+
+clientTitle :: ClientState -> String
+clientTitle st
+  = Text.unpack
+  $ case view clientFocus st of
+      Unfocused             -> "glirc - console"
+      NetworkFocus net      -> "glirc - " <> cleanText net
+      ChannelFocus net chan -> "glirc - " <> cleanText net <> ":" <> cleanText (idText chan)
 
 bar :: Image'
 bar = char (withStyle defAttr bold) '─'

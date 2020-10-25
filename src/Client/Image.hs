@@ -18,7 +18,6 @@ import           Graphics.Vty            (Background (..), Cursor (..),
                                           Picture (..))
 import           Graphics.Vty.Image
 
-
 -- | Generate a 'Picture' for the current client state. The resulting
 -- client state is updated for render specific information like scrolling.
 clientPicture :: ClientState -> (Picture, ClientState)

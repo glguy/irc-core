@@ -26,6 +26,7 @@ import           Client.EventLoop.Network (clientResponse)
 import           Client.Hook
 import           Client.Image
 import           Client.Image.Layout (scrollAmount)
+import           Client.Image.StatusLine (clientTitle)
 import           Client.Log
 import           Client.Message
 import           Client.Network.Async
@@ -134,6 +135,7 @@ eventLoop vty st =
 
      let (pic, st') = clientPicture (clientTick st)
      update vty pic
+     setWindowTitle vty (clientTitle st)
 
      event <- getEvent vty st'
      case event of
