@@ -6,7 +6,16 @@ project('glirc-lua', 'c',
 
 add_global_arguments('-Werror=vla', language: 'c')
 
-luadep = dependency('lua', version: ['>=5.3', '<5.4'])
+foreach name : ['lua', 'lua5.3', 'lua-5.3', 'lua53']
+    luaDep = dependency(name, version: ['>=5.3', '<5.4'], required: false)
+    if luaDep.found()
+        break
+    endif
+endforeach
+if not luaDep.found()
+    error('Lua could not be found!')
+endif
+
 incdir = include_directories('../include', 'include')
 sources = ['glirc-lua.c', 'glirc-marshal.c', 'glirc-lib.c']
 
@@ -17,7 +26,7 @@ else
 endif
 
 shared_module('glirc-lua', sources,
-  dependencies : luadep,
+  dependencies : luaDep,
   include_directories: incdir,
   name_prefix: '',
   name_suffix: suffix)
