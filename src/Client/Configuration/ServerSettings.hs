@@ -1,4 +1,4 @@
-{-# LANGUAGE ApplicativeDo, TemplateHaskell, OverloadedStrings #-}
+{-# LANGUAGE ApplicativeDo, TemplateHaskell, OverloadedStrings, RecordWildCards #-}
 
 {-|
 Module      : Client.Configuration.ServerSettings
@@ -87,13 +87,14 @@ import           Control.Exception (Exception, displayException, throwIO, try)
 import           Control.Lens
 import           Control.Monad ((>=>))
 import qualified Data.ByteString as B
+import           Data.ByteString (ByteString)
 import           Data.Functor.Alt                    ((<!>))
 import           Data.List.NonEmpty (NonEmpty((:|)))
-import           Data.ByteString (ByteString)
-import           Data.Monoid
-import           Data.Text (Text)
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.List.Split (chunksOf, splitOn)
+import           Data.Maybe (fromMaybe)
+import           Data.Monoid
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber)
@@ -413,6 +414,20 @@ nickCompletionSpec :: ValueSpec WordCompletionMode
 nickCompletionSpec =
       defaultNickWordCompleteMode <$ atomSpec "default"
   <!> slackNickWordCompleteMode   <$ atomSpec "slack"
+  <!> customNickCompletion
+
+customNickCompletion :: ValueSpec WordCompletionMode
+customNickCompletion =
+  sectionsSpec "nick-completion" $
+  do wcmStartPrefix  <- fromMaybe "" <$> optSection' "start-prefix" stringSpec
+                        "Prefix for nickname with when completing at start of line."
+     wcmStartSuffix  <- fromMaybe "" <$> optSection' "start-suffix" stringSpec
+                        "Suffix for nickname with when completing at start of line."
+     wcmMiddlePrefix <- fromMaybe "" <$> optSection' "middle-prefix" stringSpec
+                        "Prefix for nickname with when completing at in middle of line."
+     wcmMiddleSuffix <- fromMaybe "" <$> optSection' "middle-suffix" stringSpec
+                        "Suffix for nickname with when completing at in middle of line."
+     pure WordCompletionMode{..}
 
 
 identifierSpec :: ValueSpec Identifier

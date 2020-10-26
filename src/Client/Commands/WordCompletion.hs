@@ -45,7 +45,6 @@ plainWordCompleteMode = WordCompletionMode "" "" "" ""
 defaultNickWordCompleteMode :: WordCompletionMode
 defaultNickWordCompleteMode = WordCompletionMode "" ": " "" ""
 
-
 -- | Word completion using a "@" prefix intended
 slackNickWordCompleteMode :: WordCompletionMode
 slackNickWordCompleteMode = WordCompletionMode "@" " " "@" ""
