@@ -52,10 +52,11 @@ styleSpec = namedSpec "style" $
       blink        <$ atomSpec "blink"
   <!> bold         <$ atomSpec "bold"
   <!> dim          <$ atomSpec "dim"
+  <!> italic       <$ atomSpec "italic"
   <!> reverseVideo <$ atomSpec "reverse-video"
   <!> standout     <$ atomSpec "standout"
-  <!> underline    <$ atomSpec "underline"
   <!> strikethrough<$ atomSpec "strikethrough"
+  <!> underline    <$ atomSpec "underline"
 
 
 -- | Parse a color. Support formats are:

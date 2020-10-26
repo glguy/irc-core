@@ -48,6 +48,7 @@ module Client.State.Network
   , csMessageHooks
   , csAuthenticationState
   , csSeed
+  , csAway
 
   -- * Cross-message state
   , Transaction(..)
@@ -131,6 +132,7 @@ data NetworkState = NetworkState
   , _csNetwork      :: !Text -- ^ name of network connection
   , _csMessageHooks :: ![MessageHook] -- ^ names of message hooks to apply to this connection
   , _csAuthenticationState :: !AuthenticateState
+  , _csAway         :: !Bool -- ^ Tracks when you are marked away
 
   -- Timing information
   , _csNextPingTime :: !(Maybe UTCTime) -- ^ time for next ping event
@@ -276,6 +278,7 @@ newNetworkState network settings sock ping seed = NetworkState
   , _csNetwork      = network
   , _csMessageHooks = buildMessageHooks (view ssMessageHooks settings)
   , _csAuthenticationState = AS_None
+  , _csAway         = False
   , _csPingStatus   = ping
   , _csLatency      = Nothing
   , _csNextPingTime = Nothing
@@ -591,6 +594,11 @@ doRpl cmd msgWhen args cs =
             where chanId = mkId chan
                   !who = UserInfo "*" "" ""
         _ -> noReply cs
+
+    -- Away flag tracking
+    RPL_NOWAWAY -> noReply (set csAway True cs)
+    RPL_UNAWAY  -> noReply (set csAway False cs)
+
     _ -> noReply cs
 
 

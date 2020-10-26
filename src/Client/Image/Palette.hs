@@ -37,6 +37,7 @@ module Client.Image.Palette
   , palCModes
   , palUModes
   , palSnomask
+  , palAway
 
   , paletteMap
 
@@ -73,6 +74,7 @@ data Palette = Palette
   , _palCommandPlaceholder :: Attr -- ^ command argument placeholder
   , _palWindowDivider :: Attr -- ^ Divider between split windows
   , _palLineMarker    :: Attr -- ^ Divider between new and old messages
+  , _palAway          :: Attr -- ^ color of nickname when away
   , _palCModes        :: HashMap Char Attr -- ^ channel mode attributes
   , _palUModes        :: HashMap Char Attr -- ^ user mode attributes
   , _palSnomask       :: HashMap Char Attr -- ^ snotice mask attributes
@@ -104,6 +106,7 @@ defaultPalette = Palette
   , _palCommandPlaceholder      = withStyle defAttr reverseVideo
   , _palWindowDivider           = withStyle defAttr reverseVideo
   , _palLineMarker              = defAttr
+  , _palAway                    = withForeColor defAttr brightBlack
   , _palCModes                  = HashMap.empty
   , _palUModes                  = HashMap.empty
   , _palSnomask                 = HashMap.empty
@@ -140,4 +143,5 @@ paletteMap =
   , ("command-error"    , Lens palCommandError)
   , ("window-divider"   , Lens palWindowDivider)
   , ("line-marker"      , Lens palLineMarker)
+  , ("away"             , Lens palAway)
   ]

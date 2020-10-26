@@ -294,12 +294,16 @@ myNickImage st =
     nickPart network =
       case preview (clientConnection network) st of
         Nothing -> Vty.emptyImage
-        Just cs -> Vty.text' defAttr (cleanText (idText nick))
+        Just cs -> Vty.text' attr (cleanText (idText nick))
            Vty.<|> parens defAttr
                      (unpackImage $
                       modesImage (view palUModes pal) (view csModes cs) <>
                       snomaskImage)
           where
+            attr
+              | view csAway cs = view palAway pal
+              | otherwise      = defAttr
+
             nick = view csNick cs
 
             snomaskImage
