@@ -18,7 +18,7 @@ import           Client.Mask (buildMask)
 import           Client.State
 import           Client.State.Focus
 import           Client.State.Network
-import           Client.State.Window (emptyWindow, WindowLines((:-), Nil), wlFullImage, winMessages)
+import           Client.State.Window (emptyWindow, WindowLines((:-), Nil), wlFullImage, winMessages, winHidden, winSilent)
 import           Control.Applicative
 import           Control.Exception
 import           Control.Lens
@@ -225,7 +225,30 @@ windowCommands = CommandSection "Window management"
       \the regular expression instead.\n"
     $ ClientCommand cmdMentions noClientTab
 
+  , Command
+      (pure "setwindow")
+      (simpleToken "hide|show|loud|silent")
+      "Set window property.\n"
+    $ ClientCommand cmdSetWindow noClientTab
+
   ]
+
+cmdSetWindow :: ClientCommand String
+cmdSetWindow st cmd =
+  case mbFun of
+    Nothing -> commandFailureMsg "bad window setting" st
+    Just f ->
+      case failover (clientWindows . ix (view clientFocus st)) f st of
+        Nothing -> commandFailureMsg "no such window" st
+        Just st' -> commandSuccess st'
+  where
+    mbFun =
+      case cmd of
+        "hide"   -> Just (set winHidden True)
+        "show"   -> Just (set winHidden False)
+        "loud"   -> Just (set winSilent False)
+        "silent" -> Just (set winHidden True)
+        _        -> Nothing
 
 -- | Implementation of @/grep@
 cmdGrep :: ClientCommand String

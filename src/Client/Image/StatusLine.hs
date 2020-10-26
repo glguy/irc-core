@@ -214,6 +214,7 @@ activitySummary st
     windows    = views clientWindows Map.elems st
 
     aux (i,w) rest =
+      if view winSilent w then rest else
       case view winMention w of
         WLImportant -> Vty.char (view palMention  pal) i : rest
         WLNormal    -> Vty.char (view palActivity pal) i : rest
@@ -234,6 +235,7 @@ activityBarImages st
     winNames = clientWindowNames st ++ repeat '?'
 
     baraux i (focus,w)
+      | view winSilent w = Nothing
       | n == 0 = Nothing -- todo: make configurable
       | otherwise = Just
                   $ unpackImage bar Vty.<|>
@@ -326,7 +328,7 @@ focusImage focus st = infoBubble $ mconcat
     windowNames = clientWindowNames st
 
     windowName = fromMaybe '?'
-               $ do i <- Map.lookupIndex focus (view clientWindows st)
+               $ do i <- Map.lookupIndex focus (Map.filter (views winHidden not) (view clientWindows st))
                     preview (ix i) windowNames
 
 

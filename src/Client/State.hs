@@ -911,7 +911,8 @@ jumpToActivity st =
     highPriority = find (\x -> WLImportant == view winMention (snd x)) windowList
     lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
 
--- | Jump the focus directly to a window based on its zero-based index.
+-- | Jump the focus directly to a window based on its zero-based index
+-- while ignoring hidden windows.
 jumpFocus ::
   Int {- ^ zero-based window index -} ->
   ClientState -> ClientState
@@ -919,7 +920,7 @@ jumpFocus i st
   | 0 <= i, i < Map.size windows = changeFocus focus st
   | otherwise                    = st
   where
-    windows   = view clientWindows st
+    windows   = Map.filter (views winHidden not) (view clientWindows st)
     (focus,_) = Map.elemAt i windows
 
 

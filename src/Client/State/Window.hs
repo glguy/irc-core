@@ -21,6 +21,8 @@ module Client.State.Window
   , winMention
   , winMarker
   , winHideMeta
+  , winHidden
+  , winSilent
 
   -- * Window lines
   , WindowLines(..)
@@ -88,6 +90,8 @@ data Window = Window
   , _winTotal    :: !Int           -- ^ Messages in buffer
   , _winMention  :: !WindowLineImportance -- ^ Indicates an important event is unread
   , _winHideMeta :: !Bool          -- ^ Hide metadata messages
+  , _winHidden   :: !Bool          -- ^ Remove from jump rotation
+  , _winSilent   :: !Bool          -- ^ Ignore activity
   }
 
 data ActivityLevel = NoActivity | NormalActivity | HighActivity
@@ -116,12 +120,14 @@ emptyWindow = Window
   , _winTotal    = 0
   , _winMention  = WLBoring
   , _winHideMeta = False
+  , _winHidden   = False
+  , _winSilent   = False
   }
 
 -- | Adds a given line to a window as the newest message. Window's
 -- unread count will be updated according to the given importance.
 addToWindow :: WindowLine -> Window -> Window
-addToWindow !msg !win = Window
+addToWindow !msg !win = win
     { _winMessages = msg :- view winMessages win
     , _winTotal    = view winTotal win + 1
     , _winMarker   = (+1) <$!> view winMarker win

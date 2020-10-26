@@ -29,14 +29,19 @@ windowsImages :: WindowsFilter -> ClientState -> [Image']
 windowsImages filt st = reverse (createColumns windows)
   where
     windows = [ renderWindowColumns pal n k v
-              | (n,(k,v)) <- zip names
-                           $ views clientWindows Map.toAscList st
+              | (n,k,v) <- addNames names
+                         $ views clientWindows Map.toAscList st
               , windowMatcher filt st k
               ]
 
     pal     = clientPalette st
-    names   = clientWindowNames st ++ repeat '?'
+    names   = clientWindowNames st
 
+addNames :: [Char] -> [(b, Window)] -> [(Char, b, Window)]
+addNames (x:xs) ((k,v):ys)
+  | views winHidden not v = (x,k,v) : addNames xs ys
+addNames xs ((k,v):ys) = ('?',k,v) : addNames xs ys
+addNames _ [] = []
 
 ------------------------------------------------------------------------
 
