@@ -424,9 +424,9 @@ customNickCompletion =
      wcmStartSuffix  <- fromMaybe "" <$> optSection' "start-suffix" stringSpec
                         "Suffix for nickname with when completing at start of line."
      wcmMiddlePrefix <- fromMaybe "" <$> optSection' "middle-prefix" stringSpec
-                        "Prefix for nickname with when completing at in middle of line."
+                        "Prefix for nickname with when completing in middle of line."
      wcmMiddleSuffix <- fromMaybe "" <$> optSection' "middle-suffix" stringSpec
-                        "Suffix for nickname with when completing at in middle of line."
+                        "Suffix for nickname with when completing in middle of line."
      pure WordCompletionMode{..}
 
 
