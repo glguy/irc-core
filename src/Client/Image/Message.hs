@@ -554,13 +554,20 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_STATSQLINE   -> banlineParamsImage "Q"
         RPL_STATSXLINE   -> banlineParamsImage "X"
         RPL_STATSKLINE   -> klineParamsImage
+        RPL_STATSCLINE   -> connectLineParamsImage
+        RPL_STATSHLINE   -> hubLineParamsImage
+        RPL_STATSCOMMANDS-> commandsParamsImage
+        RPL_STATSOLINE   -> operLineParamsImage
+        RPL_STATSULINE   -> sharedLineParamsImage
+        RPL_STATSYLINE   -> classLineParamsImage
+        RPL_STATSDEBUG   -> statsDebugParamsImage
         RPL_TESTMASKGECOS-> testmaskGecosParamsImage
         RPL_LOCALUSERS   -> lusersParamsImage
         RPL_GLOBALUSERS  -> lusersParamsImage
-        RPL_LUSEROP      -> singleParamsImage
-        RPL_LUSERCHANNELS-> singleParamsImage
-        RPL_ENDOFSTATS   -> singleParamsImage
-        ERR_NOPRIVS      -> singleParamsImage
+        RPL_LUSEROP      -> params_2_3_Image
+        RPL_LUSERCHANNELS-> params_2_3_Image
+        RPL_ENDOFSTATS   -> params_2_3_Image
+        ERR_NOPRIVS      -> params_2_3_Image
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
@@ -583,17 +590,17 @@ renderReplyCode pal rm code@(ReplyCode w) params =
 
     params_2_3_Image =
       case params of
-        [_, p, _] -> parseIrcText' False p
+        [_, p, _] -> ctxt p
         _         -> rawParamsImage
 
     param_3_3_Image =
       case params of
-        [_, _, txt] -> parseIrcText' False txt
+        [_, _, txt] -> ctxt txt
         _           -> rawParamsImage
 
     param_3_4_Image =
       case params of
-        [_, _, p, _] -> parseIrcText' False p
+        [_, _, p, _] -> ctxt p
         _            -> rawParamsImage
 
     topicWhoTimeParamsImage =
@@ -703,8 +710,9 @@ renderReplyCode pal rm code@(ReplyCode w) params =
 
     dlineParamsImage =
       case params of
-        [_, "D", host, reason] ->
-          ctxt host <>
+        [_, flag, host, reason] ->
+          ctxt flag <>
+          label " host:" <> ctxt host <>
           label " reason" <> ctxt reason
         _ -> rawParamsImage
 
@@ -717,15 +725,103 @@ renderReplyCode pal rm code@(ReplyCode w) params =
           label " reason" <> ctxt reason
         _ -> rawParamsImage
 
+    statsDebugParamsImage =
+      case params of
+        [_, flag, txt] -> ctxt flag <> label " txt"  <> ctxt txt
+        _ -> rawParamsImage
+
     lusersParamsImage =
       case params of
         [_, n, m, _txt] -> ctxt n <> label " max"  <> ctxt m
         _ -> rawParamsImage
 
-    singleParamsImage =
+    connectLineParamsImage =
       case params of
-        [_, n, _txt] -> ctxt n
+        [_, "C", mask, flagTxt, host, port, klass, certfp] ->
+          ctxt mask <>
+          label " host" <> ctxt host <>
+          label " port" <> ctxt port <>
+          label " class" <> ctxt klass <>
+          (if certfp == "*" then mempty else label " certfp" <> ctxt certfp) <>
+          (if null flags then mempty else label " flags" <> ctxt (Text.unwords flags))
+          where
+            flags = parseCLineFlags flagTxt
+        [_, "C", mask, flagTxt, host, port, klass] ->
+          ctxt mask <>
+          label " host" <> ctxt host <>
+          label " port" <> ctxt port <>
+          label " class" <> ctxt klass <>
+          (if null flags then mempty else label " flags" <> ctxt (Text.unwords flags))
+          where
+            flags = parseCLineFlags flagTxt
         _ -> rawParamsImage
+
+    hubLineParamsImage =
+      case params of
+        [_, "H", host, "*", server, "0", "-1"] ->
+          ctxt host <> label " server" <> ctxt server
+        [_, "H", host, "*", server] ->
+          ctxt host <> label " server" <> ctxt server
+        _ -> rawParamsImage
+
+    commandsParamsImage =
+      case params of
+        [_, cmd, count, bytes, rcount] ->
+          ctxt cmd <>
+          label " count" <> ctxt count <>
+          label " bytes" <> ctxt bytes <>
+          label " remote-count" <> ctxt rcount
+        _ -> rawParamsImage
+
+    operLineParamsImage =
+      case params of
+        [_, "O", mask, host, name, privset, "-1"] ->
+          ctxt mask <>
+          label " host" <> ctxt host <>
+          label " name" <> ctxt name <>
+          (if privset == "0" then mempty else label " privset" <> ctxt privset)
+        _ -> rawParamsImage
+
+    sharedLineParamsImage =
+      case params of
+        [_, "U", server, mask, flags] ->
+          ctxt server <>
+          label " mask" <> ctxt mask <>
+          label " flags" <> ctxt flags
+        _ -> rawParamsImage
+
+    classLineParamsImage =
+      case params of
+        [_, "Y", name, pingFreq, conFreq, maxUsers, maxSendq, maxLocal, maxGlobal, curUsers] ->
+          ctxt name <>
+          label " ping-freq" <> ctxt pingFreq <>
+          label " con-freq" <> ctxt conFreq <>
+          label " max-users" <> ctxt maxUsers <>
+          label " max-sendq" <> ctxt maxSendq <>
+          label " max-local" <> ctxt maxLocal <>
+          label " max-global" <> ctxt maxGlobal <>
+          label " current" <> ctxt curUsers
+        _ -> rawParamsImage
+
+parseCLineFlags :: Text -> [Text]
+parseCLineFlags = go []
+  where
+    go acc xs =
+      case Text.uncons xs of
+        Just (x, xs') ->
+          case getFlag x of
+            Nothing   -> go (Text.singleton x:acc) xs'
+            Just flag -> go (flag:acc) xs'
+        Nothing -> reverse acc
+
+    getFlag x =
+      case x of
+        'A' -> Just "auto-connect"
+        'M' -> Just "sctp"
+        'S' -> Just "tls"
+        'T' -> Just "topic-burst"
+        'Z' -> Just "compressed"
+        _   -> Nothing
 
 parseILinePrefix :: Text -> (Text, [Text])
 parseILinePrefix = go []
