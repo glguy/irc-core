@@ -567,6 +567,7 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_LUSEROP      -> params_2_3_Image
         RPL_LUSERCHANNELS-> params_2_3_Image
         RPL_ENDOFSTATS   -> params_2_3_Image
+        RPL_AWAY         -> awayParamsImage
         ERR_NOPRIVS      -> params_2_3_Image
         _                -> rawParamsImage
   where
@@ -801,6 +802,11 @@ renderReplyCode pal rm code@(ReplyCode w) params =
           label " max-local" <> ctxt maxLocal <>
           label " max-global" <> ctxt maxGlobal <>
           label " current" <> ctxt curUsers
+        _ -> rawParamsImage
+
+    awayParamsImage =
+      case params of
+        [_, nick, txt] -> ctxt nick <> label " msg" <> parseIrcText txt
         _ -> rawParamsImage
 
 parseCLineFlags :: Text -> [Text]
