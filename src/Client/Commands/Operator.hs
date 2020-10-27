@@ -14,6 +14,7 @@ import           Client.Commands.Arguments.Spec
 import           Client.Commands.TabCompletion
 import           Client.Commands.Types
 import           Client.State.Network (sendMsg)
+import           Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import           Irc.Commands
 
@@ -63,10 +64,22 @@ operatorCommands = CommandSection "Network operator commands"
     $ NetworkCommand cmdMasktrace simpleNetworkTab
 
   , Command
+      (pure "chantrace")
+      (simpleToken "channel")
+      "Outputs a list of channel members in etrace format.\n"
+    $ NetworkCommand cmdChantrace simpleNetworkTab
+
+  , Command
       (pure "trace")
-      (optionalArg (liftA2 (,) (simpleToken "[server | nick]") (optionalArg (simpleToken "[server]"))))
+      (optionalArg (liftA2 (,) (simpleToken "[server|nick]") (optionalArg (simpleToken "[location]"))))
       "Outputs a list users on a server.\n"
     $ NetworkCommand cmdTrace simpleNetworkTab
+
+  , Command
+      (pure "etrace")
+      (optionalArg (simpleToken "[-full|-v4|-v6|nick]"))
+      "Outputs a list users on a server.\n"
+    $ NetworkCommand cmdEtrace simpleNetworkTab
 
   , Command
       (pure "map")
@@ -104,6 +117,16 @@ cmdTestmask cs st (mask, gecos) =
 cmdMasktrace :: NetworkCommand (String, String)
 cmdMasktrace cs st (mask, gecos) =
   do sendMsg cs (ircMasktrace (Text.pack mask) (Text.pack gecos))
+     commandSuccess st
+
+cmdChantrace :: NetworkCommand String
+cmdChantrace cs st chan =
+  do sendMsg cs (ircChantrace (Text.pack chan))
+     commandSuccess st
+
+cmdEtrace :: NetworkCommand (Maybe String)
+cmdEtrace cs st arg =
+  do sendMsg cs (ircEtrace (Text.pack (fromMaybe "" arg)))
      commandSuccess st
 
 cmdTrace :: NetworkCommand (Maybe (String, Maybe String))

@@ -568,6 +568,9 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_LUSERCHANNELS-> params_2_3_Image
         RPL_ENDOFSTATS   -> params_2_3_Image
         RPL_AWAY         -> awayParamsImage
+        RPL_ETRACE       -> etraceParamsImage
+        RPL_ETRACEFULL   -> etraceFullParamsImage
+        RPL_ENDOFTRACE   -> params_2_3_Image
         ERR_NOPRIVS      -> params_2_3_Image
         _                -> rawParamsImage
   where
@@ -807,6 +810,28 @@ renderReplyCode pal rm code@(ReplyCode w) params =
     awayParamsImage =
       case params of
         [_, nick, txt] -> ctxt nick <> label " msg" <> parseIrcText txt
+        _ -> rawParamsImage
+
+    etraceParamsImage =
+      case params of
+        [_, kind, server, nick, user, host, ip, gecos] ->
+          ctxt nick <> "!" <> ctxt user <> "@" <> ctxt host <>
+          label " gecos" <> ctxt gecos <>
+          (if ip == "0" || ip == "255.255.255.255" then mempty else label " ip" <> ctxt ip) <>
+          label " server" <> ctxt server <>
+          label " kind" <> ctxt kind
+        _ -> rawParamsImage
+
+    etraceFullParamsImage =
+      case params of
+        [_, kind, klass, nick, user, host, ip, p1, p2, gecos] ->
+          ctxt nick <> "!" <> ctxt user <> "@" <> ctxt host <>
+          label " gecos" <> ctxt gecos <>
+          (if ip == "0" || ip == "255.255.255.255" then mempty else label " ip" <> ctxt ip) <>
+          label " kind" <> ctxt kind <>
+          label " class" <> ctxt klass <>
+          label " p1" <> ctxt p1 <>
+          label " p2" <> ctxt p2
         _ -> rawParamsImage
 
 parseCLineFlags :: Text -> [Text]

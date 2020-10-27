@@ -80,7 +80,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Enc
 
 nonempty :: Text -> [Text]
-nonempty txt = filter (not . Text.null) [txt]
+nonempty txt = [txt | not (Text.null txt)]
 
 -- | PRIVMSG command
 ircPrivmsg ::
@@ -255,7 +255,7 @@ ircChantrace channel = rawIrcMsg "CHANTRACE" [channel]
 ircEtrace ::
   Text {- ^ argument -} ->
   RawIrcMsg
-ircEtrace arg = rawIrcMsg "ETRACE" [arg]
+ircEtrace arg = rawIrcMsg "ETRACE" (nonempty arg)
 
 -- | REMOVE command
 ircRemove ::
