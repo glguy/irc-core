@@ -244,10 +244,10 @@ cmdSetWindow st cmd =
   where
     mbFun =
       case cmd of
-        "hide"   -> Just (set winHidden True)
         "show"   -> Just (set winHidden False)
+        "hide"   -> Just (set winHidden True)
         "loud"   -> Just (set winSilent False)
-        "silent" -> Just (set winHidden True)
+        "silent" -> Just (set winSilent True)
         _        -> Nothing
 
 -- | Implementation of @/grep@
