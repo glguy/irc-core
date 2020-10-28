@@ -907,7 +907,8 @@ jumpToActivity st =
         Just focus -> changeFocus focus st
         Nothing    -> st
   where
-    windowList   = views clientWindows Map.toAscList st
+    windowList   = filter (not . view winSilent . snd)
+                 $ views clientWindows Map.toAscList st
     highPriority = find (\x -> WLImportant == view winMention (snd x)) windowList
     lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
 

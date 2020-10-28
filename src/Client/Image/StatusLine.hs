@@ -228,6 +228,7 @@ activityBarImages st
   = catMaybes
   $ zipWith baraux winNames
   $ Map.toList
+  $ Map.filter (views winSilent not)
   $ view clientWindows st
 
   where
@@ -235,7 +236,6 @@ activityBarImages st
     winNames = clientWindowNames st ++ repeat '?'
 
     baraux i (focus,w)
-      | view winSilent w = Nothing
       | n == 0 = Nothing -- todo: make configurable
       | otherwise = Just
                   $ unpackImage bar Vty.<|>
