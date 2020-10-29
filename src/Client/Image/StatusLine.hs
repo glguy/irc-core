@@ -103,7 +103,7 @@ minorStatusLineImage ::
 minorStatusLineImage focus subfocus w showHideMeta st =
   content <> mconcat (replicate fillSize bar)
   where
-    content = infoBubble (focusImage focus st) <>
+    content = focusImage focus st <>
               subfocusImage subfocus st <>
               if showHideMeta then nometaImage focus st else mempty
 
