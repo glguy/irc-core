@@ -32,6 +32,7 @@ import           Data.Maybe
 import           Data.HashMap.Strict (HashMap)
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
 import           Graphics.Vty.Attributes
 import qualified Graphics.Vty.Image as Vty
 import           Irc.Identifier (idText)
@@ -39,11 +40,9 @@ import           Numeric
 
 clientTitle :: ClientState -> String
 clientTitle st
-  = Text.unpack
-  $ case view clientFocus st of
-      Unfocused             -> "glirc - console"
-      NetworkFocus net      -> "glirc - " <> cleanText net
-      ChannelFocus net chan -> "glirc - " <> cleanText net <> ":" <> cleanText (idText chan)
+  = map cleanChar
+  $ LText.unpack
+  $ "glirc - " <> imageText (focusImage (view clientFocus st) st)
 
 bar :: Image'
 bar = char (withStyle defAttr bold) '─'
@@ -60,7 +59,7 @@ statusLineImage w st =
     common = Vty.horizCat $
       myNickImage st :
       map unpackImage
-      [ focusImage (view clientFocus st) st
+      [ infoBubble (focusImage (view clientFocus st) st)
       , subfocusImage (view clientSubfocus st) st
       , detailImage st
       , nometaImage (view clientFocus st) st
@@ -104,7 +103,7 @@ minorStatusLineImage ::
 minorStatusLineImage focus subfocus w showHideMeta st =
   content <> mconcat (replicate fillSize bar)
   where
-    content = focusImage focus st <>
+    content = infoBubble (focusImage focus st) <>
               subfocusImage subfocus st <>
               if showHideMeta then nometaImage focus st else mempty
 
@@ -322,7 +321,7 @@ subfocusImage subfocus st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
     pal         = clientPalette st
 
 focusImage :: Focus -> ClientState -> Image'
-focusImage focus st = infoBubble $ mconcat
+focusImage focus st = mconcat
     [ char (view palWindowName pal) windowName
     , char defAttr ':'
     , viewFocusLabel st focus
