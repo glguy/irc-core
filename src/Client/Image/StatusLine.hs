@@ -42,7 +42,7 @@ clientTitle :: ClientState -> String
 clientTitle st
   = map cleanChar
   $ LText.unpack
-  $ "glirc - " <> imageText (focusImage (view clientFocus st) st)
+  $ "glirc - " <> imageText (viewFocusLabel st (view clientFocus st))
 
 bar :: Image'
 bar = char (withStyle defAttr bold) '─'
@@ -59,7 +59,7 @@ statusLineImage w st =
     common = Vty.horizCat $
       myNickImage st :
       map unpackImage
-      [ infoBubble (focusImage (view clientFocus st) st)
+      [ focusImage (view clientFocus st) st
       , subfocusImage (view clientSubfocus st) st
       , detailImage st
       , nometaImage (view clientFocus st) st
@@ -224,28 +224,35 @@ activitySummary st
 -- | Multi-line activity information enabled by F3
 activityBarImages :: ClientState -> [Vty.Image]
 activityBarImages st
-  = catMaybes
-  $ zipWith baraux winNames
-  $ Map.toList
-  $ Map.filter (views winSilent not)
+  = mapMaybe baraux
+  $ filter (\(_,_,w) -> views winSilent not w)
+  $ addNames (clientWindowNames st)
+  $ Map.toAscList
   $ view clientWindows st
 
   where
+    addNames _ [] = []
+    addNames ns ((k,w):ws)
+      | view winHidden w = (Nothing, k, w) : addNames ns ws
+    addNames (n:ns) ((k,w):ws) = (Just n, k, w) : addNames ns ws
+    addNames [] ws = map (\(k,w) -> (Nothing, k, w)) ws
 
-    winNames = clientWindowNames st ++ repeat '?'
-
-    baraux i (focus,w)
+    baraux (mbName,focus,w)
       | n == 0 = Nothing -- todo: make configurable
       | otherwise = Just
                   $ unpackImage bar Vty.<|>
                     Vty.char defAttr '[' Vty.<|>
-                    Vty.char (view palWindowName pal) i Vty.<|>
-                    Vty.char defAttr ':' Vty.<|>
+                    jumpLabel Vty.<|>
                     Vty.text' (view palLabel pal) (cleanText focusText) Vty.<|>
                     Vty.char defAttr ':' Vty.<|>
                     Vty.string attr (show n) Vty.<|>
                     Vty.char defAttr ']'
       where
+        jumpLabel =
+          case mbName of
+            Nothing   -> mempty
+            Just name -> Vty.char (view palWindowName pal) name Vty.<|>
+                         Vty.char defAttr ':'
         n   = view winUnread w
         pal = clientPalette st
         attr = case view winMention w of
@@ -321,20 +328,21 @@ subfocusImage subfocus st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
     pal         = clientPalette st
 
 focusImage :: Focus -> ClientState -> Image'
-focusImage focus st = mconcat
-    [ char (view palWindowName pal) windowName
-    , char defAttr ':'
-    , viewFocusLabel st focus
-    ]
+focusImage focus st =
+  infoBubble $
+  case windowName of
+    Nothing -> label
+    Just n  -> char (view palWindowName pal) n <> ":" <> label
   where
     !pal        = clientPalette st
     windowNames = clientWindowNames st
+    label       = viewFocusLabel st focus
 
-    windowName = fromMaybe '?'
-               $ do i <- Map.lookupIndex focus (Map.filter (views winHidden not) (view clientWindows st))
-                    preview (ix i) windowNames
-
-
+    windowName =
+      do i <- Map.lookupIndex focus
+            $ Map.filter (views winHidden not)
+            $ view clientWindows st
+         preview (ix i) windowNames
 
 parens :: Attr -> Vty.Image -> Vty.Image
 parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'
