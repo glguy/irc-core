@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 {-|
 Module      : Client.View.Windows
 Description : View of the list of open windows
@@ -26,22 +27,20 @@ import           Irc.Identifier
 
 -- | Draw the image lines associated with the @/windows@ command.
 windowsImages :: WindowsFilter -> ClientState -> [Image']
-windowsImages filt st = reverse (createColumns windows)
+windowsImages filt st
+  = reverse
+  $ createColumns
+  $ [ renderWindowColumns pal (char (view palError pal) 'h')    k v |    (k,v)  <- hiddenWindows     ] ++
+    [ renderWindowColumns pal (char (view palWindowName pal) n) k v | (n,(k,v)) <- zip names windows ]
   where
-    windows = [ renderWindowColumns pal n k v
-              | (n,k,v) <- addNames names
-                         $ views clientWindows Map.toAscList st
-              , windowMatcher filt st k
-              ]
-
     pal     = clientPalette st
-    names   = clientWindowNames st
+    names   = clientWindowNames st ++ repeat ' '
 
-addNames :: [Char] -> [(b, Window)] -> [(Char, b, Window)]
-addNames (x:xs) ((k,v):ys)
-  | views winHidden not v = (x,k,v) : addNames xs ys
-addNames xs ((k,v):ys) = ('?',k,v) : addNames xs ys
-addNames _ [] = []
+    (hiddenWindows, windows)
+      = partition (view (_2 . winHidden))
+      $ filter (windowMatcher filt st . fst)
+      $ Map.toAscList
+      $ view clientWindows st
 
 ------------------------------------------------------------------------
 
@@ -66,9 +65,9 @@ windowMatcher _ _ _ = False
 ------------------------------------------------------------------------
 
 
-renderWindowColumns :: Palette -> Char -> Focus -> Window -> [Image']
+renderWindowColumns :: Palette -> Image' -> Focus -> Window -> [Image']
 renderWindowColumns pal name focus win =
-  [ char (view palWindowName pal) name
+  [ name
   , renderedFocus pal focus
   , renderedWindowInfo pal win
   ]
@@ -96,9 +95,9 @@ renderedFocus pal focus =
 
 renderedWindowInfo :: Palette -> Window -> Image'
 renderedWindowInfo pal win =
-  string (view newMsgAttrLens pal) (views winUnread show win) <>
-  char defAttr '/' <>
-  string (view palActivity pal) (views winTotal show win)
+  string (view newMsgAttrLens pal) (views winUnread show win) <> "/" <>
+  string (view palActivity    pal) (views winTotal  show win) <>
+  (if view winSilent win then text' (view palMeta pal) " silent" else mempty)
   where
     newMsgAttrLens =
       case view winMention win of

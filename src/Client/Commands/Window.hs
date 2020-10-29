@@ -229,7 +229,7 @@ windowCommands = CommandSection "Window management"
       (pure "setwindow")
       (simpleToken "hide|show|loud|silent")
       "Set window property.\n"
-    $ ClientCommand cmdSetWindow noClientTab
+    $ ClientCommand cmdSetWindow tabSetWindow
 
   ]
 
@@ -249,6 +249,12 @@ cmdSetWindow st cmd =
         "loud"   -> Just (set winSilent False)
         "silent" -> Just (set winSilent True)
         _        -> Nothing
+
+tabSetWindow :: Bool {- ^ reversed -} -> ClientCommand String
+tabSetWindow isReversed st _ =
+  simpleTabCompletion plainWordCompleteMode [] completions isReversed st
+  where
+    completions = ["hide", "show", "loud", "silent"] :: [Text]
 
 -- | Implementation of @/grep@
 cmdGrep :: ClientCommand String

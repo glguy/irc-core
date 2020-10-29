@@ -561,6 +561,8 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_STATSULINE   -> sharedLineParamsImage
         RPL_STATSYLINE   -> classLineParamsImage
         RPL_STATSDEBUG   -> statsDebugParamsImage
+        RPL_HELPSTART    -> statsDebugParamsImage
+        RPL_HELPTXT      -> statsDebugParamsImage
         RPL_TESTMASKGECOS-> testmaskGecosParamsImage
         RPL_LOCALUSERS   -> lusersParamsImage
         RPL_GLOBALUSERS  -> lusersParamsImage
@@ -571,7 +573,11 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_ETRACE       -> etraceParamsImage
         RPL_ETRACEFULL   -> etraceFullParamsImage
         RPL_ENDOFTRACE   -> params_2_3_Image
+        RPL_ENDOFHELP    -> params_2_3_Image
+
         ERR_NOPRIVS      -> params_2_3_Image
+        ERR_HELPNOTFOUND -> params_2_3_Image
+        ERR_NEEDMOREPARAMS -> params_2_3_Image
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
