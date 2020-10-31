@@ -982,7 +982,8 @@ highlightNicks ::
 highlightNicks palette myNicks nicks txt = foldMap highlight1 txtParts
   where
     txtParts = nickSplit txt
-    allNicks = HashSet.union myNicks nicks
+    allNicks = HashSet.filter (\i -> Text.length (idText i) > 1)
+             $ HashSet.union myNicks nicks
     highlight1 part
       | HashSet.member partId allNicks = coloredIdentifier palette PrivmsgIdentifier myNicks partId
       | otherwise                      = ctxt part
