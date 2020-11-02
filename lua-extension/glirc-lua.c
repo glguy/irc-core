@@ -12,6 +12,8 @@ registered.  Client interaction is available through the `glirc` lirary.
 @copyright Eric Mertens 2018
 */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <assert.h>
 #include <string.h>
 #include <libgen.h>
@@ -49,6 +51,9 @@ static void push_scriptname
         // When no arguments are provided, default to glirc.lua
         if (args_n == 0) {
                 char *path_copy = strdup(path);
+                if (NULL == path_copy) {
+                    luaL_error(L, "allocation failure");
+                }
                 const char *dir_part = dirname(path_copy);
                 lua_pushfstring(L, "%s/glirc.lua", dir_part);
                 free(path_copy);
