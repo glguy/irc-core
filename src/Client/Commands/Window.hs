@@ -18,7 +18,7 @@ import           Client.Mask (buildMask)
 import           Client.State
 import           Client.State.Focus
 import           Client.State.Network
-import           Client.State.Window (emptyWindow, WindowLines((:-), Nil), wlFullImage, winMessages, winHidden, winSilent)
+import           Client.State.Window (emptyWindow, wlText, winMessages, winHidden, winSilent)
 import           Control.Applicative
 import           Control.Exception
 import           Control.Lens
@@ -528,10 +528,8 @@ cmdDump st fp =
 
   where
     focus = view clientFocus st
-    msgs  = preview (clientWindows . ix focus . winMessages) st
-    outputLines =
-      case msgs of
-        Nothing  -> []
-        Just wls -> convert [] wls
-    convert acc Nil = acc
-    convert acc (wl :- wls) = convert (views wlFullImage imageText wl : acc) wls
+
+    outputLines
+      = reverse
+      $ clientFilter st id
+      $ toListOf (clientWindows . ix focus . winMessages . each . wlText) st
