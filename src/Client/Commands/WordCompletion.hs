@@ -17,6 +17,8 @@ module Client.Commands.WordCompletion
   , plainWordCompleteMode
   , defaultNickWordCompleteMode
   , slackNickWordCompleteMode
+
+  , CaseText, caseText
   ) where
 
 import qualified Client.State.EditBox as Edit
@@ -132,6 +134,18 @@ instance Prefix Text where
   isPrefix = Text.isPrefixOf
   toString = Text.unpack
 
+newtype CaseText = CaseText { unCaseText :: Text }
+  deriving (Eq, Ord, Show, Read)
+
+instance IsString CaseText where
+  fromString = CaseText . Text.toLower . Text.pack
+
+instance Prefix CaseText where
+  isPrefix x y = Text.isPrefixOf (unCaseText x) (unCaseText y)
+  toString = Text.unpack . unCaseText
+
+caseText :: Text -> CaseText
+caseText = CaseText . Text.toLower
 
 -- | Find the next entry in a list of possible choices using an alphabetical
 -- ordering.

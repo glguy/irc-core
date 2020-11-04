@@ -149,7 +149,7 @@ renderLine st pal myNick nicks macros focused input =
 
         allCommands = (Left <$> macros) <> (Right <$> commands)
         (attr, continue)
-          = case recognize (Text.pack cmd) allCommands of
+          = case recognize (Text.toLower (Text.pack cmd)) allCommands of
               Exact (Right Command{cmdArgumentSpec = spec}) ->
                 ( specAttr spec
                 , render pal st focused spec

@@ -13,7 +13,6 @@ import           Client.Commands.Arguments.Spec
 import           Client.Commands.TabCompletion
 import           Client.Commands.Types
 import           Client.Commands.WordCompletion
-import           Client.Image.PackedImage
 import           Client.Mask (buildMask)
 import           Client.State
 import           Client.State.Focus

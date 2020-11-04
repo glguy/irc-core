@@ -411,7 +411,8 @@ commandNameCompletion isReversed st =
     n = length white + length leadingPart
     (cursorPos, line) = clientLine st
     (white, leadingPart) = takeWhile (' ' /=) <$> span (' '==) line
-    possibilities = Text.cons '/' <$> commandNames
+
+    possibilities = caseText . Text.cons '/' <$> commandNames
     commandNames = keys commands
                 ++ keys (view (clientConfig . configMacros) st)
 
