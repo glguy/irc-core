@@ -381,7 +381,10 @@ cmdCtcp cs st (target, cmd, args) =
          argTxt = Text.pack args
          tgtTxt = Text.pack target
 
-     sendMsg cs (ircPrivmsg tgtTxt ("\^A" <> cmdTxt <> " " <> argTxt <> "\^A"))
+     sendMsg cs (ircPrivmsg tgtTxt
+                   ("\^A" <> cmdTxt <>
+                    (if Text.null argTxt then "" else " " <> argTxt) <>
+                    "\^A"))
      chatCommand
         (\src tgt -> Ctcp src tgt cmdTxt argTxt)
         tgtTxt cs st
