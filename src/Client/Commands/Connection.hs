@@ -20,7 +20,7 @@ import           Client.State.Network
 import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
-import           Irc.Commands (ircQuit)
+import           Irc.Commands (ircMode, ircQuit)
 
 connectionCommands :: CommandSection
 connectionCommands = CommandSection "Connection commands"
@@ -63,7 +63,18 @@ connectionCommands = CommandSection "Connection commands"
       "Show the TLS certificate for the current connection.\n"
     $ NetworkCommand cmdCert noNetworkTab
 
+  , Command
+      (pure "umode")
+      (remainingArg "modes")
+      "Apply a user-mode change.\n"
+    $ NetworkCommand cmdUmode noNetworkTab
   ]
+
+cmdUmode :: NetworkCommand String
+cmdUmode cs st rest =
+  do let args = Text.words (Text.pack rest)
+     sendMsg cs (ircMode (view csNick cs) args)
+     commandSuccess st
 
 cmdConnect :: ClientCommand String
 cmdConnect st networkStr =
