@@ -239,14 +239,11 @@ ircLinePrefix !rp body =
     Pong       {} -> mempty
     Nick       {} -> mempty
 
-    Topic src _ _ ->
-      who src <> " changed the topic:"
-
-    Kick kicker _channel kickee _reason ->
-      who kicker <>
-      " kicked " <>
-      coloredIdentifier pal NormalIdentifier myNicks kickee <>
-      ":"
+    -- details in message part
+    Topic src _ _  -> who src
+    Kick src _ _ _ -> who src
+    Mode src _ _   -> who src
+    Invite src _ _ -> who src
 
     Notice src _ _ ->
       who src <>
@@ -276,8 +273,6 @@ ircLinePrefix !rp body =
 
     Cap cmd ->
       text' (withForeColor defAttr magenta) (renderCapCmd cmd) <> ":"
-
-    Mode nick _ _ -> who nick <> " set mode:"
 
     Authenticate{} -> "AUTHENTICATE"
     BatchStart{}   -> mempty
@@ -309,8 +304,16 @@ ircLineImage !rp body =
     Authenticate{} -> "***"
 
     Error                   txt -> parseIrcText txt
-    Topic      _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
-    Kick       _ _ _        txt -> parseIrcTextWithNicks pal myNicks nicks False txt
+    Topic _ _ txt ->
+      "changed the topic: " <>
+      parseIrcTextWithNicks pal myNicks nicks False txt
+
+    Kick _who _channel kickee reason ->
+      "kicked " <>
+      coloredIdentifier pal NormalIdentifier myNicks kickee <>
+      ": " <>
+      parseIrcTextWithNicks pal myNicks nicks False reason
+
     Notice     _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
     Privmsg    _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
     Wallops    _            txt -> parseIrcTextWithNicks pal myNicks nicks False txt
@@ -325,7 +328,15 @@ ircLineImage !rp body =
       char defAttr ' ' <>
       separatedParams (view msgParams irc)
     Cap cmd           -> ctxt (capCmdText cmd)
-    Mode _ _ params   -> ircWords params
+
+    Mode _ _ params ->
+      "set mode: " <>
+      ircWords params
+
+    Invite _ tgt chan ->
+      "invited " <>
+      coloredIdentifier pal NormalIdentifier myNicks tgt <>
+      " to " <> ctxt (idText chan)
 
     Account _ acct -> if Text.null acct then "*" else ctxt acct
     Chghost _ user host -> ctxt user <> " " <> ctxt host
@@ -403,6 +414,14 @@ fullIrcLineImage !rp body =
       who src <>
       " changed the topic: " <>
       parseIrcText txt
+
+    Invite src tgt chan ->
+      string quietAttr "invt " <>
+      who src <>
+      " invited " <>
+      coloredIdentifier pal NormalIdentifier myNicks tgt <>
+      " to " <>
+      ctxt (idText chan)
 
     Notice src _dst txt ->
       string quietAttr "note " <>

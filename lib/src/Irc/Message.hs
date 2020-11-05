@@ -69,6 +69,7 @@ data IrcMsg
   | Account !UserInfo !Text -- ^ user account name changed (account-notify extension)
   | Chghost !UserInfo !Text !Text -- ^ Target, new username and new hostname
   | Wallops  !UserInfo !Text -- ^ Braodcast message: Source, message
+  | Invite !UserInfo !Identifier !Identifier -- ^ sender target channel
   deriving Show
 
 data CapMore = CapMore | CapDone
@@ -181,6 +182,10 @@ cookIrcMsg msg =
               , [txt] <- view msgParams msg ->
       Wallops user txt
 
+    "INVITE" | Just user <- view msgPrefix msg
+             , [target, channel] <- view msgParams msg ->
+      Invite user (mkId target) (mkId channel)
+
     _      -> UnknownMsg msg
 
 -- | Parse a CTCP encoded message:
@@ -215,6 +220,7 @@ msgTarget me msg =
     Quit user _              -> TargetUser (userNick user)
     Kick _ chan _ _          -> TargetWindow chan
     Topic _ chan _           -> TargetWindow chan
+    Invite{}                 -> TargetNetwork
     Privmsg src tgt _        -> directed src tgt
     Ctcp src tgt _ _         -> directed src tgt
     CtcpNotice src tgt _ _   -> directed src tgt
