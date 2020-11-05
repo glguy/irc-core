@@ -518,9 +518,11 @@ cmdUrl st arg =
         Just url -> openUrl opener (Text.unpack url) st
         Nothing  -> commandFailureMsg "bad url number" st
 
-openUrl :: FilePath -> String -> ClientState -> IO CommandResult
-openUrl opener url st =
-  do res <- try (callProcess opener [url])
+openUrl :: UrlOpener -> String -> ClientState -> IO CommandResult
+openUrl (UrlOpener opener args) url st =
+  do let argStr (UrlArgLiteral str) = str
+         argStr UrlArgUrl           = url
+     res <- try (callProcess opener (map argStr args))
      case res of
        Left e  -> commandFailureMsg (Text.pack (displayException (e :: IOError))) st
        Right{} -> commandSuccess st

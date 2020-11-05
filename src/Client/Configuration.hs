@@ -61,6 +61,10 @@ module Client.Configuration
   , FilePathContext
   , newFilePathContext
   , resolveFilePath
+
+  -- * Url opener configuration
+  , UrlOpener(..)
+  , UrlArgument(..)
   ) where
 
 import           Client.Commands.Interpolation
@@ -109,7 +113,7 @@ data Configuration = Configuration
   , _configDownloadDir     :: FilePath -- ^ Directory for downloads, default to HOME
   , _configMacros          :: Recognizer Macro -- ^ command macros
   , _configExtensions      :: [ExtensionConfiguration] -- ^ extensions to load
-  , _configUrlOpener       :: Maybe FilePath -- ^ paths to url opening executable
+  , _configUrlOpener       :: Maybe UrlOpener -- ^ paths to url opening executable
   , _configIgnores         :: [Text] -- ^ initial ignore mask list
   , _configActivityBar     :: Bool -- ^ initially visibility of the activity bar
   , _configBellOnMention   :: Bool -- ^ notify terminal on mention
@@ -119,6 +123,12 @@ data Configuration = Configuration
   , _configShowPing        :: Bool -- ^ visibility of ping time
   , _configJumpModifier    :: [Modifier] -- ^ Modifier used for jumping windows
   }
+  deriving Show
+
+data UrlOpener = UrlOpener FilePath [UrlArgument]
+  deriving Show
+
+data UrlArgument = UrlArgLiteral String | UrlArgUrl
   deriving Show
 
 -- | Setting for how to pad the message prefix.
@@ -271,7 +281,7 @@ configurationSpec = sectionsSpec "config-file" $
                                "Programmable macro commands"
      _configExtensions      <- sec' [] "extensions" (listSpec extensionSpec)
                                "extension libraries to load at startup"
-     _configUrlOpener       <- optSection' "url-opener" stringSpec
+     _configUrlOpener       <- optSection' "url-opener" urlOpenerSpec
                                "External command used by /url command"
      _configExtraHighlights <- sec' mempty "extra-highlights" identifierSetSpec
                                "Extra words to highlight in chat messages"
@@ -467,6 +477,21 @@ rtldFlagSpec = namedSpec "rtld-flag"
            <!> RTLD_GLOBAL <$ atomSpec "global"
            <!> RTLD_NOW    <$ atomSpec "now"
            <!> RTLD_LAZY   <$ atomSpec "lazy"
+
+urlOpenerSpec :: ValueSpec UrlOpener
+urlOpenerSpec = simpleCase <!> complexCase
+  where
+    simpleCase =
+      do path <- stringSpec
+         pure (UrlOpener path [UrlArgUrl])
+
+    complexCase = sectionsSpec "url-opener" $
+      do path <- reqSection' "path" stringSpec "Executable"
+         args <- reqSection' "args" (listSpec argSpec) "Arguments"
+         pure (UrlOpener path args)
+
+    argSpec = UrlArgUrl     <$  atomSpec "url"
+          <!> UrlArgLiteral <$> stringSpec
 
 buildServerMap ::
   ServerSettings {- ^ defaults -} ->
