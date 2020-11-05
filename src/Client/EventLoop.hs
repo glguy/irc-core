@@ -468,6 +468,8 @@ doAction vty action st =
     ActNewerLine         -> changeEditor $ \ed      -> fromMaybe ed $ Edit.later ed
     ActScrollUp          -> continue (scrollClient ( scrollAmount st) st)
     ActScrollDown        -> continue (scrollClient (-scrollAmount st) st)
+    ActScrollUpSmall     -> continue (scrollClient ( 3) st)
+    ActScrollDownSmall   -> continue (scrollClient (-3) st)
 
     ActTabCompleteBack   -> doCommandResult False =<< tabCompletion True  st
     ActTabComplete       -> doCommandResult False =<< tabCompletion False st

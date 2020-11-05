@@ -51,6 +51,8 @@ data Action
   | ActNewerLine
   | ActScrollUp
   | ActScrollDown
+  | ActScrollUpSmall
+  | ActScrollDownSmall
   | ActBackWord
   | ActForwardWord
 
@@ -159,6 +161,8 @@ actionInfos =
   ,("down"              , (ActNewerLine        , [norm KDown]))
   ,("scroll-up"         , (ActScrollUp         , [norm KPageUp]))
   ,("scroll-down"       , (ActScrollDown       , [norm KPageDown]))
+  ,("scroll-up-small"   , (ActScrollUpSmall    , [meta KPageUp]))
+  ,("scroll-down-small" , (ActScrollDownSmall  , [meta KPageDown]))
   ,("enter"             , (ActEnter            , [norm KEnter]))
   ,("word-complete-back", (ActTabCompleteBack  , [norm KBackTab]))
   ,("word-complete"     , (ActTabComplete      , [norm (KChar '\t')]))
