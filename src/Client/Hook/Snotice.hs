@@ -174,6 +174,7 @@ patterns = map toPattern
     (1, "o", [str|^Not kicking immune user |]),
     (1, "o", [str|^Not kicking oper |]),
     (1, "o", [str|^Overriding KICK from |]),
+    (1, "o", [str|^Overriding REMOVE from |]),
     (1, "o", [str|^Server [^ ]+ split from |]),
     (3, "o", [str|^Netsplit [^ ]+ <->|]),
     (2, "o", [str|^Remote SQUIT|]),
