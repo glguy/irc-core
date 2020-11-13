@@ -42,7 +42,7 @@ viewLines focus subfocus w !st =
       channelInfoImages network channel st
     (ChannelFocus network channel, FocusUsers)
       | view clientDetailView st -> userInfoImages network channel st
-      | otherwise                -> userListImages network channel st
+      | otherwise                -> userListImages network channel w st
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel w st
     (_, FocusWindows filt) -> windowsImages filt st

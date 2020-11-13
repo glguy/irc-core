@@ -24,6 +24,7 @@ import           Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
 import           Data.List
+import           Data.List.Split
 import           Data.Ord
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -36,21 +37,27 @@ import           Irc.UserInfo
 -- These lines show the count of users having each channel mode
 -- in addition to the nicknames of the users.
 userListImages ::
-  Text        {- ^ network -} ->
-  Identifier  {- ^ channel -} ->
-  ClientState                 ->
+  Text        {- ^ network              -} ->
+  Identifier  {- ^ channel              -} ->
+  Int         {- ^ window width         -} ->
+  ClientState {- ^ client state         -} ->
   [Image']
-userListImages network channel st =
+userListImages network channel w st =
   case preview (clientConnection network) st of
-    Just cs -> userListImages' cs channel st
+    Just cs -> userListImages' cs channel w st
     Nothing -> [text' (view palError pal) "No connection"]
   where
     pal = clientPalette st
 
-userListImages' :: NetworkState -> Identifier -> ClientState -> [Image']
-userListImages' cs channel st =
-    [countImage, mconcat (intersperse gap (map renderUser usersList))]
+userListImages' :: NetworkState -> Identifier -> Int -> ClientState -> [Image']
+userListImages' cs channel w st
+  = countImage : reverse [mconcat (intersperse gap row) | row <- chunksOf columns paddedNames]
   where
+    paddedNames = map (resizeImage maxWidth) nameImages
+    nameImages = map renderUser usersList
+    maxWidth   = maximum (map imageWidth nameImages)
+    columns    = max 1 ((w+1) `quot` (maxWidth+1))
+
     countImage = drawSigilCount pal (map snd usersList)
 
     myNicks = clientHighlights cs st
