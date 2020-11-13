@@ -20,6 +20,7 @@ import           Client.State.Focus
 import           Client.State.Network
 import           Control.Lens
 import           Data.Text (Text)
+import qualified Data.Text.Lazy as LText
 
 -- | Render the lines used in a channel mask list
 certViewLines ::
@@ -29,7 +30,8 @@ certViewLines st
   , Just cs <- preview (clientConnection network) st
   , let xs = view csCertificate cs
   , not (null xs)
-  = parseIrcText <$> xs
+  = map parseIrcText
+  $ clientFilter st LText.fromStrict xs
 
   | otherwise = [text' (view palError pal) "No certificate available"]
   where
