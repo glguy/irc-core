@@ -26,11 +26,9 @@ import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
-import           Client.State.Focus
 import qualified Client.State.EditBox as Edit
 import           Control.Lens
-import qualified Data.HashSet as HashSet
-import           Data.HashSet (HashSet)
+import           Data.HashMap.Strict (HashMap)
 import           Data.List
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
@@ -46,7 +44,7 @@ textboxImage width st
   where
   macros = views (clientConfig . configMacros) (fmap macroSpec) st
   (txt, content) =
-     renderContent st myNick nicks macros pal
+     renderContent st hilites macros pal
        (view (clientTextBox . Edit.content) st)
 
   lineImage = unpackImage (beginning <> content <> ending)
@@ -76,14 +74,7 @@ textboxImage width st
   beginning = char attr '^'
   ending    = char attr '$'
 
-
-  (myNick,nicks) =
-    case view clientFocus st of
-      ChannelFocus network channel ->
-         (clientHighlightsNetwork network st,
-          HashSet.fromList (channelUserList network channel st)
-         )
-      _ -> (HashSet.empty, HashSet.empty)
+  hilites = clientHighlightsFocus (view clientFocus st) st
 
 
 -- | Renders the whole, uncropped text box as well as the 'String'
@@ -91,13 +82,12 @@ textboxImage width st
 -- the logical cursor position of the cropped version of the text box.
 renderContent ::
   ClientState          {- ^ client state                          -} ->
-  HashSet Identifier   {- ^ my nicknames                          -} ->
-  HashSet Identifier   {- ^ other nicknames                       -} ->
+  HashMap Identifier Highlight {- ^ highlights                    -} ->
   Recognizer MacroSpec {- ^ macro completions                     -} ->
   Palette              {- ^ palette                               -} ->
   Edit.Content         {- ^ content                               -} ->
   (Int, Image')        {- ^ left-of-cursor width, image rendering -}
-renderContent st myNick nicks macros pal c = (leftLen, wholeImg)
+renderContent st hilites macros pal c = (leftLen, wholeImg)
   where
   as  = reverse (view Edit.above c)
   bs  = view Edit.below c
@@ -111,7 +101,7 @@ renderContent st myNick nicks macros pal c = (leftLen, wholeImg)
           + sum (map imageWidth leftImgs)
           + imageWidth (parseIrcText' True (Text.pack leftCur))
 
-  rndr = renderLine st pal myNick nicks macros
+  rndr = renderLine st pal hilites macros
 
   leftImgs = map (rndr False) as
 
@@ -127,13 +117,12 @@ renderContent st myNick nicks macros pal c = (leftLen, wholeImg)
 renderLine ::
   ClientState ->
   Palette ->
-  HashSet Identifier ->
-  HashSet Identifier ->
+  HashMap Identifier Highlight ->
   Recognizer MacroSpec {- ^ commands     -} ->
   Bool                 {- ^ focused      -} ->
   String               {- ^ input text   -} ->
   Image'               {- ^ output image -}
-renderLine st pal myNick nicks macros focused input =
+renderLine st pal hilites macros focused input =
 
   case span (' '==) input of
     (spcs, '/':xs) -> string defAttr spcs <> char defAttr '/'
@@ -160,10 +149,10 @@ renderLine st pal myNick nicks macros focused input =
                 )
               Prefix _ ->
                 ( view palCommandPrefix pal
-                , parseIrcTextWithNicks pal myNick nicks focused . Text.pack
+                , parseIrcTextWithNicks pal hilites focused . Text.pack
                 )
               Invalid ->
                 ( view palCommandError pal
-                , parseIrcTextWithNicks pal myNick nicks focused . Text.pack
+                , parseIrcTextWithNicks pal hilites focused . Text.pack
                 )
-    _ -> parseIrcTextWithNicks pal myNick nicks focused (Text.pack input)
+    _ -> parseIrcTextWithNicks pal hilites focused (Text.pack input)

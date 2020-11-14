@@ -22,11 +22,9 @@ import           Client.Image.LineWrap
 import           Client.Message
 import           Client.State
 import           Client.State.Focus
-import           Client.State.Network
 import           Client.State.Window
 import           Control.Lens
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
+import           Data.HashMap.Strict (HashMap)
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
@@ -43,7 +41,7 @@ urlSelectionView ::
   [Image']    {- ^ image lines         -}
 urlSelectionView w focus arg st
   = concat
-  $ zipWith (draw w me pal padding selected) [1..] (toListOf urled st)
+  $ zipWith (draw w hilites pal padding selected) [1..] (toListOf urled st)
   where
     urled = clientWindows . ix focus
           . winMessages   . each
@@ -61,9 +59,7 @@ urlSelectionView w focus arg st
     padding = view configNickPadding cfg
     pal     = view configPalette cfg
 
-    me      = maybe HashSet.empty HashSet.singleton
-            $ do net <- focusNetwork focus
-                 preview (clientConnection net . csNick) st
+    hilites = clientHighlightsFocus focus st
 
 
 matches :: WindowLine -> [(Maybe Identifier, Text)]
@@ -88,19 +84,19 @@ summaryActor s =
 -- | Render one line of the url list
 draw ::
   Int                       {- ^ rendered width            -} ->
-  HashSet Identifier        {- ^ my nick                   -} ->
+  HashMap Identifier Highlight {- ^ highlights             -} ->
   Palette                   {- ^ palette                   -} ->
   PaddingMode               {- ^ nick render padding       -} ->
   Int                       {- ^ selected index            -} ->
   Int                       {- ^ url index                 -} ->
   (Maybe Identifier, Text)  {- ^ sender and url text       -} ->
   [Image']                  {- ^ rendered lines            -}
-draw w me pal padding selected i (who,url)
+draw w hilites pal padding selected i (who,url)
   = reverse
   $ lineWrapPrefix w
       (string defAttr (shows i ". ") <>
        nickPad padding
-         (foldMap (coloredIdentifier pal NormalIdentifier me) who) <> ": ")
+         (foldMap (coloredIdentifier pal NormalIdentifier hilites) who) <> ": ")
       (text' attr (cleanText url))
   where
     attr | selected == i = withStyle defAttr reverseVideo

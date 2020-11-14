@@ -18,6 +18,7 @@ import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
 import           Client.State.Channel
+import           Client.State.Focus
 import           Client.State.Network
 import           Client.UserHost
 import           Control.Lens
@@ -60,11 +61,11 @@ userListImages' cs channel w st
 
     countImage = drawSigilCount pal (map snd usersList)
 
-    myNicks = clientHighlights cs st
+    hilites = clientHighlightsFocus (ChannelFocus (view csNetwork cs) channel) st
 
     renderUser (ident, sigils) =
       string (view palSigil pal) sigils <>
-      coloredIdentifier pal NormalIdentifier myNicks ident
+      coloredIdentifier pal NormalIdentifier hilites ident
 
     gap = char defAttr ' '
 
@@ -113,13 +114,13 @@ userInfoImages' cs channel st = countImage : map renderEntry usersList
   where
     countImage = drawSigilCount pal (map snd usersList)
 
-    myNicks = clientHighlights cs st
+    hilites = clientHighlightsFocus (ChannelFocus (view csNetwork cs) channel) st
 
     pal = clientPalette st
 
     renderEntry ((info, acct), sigils) =
       string (view palSigil pal) sigils <>
-      coloredUserInfo pal DetailedRender myNicks info <>
+      coloredUserInfo pal DetailedRender hilites info <>
       " " <> text' (view palMeta pal) (cleanText acct)
 
     filterOn ((info, acct),sigils) =

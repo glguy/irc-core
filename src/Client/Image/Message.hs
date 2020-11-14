@@ -25,7 +25,9 @@ module Client.Image.Message
   , nickPad
   , timeImage
   , drawWindowLine
+
   , parseIrcTextWithNicks
+  , Highlight(..)
   ) where
 
 import           Client.Configuration (PaddingMode(..))
@@ -41,8 +43,7 @@ import           Control.Lens
 import           Data.Char
 import           Data.Hashable (hash)
 import           Data.HashMap.Strict (HashMap)
-import           Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -60,8 +61,7 @@ import           Text.Read
 data MessageRendererParams = MessageRendererParams
   { rendStatusMsg  :: [Char] -- ^ restricted message sigils
   , rendUserSigils :: [Char] -- ^ sender sigils
-  , rendNicks      :: HashSet Identifier -- ^ nicknames to highlight
-  , rendMyNicks    :: HashSet Identifier -- ^ nicknames to highlight in red
+  , rendHighlights :: HashMap Identifier Highlight -- ^ words to highlight
   , rendPalette    :: Palette -- ^ nick color palette
   , rendAccounts   :: Maybe (HashMap Identifier UserAndHost)
   }
@@ -71,8 +71,7 @@ defaultRenderParams :: MessageRendererParams
 defaultRenderParams = MessageRendererParams
   { rendStatusMsg   = ""
   , rendUserSigils  = ""
-  , rendNicks       = HashSet.empty
-  , rendMyNicks     = HashSet.empty
+  , rendHighlights  = HashMap.empty
   , rendPalette     = defaultPalette
   , rendAccounts    = Nothing
   }
@@ -211,12 +210,12 @@ ircLinePrefix ::
 ircLinePrefix !rp body =
   let pal     = rendPalette rp
       sigils  = rendUserSigils rp
-      myNicks = rendMyNicks rp
+      hilites = rendHighlights rp
       rm      = NormalRender
 
       who n   = string (view palSigil pal) sigils <> ui
         where
-          baseUI    = coloredUserInfo pal rm myNicks n
+          baseUI    = coloredUserInfo pal rm hilites n
           ui = case rendAccounts rp of
                  Nothing -> baseUI -- not tracking any accounts
                  Just accts ->
@@ -289,8 +288,7 @@ ircLineImage ::
   IrcMsg -> Image'
 ircLineImage !rp body =
   let pal     = rendPalette rp
-      myNicks = rendMyNicks rp
-      nicks   = rendNicks rp
+      hilites = rendHighlights rp
   in
   case body of
     Join        {} -> mempty
@@ -306,21 +304,21 @@ ircLineImage !rp body =
     Error                   txt -> parseIrcText txt
     Topic _ _ txt ->
       "changed the topic: " <>
-      parseIrcTextWithNicks pal myNicks nicks False txt
+      parseIrcTextWithNicks pal hilites False txt
 
     Kick _who _channel kickee reason ->
       "kicked " <>
-      coloredIdentifier pal NormalIdentifier myNicks kickee <>
+      coloredIdentifier pal NormalIdentifier hilites kickee <>
       ": " <>
-      parseIrcTextWithNicks pal myNicks nicks False reason
+      parseIrcTextWithNicks pal hilites False reason
 
-    Notice     _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
-    Privmsg    _ _          txt -> parseIrcTextWithNicks pal myNicks nicks False txt
-    Wallops    _            txt -> parseIrcTextWithNicks pal myNicks nicks False txt
-    Ctcp       _ _ "ACTION" txt -> parseIrcTextWithNicks pal myNicks nicks False txt
+    Notice     _ _          txt -> parseIrcTextWithNicks pal hilites False txt
+    Privmsg    _ _          txt -> parseIrcTextWithNicks pal hilites False txt
+    Wallops    _            txt -> parseIrcTextWithNicks pal hilites False txt
+    Ctcp       _ _ "ACTION" txt -> parseIrcTextWithNicks pal hilites False txt
     Ctcp {}                     -> mempty
     CtcpNotice _ _ cmd      txt -> parseIrcText cmd <> " " <>
-                                   parseIrcTextWithNicks pal myNicks nicks False txt
+                                   parseIrcTextWithNicks pal hilites False txt
 
     Reply code params -> renderReplyCode pal NormalRender code params
     UnknownMsg irc ->
@@ -335,7 +333,7 @@ ircLineImage !rp body =
 
     Invite _ tgt chan ->
       "invited " <>
-      coloredIdentifier pal NormalIdentifier myNicks tgt <>
+      coloredIdentifier pal NormalIdentifier hilites tgt <>
       " to " <> ctxt (idText chan)
 
     Account _ acct -> if Text.null acct then "*" else ctxt acct
@@ -350,11 +348,10 @@ fullIrcLineImage !rp body =
   let quietAttr = view palMeta pal
       pal     = rendPalette rp
       sigils  = rendUserSigils rp
-      myNicks = rendMyNicks rp
-      nicks   = rendNicks rp
+      hilites = rendHighlights rp
       rm      = DetailedRender
 
-      plainWho = coloredUserInfo pal rm myNicks
+      plainWho = coloredUserInfo pal rm hilites
 
       who n =
         -- sigils
@@ -373,7 +370,7 @@ fullIrcLineImage !rp body =
       string quietAttr "nick " <>
       who old <>
       " is now known as " <>
-      coloredIdentifier pal NormalIdentifier myNicks new
+      coloredIdentifier pal NormalIdentifier hilites new
 
     Join nick _chan acct gecos ->
       string quietAttr "join " <>
@@ -405,7 +402,7 @@ fullIrcLineImage !rp body =
       string quietAttr "kick " <>
       who kicker <>
       " kicked " <>
-      coloredIdentifier pal NormalIdentifier myNicks kickee <>
+      coloredIdentifier pal NormalIdentifier hilites kickee <>
       ": " <>
       parseIrcText reason
 
@@ -419,7 +416,7 @@ fullIrcLineImage !rp body =
       string quietAttr "invt " <>
       who src <>
       " invited " <>
-      coloredIdentifier pal NormalIdentifier myNicks tgt <>
+      coloredIdentifier pal NormalIdentifier hilites tgt <>
       " to " <>
       ctxt (idText chan)
 
@@ -427,23 +424,23 @@ fullIrcLineImage !rp body =
       string quietAttr "note " <>
       who src <>
       string (withForeColor defAttr red) ": " <>
-      parseIrcTextWithNicks pal myNicks nicks False txt
+      parseIrcTextWithNicks pal hilites False txt
 
     Privmsg src _dst txt ->
       string quietAttr "chat " <>
       who src <> ": " <>
-      parseIrcTextWithNicks pal myNicks nicks False txt
+      parseIrcTextWithNicks pal hilites False txt
 
     Wallops src txt ->
       string quietAttr "wall " <>
       who src <> ": " <>
-      parseIrcTextWithNicks pal myNicks nicks False txt
+      parseIrcTextWithNicks pal hilites False txt
 
     Ctcp src _dst "ACTION" txt ->
       string quietAttr "actp " <>
       string (withForeColor defAttr blue) "* " <>
       who src <> " " <>
-      parseIrcTextWithNicks pal myNicks nicks False txt
+      parseIrcTextWithNicks pal hilites False txt
 
     Ctcp src _dst cmd txt ->
       string quietAttr "ctcp " <>
@@ -473,7 +470,7 @@ fullIrcLineImage !rp body =
       renderReplyCode pal DetailedRender code params
 
     UnknownMsg irc ->
-      foldMap (\ui -> coloredUserInfo pal rm myNicks ui <> char defAttr ' ')
+      foldMap (\ui -> coloredUserInfo pal rm hilites ui <> char defAttr ' ')
         (view msgPrefix irc) <>
       ctxt (view msgCommand irc) <>
       char defAttr ' ' <>
@@ -931,14 +928,14 @@ data IdentifierColorMode
 coloredIdentifier ::
   Palette             {- ^ color palette      -} ->
   IdentifierColorMode {- ^ draw mode          -} ->
-  HashSet Identifier  {- ^ my nicknames       -} ->
+  HashMap Identifier Highlight {- ^ highlights -} ->
   Identifier          {- ^ identifier to draw -} ->
   Image'
-coloredIdentifier palette icm myNicks ident =
+coloredIdentifier palette icm hilites ident =
   text' color (cleanText (idText ident))
   where
     color
-      | ident `HashSet.member` myNicks =
+      | Just HighlightMe == HashMap.lookup ident hilites =
           case icm of
             PrivmsgIdentifier -> view palSelfHighlight palette
             NormalIdentifier  -> view palSelf palette
@@ -954,14 +951,14 @@ coloredIdentifier palette icm myNicks ident =
 coloredUserInfo ::
   Palette            {- ^ color palette   -} ->
   RenderMode         {- ^ mode            -} ->
-  HashSet Identifier {- ^ my nicks        -} ->
+  HashMap Identifier Highlight {- ^ highlights -} ->
   UserInfo           {- ^ userinfo to draw-} ->
   Image'
-coloredUserInfo palette NormalRender myNicks ui =
-  coloredIdentifier palette NormalIdentifier myNicks (userNick ui)
-coloredUserInfo palette DetailedRender myNicks !ui =
+coloredUserInfo palette NormalRender hilites ui =
+  coloredIdentifier palette NormalIdentifier hilites (userNick ui)
+coloredUserInfo palette DetailedRender hilites !ui =
   mconcat
-    [ coloredIdentifier palette NormalIdentifier myNicks (userNick ui)
+    [ coloredIdentifier palette NormalIdentifier hilites (userNick ui)
     , aux '!' (userName ui)
     , aux '@' (userHost ui)
     ]
@@ -976,36 +973,40 @@ quietIdentifier :: Palette -> Identifier -> Image'
 quietIdentifier palette ident =
   text' (view palMeta palette) (cleanText (idText ident))
 
+data Highlight
+  = HighlightMe
+  | HighlightNick
+  | HighlightError
+  deriving Eq
+
 -- | Parse message text to construct an image. If the text has formatting
 -- control characters in it then the text will be rendered according to
 -- the formatting codes. Otherwise the nicknames in the message are
 -- highlighted.
 parseIrcTextWithNicks ::
   Palette            {- ^ palette      -} ->
-  HashSet Identifier {- ^ my nicks     -} ->
-  HashSet Identifier {- ^ other nicks  -} ->
+  HashMap Identifier Highlight {- ^ Highlights -} ->
   Bool               {- ^ explicit controls rendering -} ->
   Text               {- ^ input text   -} ->
   Image'             {- ^ colored text -}
-parseIrcTextWithNicks palette myNick nicks explicit txt
+parseIrcTextWithNicks palette hilite explicit txt
   | Text.any isControl txt = parseIrcText' explicit txt
-  | otherwise              = highlightNicks palette myNick nicks txt
+  | otherwise              = highlightNicks palette hilite txt
 
 -- | Given a list of nicknames and a chat message, this will generate
 -- an image where all of the occurrences of those nicknames are colored.
 highlightNicks ::
   Palette ->
-  HashSet Identifier {- ^ my nicks    -} ->
-  HashSet Identifier {- ^ other nicks -} ->
+  HashMap Identifier Highlight {- ^ highlights -} ->
   Text -> Image'
-highlightNicks palette myNicks nicks txt = foldMap highlight1 txtParts
+highlightNicks palette hilites txt = foldMap highlight1 txtParts
   where
     txtParts = nickSplit txt
-    allNicks = HashSet.filter (\i -> Text.length (idText i) > 1)
-             $ HashSet.union myNicks nicks
-    highlight1 part
-      | HashSet.member partId allNicks = coloredIdentifier palette PrivmsgIdentifier myNicks partId
-      | otherwise                      = ctxt part
+    highlight1 part =
+      case HashMap.lookup partId hilites of
+        Nothing -> ctxt part
+        Just HighlightError -> text' (view palError palette) part
+        _ -> coloredIdentifier palette PrivmsgIdentifier hilites partId
       where
         partId = mkId part
 

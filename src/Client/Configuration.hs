@@ -84,8 +84,6 @@ import           Data.Foldable                       (toList)
 import           Data.Functor.Alt                    ((<!>))
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
-import           Data.HashSet                        (HashSet)
-import qualified Data.HashSet                        as HashSet
 import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Maybe
 import           Data.Monoid                         (Endo(..))
@@ -108,7 +106,7 @@ data Configuration = Configuration
   , _configServers         :: (HashMap Text ServerSettings) -- ^ Host-specific settings
   , _configPalette         :: Palette -- ^ User-customized color palette
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
-  , _configExtraHighlights :: HashSet Identifier -- ^ Extra highlight nicks/terms
+  , _configExtraHighlights :: [Identifier] -- ^ Extra highlight nicks/terms
   , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
   , _configDownloadDir     :: FilePath -- ^ Directory for downloads, default to HOME
   , _configMacros          :: Recognizer Macro -- ^ command macros
@@ -265,7 +263,6 @@ configurationSpec ::
 configurationSpec = sectionsSpec "config-file" $
 
   do let sec' def name spec info = fromMaybe def <$> optSection' name spec info
-         identifierSetSpec       = HashSet.fromList <$> listSpec identifierSpec
 
      ssDefUpdate            <- sec' id "defaults" serverSpec
                                "Default values for use across all server configurations"
@@ -283,7 +280,7 @@ configurationSpec = sectionsSpec "config-file" $
                                "extension libraries to load at startup"
      _configUrlOpener       <- optSection' "url-opener" urlOpenerSpec
                                "External command used by /url command"
-     _configExtraHighlights <- sec' mempty "extra-highlights" identifierSetSpec
+     _configExtraHighlights <- sec' mempty "extra-highlights" (listSpec identifierSpec)
                                "Extra words to highlight in chat messages"
      _configNickPadding     <- sec' NoPadding "nick-padding" nickPaddingSpec
                                "Amount of space to reserve for nicknames in chat messages"

@@ -47,6 +47,7 @@ module Client.State
   , clientRtsStats
   , clientConfigPath
   , clientStsPolicy
+  , clientHighlights
 
   -- * Client operations
   , withClientState
@@ -54,7 +55,6 @@ module Client.State
   , clientFilter
   , buildMatcher
   , clientToggleHideMeta
-  , clientHighlightsNetwork
   , channelUserList
 
   , consumeInput
@@ -68,7 +68,7 @@ module Client.State
   , clientTick
   , queueDCCTransfer
   , applyMessageToClientState
-  , clientHighlights
+  , clientHighlightsFocus
   , clientWindowNames
   , clientPalette
   , clientAutoconnects
@@ -202,6 +202,7 @@ data ClientState = ClientState
   , _clientRtsStats          :: Maybe Stats               -- ^ most recent GHC RTS stats
 
   , _clientStsPolicy         :: !(HashMap Text StsPolicy) -- ^ STS policy entries
+  , _clientHighlights        :: !(HashMap Identifier Highlight) -- ^ highlights
   }
 
 data Matcher = Matcher
@@ -284,6 +285,7 @@ withClientState cfgPath cfg k =
         , _clientErrorMsg          = Nothing
         , _clientRtsStats          = Nothing
         , _clientStsPolicy         = sts
+        , _clientHighlights        = HashMap.empty
         }
 
 withExtensionState :: (ExtensionState -> IO a) -> IO a
@@ -334,8 +336,7 @@ recordChannelMessage network channel msg st
     rendParams = MessageRendererParams
       { rendStatusMsg   = statusModes
       , rendUserSigils  = computeMsgLineSigils network channel' msg st
-      , rendNicks       = HashSet.fromList (channelUserList network channel' st)
-      , rendMyNicks     = highlights
+      , rendHighlights  = highlights
       , rendPalette     = clientPalette st
       , rendAccounts    = accounts
       }
@@ -345,7 +346,7 @@ recordChannelMessage network channel msg st
     possibleStatusModes     = view csStatusMsg cs
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
     importance              = msgImportance msg st
-    highlights              = clientHighlightsNetwork network st
+    highlights              = clientHighlightsFocus (ChannelFocus network channel) st
 
     accounts =
       if view (csSettings . ssShowAccounts) cs
@@ -383,10 +384,10 @@ msgImportance :: ClientMessage -> ClientState -> WindowLineImportance
 msgImportance msg st =
   let network = view msgNetwork msg
       me      = preview (clientConnection network . csNick) st
-      highlights = clientHighlightsNetwork network st
+      highlights = clientHighlightsFocus (NetworkFocus network) st
       isMe x  = Just x == me
       checkTxt txt
-        | any (\x -> HashSet.member (mkId x) highlights)
+        | any (\x -> Just HighlightMe == HashMap.lookup (mkId x) highlights)
               (nickSplit txt) = WLImportant
         | otherwise           = WLNormal
   in
@@ -471,8 +472,7 @@ recordIrcMessage network target msg st =
                              (addToWindow wl) st')
            st chans
       where
-        cfg   = view clientConfig st
-        wl    = toWindowLine' cfg WLBoring msg
+        wl    = toWindowLine' network st WLBoring msg
         chans = user
               : case preview (clientConnection network . csChannels) st of
                   Nothing -> []
@@ -534,9 +534,7 @@ recordNetworkMessage msg st = updateTransientError focus msg
     focus      | Text.null network = Unfocused
                | otherwise         = NetworkFocus (view msgNetwork msg)
     importance = msgImportance msg st
-    wl         = toWindowLine' cfg importance msg
-
-    cfg        = view clientConfig st
+    wl         = toWindowLine' network st importance msg
 
 recordError ::
   ZonedTime       {- ^ now             -} ->
@@ -587,11 +585,11 @@ toWindowLine params importance msg = WindowLine
     (prefix, image, full) = msgImage (view msgTime msg) params (view msgBody msg)
 
 -- | 'toWindowLine' but with mostly defaulted parameters.
-toWindowLine' :: Configuration -> WindowLineImportance -> ClientMessage -> WindowLine
-toWindowLine' config =
+toWindowLine' :: Text -> ClientState -> WindowLineImportance -> ClientMessage -> WindowLine
+toWindowLine' network st =
   toWindowLine defaultRenderParams
-    { rendPalette     = view configPalette     config
-    , rendMyNicks     = view configExtraHighlights config
+    { rendPalette     = view (clientConfig . configPalette) st
+    , rendHighlights  = clientHighlightsFocus (NetworkFocus network) st
     }
 
 
@@ -1035,27 +1033,35 @@ stepFocus selector st =
   where
     (l,r) = Map.split (view clientFocus st) (view clientWindows st)
 
--- | Compute the set of extra identifiers that should be highlighted given
--- a particular network state.
-clientHighlights ::
-  NetworkState       {- ^ network state               -} ->
-  ClientState        {- ^ client state                -} ->
-  HashSet Identifier {- ^ extra highlight identifiers -}
-clientHighlights cs st =
-  HashSet.insert
-    (view csNick cs)
-    (view (clientConfig . configExtraHighlights) st)
+clientHighlightsFocus ::
+  Focus ->
+  ClientState ->
+  HashMap Identifier Highlight
+clientHighlightsFocus focus st =
+  case focus of
+    ChannelFocus n c -> netcase n (Just c)
+    NetworkFocus n   -> netcase n Nothing
+    Unfocused        -> base
+  where
+    base = HashMap.fromList [(x, HighlightMe) | x <- view (clientConfig . configExtraHighlights) st]
+        <> view clientHighlights st
 
--- | Compute the set of extra identifiers that should be highlighted given
--- a particular network.
-clientHighlightsNetwork ::
-  Text               {- ^ network                     -} ->
-  ClientState        {- ^ client state                -} ->
-  HashSet Identifier {- ^ extra highlight identifiers -}
-clientHighlightsNetwork network st =
-  case preview (clientConnection network) st of
-    Just cs -> clientHighlights cs st
-    Nothing -> view (clientConfig . configExtraHighlights) st
+    replace x y =
+      case x of
+        HighlightError -> y
+        _              -> x
+
+    netcase n mbC =
+      case preview (clientConnection n) st of
+        Nothing -> view clientHighlights st
+        Just cs ->
+          HashMap.unionWith
+            replace
+            (HashMap.insert (view csNick cs) HighlightMe base)
+            (HashMap.fromList [(u, HighlightNick)
+                                | Just c <- [mbC]
+                                , u <- views (csChannels . ix c . chanUsers) HashMap.keys cs
+                                , Text.length (idText u) > 1 ])
 
 -- | Produce the list of window names configured for the client.
 clientWindowNames ::
