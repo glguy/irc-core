@@ -104,8 +104,9 @@ defaults:
 servers:
   * name: "fn"
     hostname:      "chat.freenode.net"
-    sasl-username: "someuser"
-    sasl-password: "somepass"
+    sasl:
+      username: "someuser"
+      password: "somepass"
     socks-host:    "socks5.example.com"
     socks-port:    8080 -- defaults to 1080
     log-dir:       "/home/myuser/ircLogs"
@@ -198,9 +199,7 @@ Server Settings
 | `username`            | text                 | server username                                                |
 | `realname`            | text                 | real name / GECOS                                              |
 | `password`            | text                 | server password                                                |
-| `sasl-username`       | text                 | SASL username                                                  |
-| `sasl-password`       | text                 | SASL password (PLAIN mode)                                     |
-| `sasl-ecdsa-key`      | text                 | Path ecdsa private key file (ECDSA-NIST256P-CHALLENGE mode)    |
+| `sasl`                | sasl-settings        | SASL authentication settings                                   |
 | `tls`                 | yes/yes-insecure/no  | use TLS to connect (insecure mode disables certificate checks) |
 | `tls-client-cert`     | text                 | path to TLS client certificate                                 |
 | `tls-client-key`      | text                 | path to TLS client key                                         |
@@ -216,6 +215,19 @@ Server Settings
 | `reconnect-attempts`  | int                  | number of reconnections to attempt on error                    |
 | `autoconnect`         | yes or no            | automatically connect at client startup                        |
 | `nick-completion`     | default or slack     | set this to slack to use `@` sigils when completing nicks      |
+
+SASL Settings
+-------------
+
+By default SASL will use PLAIN mode, but you can specify one of: `plain`, `external`, or `ecdsa-nist256p-challenge`.
+
+| setting               | type                 | description                                                    |
+|-----------------------|----------------------|----------------------------------------------------------------|
+| `mechanism`           | optional mechanism   | SASL mechanism (defaults to PLAIN)                             |
+| `username`            | text                 | SASL username (PLAIN and ECDSA-NIST256P-CHALLENGE mode)        |
+| `password`            | text                 | SASL password (PLAIN mode)                                     |
+| `private-key`         | text                 | Path to ECDSA private key file (ECDSA-NIST256P-CHALLENGE mode) |
+| `authzid`             | text                 | Authorization identity (very rarely needed)                    |
 
 Palette
 -------
