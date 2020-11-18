@@ -586,6 +586,11 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_LUSERCHANNELS-> params_2_3_Image
         RPL_ENDOFSTATS   -> params_2_3_Image
         RPL_AWAY         -> awayParamsImage
+        RPL_TRACEUSER    -> traceUserParamsImage
+        RPL_TRACEOPERATOR-> traceOperatorParamsImage
+        RPL_TRACESERVER  -> traceServerParamsImage
+        RPL_TRACECLASS   -> traceClassParamsImage
+        RPL_TRACEUNKNOWN -> traceUnknownParamsImage
         RPL_ETRACE       -> etraceParamsImage
         RPL_ETRACEFULL   -> etraceFullParamsImage
         RPL_ENDOFTRACE   -> params_2_3_Image
@@ -842,6 +847,65 @@ renderReplyCode pal rm code@(ReplyCode w) params =
           (if ip == "0" || ip == "255.255.255.255" then mempty else label " ip" <> ctxt ip) <>
           label " server" <> ctxt server <>
           label " kind" <> ctxt kind
+        _ -> rawParamsImage
+
+    traceUnknownParamsImage =
+      case params of
+        [_, "????", klass, mask, ip, lastmsg]
+          | Text.length ip > 2
+          , Text.head ip == '('
+          , Text.last ip == ')' ->
+          ctxt mask <>
+          (if ip == "255.255.255.255" then mempty else
+           label " ip" <> ctxt (Text.tail (Text.init ip))) <>
+          label " class" <> ctxt klass <>
+          label " idle" <> string defAttr (prettyTime 1 (Text.unpack lastmsg))
+        _ -> rawParamsImage
+
+    traceServerParamsImage =
+      case params of
+        [_, "Serv", klass, prefix, user, link, me, lastmsg] ->
+          ctxt me <>
+          (if link == "*" then mempty else
+           label " link" <> ctxt link) <>
+          label " prefix" <> ctxt prefix <>
+          label " user" <> ctxt user <>
+          label " class" <> ctxt klass <>
+          label " idle" <> string defAttr (prettyTime 1 (Text.unpack lastmsg))
+        _ -> rawParamsImage
+
+    traceClassParamsImage =
+      case params of
+        [_, "Class", klass, count] ->
+           ctxt klass <> label " count" <> ctxt count
+        _ -> rawParamsImage
+
+    traceUserParamsImage =
+      case params of
+        [_, "User", klass, mask, ip, lastpkt, lastmsg]
+          | Text.length ip > 2
+          , Text.head ip == '('
+          , Text.last ip == ')' ->
+          ctxt mask <>
+          (if ip == "255.255.255.255" then mempty else
+           label " ip" <> ctxt (Text.tail (Text.init ip))) <>
+          label " class" <> ctxt klass <>
+          label " pkt-idle" <> string defAttr (prettyTime 1 (Text.unpack lastpkt)) <>
+          label " msg-idle" <> string defAttr (prettyTime 1 (Text.unpack lastmsg))
+        _ -> rawParamsImage
+
+    traceOperatorParamsImage =
+      case params of
+        [_, "Oper", klass, mask, ip, lastpkt, lastmsg]
+          | Text.length ip > 2
+          , Text.head ip == '('
+          , Text.last ip == ')' ->
+          ctxt mask <>
+          (if ip == "255.255.255.255" then mempty else
+           label " ip" <> ctxt (Text.tail (Text.init ip))) <>
+          label " class" <> ctxt klass <>
+          label " pkt-idle" <> string defAttr (prettyTime 1 (Text.unpack lastpkt)) <>
+          label " msg-idle" <> string defAttr (prettyTime 1 (Text.unpack lastmsg))
         _ -> rawParamsImage
 
     etraceFullParamsImage =
