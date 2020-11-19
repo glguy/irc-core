@@ -590,7 +590,10 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_TRACEOPERATOR-> traceOperatorParamsImage
         RPL_TRACESERVER  -> traceServerParamsImage
         RPL_TRACECLASS   -> traceClassParamsImage
+        RPL_TRACELINK    -> traceLinkParamsImage
         RPL_TRACEUNKNOWN -> traceUnknownParamsImage
+        RPL_TRACECONNECTING -> traceConnectingParamsImage
+        RPL_TRACEHANDSHAKE -> traceHandShakeParamsImage
         RPL_ETRACE       -> etraceParamsImage
         RPL_ETRACEFULL   -> etraceFullParamsImage
         RPL_ENDOFTRACE   -> params_2_3_Image
@@ -847,6 +850,24 @@ renderReplyCode pal rm code@(ReplyCode w) params =
           (if ip == "0" || ip == "255.255.255.255" then mempty else label " ip" <> ctxt ip) <>
           label " server" <> ctxt server <>
           label " kind" <> ctxt kind
+        _ -> rawParamsImage
+
+    traceLinkParamsImage =
+      case params of
+        [_, "Link", version, nick, server] ->
+          ctxt server <>
+          label " nick" <> ctxt nick <>
+          label " version" <> ctxt version
+        _ -> rawParamsImage
+
+    traceConnectingParamsImage =
+      case params of
+        [_, "Try.", klass, mask] -> ctxt mask <> label " class" <> ctxt klass
+        _ -> rawParamsImage
+
+    traceHandShakeParamsImage =
+      case params of
+        [_, "H.S.", klass, mask] -> ctxt mask <> label " class" <> ctxt klass
         _ -> rawParamsImage
 
     traceUnknownParamsImage =
