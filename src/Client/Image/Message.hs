@@ -885,12 +885,13 @@ renderReplyCode pal rm code@(ReplyCode w) params =
 
     traceServerParamsImage =
       case params of
-        [_, "Serv", klass, prefix, user, link, me, lastmsg] ->
-          ctxt me <>
-          (if link == "*" then mempty else
-           label " link" <> ctxt link) <>
-          label " prefix" <> ctxt prefix <>
-          label " user" <> ctxt user <>
+        [_, "Serv", klass, servers, clients, link, who, lastmsg]
+          | not (Text.null servers), not (Text.null clients)
+          , Text.last servers == 'S', Text.last clients == 'C' ->
+          ctxt link <>
+          label " who" <> ctxt who <>
+          label " servers" <> ctxt (Text.init servers) <>
+          label " clients" <> ctxt (Text.init clients) <>
           label " class" <> ctxt klass <>
           label " idle" <> string defAttr (prettyTime 1 (Text.unpack lastmsg))
         _ -> rawParamsImage
