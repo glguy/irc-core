@@ -117,7 +117,7 @@ static int glirc_lua_print(lua_State *L)
                 lua_pushvalue(L, -1);  /* tostring */
                 lua_pushvalue(L, i);   /* value to print */
                 lua_call(L, 1, 1);
-                
+
                 if (!lua_isstring(L, -1)) {
                         return luaL_error(L, "'tostring' must return a string to 'print'");
                 }
@@ -640,6 +640,32 @@ static int glirc_lua_cancel_timer(lua_State *L)
 }
 
 /***
+Returns the list of window lines.
+@function window_lines
+@tparam string network Network name
+@tparam string target Target name
+@tparam boolean detail Return full-detail text
+@treturn boolean User known to be connected
+@usage glirc.window_lines('mynet', 'chatter', true)
+*/
+static int glirc_lua_window_lines(lua_State *L)
+{
+        size_t network_len, target_len;
+        const char *network = luaL_checklstring(L, 1, &network_len);
+        const char *target  = luaL_checklstring(L, 2, &target_len);
+        int detail = lua_toboolean(L, 3);
+        luaL_checktype(L, 4, LUA_TNONE);
+
+        char **res = glirc_window_lines(get_glirc(L), network, network_len,
+                                                      target, target_len,
+                                                      detail);
+        if (res == NULL) { luaL_error(L, "client failure"); }
+        import_string_array(L, res);
+        return 1;
+}
+
+
+/***
 Case-insensitive comparison of two identifiers using IRC case map.
 Return -1 when first identifier is "less than" the second.
 Return 0 when first identifier is "equal to" the second.
@@ -728,6 +754,7 @@ static luaL_Reg glirc_lib[] =
   , { "resolve_path"      , glirc_lua_resolve_path       }
   , { "set_timer"         , glirc_lua_set_timer          }
   , { "cancel_timer"      , glirc_lua_cancel_timer       }
+  , { "window_lines"      , glirc_lua_window_lines       }
   , { NULL                , NULL                         }
   };
 

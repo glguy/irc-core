@@ -82,6 +82,8 @@ module Client.CApi.Exports
  , Glirc_cancel_timer
  , glirc_cancel_timer
 
+ , Glirc_window_lines
+ , glirc_window_lines
  ) where
 
 import           Client.CApi (cancelTimer, pushTimer)
@@ -94,6 +96,7 @@ import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Client.UserHost
+import           Client.Image.PackedImage (imageText)
 import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens
@@ -106,6 +109,7 @@ import           Data.Monoid (First(..))
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Foreign as Text
 import           Data.Time
 import           Foreign.C
@@ -764,3 +768,37 @@ glirc_cancel_timer stab timerId =
        in return $! case mb of
             Just (First (Just ptr), st') -> ((i,st'), ptr)
             _ -> ((i, st), nullPtr)
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_window_lines' extension entry-point
+type Glirc_window_lines =
+  Ptr ()  {- ^ api token       -} ->
+  CString {- ^ network name    -} ->
+  CSize   {- ^ network length  -} ->
+  CString {- ^ target name     -} ->
+  CSize   {- ^ target length   -} ->
+  CInt    {- ^ show detail     -} ->
+  IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
+
+-- | This extension entry-point allocates a list of all the window lines for
+-- the requested window. The lines are presented with newest line at the head
+-- of the list.
+-- The caller is responsible for freeing successful result with
+-- @glirc_free_strings@.
+glirc_window_lines :: Glirc_window_lines
+glirc_window_lines stab net netL tgt tgtL detail =
+  do mvar <- derefToken stab
+     (_,st) <- readMVar mvar
+     network <- peekFgnStringLen (FgnStringLen net netL)
+     channel <- peekFgnStringLen (FgnStringLen tgt tgtL)
+     let focus
+           | Text.null network = Unfocused
+           | Text.null channel = NetworkFocus network
+           | otherwise         = ChannelFocus network (mkId channel)
+     let getText
+           | detail == 0 = wlImage . to imageText
+           | otherwise   = wlText
+     let strs = toListOf (clientWindows . ix focus . winMessages . each . getText) st
+     ptrs <- traverse (newCString . LText.unpack) strs
+     newArray0 nullPtr ptrs

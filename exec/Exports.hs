@@ -37,3 +37,4 @@ foreign export ccall glirc_set_focus          :: Glirc_set_focus
 foreign export ccall glirc_resolve_path       :: Glirc_resolve_path
 foreign export ccall glirc_set_timer          :: Glirc_set_timer
 foreign export ccall glirc_cancel_timer       :: Glirc_cancel_timer
+foreign export ccall glirc_window_lines       :: Glirc_window_lines
