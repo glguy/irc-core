@@ -644,8 +644,8 @@ Returns the list of window lines.
 @function window_lines
 @tparam string network Network name
 @tparam string target Target name
-@tparam boolean detail Return full-detail text
-@treturn boolean User known to be connected
+@tparam boolean filtered Use the /grep filter
+@treturn {string,...} Matched window lines
 @usage glirc.window_lines('mynet', 'chatter', true)
 */
 static int glirc_lua_window_lines(lua_State *L)
@@ -653,12 +653,12 @@ static int glirc_lua_window_lines(lua_State *L)
         size_t network_len, target_len;
         const char *network = luaL_checklstring(L, 1, &network_len);
         const char *target  = luaL_checklstring(L, 2, &target_len);
-        int detail = lua_toboolean(L, 3);
+        int filtered = lua_toboolean(L, 3);
         luaL_checktype(L, 4, LUA_TNONE);
 
         char **res = glirc_window_lines(get_glirc(L), network, network_len,
                                                       target, target_len,
-                                                      detail);
+                                                      filtered);
         if (res == NULL) { luaL_error(L, "client failure"); }
         import_string_array(L, res);
         return 1;
@@ -778,7 +778,7 @@ void glirc_install_lib(lua_State *L)
         lua_setfield   (L, -2, "format");
 
         lua_setglobal(L, "glirc");
-        
+
         lua_pushcfunction(L, glirc_lua_print);
         lua_setglobal(L, "print");
 }

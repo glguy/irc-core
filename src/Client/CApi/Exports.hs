@@ -96,7 +96,6 @@ import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Client.UserHost
-import           Client.Image.PackedImage (imageText)
 import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Lens
@@ -778,7 +777,7 @@ type Glirc_window_lines =
   CSize   {- ^ network length  -} ->
   CString {- ^ target name     -} ->
   CSize   {- ^ target length   -} ->
-  CInt    {- ^ show detail     -} ->
+  CInt    {- ^ use filter      -} ->
   IO (Ptr CString) {- ^ null terminated array of null terminated strings -}
 
 -- | This extension entry-point allocates a list of all the window lines for
@@ -787,7 +786,7 @@ type Glirc_window_lines =
 -- The caller is responsible for freeing successful result with
 -- @glirc_free_strings@.
 glirc_window_lines :: Glirc_window_lines
-glirc_window_lines stab net netL tgt tgtL detail =
+glirc_window_lines stab net netL tgt tgtL filt =
   do mvar <- derefToken stab
      (_,st) <- readMVar mvar
      network <- peekFgnStringLen (FgnStringLen net netL)
@@ -796,9 +795,9 @@ glirc_window_lines stab net netL tgt tgtL detail =
            | Text.null network = Unfocused
            | Text.null channel = NetworkFocus network
            | otherwise         = ChannelFocus network (mkId channel)
-     let getText
-           | detail == 0 = wlImage . to imageText
-           | otherwise   = wlText
-     let strs = toListOf (clientWindows . ix focus . winMessages . each . getText) st
-     ptrs <- traverse (newCString . LText.unpack) strs
+         filterFun
+           | filt == 0 = id
+           | otherwise = clientFilter st id
+         strs = toListOf (clientWindows . ix focus . winMessages . each . wlText) st
+     ptrs <- traverse (newCString . LText.unpack) (filterFun strs)
      newArray0 nullPtr ptrs
