@@ -543,8 +543,8 @@ static int glirc_lua_resolve_path(lua_State *L)
 
 struct timer_state {
         lua_State *L;
-        int fun_ref;
-        int self_ref;
+        int fun_ref;  // callback function
+        int self_ref; // timer_state allocation
 };
 
 static void free_timer_state(struct timer_state *st) {
@@ -664,6 +664,75 @@ static int glirc_lua_window_lines(lua_State *L)
         return 1;
 }
 
+struct system_state {
+        lua_State *L;
+        int result;
+        const char* command;
+        int self_ref; // reference to this allocation
+        int command_ref;
+        int callback_ref;
+};
+
+void
+thread_join_entrypoint(void *R) {
+        struct system_state *st = R;
+        struct lua_State *L = st->L;
+
+        // Get function and arguments before deallocating st
+        lua_rawgeti(L, LUA_REGISTRYINDEX, st->callback_ref);
+        lua_pushinteger(L, st->result);
+
+        luaL_unref(L, LUA_REGISTRYINDEX, st->command_ref);
+        luaL_unref(L, LUA_REGISTRYINDEX, st->callback_ref);
+        luaL_unref(L, LUA_REGISTRYINDEX, st->self_ref); // deallocates R/st!
+
+        if (lua_pcall(L, 1, 0, 0)) {
+                // STACK: error
+                size_t len;
+                const char *msg = lua_tolstring(L, -1, &len);
+                glirc_print(get_glirc(L), ERROR_MESSAGE, msg, len);
+                lua_pop(L, 1);
+        }
+}
+
+static void*
+start_system(void *R) {
+        struct system_state *st = R;
+        st->result = system(st->command);
+        return R;
+}
+
+/***
+Run a system command in a separate thread given a continuation
+for the result.
+@function system
+@tparam string command Shell command
+@tparam function callback Callback to run on system return value
+@usage glirc.window_lines('curl URL > tmpfile', print)
+*/
+int glirc_lua_system(struct lua_State *L) {
+
+        // PROCESS ARGUMENTS
+        const char *command = luaL_checkstring(L, 1);
+        luaL_checkany(L, 2); // callback
+        
+        // BUILD THREAD STATE
+        struct system_state *st = lua_newuserdata(L, sizeof *st);
+        st->self_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+        st->L = L;
+
+        lua_pushvalue(L, 1); // copy command string
+        st->command_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        st->command = command;
+
+        lua_pushvalue(L, 2); // copy callback
+        st->callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+
+        // REQUEST NEW THREAD
+        glirc_thread(get_glirc(L), start_system, st);
+        return 0;
+}
 
 /***
 Case-insensitive comparison of two identifiers using IRC case map.
@@ -755,6 +824,7 @@ static luaL_Reg glirc_lib[] =
   , { "set_timer"         , glirc_lua_set_timer          }
   , { "cancel_timer"      , glirc_lua_cancel_timer       }
   , { "window_lines"      , glirc_lua_window_lines       }
+  , { "system"            , glirc_lua_system             }
   , { NULL                , NULL                         }
   };
 

@@ -17,6 +17,7 @@ module Client.State.Extensions
   , clientNotifyExtensions
   , clientStopExtensions
   , clientExtTimer
+  , clientThreadJoin
   ) where
 
 import Control.Concurrent.MVar
@@ -193,3 +194,16 @@ clientExtTimer i st =
          do let st1 = set (clientExtensions . esActive . ix i) ae' st
             (st2,_) <- clientPark i st1 (runTimerCallback fun dat timerId)
             return st2
+
+-- | Run the thread join action on a given extension.
+clientThreadJoin ::
+  Int         {- ^ extension ID  -} ->
+  Ptr ()      {- ^ thread result -} ->
+  ClientState {- ^ client state  -} ->
+  IO ClientState
+clientThreadJoin i result st =
+  case st ^? clientExtensions . esActive . ix i of
+    Nothing -> pure st -- extension was already unloaded
+    Just ae ->
+      do (st1,_) <- clientPark i st (threadJoin result ae)
+         pure st1

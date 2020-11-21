@@ -84,6 +84,9 @@ module Client.CApi.Exports
 
  , Glirc_window_lines
  , glirc_window_lines
+
+ , Glirc_thread
+ , glirc_thread
  ) where
 
 import           Client.CApi (cancelTimer, pushTimer)
@@ -96,7 +99,9 @@ import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
 import           Client.UserHost
+import           Control.Concurrent (forkOS)
 import           Control.Concurrent.MVar
+import           Control.Concurrent.STM (atomically, writeTQueue)
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad (unless)
@@ -801,3 +806,26 @@ glirc_window_lines stab net netL tgt tgtL filt =
          strs = toListOf (clientWindows . ix focus . winMessages . each . wlText) st
      ptrs <- traverse (newCString . LText.unpack) (filterFun strs)
      newArray0 nullPtr ptrs
+
+------------------------------------------------------------------------
+
+-- | Type of 'glirc_thread' extension entry-point
+type Glirc_thread =
+  Ptr ()  {- ^ api token -} ->
+  FunPtr (Ptr () -> IO (Ptr ())) {- ^ start -} ->
+  Ptr () {- ^ start argument  -} ->
+  IO ()  {- ^ null terminated array of null terminated strings -}
+
+-- | This extension entry-point allocates a list of all the window lines for
+-- the requested window. The lines are presented with newest line at the head
+-- of the list.
+-- The caller is responsible for freeing successful result with
+-- @glirc_free_strings@.
+glirc_thread :: Glirc_thread
+glirc_thread stab start arg =
+  do mvar <- derefToken stab
+     (i,st) <- readMVar mvar
+     _ <- forkOS $
+       do result <- runThreadStart start arg
+          atomically (writeTQueue (view clientThreadJoins st) (i, result))
+     pure ()

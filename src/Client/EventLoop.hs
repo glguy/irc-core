@@ -14,6 +14,7 @@ events to the correct module. It renders the user interface once per event.
 module Client.EventLoop
   ( eventLoop
   , updateTerminalSize
+  , ClientEvent(..)
   ) where
 
 import           Client.CApi (popTimer)
@@ -55,6 +56,7 @@ import qualified Data.Text.Encoding.Error as Text
 import           Data.Time
 import           GHC.IO.Exception (IOErrorType(..), ioe_type)
 import           Graphics.Vty
+import           Foreign.Ptr (Ptr)
 import           Irc.Message
 import           Irc.Codes
 import           Irc.RawIrcMsg
@@ -69,6 +71,7 @@ data ClientEvent
   | TimerEvent Text TimedAction      -- ^ Timed action and the applicable network
   | ExtTimerEvent Int                     -- ^ extension ID
   | DCCUpdate DCCUpdate                   -- ^ Event on any transfer
+  | ThreadJoin Int (Ptr ())
 
 
 -- | Block waiting for the next 'ClientEvent'. This function will compute
@@ -79,7 +82,7 @@ getEvent ::
   IO ClientEvent
 getEvent vty st =
   do timer <- prepareTimer
-     atomically (asum [timer, vtyEvent, networkEvents, dccUpdate])
+     atomically (asum [timer, vtyEvent, networkEvents, dccUpdate, threadJoin])
   where
     vtyEvent = VtyEvent <$> readTChan (_eventChannel (inputIface vty))
 
@@ -103,6 +106,10 @@ getEvent vty st =
                          return event
 
     dccUpdate = DCCUpdate <$> readTChan (view clientDCCUpdates st)
+
+    threadJoin =
+      do (i,r) <- readTQueue (view clientThreadJoins st)
+         pure (ThreadJoin i r)
 
 -- | Compute the earliest scheduled timed action for the client
 earliestEvent :: ClientState -> Maybe (UTCTime, ClientEvent)
@@ -141,6 +148,8 @@ eventLoop vty st =
      case event of
        ExtTimerEvent i ->
          eventLoop vty =<< clientExtTimer i st'
+       ThreadJoin i result ->
+         eventLoop vty =<< clientThreadJoin i result st'
        TimerEvent networkId action ->
          eventLoop vty =<< doTimerEvent networkId action st'
        VtyEvent vtyEvent ->

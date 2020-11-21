@@ -23,4 +23,5 @@ glirc_free_strings;
 glirc_set_timer;
 glirc_cancel_timer;
 glirc_window_lines;
+glirc_thread;
 };

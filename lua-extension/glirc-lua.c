@@ -306,5 +306,6 @@ struct glirc_extension extension = {
         .stop            = stop_entrypoint,
         .process_message = message_entrypoint,
         .process_command = command_entrypoint,
-        .process_chat    = chat_entrypoint
+        .process_chat    = chat_entrypoint,
+        .process_thread_join = thread_join_entrypoint,
 };

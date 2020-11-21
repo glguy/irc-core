@@ -22,3 +22,4 @@ _glirc_free_strings
 _glirc_set_timer
 _glirc_cancel_timer
 _glirc_window_lines
+_glirc_thread

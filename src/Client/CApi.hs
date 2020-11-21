@@ -23,6 +23,7 @@ module Client.CApi
   , notifyExtension
   , commandExtension
   , chatExtension
+  , threadJoin
 
   , popTimer
   , pushTimer
@@ -208,6 +209,16 @@ commandExtension command ae = evalNestedIO $
      let f = fgnCommand (aeFgn ae)
      liftIO $ unless (f == nullFunPtr)
             $ runProcessCommand f (aeSession ae) cmd
+
+-- | Notify an extension that one of its threads has finished.
+threadJoin ::
+  Ptr () {- ^ opaque callback state -} ->
+  ActiveExtension ->
+  IO ()
+threadJoin result ae =
+  do let f = fgnThreadJoin (aeFgn ae)
+     liftIO $ unless (f == nullFunPtr)
+            $ runProcessThreadJoin f result
 
 -- | Marshal a 'RawIrcMsg' into a 'FgnMsg' which will be valid for
 -- the remainder of the computation.

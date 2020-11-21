@@ -22,6 +22,7 @@ module Client.State
   , clientConnections
   , clientDCC
   , clientDCCUpdates
+  , clientThreadJoins
   , clientWidth
   , clientHeight
   , clientEvents
@@ -150,6 +151,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import           Data.Time
 import           Foreign.StablePtr
+import           Foreign.Ptr (Ptr)
 import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
@@ -175,6 +177,7 @@ data ClientState = ClientState
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientDCC               :: !DCCState                 -- ^ DCC subsystem
   , _clientDCCUpdates        :: !(TChan DCCUpdate)        -- ^ DCC update events
+  , _clientThreadJoins       :: TQueue (Int, Ptr())
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
   , _clientConfigPath        :: !FilePath                 -- ^ client configuration file path
@@ -252,6 +255,7 @@ withClientState cfgPath cfg k =
 
   do events    <- atomically newTQueue
      dccEvents <- atomically newTChan
+     threadQueue <- atomically newTQueue
      sts       <- readPolicyFile
      let ignoreIds = map mkId (view configIgnores cfg)
      k ClientState
@@ -261,6 +265,7 @@ withClientState cfgPath cfg k =
         , _clientConnections       = _Empty # ()
         , _clientDCC               = emptyDCCState
         , _clientDCCUpdates        = dccEvents
+        , _clientThreadJoins       = threadQueue
         , _clientTextBox           = Edit.defaultEditBox
         , _clientTextBoxOffset     = 0
         , _clientWidth             = 80
