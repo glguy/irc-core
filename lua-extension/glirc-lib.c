@@ -18,6 +18,8 @@ Through this library scripts can send messages, check modes, and more.
 #include "glirc-lib.h"
 #include "glirc-marshal.h"
 
+#include <stdatomic.h>
+
 /***
 Send an IRC command on a connected network. Message tags are ignored
 when sending a message.
@@ -666,11 +668,10 @@ static int glirc_lua_window_lines(lua_State *L)
 
 struct system_state {
         lua_State *L;
-        int result;
-        const char* command;
         int self_ref; // reference to this allocation
-        int command_ref;
         int callback_ref;
+        atomic_int result;
+        char command[];
 };
 
 void
@@ -682,12 +683,10 @@ thread_join_entrypoint(void *R) {
         lua_rawgeti(L, LUA_REGISTRYINDEX, st->callback_ref);
         lua_pushinteger(L, st->result);
 
-        luaL_unref(L, LUA_REGISTRYINDEX, st->command_ref);
         luaL_unref(L, LUA_REGISTRYINDEX, st->callback_ref);
         luaL_unref(L, LUA_REGISTRYINDEX, st->self_ref); // deallocates R/st!
 
         if (lua_pcall(L, 1, 0, 0)) {
-                // STACK: error
                 size_t len;
                 const char *msg = lua_tolstring(L, -1, &len);
                 glirc_print(get_glirc(L), ERROR_MESSAGE, msg, len);
@@ -713,21 +712,17 @@ for the result.
 int glirc_lua_system(struct lua_State *L) {
 
         // PROCESS ARGUMENTS
-        const char *command = luaL_checkstring(L, 1);
+        size_t command_len;
+        const char *command = luaL_checklstring(L, 1, &command_len);
         luaL_checkany(L, 2); // callback
+        luaL_checktype(L, 3, LUA_TNONE);
         
         // BUILD THREAD STATE
-        struct system_state *st = lua_newuserdata(L, sizeof *st);
+        struct system_state *st = lua_newuserdata(L, sizeof *st + command_len + 1);
         st->self_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-
-        st->L = L;
-
-        lua_pushvalue(L, 1); // copy command string
-        st->command_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        st->command = command;
-
-        lua_pushvalue(L, 2); // copy callback
         st->callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        st->L = L;
+        strcpy(st->command, command);
 
         // REQUEST NEW THREAD
         glirc_thread(get_glirc(L), start_system, st);
