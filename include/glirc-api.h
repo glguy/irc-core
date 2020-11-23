@@ -48,7 +48,6 @@ typedef void stop_type           (void *S);
 typedef enum process_result process_message_type(void *S, const struct glirc_message *);
 typedef enum process_result process_chat_type(void *S, const struct glirc_chat *);
 typedef void process_command_type(void *S, const struct glirc_command *);
-typedef void process_thread_join(void *result);
 
 typedef long timer_id;
 typedef void timer_callback(void *dat, timer_id);
@@ -61,7 +60,6 @@ struct glirc_extension {
         process_message_type *process_message;
         process_command_type *process_command;
         process_chat_type    *process_chat;
-        process_thread_join  *process_thread_join;
 };
 
 int glirc_send_message(struct glirc *G, const struct glirc_message *);
@@ -92,7 +90,7 @@ char * glirc_resolve_path(struct glirc *G, const char *path, size_t path_len);
 timer_id glirc_set_timer(struct glirc *G, unsigned long millis, timer_callback *cb, void *dat);
 void *glirc_cancel_timer(struct glirc *G, timer_id tid);
 char ** glirc_window_lines(struct glirc *G, const char *net, size_t netlen, const char *tgt, size_t tgtlen, int filtered);
-void glirc_thread(struct glirc *G, void *(*start)(void *), void *arg);
+void glirc_thread(struct glirc *G, void *(*start)(void *), void(*finish)(void*), void *arg);
 
 void glirc_free_string(char *);
 void glirc_free_strings(char **);

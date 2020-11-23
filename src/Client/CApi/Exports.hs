@@ -89,7 +89,7 @@ module Client.CApi.Exports
  , glirc_thread
  ) where
 
-import           Client.CApi (cancelTimer, pushTimer)
+import           Client.CApi (cancelTimer, pushTimer, ThreadEntry(..))
 import           Client.CApi.Types
 import           Client.Configuration
 import           Client.Message
@@ -813,6 +813,7 @@ glirc_window_lines stab net netL tgt tgtL filt =
 type Glirc_thread =
   Ptr ()  {- ^ api token -} ->
   FunPtr (Ptr () -> IO (Ptr ())) {- ^ start -} ->
+  FunPtr (Ptr () -> IO ()) {- ^ finish -} ->
   Ptr () {- ^ start argument  -} ->
   IO ()  {- ^ null terminated array of null terminated strings -}
 
@@ -822,10 +823,10 @@ type Glirc_thread =
 -- The caller is responsible for freeing successful result with
 -- @glirc_free_strings@.
 glirc_thread :: Glirc_thread
-glirc_thread stab start arg =
+glirc_thread stab start finish arg =
   do mvar <- derefToken stab
      (i,st) <- readMVar mvar
      _ <- forkOS $
        do result <- runThreadStart start arg
-          atomically (writeTQueue (view clientThreadJoins st) (i, result))
+          atomically (writeTQueue (view clientThreadJoins st) (i, ThreadEntry finish result))
      pure ()

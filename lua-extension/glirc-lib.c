@@ -544,31 +544,13 @@ static int glirc_lua_resolve_path(lua_State *L)
         return 1;
 }
 
-struct timer_state {
-        lua_State *L;
-};
-
-/* Create a new timer state closure around function on top of stack */
-static struct timer_state *new_timer_state(lua_State *L) {
-        struct timer_state * const ts = lua_newuserdata(L, sizeof(struct timer_state));
-        lua_rotate(L, -2, 1);
-        lua_setuservalue(L, -2);
-        lua_rawsetp(L, LUA_REGISTRYINDEX, ts);
-        ts->L = L;
-        return ts;
-}
-
 static void on_timer(void *dat, timer_id tid) {
-        struct timer_state * const st = dat;
+        struct thread_state * const st = dat;
         lua_State * const L = st->L;
 
         // get callback function
-        lua_rawgetp(L, LUA_REGISTRYINDEX, dat);
-        lua_getuservalue(L, -1);
-        lua_remove(L, -2);
-
-        lua_pushnil(L);
-        lua_rawsetp(L, LUA_REGISTRYINDEX, dat);
+        thread_state_value(st);
+        free_thread_state(st);
 
         if (lua_pcall(L, 0, 0, 0)) {
                 // STACK: error
@@ -602,7 +584,7 @@ static int glirc_lua_set_timer(lua_State *L)
         luaL_checktype(L, 3, LUA_TNONE);
 
         // Wrap top (2) value into closure
-        struct timer_state * const ts = new_timer_state(L);
+        struct thread_state * const ts = new_thread_state(L, sizeof *ts);
 
         timer_id tid = glirc_set_timer(get_glirc(L), millis, on_timer, ts);
 
@@ -626,17 +608,14 @@ static int glirc_lua_cancel_timer(lua_State *L)
         lua_Integer tid = luaL_checkinteger(L, 1);
         luaL_checktype(L, 2, LUA_TNONE);
 
-        struct timer_state * const st = glirc_cancel_timer(get_glirc(L), tid);
+        struct thread_state * const st = glirc_cancel_timer(get_glirc(L), tid);
 
         if (st) {
-                lua_pushnil(L);
-                lua_rawsetp(L, LUA_REGISTRYINDEX, st);
+                free_thread_state(st);
                 return 0;
         } else {
-                luaL_error(L, "no such timer");
+                return luaL_error(L, "no such timer");
         }
-
-        return 0;
 }
 
 /***
@@ -671,15 +650,13 @@ struct system_state {
 };
 
 static void
-system_thread_join(struct thread_state *R)
+finish_system(void *R)
 {
-        struct system_state *st = (struct system_state *)R;
+        struct system_state *st = R;
         lua_State *L = st->base.L;
 
-        // Callback function stored as uservalue
-        lua_rawgetp(L, LUA_REGISTRYINDEX, R);
-        lua_getuservalue(L, -1);
-        lua_remove(L, -2);
+        thread_state_value(&st->base);
+        free_thread_state(&st->base);
 
         lua_pushinteger(L, st->result);
 
@@ -718,12 +695,12 @@ int glirc_lua_system(lua_State *L) {
         // BUILD THREAD STATE
         struct system_state *st =
                 (struct system_state *)
-                new_thread_state(L, sizeof *st + command_len + 1, system_thread_join);
+                new_thread_state(L, sizeof *st + command_len + 1);
 
         strcpy(st->command, command);
 
         // REQUEST NEW THREAD
-        glirc_thread(get_glirc(L), start_system, st);
+        glirc_thread(get_glirc(L), start_system, finish_system, st);
         return 0;
 }
 

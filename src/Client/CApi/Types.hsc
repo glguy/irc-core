@@ -21,9 +21,9 @@ module Client.CApi.Types
   , ProcessMessage
   , ProcessCommand
   , ProcessChat
-  , ProcessThreadJoin
   , TimerCallback
   , TimerId
+  , ThreadFinish
 
   -- * Strings
   , FgnStringLen(..)
@@ -44,9 +44,9 @@ module Client.CApi.Types
   , runProcessMessage
   , runProcessCommand
   , runProcessChat
-  , runProcessThreadJoin
   , runTimerCallback
   , runThreadStart
+  , runThreadFinish
 
   -- * report message codes
   , MessageCode(..), normalMessage, errorMessage
@@ -125,11 +125,6 @@ type ProcessCommand =
   Ptr FgnCmd {- ^ command         -} ->
   IO ()
 
--- | @typedef void process_threadjoin(void *glirc, void *S)@
-type ProcessThreadJoin =
-  Ptr () {- ^ thread result -} ->
-  IO ()
-
 -- | @typedef void process_chat(void *glirc, void *S, const struct glirc_chat *)@
 type ProcessChat =
   Ptr ()      {- ^ extension state -} ->
@@ -146,7 +141,14 @@ type TimerCallback =
   IO ()
 
 -- | Startup function for threads
-type ThreadStart = Ptr () -> IO (Ptr ())
+type ThreadStart =
+  Ptr () {- ^ initial argument -} ->
+  IO (Ptr ()) {- ^ result for ThreadFinish -}
+
+-- | @typedef void thread_finish(void *glirc, void *S)@
+type ThreadFinish =
+  Ptr () {- ^ thread result -} ->
+  IO ()
 
 -- | Type of dynamic function pointer wrappers. These convert C
 -- function-pointers into Haskell functions.
@@ -160,14 +162,14 @@ foreign import ccall "dynamic" runStopExtension  :: Dynamic StopExtension
 foreign import ccall "dynamic" runProcessMessage :: Dynamic ProcessMessage
 -- | Dynamic import for 'ProcessCommand'.
 foreign import ccall "dynamic" runProcessCommand :: Dynamic ProcessCommand
--- | Dynamic import for 'ProcessThreadJoin'.
-foreign import ccall "dynamic" runProcessThreadJoin :: Dynamic ProcessThreadJoin
 -- | Dynamic import for 'ProcessChat'.
 foreign import ccall "dynamic" runProcessChat    :: Dynamic ProcessChat
 -- | Dynamic import for timer callback
 foreign import ccall "dynamic" runTimerCallback  :: Dynamic TimerCallback
 -- | Dynamic import for thread starts
 foreign import ccall "dynamic" runThreadStart    :: Dynamic ThreadStart
+-- | Dynamic import for 'ThreadFinish'.
+foreign import ccall "dynamic" runThreadFinish   :: Dynamic ThreadFinish
 
 ------------------------------------------------------------------------
 
@@ -178,7 +180,6 @@ data FgnExtension = FgnExtension
   , fgnMessage :: FunPtr ProcessMessage -- ^ Optional message received callback
   , fgnChat    :: FunPtr ProcessChat    -- ^ Optional message send callback
   , fgnCommand :: FunPtr ProcessCommand -- ^ Optional client command callback
-  , fgnThreadJoin :: FunPtr ProcessThreadJoin -- ^ Optional thread join callback
   , fgnName    :: CString               -- ^ Null-terminated name
   , fgnMajorVersion, fgnMinorVersion :: CInt -- ^ extension version
   }
@@ -193,7 +194,6 @@ instance Storable FgnExtension where
             <*> (#peek struct glirc_extension, process_message) p
             <*> (#peek struct glirc_extension, process_chat   ) p
             <*> (#peek struct glirc_extension, process_command) p
-            <*> (#peek struct glirc_extension, process_thread_join) p
             <*> (#peek struct glirc_extension, name           ) p
             <*> (#peek struct glirc_extension, major_version  ) p
             <*> (#peek struct glirc_extension, minor_version  ) p
@@ -203,7 +203,6 @@ instance Storable FgnExtension where
                 (#poke struct glirc_extension, process_message) p fgnMessage
                 (#poke struct glirc_extension, process_chat   ) p fgnChat
                 (#poke struct glirc_extension, process_command) p fgnCommand
-                (#poke struct glirc_extension, process_thread_join) p fgnThreadJoin
                 (#poke struct glirc_extension, name           ) p fgnName
                 (#poke struct glirc_extension, major_version  ) p fgnMajorVersion
                 (#poke struct glirc_extension, minor_version  ) p fgnMinorVersion

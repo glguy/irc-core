@@ -198,12 +198,11 @@ clientExtTimer i st =
 -- | Run the thread join action on a given extension.
 clientThreadJoin ::
   Int         {- ^ extension ID  -} ->
-  Ptr ()      {- ^ thread result -} ->
+  ThreadEntry {- ^ thread result -} ->
   ClientState {- ^ client state  -} ->
   IO ClientState
-clientThreadJoin i result st =
-  case st ^? clientExtensions . esActive . ix i of
-    Nothing -> pure st -- extension was already unloaded
-    Just ae ->
-      do (st1,_) <- clientPark i st (threadJoin result ae)
+clientThreadJoin i thread st
+  | has (clientExtensions . esActive . ix i) st =
+      do (st1,_) <- clientPark i st (threadFinish thread)
          pure st1
+  | otherwise = pure st -- extension was unloaded

@@ -151,7 +151,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import           Data.Time
 import           Foreign.StablePtr
-import           Foreign.Ptr (Ptr)
 import           Irc.Codes
 import           Irc.Identifier
 import           Irc.Message
@@ -177,7 +176,7 @@ data ClientState = ClientState
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
   , _clientDCC               :: !DCCState                 -- ^ DCC subsystem
   , _clientDCCUpdates        :: !(TChan DCCUpdate)        -- ^ DCC update events
-  , _clientThreadJoins       :: TQueue (Int, Ptr())
+  , _clientThreadJoins       :: TQueue (Int, ThreadEntry) -- ^ Finished threads ready to report
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
   , _clientConfigPath        :: !FilePath                 -- ^ client configuration file path

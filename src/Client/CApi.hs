@@ -23,7 +23,9 @@ module Client.CApi
   , notifyExtension
   , commandExtension
   , chatExtension
-  , threadJoin
+
+  , ThreadEntry(..)
+  , threadFinish
 
   , popTimer
   , pushTimer
@@ -83,6 +85,7 @@ data ActiveExtension = ActiveExtension
 
 data TimerEntry = TimerEntry !(FunPtr TimerCallback) !(Ptr ())
 
+data ThreadEntry = ThreadEntry !(FunPtr ThreadFinish) !(Ptr ())
 
 -- | Find the earliest timer ready to run if any are available.
 popTimer ::
@@ -211,14 +214,8 @@ commandExtension command ae = evalNestedIO $
             $ runProcessCommand f (aeSession ae) cmd
 
 -- | Notify an extension that one of its threads has finished.
-threadJoin ::
-  Ptr () {- ^ opaque callback state -} ->
-  ActiveExtension ->
-  IO ()
-threadJoin result ae =
-  do let f = fgnThreadJoin (aeFgn ae)
-     liftIO $ unless (f == nullFunPtr)
-            $ runProcessThreadJoin f result
+threadFinish :: ThreadEntry -> IO ()
+threadFinish (ThreadEntry f x) = runThreadFinish f x
 
 -- | Marshal a 'RawIrcMsg' into a 'FgnMsg' which will be valid for
 -- the remainder of the computation.
