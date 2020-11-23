@@ -17,7 +17,7 @@ if not luaDep.found()
 endif
 
 incdir = include_directories('../include', 'include')
-sources = ['glirc-lua.c', 'glirc-marshal.c', 'glirc-lib.c']
+sources = ['glirc-lua.c', 'glirc-marshal.c', 'glirc-lib.c', 'glirc-thread.c']
 
 if build_machine.system() == 'darwin'
   suffix = 'bundle'

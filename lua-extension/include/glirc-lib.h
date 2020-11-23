@@ -7,6 +7,5 @@
 #define MINOR 0
 
 void glirc_install_lib(lua_State *L);
-void thread_join_entrypoint(void*);
 
 #endif

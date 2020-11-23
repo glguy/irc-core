@@ -25,6 +25,7 @@ registered.  Client interaction is available through the `glirc` lirary.
 #include "glirc-api.h"
 #include "glirc-marshal.h"
 #include "glirc-lib.h"
+#include "glirc-thread.h"
 
 /* The Lua extraspace is used to store the glirc client
  * handle for reentry into the client
@@ -134,7 +135,7 @@ static void *start
         }
 
         // Store glirc token in extra space, used for re-entry into glirc
-        memcpy(lua_getextraspace(L), &G, sizeof(G));
+        set_glirc(L, G);
 
         lua_pushcfunction    (L, initialize_lua);
         lua_pushlightuserdata(L, (void*)path);
@@ -250,6 +251,7 @@ command_entrypoint
         push_glirc_command(L, cmd);
         callback(L, "process_command", 1);
 }
+
 
 /***
 When scripting glirc, the glirc.lua file should return a table with these

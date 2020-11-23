@@ -17,6 +17,7 @@ Through this library scripts can send messages, check modes, and more.
 #include "glirc-api.h"
 #include "glirc-lib.h"
 #include "glirc-marshal.h"
+#include "glirc-thread.h"
 
 #include <stdatomic.h>
 
@@ -545,21 +546,15 @@ static int glirc_lua_resolve_path(lua_State *L)
 
 struct timer_state {
         lua_State *L;
-        int fun_ref;  // callback function
-        int self_ref; // timer_state allocation
 };
-
-static void free_timer_state(struct timer_state *st) {
-        luaL_unref(st->L, LUA_REGISTRYINDEX, st->fun_ref);
-        luaL_unref(st->L, LUA_REGISTRYINDEX, st->self_ref);
-}
 
 /* Create a new timer state closure around function on top of stack */
 static struct timer_state *new_timer_state(lua_State *L) {
         struct timer_state * const ts = lua_newuserdata(L, sizeof(struct timer_state));
+        lua_rotate(L, -2, 1);
+        lua_setuservalue(L, -2);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, ts);
         ts->L = L;
-        ts->self_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        ts->fun_ref = luaL_ref(L, LUA_REGISTRYINDEX);
         return ts;
 }
 
@@ -568,10 +563,12 @@ static void on_timer(void *dat, timer_id tid) {
         lua_State * const L = st->L;
 
         // get callback function
-        lua_rawgeti(L, LUA_REGISTRYINDEX, st->fun_ref); // STACK: closure
+        lua_rawgetp(L, LUA_REGISTRYINDEX, dat);
+        lua_getuservalue(L, -1);
+        lua_remove(L, -2);
 
-        // remove closure from timer closures table
-        free_timer_state(st);
+        lua_pushnil(L);
+        lua_rawsetp(L, LUA_REGISTRYINDEX, dat);
 
         if (lua_pcall(L, 0, 0, 0)) {
                 // STACK: error
@@ -632,7 +629,8 @@ static int glirc_lua_cancel_timer(lua_State *L)
         struct timer_state * const st = glirc_cancel_timer(get_glirc(L), tid);
 
         if (st) {
-                free_timer_state(st);
+                lua_pushnil(L);
+                lua_rawsetp(L, LUA_REGISTRYINDEX, st);
                 return 0;
         } else {
                 luaL_error(L, "no such timer");
@@ -667,24 +665,23 @@ static int glirc_lua_window_lines(lua_State *L)
 }
 
 struct system_state {
-        lua_State *L;
-        int self_ref; // reference to this allocation
-        int callback_ref;
+        struct thread_state base;
         atomic_int result;
         char command[];
 };
 
-void
-thread_join_entrypoint(void *R) {
-        struct system_state *st = R;
-        struct lua_State *L = st->L;
+static void
+system_thread_join(struct thread_state *R)
+{
+        struct system_state *st = (struct system_state *)R;
+        lua_State *L = st->base.L;
 
-        // Get function and arguments before deallocating st
-        lua_rawgeti(L, LUA_REGISTRYINDEX, st->callback_ref);
+        // Callback function stored as uservalue
+        lua_rawgetp(L, LUA_REGISTRYINDEX, R);
+        lua_getuservalue(L, -1);
+        lua_remove(L, -2);
+
         lua_pushinteger(L, st->result);
-
-        luaL_unref(L, LUA_REGISTRYINDEX, st->callback_ref);
-        luaL_unref(L, LUA_REGISTRYINDEX, st->self_ref); // deallocates R/st!
 
         if (lua_pcall(L, 1, 0, 0)) {
                 size_t len;
@@ -695,7 +692,8 @@ thread_join_entrypoint(void *R) {
 }
 
 static void*
-start_system(void *R) {
+start_system(void *R)
+{
         struct system_state *st = R;
         st->result = system(st->command);
         return R;
@@ -709,7 +707,7 @@ for the result.
 @tparam function callback Callback to run on system return value
 @usage glirc.window_lines('curl URL > tmpfile', print)
 */
-int glirc_lua_system(struct lua_State *L) {
+int glirc_lua_system(lua_State *L) {
 
         // PROCESS ARGUMENTS
         size_t command_len;
@@ -718,10 +716,10 @@ int glirc_lua_system(struct lua_State *L) {
         luaL_checktype(L, 3, LUA_TNONE);
         
         // BUILD THREAD STATE
-        struct system_state *st = lua_newuserdata(L, sizeof *st + command_len + 1);
-        st->self_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        st->callback_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-        st->L = L;
+        struct system_state *st =
+                (struct system_state *)
+                new_thread_state(L, sizeof *st + command_len + 1, system_thread_join);
+
         strcpy(st->command, command);
 
         // REQUEST NEW THREAD
