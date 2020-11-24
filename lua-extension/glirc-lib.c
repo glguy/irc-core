@@ -10,16 +10,12 @@ Through this library scripts can send messages, check modes, and more.
 @copyright Eric Mertens 2018
 */
 
-#include <assert.h>
-
 #include <lauxlib.h>
 
 #include "glirc-api.h"
 #include "glirc-lib.h"
 #include "glirc-marshal.h"
 #include "glirc-thread.h"
-
-#include <stdatomic.h>
 
 /***
 Send an IRC command on a connected network. Message tags are ignored
@@ -115,24 +111,17 @@ static int glirc_lua_print(lua_State *L)
         luaL_Buffer b;
         luaL_buffinit(L, &b);
 
-        lua_getglobal(L, "tostring");
         for (int i = 1; i <= n; i++) {
-                lua_pushvalue(L, -1);  /* tostring */
-                lua_pushvalue(L, i);   /* value to print */
-                lua_call(L, 1, 1);
-
-                if (!lua_isstring(L, -1)) {
-                        return luaL_error(L, "'tostring' must return a string to 'print'");
-                }
                 if (i > 1) {
                         luaL_addchar(&b, '\t');
                 }
-                luaL_addvalue(&b);
+                (void)luaL_tolstring(L, i, NULL); // leaves string on stack
+                luaL_addvalue(&b); // consumes string
         }
 
         luaL_pushresult(&b);
         size_t msglen;
-        const char *msg = luaL_tolstring(L, -1, &msglen);
+        const char *msg = lua_tolstring(L, -1, &msglen);
         glirc_print(get_glirc(L), NORMAL_MESSAGE, msg, msglen);
 
         return 0;
@@ -545,6 +534,8 @@ static int glirc_lua_resolve_path(lua_State *L)
 }
 
 static void on_timer(void *dat, timer_id tid) {
+        (void)tid;
+
         struct thread_state * const st = dat;
         lua_State * const L = st->L;
 
@@ -645,7 +636,7 @@ static int glirc_lua_window_lines(lua_State *L)
 
 struct system_state {
         struct thread_state base;
-        atomic_int result;
+        int result;
         char command[];
 };
 

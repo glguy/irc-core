@@ -9,7 +9,7 @@ free_thread_state(struct thread_state *st)
 }
 
 struct thread_state *
-new_thread_state(struct lua_State *L, size_t n)
+new_thread_state(lua_State *L, size_t n)
 {
     struct thread_state *st = lua_newuserdata(L, n);
     lua_rotate(L, -2, 1);
