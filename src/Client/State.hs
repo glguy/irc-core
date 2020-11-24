@@ -210,6 +210,7 @@ data ClientState = ClientState
 data Matcher = Matcher
   { matcherBefore :: !Int
   , matcherAfter  :: !Int
+  , matcherMax    :: Maybe Int
   , matcherPred   :: LText.Text -> Bool
   }
 
@@ -670,18 +671,23 @@ clientFilter :: ClientState -> (a -> LText.Text) -> [a] -> [a]
 clientFilter st f xs =
   case clientMatcher st of
     Nothing -> xs
-    Just m  ->
+    Just m ->
+      limit $
       filterContext
         (matcherAfter m) -- client messages are stored in descending order
         (matcherBefore m)
         (matcherPred m . f)
         xs
+     where
+       limit = maybe id take (matcherMax m)
 
 data MatcherArgs = MatcherArgs
   { argAfter     :: !Int
   , argBefore    :: !Int
   , argInvert    :: !Bool
   , argSensitive :: !Bool
+  , argMax       :: Maybe Int
+  , argPlain     :: !Bool
   }
 
 defaultMatcherArgs :: MatcherArgs
@@ -690,6 +696,8 @@ defaultMatcherArgs = MatcherArgs
   , argBefore    = 0
   , argInvert    = False
   , argSensitive = True
+  , argMax       = Nothing
+  , argPlain     = False
   }
 
 buildMatcher :: String -> Maybe Matcher
@@ -699,20 +707,29 @@ buildMatcher = go defaultMatcherArgs
       case dropWhile (' '==) reStr of
         '-' : 'i' : ' ' : reStr' -> go args{argSensitive=False} reStr'
         '-' : 'v' : ' ' : reStr' -> go args{argInvert=True} reStr'
+        '-' : 'F' : ' ' : reStr' -> go args{argPlain=True} reStr'
         '-' : 'A' : reStr' | [(a,' ':reStr'')] <- reads reStr', a>=0 -> go args{argAfter=a} reStr''
         '-' : 'B' : reStr' | [(b,' ':reStr'')] <- reads reStr', b>=0 -> go args{argBefore=b} reStr''
         '-' : 'C' : reStr' | [(c,' ':reStr'')] <- reads reStr', c>=0 -> go args{argAfter=c,argBefore=c} reStr''
+        '-' : 'm' : reStr' | [(m,' ':reStr'')] <- reads reStr', m>=0 -> go args{argMax=Just m} reStr''
         '-' : '-' : ' ' : reStr' -> finish args reStr'
         _ -> finish args reStr
 
-    finish args reStr =
-      case compile defaultCompOpt{caseSensitive=argSensitive args}
-                   defaultExecOpt{captureGroups=False}
-                   reStr of
-        Left{}  -> Nothing
-        Right r
-          | argInvert args -> Just (Matcher (argBefore args) (argAfter args) (not . matchTest r . LText.unpack))
-          | otherwise      -> Just (Matcher (argBefore args) (argAfter args) (      matchTest r . LText.unpack))
+    finish args reStr
+      | argPlain args =
+          if argSensitive args
+          then matcher (LText.isInfixOf (LText.fromStrict (Text.pack reStr)))
+          else matcher (LText.isInfixOf (LText.fromStrict (Text.toLower (Text.pack reStr))) . LText.toLower)
+      | otherwise =
+        case compile defaultCompOpt{caseSensitive=argSensitive args}
+                     defaultExecOpt{captureGroups=False}
+                     reStr of
+          Left{}  -> Nothing
+          Right r -> matcher (matchTest r . LText.unpack)
+      where
+        matcher f
+          | argInvert args = Just (Matcher (argBefore args) (argAfter args) (argMax args) (not . f))
+          | otherwise      = Just (Matcher (argBefore args) (argAfter args) (argMax args) f)
 
 -- | Compute the command and arguments currently in the textbox.
 clientActiveCommand ::

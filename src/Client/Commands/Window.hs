@@ -197,11 +197,13 @@ windowCommands = CommandSection "Window management"
       "Set the persistent regular expression.\n\
       \\n\
       \\^BFlags:\^B\n\
-      \    -An  Show n messages after match\n\
-      \    -Bn  Show n messages before match\n\
-      \    -Cn  Show n messages before and after match\n\
+      \    -A n Show n messages after match\n\
+      \    -B n Show n messages before match\n\
+      \    -C n Show n messages before and after match\n\
+      \    -F   Use plain-text match instead of regular expression\n\
       \    -i   Case insensitive match\n\
       \    -v   Invert pattern match\n\
+      \    -m n Limit results to n matches\n\
       \    --   Stop processing flags\n\
       \\n\
       \Clear the regular expression by calling this without an argument.\n\
