@@ -83,8 +83,9 @@ macroSpecs =
   <|> noMacroArguments <$ P.endOfInput
   where
     add1 desc = liftA2 (:) (simpleToken (Text.unpack desc))
+    addBrackets desc = "[" <> desc <> "]"
 
-    addOpt var (MacroSpec rest) = MacroSpec (fromMaybe [] <$> optionalArg (add1 var rest))
+    addOpt var (MacroSpec rest) = MacroSpec (fromMaybe [] <$> optionalArg (add1 (addBrackets var) rest))
     addReq var (MacroSpec rest) = MacroSpec (add1 var rest)
 
 -- | Parse a 'Text' searching for the expansions as specified in
