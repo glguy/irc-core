@@ -987,7 +987,7 @@ prettyUnixTime :: String -> String
 prettyUnixTime str =
   case parseTimeM False defaultTimeLocale "%s" str of
     Nothing -> str
-    Just t  -> formatTime defaultTimeLocale "%A %B %m, %Y %H:%M:%S %Z" (t :: UTCTime)
+    Just t  -> formatTime defaultTimeLocale "%c" (t :: UTCTime)
 
 -- | Render string representing seconds into days, hours, minutes, and seconds.
 prettyTime :: Int -> String -> String
