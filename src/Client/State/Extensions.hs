@@ -85,11 +85,14 @@ clientStopExtensions ::
   ClientState    {- ^ client state                          -} ->
   IO ClientState {- ^ client state with extensions unloaded -}
 clientStopExtensions st =
-  do let (aes,st1) = st & clientExtensions . esActive <<.~ IntMap.empty
+  do let (aes,st1) = st & clientExtensions . esActive %%~ upd
      ifoldlM step st1 aes
   where
+    upd = fmap (fmap disable) . IntMap.partition readyToClose
+    disable ae = ae { aeLive = False }
+    readyToClose ae = aeThreads ae == 0
     step i st2 ae =
-      do (st3,_) <- clientPark i st2 (deactivateExtension ae)
+      do (st3,_) <- clientPark i st2 (stopExtension ae)
          return st3
 
 
@@ -104,7 +107,7 @@ clientChatExtension net tgt msg st
   | noCallback = return (st, True)
   | otherwise  = evalNestedIO $
                  do chat <- withChat net tgt msg
-                    liftIO (chat1 chat st (IntMap.toList aes))
+                    liftIO (chat1 chat st (IntMap.toList (IntMap.filter aeLive aes)))
   where
     aes = view (clientExtensions . esActive) st
     noCallback = all (\ae -> fgnChat (aeFgn ae) == nullFunPtr) aes
@@ -131,7 +134,7 @@ clientNotifyExtensions network raw st
   | noCallback = return (st, True)
   | otherwise  = evalNestedIO $
                  do fgn <- withRawIrcMsg network raw
-                    liftIO (message1 fgn st (IntMap.toList aes))
+                    liftIO (message1 fgn st (IntMap.toList (IntMap.filter aeLive aes)))
   where
     aes = view (clientExtensions . esActive) st
     noCallback = all (\ae -> fgnMessage (aeFgn ae) == nullFunPtr) aes
@@ -157,7 +160,7 @@ clientCommandExtension ::
   IO (Maybe ClientState) {- ^ new client state on success -}
 clientCommandExtension name command st =
   case find (\(_,ae) -> aeName ae == name)
-            (IntMap.toList (view (clientExtensions . esActive) st)) of
+            (IntMap.toList (IntMap.filter aeLive (view (clientExtensions . esActive) st))) of
         Nothing -> return Nothing
         Just (i,ae) ->
           do (st', _) <- clientPark i st (commandExtension command ae)
@@ -201,8 +204,18 @@ clientThreadJoin ::
   ThreadEntry {- ^ thread result -} ->
   ClientState {- ^ client state  -} ->
   IO ClientState
-clientThreadJoin i thread st
-  | has (clientExtensions . esActive . ix i) st =
-      do (st1,_) <- clientPark i st (threadFinish thread)
-         pure st1
-  | otherwise = pure st -- extension was unloaded
+clientThreadJoin i thread st =
+  let ae = st ^?! clientExtensions . esActive . ix i
+  in finish ae { aeThreads = aeThreads ae - 1}
+  where
+    finish ae
+      | aeLive ae = -- normal behavior, run finalizer
+         do let st1 = set (clientExtensions . esActive . ix i) ae st
+            (st2,_) <- clientPark i st1 (threadFinish thread)
+            pure st2
+      | aeThreads ae == 0 = -- delayed stop, all threads done
+         do let st1 = over (clientExtensions . esActive) (sans i) st
+            (st2,_) <- clientPark i st1 (stopExtension ae)
+            return st2
+      | otherwise = -- delayed stop, more threads remain
+         do pure (set (clientExtensions . esActive . ix i) ae st)

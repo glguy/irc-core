@@ -19,7 +19,7 @@ module Client.CApi
   , extensionSymbol
   , openExtension
   , startExtension
-  , deactivateExtension
+  , stopExtension
   , notifyExtension
   , commandExtension
   , chatExtension
@@ -81,6 +81,8 @@ data ActiveExtension = ActiveExtension
   , aeMajorVersion, aeMinorVersion :: !Int
   , aeTimers  :: !(IntPSQ UTCTime TimerEntry)
   , aeNextTimer :: !Int
+  , aeThreads :: !Int
+  , aeLive    :: !Bool
   }
 
 data TimerEntry = TimerEntry !(FunPtr TimerCallback) !(Ptr ())
@@ -94,6 +96,7 @@ popTimer ::
     {- ^ earlier time, callback, callback state, updated extension -}
 popTimer ae =
   do let timers = aeTimers ae
+     guard (aeLive ae)
      (timerId, time, TimerEntry fun ptr, timers') <- IntPSQ.minView timers
      let ae' = ae { aeTimers = timers' }
      return (time, fromIntegral timerId, fun, ptr, ae')
@@ -142,6 +145,8 @@ openExtension config =
        , aeMajorVersion = fromIntegral (fgnMajorVersion fgn)
        , aeMinorVersion = fromIntegral (fgnMinorVersion fgn)
        , aeNextTimer    = 1
+       , aeThreads      = 0
+       , aeLive         = True
        }
 
 startExtension ::
@@ -161,15 +166,12 @@ startExtension stab config ae =
                      let len = fromIntegral (length args)
                      liftIO (runStartExtension f stab extPath argsArray len)
 
--- | Call the stop callback of the extension if it is defined
--- and unload the shared object.
-deactivateExtension :: ActiveExtension -> IO ()
-deactivateExtension ae =
+stopExtension :: ActiveExtension -> IO ()
+stopExtension ae =
   do let f = fgnStop (aeFgn ae)
      unless (nullFunPtr == f) $
        runStopExtension f (aeSession ae)
      dlclose (aeDL ae)
-
 
 -- | Call all of the process chat callbacks in the list of extensions.
 -- This operation marshals the IRC message once and shares that across

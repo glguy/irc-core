@@ -89,7 +89,7 @@ module Client.CApi.Exports
  , glirc_thread
  ) where
 
-import           Client.CApi (cancelTimer, pushTimer, ThreadEntry(..))
+import           Client.CApi (cancelTimer, pushTimer, ThreadEntry(..), ActiveExtension(aeThreads))
 import           Client.CApi.Types
 import           Client.Configuration
 import           Client.Message
@@ -825,8 +825,9 @@ type Glirc_thread =
 glirc_thread :: Glirc_thread
 glirc_thread stab start finish arg =
   do mvar <- derefToken stab
-     (i,st) <- readMVar mvar
-     _ <- forkOS $
-       do result <- runThreadStart start arg
-          atomically (writeTQueue (view clientThreadJoins st) (i, ThreadEntry finish result))
-     pure ()
+     modifyMVar_ mvar $ \(i,st) ->
+       do _ <- forkOS $
+            do result <- runThreadStart start arg
+               atomically (writeTQueue (view clientThreadJoins st) (i, ThreadEntry finish result))
+          let incThreads ae = ae { aeThreads = aeThreads ae + 1}
+          pure (i, over (clientExtensions . esActive . ix i) incThreads st)
