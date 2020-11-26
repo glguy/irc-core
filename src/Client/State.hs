@@ -1052,7 +1052,9 @@ stepFocus selector st =
     Just k  -> changeFocus k st
     Nothing -> st
   where
-    (l,r) = Map.split (view clientFocus st) (view clientWindows st)
+    (l,r) = Map.split (view clientFocus st)
+          $ Map.filter (views winHidden not)
+          $ view clientWindows st
 
 clientHighlightsFocus ::
   Focus ->
