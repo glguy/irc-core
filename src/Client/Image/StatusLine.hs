@@ -207,16 +207,17 @@ activitySummary st
                       Vty.horizCat indicators Vty.<|>
                       Vty.string defAttr "]"
   where
-    winNames = clientWindowNames st ++ repeat '?'
-
-    indicators = foldr aux [] (zip winNames windows)
+    indicators = foldr aux [] windows
     windows    = views clientWindows Map.elems st
 
-    aux (i,w) rest =
+    aux w rest =
+      let name = case view winName w of
+                   Nothing -> '?'
+                   Just i -> i in
       if view winSilent w then rest else
       case view winMention w of
-        WLImportant -> Vty.char (view palMention  pal) i : rest
-        WLNormal    -> Vty.char (view palActivity pal) i : rest
+        WLImportant -> Vty.char (view palMention  pal) name : rest
+        WLNormal    -> Vty.char (view palActivity pal) name : rest
         WLBoring    -> rest
       where
         pal = clientPalette st
@@ -225,19 +226,12 @@ activitySummary st
 activityBarImages :: ClientState -> [Vty.Image]
 activityBarImages st
   = mapMaybe baraux
-  $ filter (\(_,_,w) -> views winSilent not w)
-  $ addNames (clientWindowNames st)
   $ Map.toAscList
   $ view clientWindows st
 
   where
-    addNames _ [] = []
-    addNames ns ((k,w):ws)
-      | view winHidden w = (Nothing, k, w) : addNames ns ws
-    addNames (n:ns) ((k,w):ws) = (Just n, k, w) : addNames ns ws
-    addNames [] ws = map (\(k,w) -> (Nothing, k, w)) ws
-
-    baraux (mbName,focus,w)
+    baraux (focus,w)
+      | view winSilent w = Nothing
       | n == 0 = Nothing -- todo: make configurable
       | otherwise = Just
                   $ unpackImage bar Vty.<|>
@@ -249,7 +243,7 @@ activityBarImages st
                     Vty.char defAttr ']'
       where
         jumpLabel =
-          case mbName of
+          case view winName w of
             Nothing   -> mempty
             Just name -> Vty.char (view palWindowName pal) name Vty.<|>
                          Vty.char defAttr ':'
@@ -330,19 +324,12 @@ subfocusImage subfocus st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
 focusImage :: Focus -> ClientState -> Image'
 focusImage focus st =
   infoBubble $
-  case windowName of
+  case preview (clientWindows . ix focus . winName . _Just) st of
     Nothing -> label
     Just n  -> char (view palWindowName pal) n <> ":" <> label
   where
     !pal        = clientPalette st
-    windowNames = clientWindowNames st
     label       = viewFocusLabel st focus
-
-    windowName =
-      do i <- Map.lookupIndex focus
-            $ Map.filter (views winHidden not)
-            $ view clientWindows st
-         preview (ix i) windowNames
 
 parens :: Attr -> Vty.Image -> Vty.Image
 parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'

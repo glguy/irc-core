@@ -78,7 +78,7 @@ data Action
   | ActAdvanceNetwork
   | ActJumpToActivity
   | ActJumpPrevious
-  | ActJump Int
+  | ActJump Char
 
   | ActTabComplete
   | ActTabCompleteBack
@@ -195,7 +195,7 @@ keyToAction ::
   Action     {- ^ action          -}
 keyToAction _ jumpMods names mods (KChar c)
   | normalizeModifiers jumpMods == normalizeModifiers mods
-  , Just i <- Text.findIndex (c==) names = ActJump i
+  , Text.singleton c `Text.isInfixOf` names = ActJump c
 keyToAction m _ _ modifier key =
   case m ^. keyMapLens modifier key of
     Just a -> a

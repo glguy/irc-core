@@ -15,6 +15,7 @@ module Client.State.Window
   (
   -- * Windows
     Window(..)
+  , winName
   , winMessages
   , winUnread
   , winTotal
@@ -44,6 +45,7 @@ module Client.State.Window
   , windowSeen
   , windowActivate
   , windowDeactivate
+  , windowClear
 
     -- * Packed time
   , PackedTime
@@ -84,7 +86,8 @@ data WindowLines
 -- | A 'Window' tracks all of the messages and metadata for a particular
 -- message buffer.
 data Window = Window
-  { _winMessages :: !WindowLines   -- ^ Messages to display, newest first
+  { _winName'    :: !Char          -- ^ Shortcut name (or NUL)
+  , _winMessages :: !WindowLines   -- ^ Messages to display, newest first
   , _winMarker   :: !(Maybe Int)   -- ^ Location of line drawn to indicate newer messages
   , _winUnread   :: !Int           -- ^ Messages added since buffer was visible
   , _winTotal    :: !Int           -- ^ Messages in buffer
@@ -107,6 +110,8 @@ data WindowLineImportance
 makeLenses ''Window
 makeLenses ''WindowLine
 
+winName :: Lens' Window (Maybe Char)
+winName = winName' . from (non '\0')
 
 wlText :: Getter WindowLine Text
 wlText = wlFullImage . to imageText
@@ -114,7 +119,8 @@ wlText = wlFullImage . to imageText
 -- | A window with no messages
 emptyWindow :: Window
 emptyWindow = Window
-  { _winMessages = Nil
+  { _winName'    = '\0'
+  , _winMessages = Nil
   , _winMarker   = Nothing
   , _winUnread   = 0
   , _winTotal    = 0
@@ -122,6 +128,15 @@ emptyWindow = Window
   , _winHideMeta = False
   , _winHidden   = False
   , _winSilent   = False
+  }
+
+windowClear :: Window -> Window
+windowClear w = w
+  { _winMessages = Nil
+  , _winMarker = Nothing
+  , _winUnread = 0
+  , _winTotal = 0
+  , _winMention  = WLBoring
   }
 
 -- | Adds a given line to a window as the newest message. Window's

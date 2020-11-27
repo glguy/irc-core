@@ -97,7 +97,7 @@ import           Client.State
 import           Client.State.Channel
 import           Client.State.Focus
 import           Client.State.Network
-import           Client.State.Window
+import           Client.State.Window (windowClear, windowSeen, winMessages, wlText)
 import           Client.UserHost
 import           Control.Concurrent (forkOS)
 import           Control.Concurrent.MVar
@@ -563,7 +563,7 @@ glirc_clear_window stab networkPtr networkLen channelPtr channelLen =
 
      mvar <- derefToken stab
      modifyMVar_ mvar $ \(i,st) ->
-       let st' = set (clientWindows . ix focus) emptyWindow st
+       let st' = over (clientWindows . ix focus) windowClear st
        in st' `seq` return (i,st')
 
 ------------------------------------------------------------------------

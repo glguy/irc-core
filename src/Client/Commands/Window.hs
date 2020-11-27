@@ -17,7 +17,7 @@ import           Client.Mask (buildMask)
 import           Client.State
 import           Client.State.Focus
 import           Client.State.Network
-import           Client.State.Window (emptyWindow, wlText, winMessages, winHidden, winSilent)
+import           Client.State.Window (windowClear, wlText, winMessages, winHidden, winSilent, winName)
 import           Control.Applicative
 import           Control.Exception
 import           Control.Lens
@@ -232,7 +232,37 @@ windowCommands = CommandSection "Window management"
       "Set window property.\n"
     $ ClientCommand cmdSetWindow tabSetWindow
 
+  , Command
+      (pure "setname")
+      (optionalArg (simpleToken "letter"))
+      "Set window shortcut name.\n"
+    $ ClientCommand cmdSetWindowName noClientTab
+
   ]
+
+cmdSetWindowName :: ClientCommand (Maybe String)
+cmdSetWindowName st arg =
+  -- unset current name so that it becomes available
+  let mbSt1 = failover (clientWindows . ix (view clientFocus st) . winName) (\_ -> Nothing) st in
+  case mbSt1 of
+    Nothing -> commandFailureMsg "no current window" st
+    Just st1 ->
+      let next = clientNextWindowName st
+          mbName =
+            case arg of
+              Just [n] | n `elem` clientWindowNames st -> Right n
+              Just _ -> Left "invalid name"
+              Nothing
+                | next /= '\0' -> Right next
+                | otherwise -> Left "no free names" in
+      case mbName of
+        Left e -> commandFailureMsg e st
+        Right name ->
+          let unset n = if n == Just name then Nothing else n in
+          commandSuccess
+            $ set  (clientWindows . ix (view clientFocus st) . winName) (Just name)
+            $ over (clientWindows . each                     . winName) unset
+            $ st1
 
 cmdSetWindow :: ClientCommand String
 cmdSetWindow st cmd =
@@ -246,7 +276,7 @@ cmdSetWindow st cmd =
     mbFun =
       case cmd of
         "show"   -> Just (set winHidden False)
-        "hide"   -> Just (set winHidden True)
+        "hide"   -> Just (set winName Nothing . set winHidden True)
         "loud"   -> Just (set winSilent False)
         "silent" -> Just (set winSilent True)
         _        -> Nothing
@@ -422,8 +452,8 @@ cmdClear st args =
 
     clearFocus1 focus st' = focusEffect (windowEffect st')
       where
-        windowEffect = set (clientWindows . at focus)
-                           (if isActive then Just emptyWindow else Nothing)
+        windowEffect = over (clientWindows . at focus)
+                           (if isActive then fmap windowClear else const Nothing)
 
         focusEffect
           | noChangeNeeded    = id

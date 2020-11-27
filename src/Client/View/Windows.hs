@@ -21,6 +21,7 @@ import           Client.State.Window
 import           Client.State.Network
 import           Control.Lens
 import           Data.List
+import           Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
@@ -30,11 +31,11 @@ windowsImages :: WindowsFilter -> ClientState -> [Image']
 windowsImages filt st
   = reverse
   $ createColumns
-  $ [ renderWindowColumns pal (char (view palError pal) 'h')    k v |    (k,v)  <- hiddenWindows     ] ++
-    [ renderWindowColumns pal (char (view palWindowName pal) n) k v | (n,(k,v)) <- zip names windows ]
+  $ [ renderWindowColumns pal (char (view palError pal) 'h')    k v | (k,v) <- hiddenWindows ] ++
+    [ renderWindowColumns pal (char (view palWindowName pal) (name v)) k v | (k,v) <- windows ]
   where
-    pal     = clientPalette st
-    names   = clientWindowNames st ++ repeat ' '
+    pal = clientPalette st
+    name = fromMaybe ' ' . view winName
 
     (hiddenWindows, windows)
       = partition (view (_2 . winHidden))

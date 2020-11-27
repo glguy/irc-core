@@ -74,6 +74,7 @@ module Client.State
   , clientPalette
   , clientAutoconnects
   , clientActiveCommand
+  , clientNextWindowName
 
   , clientExtraFocuses
   , currentNickCompletionMode
@@ -554,6 +555,14 @@ recordError now net msg =
     , _msgBody    = ErrorBody msg
     }
 
+clientNextWindowName :: ClientState -> Char
+clientNextWindowName st =
+  case clientWindowNames st \\ usedNames of
+    []  -> '\0'
+    c:_ -> c
+  where
+    usedNames = toListOf (clientWindows . folded . winName . _Just) st
+
 -- | Record window line at the given focus creating the window if necessary
 recordWindowLine ::
   Focus ->
@@ -562,7 +571,11 @@ recordWindowLine ::
   ClientState
 recordWindowLine focus wl st = st2
   where
-    freshWindow = emptyWindow { _winHideMeta = view (clientConfig . configHideMeta) st }
+    freshWindow = emptyWindow
+      { _winName' = clientNextWindowName st
+      , _winHideMeta = view (clientConfig . configHideMeta) st
+      }
+
     st1 = over (clientWindows . at focus)
                (\w -> Just $! addToWindow wl (fromMaybe freshWindow w))
                st
@@ -934,14 +947,14 @@ jumpToActivity st =
 -- | Jump the focus directly to a window based on its zero-based index
 -- while ignoring hidden windows.
 jumpFocus ::
-  Int {- ^ zero-based window index -} ->
+  Char {- ^ window name -} ->
   ClientState -> ClientState
-jumpFocus i st
-  | 0 <= i, i < Map.size windows = changeFocus focus st
-  | otherwise                    = st
+jumpFocus i st =
+  case find p (Map.assocs (view clientWindows st)) of
+    Nothing        -> st
+    Just (focus,_) -> changeFocus focus st
   where
-    windows   = Map.filter (views winHidden not) (view clientWindows st)
-    (focus,_) = Map.elemAt i windows
+    p (_, w) = view winName w == Just i
 
 
 -- | Change the window focus to the given value, reset the subfocus

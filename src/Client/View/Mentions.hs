@@ -34,8 +34,6 @@ mentionsViewLines :: Int -> ClientState -> [Image']
 mentionsViewLines w st = addMarkers w st entries
 
   where
-    names = clientWindowNames st ++ repeat '?'
-
     detail = view clientDetailView st
 
     padAmt = view (clientConfig . configNickPadding) st
@@ -46,14 +44,12 @@ mentionsViewLines w st = addMarkers w st entries
       | otherwise           = filter (\x -> WLImportant == view wlImportance x)
 
     entries = merge
-              [windowEntries filt palette w padAmt detail n focus v
-              | (n,(focus, v))
-                <- names `zip` Map.toList (view clientWindows st) ]
+              [windowEntries filt palette w padAmt detail focus v
+              | (focus, v) <- Map.toList (view clientWindows st) ]
 
 
 data MentionLine = MentionLine
   { mlTimestamp  :: UTCTime  -- ^ message timestamp for sorting
-  , mlWindowName :: Char     -- ^ window names shortcut
   , mlFocus      :: Focus    -- ^ associated window
   , mlImage      :: [Image'] -- ^ wrapped rendered lines
   }
@@ -81,14 +77,12 @@ windowEntries ::
   Int         {- ^ draw columns  -} ->
   PaddingMode {- ^ nick padding  -} ->
   Bool        {- ^ detailed view -} ->
-  Char        {- ^ window name   -} ->
   Focus       {- ^ window focus  -} ->
   Window      {- ^ window        -} ->
   [MentionLine]
-windowEntries filt palette w padAmt detailed name focus win =
+windowEntries filt palette w padAmt detailed focus win =
   [ MentionLine
       { mlTimestamp  = views wlTimestamp unpackUTCTime l
-      , mlWindowName = name
       , mlFocus      = focus
       , mlImage      = case metadataImg (view wlSummary l) of
                          _ | detailed     -> [view wlFullImage l]
