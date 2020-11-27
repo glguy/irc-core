@@ -229,13 +229,22 @@ windowCommands = CommandSection "Window management"
   , Command
       (pure "setwindow")
       (simpleToken "hide|show|loud|silent")
-      "Set window property.\n"
+      "Set window property.\n\
+      \\n\
+      \\^Bloud\^B / \^Bsilent\^B\n\
+      \    Toggles if window activity appears in the status bar.\n\
+      \n\
+      \\^Bshow\^B / \^Bhide\^B\n\
+      \    Toggles if window appears in window command shortcuts.\n"
     $ ClientCommand cmdSetWindow tabSetWindow
 
   , Command
       (pure "setname")
-      (optionalArg (simpleToken "letter"))
-      "Set window shortcut name.\n"
+      (optionalArg (simpleToken "[letter]"))
+      "Set window shortcut letter. If no letter is provided the next available\n\
+      \letter will automatically be assigned.\n\
+      \\n\
+      \Available letters are configured in the 'window-names' configuration setting.\n"
     $ ClientCommand cmdSetWindowName noClientTab
 
   ]
