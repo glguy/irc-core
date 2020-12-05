@@ -598,6 +598,7 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_ETRACEFULL   -> etraceFullParamsImage
         RPL_ENDOFTRACE   -> params_2_3_Image
         RPL_ENDOFHELP    -> params_2_3_Image
+        RPL_LIST         -> listParamsImage
 
         ERR_NOPRIVS      -> params_2_3_Image
         ERR_HELPNOTFOUND -> params_2_3_Image
@@ -840,6 +841,12 @@ renderReplyCode pal rm code@(ReplyCode w) params =
     awayParamsImage =
       case params of
         [_, nick, txt] -> ctxt nick <> label " msg" <> parseIrcText txt
+        _ -> rawParamsImage
+
+    listParamsImage =
+      case params of
+        [_, chan, users, topic] ->
+          ctxt chan <> label " users" <> ctxt users <> label " topic" <> ctxt topic
         _ -> rawParamsImage
 
     etraceParamsImage =
