@@ -599,6 +599,8 @@ renderReplyCode pal rm code@(ReplyCode w) params =
         RPL_ENDOFTRACE   -> params_2_3_Image
         RPL_ENDOFHELP    -> params_2_3_Image
         RPL_LIST         -> listParamsImage
+        RPL_LINKS        -> linksParamsImage
+        RPL_ENDOFLINKS   -> params_2_3_Image
 
         ERR_NOPRIVS      -> params_2_3_Image
         ERR_HELPNOTFOUND -> params_2_3_Image
@@ -847,6 +849,15 @@ renderReplyCode pal rm code@(ReplyCode w) params =
       case params of
         [_, chan, users, topic] ->
           ctxt chan <> label " users" <> ctxt users <> label " topic" <> ctxt topic
+        _ -> rawParamsImage
+
+    linksParamsImage =
+      case params of
+        [_, name, link, Text.breakOn " " -> (hops,location)] ->
+          ctxt name <>
+          label " link" <> ctxt link <>
+          label " hops" <> ctxt hops <>
+          label " location" <> ctxt (Text.drop 1 location)
         _ -> rawParamsImage
 
     etraceParamsImage =
