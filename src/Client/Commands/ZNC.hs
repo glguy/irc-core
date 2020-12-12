@@ -75,7 +75,7 @@ cmdZncPlayback cs st args =
              successZoned (fixDay t)
 
     -- explicit date and time
-    Just (dateStr, Just timeStr)
+    Just (timeStr, Just dateStr)
        | Just day  <- parseFormats dateFormats dateStr
        , Just tod  <- parseFormats timeFormats timeStr ->
           do tz <- getCurrentTimeZone
