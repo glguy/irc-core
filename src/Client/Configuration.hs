@@ -80,7 +80,7 @@ import           Config.Schema
 import           Control.Exception
 import           Control.Monad                       (unless)
 import           Control.Lens                        hiding (List)
-import           Data.Foldable                       (toList)
+import           Data.Foldable                       (foldl', toList)
 import           Data.Functor.Alt                    ((<!>))
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
@@ -264,7 +264,7 @@ configurationSpec = sectionsSpec "config-file" $
 
   do let sec' def name spec info = fromMaybe def <$> optSection' name spec info
 
-     ssDefUpdate            <- sec' id "defaults" serverSpec
+     ssDefUpdate            <- sec' (Nothing,id) "defaults" serverSpec
                                "Default values for use across all server configurations"
      ssUpdates              <- sec' [] "servers" (listSpec serverSpec)
                                "Configuration parameters for IRC servers"
@@ -302,7 +302,7 @@ configurationSpec = sectionsSpec "config-file" $
      maybeDownloadDir       <- optSection' "download-dir" stringSpec
                                "Path to DCC download directoy. Defaults to home directory."
      return (\def home ->
-             let _configDefaults = ssDefUpdate def
+             let _configDefaults = snd ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
                  _configKeyMap   = foldl (\acc f -> f acc) initialKeyMap bindings
                  _configDownloadDir = fromMaybe home maybeDownloadDir
@@ -492,15 +492,27 @@ urlOpenerSpec = simpleCase <!> complexCase
 
 buildServerMap ::
   ServerSettings {- ^ defaults -} ->
-  [ServerSettings -> ServerSettings] ->
+  [(Maybe Text, ServerSettings -> ServerSettings)] ->
   HashMap Text ServerSettings
-buildServerMap def ups =
-  HashMap.fromList [ (serverSettingName ss, ss) | up <- ups, let ss = up def ]
+buildServerMap def ups = go HashMap.empty def Nothing
   where
     serverSettingName ss =
       fromMaybe (views ssHostName Text.pack ss)
                 (view ssName ss)
 
+    raw = HashMap.fromListWith (++) [(mbExtName, [up]) | (mbExtName, up) <- ups]
+
+    go acc prev prevName = foldl' (add prev) acc nexts
+      where
+        nexts = HashMap.findWithDefault [] prevName raw
+
+    add prev acc f = go acc' ss (Just me)
+      where
+        ss = f prev
+        me = serverSettingName ss
+        acc'
+          | HashMap.member me acc = acc
+          | otherwise             = HashMap.insert me ss acc
 
 data FilePathContext = FilePathContext { fpBase, fpHome :: FilePath }
 

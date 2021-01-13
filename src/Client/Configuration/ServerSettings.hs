@@ -225,9 +225,11 @@ defaultServerSettings =
        , _ssCapabilities     = []
        }
 
-serverSpec :: ValueSpec (ServerSettings -> ServerSettings)
+serverSpec :: ValueSpec (Maybe Text, ServerSettings -> ServerSettings)
 serverSpec = sectionsSpec "server-settings" $
-  composeMaybe <$> sequenceA settings
+  do mbExt <- optSection "extends" "name of a server to use for defaults"
+     upd <- composeMaybe <$> sequenceA settings
+     pure (mbExt, upd)
   where
 
     composeMaybe :: [Maybe (a -> a)] -> a -> a
