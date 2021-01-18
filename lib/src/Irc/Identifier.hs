@@ -28,7 +28,6 @@ import           Data.Foldable
 import           Data.Function
 import           Data.Hashable
 import           Data.Monoid
-import           Data.Primitive.ByteArray
 import           Data.String
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -72,7 +71,7 @@ instance Ord Identifier where
 
 -- | Hash on normalized identifier
 instance Hashable Identifier where
-  hashWithSalt salt (Identifier _ b@(ByteArray arr)) =
+  hashWithSalt salt (Identifier _ b@(BA.ByteArray arr)) =
     hashByteArrayWithSalt arr 0 (BA.sizeofByteArray b) salt
 
 -- | @'fromString' = 'mkId' . 'fromString'

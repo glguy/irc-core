@@ -66,7 +66,7 @@ chatMessageImages focus w st =
 
     isNoisy msg =
       case view wlSummary msg of
-        ReplySummary code -> squelchIrcMsg (Reply code [])
+        ReplySummary code -> squelchIrcMsg (Reply "" code [])
         _                 -> False
 
 detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image']

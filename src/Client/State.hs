@@ -423,11 +423,11 @@ msgImportance msg st =
         Error{} -> WLImportant
 
         -- channel information
-        Reply RPL_TOPIC _        -> WLBoring
-        Reply RPL_INVITING _     -> WLBoring
+        Reply _ RPL_TOPIC _    -> WLBoring
+        Reply _ RPL_INVITING _ -> WLBoring
 
         -- remaining replies go to network window
-        Reply cmd _ ->
+        Reply _ cmd _ ->
           case replyCodeType (replyCodeInfo cmd) of
             ErrorReply -> WLImportant
             _          -> WLNormal
@@ -524,7 +524,7 @@ updateTransientError destination msg st
   case view msgBody msg of
     ErrorBody txt       -> err txt
     IrcBody (Error txt) -> err txt
-    IrcBody (Reply code args)
+    IrcBody (Reply _ code args)
       | let info = replyCodeInfo code
       , ErrorReply <- replyCodeType info ->
           err (Text.intercalate " " (replyCodeText info : drop 1 args))

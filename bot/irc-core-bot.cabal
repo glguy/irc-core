@@ -26,7 +26,7 @@ executable irc-core-bot
     base       >=4.9  && <4.15,
     bytestring ^>=0.10,
     hookup     ^>=0.5,
-    irc-core   ^>=2.9,
+    irc-core   ^>=2.10,
     random     >=1.1 && <1.3,
     text       ^>=1.2,
     containers ^>=0.6,

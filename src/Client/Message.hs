@@ -97,7 +97,7 @@ ircSummary msg =
     Ctcp who _ "DCC" txt | isSend txt -> DccSendSummary (userNick who)
     Ctcp who _ _ _ -> CtcpSummary (userNick who)
     CtcpNotice who _ _ _ -> ChatSummary who
-    Reply code _    -> ReplySummary code
+    Reply _ code _  -> ReplySummary code
     Account who _   -> AcctSummary (userNick who)
     Chghost who _ _ -> ChngSummary (userNick who)
     _               -> NoSummary

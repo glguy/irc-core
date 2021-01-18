@@ -130,14 +130,14 @@ authenticateLoop user pass bot =
             traverse_ (sendMsg bot) (ircAuthenticates payload)
             authenticateLoop user pass bot
 
-       Reply RPL_SASLSUCCESS _ ->
+       Reply _ RPL_SASLSUCCESS _ ->
          do sendMsg bot ircCapEnd
 
-       Reply RPL_SASLFAIL    _ -> fail "SASL failed"
-       Reply RPL_SASLTOOLONG _ -> fail "SASL failed"
-       Reply RPL_SASLABORTED _ -> fail "SASL failed"
-       Reply RPL_SASLALREADY _ -> fail "SASL failed"
-       Reply RPL_SASLMECHS   _ -> fail "SASL failed"
+       Reply _ RPL_SASLFAIL    _ -> fail "SASL failed"
+       Reply _ RPL_SASLTOOLONG _ -> fail "SASL failed"
+       Reply _ RPL_SASLABORTED _ -> fail "SASL failed"
+       Reply _ RPL_SASLALREADY _ -> fail "SASL failed"
+       Reply _ RPL_SASLMECHS   _ -> fail "SASL failed"
 
        _ -> print msg >> authenticateLoop user pass bot
 
@@ -167,7 +167,7 @@ processIrcMsg bot msg =
              pure bot
 
     -- pick a random new nickname
-    Reply ERR_NICKNAMEINUSE _ ->
+    Reply _ ERR_NICKNAMEINUSE _ ->
       do n <- randomRIO (1,1000::Int)
          let newNick = Text.pack (configNick (botConfig bot) ++ show n)
          sendMsg bot (ircNick newNick)

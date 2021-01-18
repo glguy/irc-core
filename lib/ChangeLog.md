@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.10
+
+* Track servername in `Reply` constructor
+
 ## 2.9
 
 * Move message hiding logic out of the IRC library

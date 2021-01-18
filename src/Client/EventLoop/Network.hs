@@ -41,7 +41,7 @@ import           Text.Regex.TDFA.Text as Regex
 clientResponse :: ZonedTime -> IrcMsg -> NetworkState -> ClientState -> IO ClientState
 clientResponse now irc cs st =
   case irc of
-    Reply RPL_WELCOME _ ->
+    Reply _ RPL_WELCOME _ ->
       -- run connection commands with the network focused and restore it afterward
       do let focus = NetworkFocus (view csNetwork cs)
          st' <- foldM (processConnectCmd now cs)
@@ -50,7 +50,7 @@ clientResponse now irc cs st =
          return $! set clientFocus (view clientFocus st) st'
 
     -- Change focus when we get a message that we're being forwarded to another channel
-    Reply ERR_LINKCHANNEL (_ : src : dst : _)
+    Reply _ ERR_LINKCHANNEL (_ : src : dst : _)
       | let network = view csNetwork cs
       , view clientFocus st == ChannelFocus network (mkId src) ->
          return $! set clientFocus (ChannelFocus network (mkId dst)) st

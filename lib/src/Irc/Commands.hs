@@ -54,7 +54,10 @@ module Irc.Commands
   , ircUnkline
   , ircUser
   , ircUserhost
+  , ircUserip
+  , ircUsers
   , ircVersion
+  , ircWallops
   , ircWho
   , ircWhois
   , ircWhowas

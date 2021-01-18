@@ -302,7 +302,7 @@ hideMessage m =
     BatchEnd{} -> True
     Ping{} -> True
     Pong{} -> True
-    Reply RPL_WHOSPCRPL [_,"616",_,_,_,_] -> True
+    Reply _ RPL_WHOSPCRPL [_,"616",_,_,_,_] -> True
     _ -> False
 
 -- | Used for updates to a 'NetworkState' that require no reply.
@@ -364,28 +364,28 @@ applyMessage' msgWhen msg cs =
          $ updateMyNick (userNick oldNick) newNick
          $ overChannels (nickChange (userNick oldNick) newNick) cs
 
-    Reply RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
-    Reply RPL_SASLSUCCESS _ -> reply [ircCapEnd] cs
-    Reply RPL_SASLFAIL _ -> reply [ircCapEnd] cs
+    Reply _ RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
+    Reply _ RPL_SASLSUCCESS _ -> reply [ircCapEnd] cs
+    Reply _ RPL_SASLFAIL _ -> reply [ircCapEnd] cs
 
-    Reply ERR_NICKNAMEINUSE (_:badnick:_)
+    Reply _ ERR_NICKNAMEINUSE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
-    Reply ERR_BANNEDNICK (_:badnick:_)
+    Reply _ ERR_BANNEDNICK (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
-    Reply ERR_ERRONEUSNICKNAME (_:badnick:_)
+    Reply _ ERR_ERRONEUSNICKNAME (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
-    Reply ERR_UNAVAILRESOURCE (_:badnick:_)
+    Reply _ ERR_UNAVAILRESOURCE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
 
-    Reply RPL_HOSTHIDDEN (_:host:_) ->
+    Reply _ RPL_HOSTHIDDEN (_:host:_) ->
         noReply (set (csUserInfo . uiHost) host cs)
 
     -- /who <#channel> %tuhna,616
-    Reply RPL_WHOSPCRPL [_me,"616",user,host,nick,acct] ->
+    Reply _ RPL_WHOSPCRPL [_me,"616",user,host,nick,acct] ->
        let acct' = if acct == "0" then "*" else acct
        in noReply (recordUser (UserInfo (mkId nick) user host) acct' cs)
 
-    Reply code args        -> doRpl code msgWhen args cs
+    Reply _ code args      -> doRpl code msgWhen args cs
     Cap cmd                -> doCap cmd cs
     Authenticate param     -> doAuthenticate param cs
     Mode who target (modes:params) -> doMode msgWhen who target modes params cs
@@ -669,8 +669,8 @@ squelchReply rpl =
 -- so the user shouldn't need to see them directly to get the
 -- relevant information.
 squelchIrcMsg :: IrcMsg -> Bool
-squelchIrcMsg (Reply rpl _) = squelchReply rpl
-squelchIrcMsg _             = False
+squelchIrcMsg (Reply _ rpl _) = squelchReply rpl
+squelchIrcMsg _               = False
 
 doMode ::
   ZonedTime {- ^ time of message -} ->

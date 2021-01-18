@@ -263,7 +263,7 @@ ircLinePrefix !rp body =
 
     Error {} -> string (view palError pal) "ERROR" <> ":"
 
-    Reply code _ -> replyCodePrefix code
+    Reply _ code _ -> replyCodePrefix code
 
     UnknownMsg irc ->
       case view msgPrefix irc of
@@ -320,7 +320,7 @@ ircLineImage !rp body =
     CtcpNotice _ _ cmd      txt -> parseIrcText cmd <> " " <>
                                    parseIrcTextWithNicks pal hilites False txt
 
-    Reply code params -> renderReplyCode pal NormalRender code params
+    Reply srv code params -> renderReplyCode pal NormalRender srv code params
     UnknownMsg irc ->
       ctxt (view msgCommand irc) <>
       char defAttr ' ' <>
@@ -466,8 +466,8 @@ fullIrcLineImage !rp body =
       string (view palError pal) "ERROR " <>
       parseIrcText reason
 
-    Reply code params ->
-      renderReplyCode pal DetailedRender code params
+    Reply srv code params ->
+      renderReplyCode pal DetailedRender srv code params
 
     UnknownMsg irc ->
       foldMap (\ui -> coloredUserInfo pal rm hilites ui <> char defAttr ' ')
@@ -537,10 +537,10 @@ replyCodePrefix code = text' attr (replyCodeText info) <> ":"
 
     attr = withForeColor defAttr color
 
-renderReplyCode :: Palette -> RenderMode -> ReplyCode -> [Text] -> Image'
-renderReplyCode pal rm code@(ReplyCode w) params =
+renderReplyCode :: Palette -> RenderMode -> Text -> ReplyCode -> [Text] -> Image'
+renderReplyCode pal rm srv code@(ReplyCode w) params =
   case rm of
-    DetailedRender -> string attr (shows w " ") <> rawParamsImage
+    DetailedRender -> ctxt srv <> " " <> string attr (shows w " ") <> rawParamsImage
     NormalRender   ->
       case code of
         RPL_WHOISUSER    -> whoisUserParamsImage

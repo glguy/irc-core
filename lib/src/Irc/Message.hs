@@ -47,7 +47,7 @@ import           View
 -- | High-level IRC message representation
 data IrcMsg
   = UnknownMsg !RawIrcMsg -- ^ pass-through for unhandled messages
-  | Reply !ReplyCode [Text] -- ^ code arguments
+  | Reply !Text !ReplyCode [Text] -- ^ server code arguments
   | Nick !UserInfo !Identifier -- ^ old new
   | Join !UserInfo !Identifier !Text !Text -- ^ user channel account account gecos
   | Part !UserInfo !Identifier (Maybe Text) -- ^ user channel reason
@@ -103,8 +103,9 @@ cookCapCmd cmd args =
 cookIrcMsg :: RawIrcMsg -> IrcMsg
 cookIrcMsg msg =
   case view msgCommand msg of
-    cmd | Right (n,"") <- decimal cmd ->
-        Reply (ReplyCode n) (view msgParams msg)
+    cmd | Just user <- view msgPrefix msg
+        , Right (n,"") <- decimal cmd ->
+        Reply (idText (userNick user)) (ReplyCode n) (view msgParams msg)
     "CAP" | _target:cmdTxt:rest <- view msgParams msg
           , Just cmd <- cookCapCmd cmdTxt rest -> Cap cmd
 
@@ -212,7 +213,7 @@ msgTarget :: Identifier -> IrcMsg -> MessageTarget
 msgTarget me msg =
   case msg of
     UnknownMsg{}             -> TargetNetwork
-    Nick user oldUser        -> TargetUser (userNick user)
+    Nick user _              -> TargetUser (userNick user)
     Mode _ tgt _ | tgt == me -> TargetNetwork
                  | otherwise -> TargetWindow tgt
     Join _ chan _ _          -> TargetWindow chan
@@ -230,7 +231,7 @@ msgTarget me msg =
     Pong{}                   -> TargetNetwork
     Error{}                  -> TargetNetwork
     Cap{}                    -> TargetNetwork
-    Reply code args          -> replyTarget code args
+    Reply _ code args        -> replyTarget code args
     BatchStart{}             -> TargetNetwork
     BatchEnd{}               -> TargetNetwork
     Account user _           -> TargetUser (userNick user)
@@ -259,6 +260,7 @@ msgActor msg =
     Kick x _ _ _  -> Just x
     Topic x _ _   -> Just x
     Privmsg x _ _ -> Just x
+    Invite x _ _  -> Just x
     Ctcp x _ _ _  -> Just x
     CtcpNotice x _ _ _ -> Just x
     Notice x _ _  -> Just x
@@ -280,7 +282,7 @@ ircMsgText :: IrcMsg -> Text
 ircMsgText msg =
   case msg of
     UnknownMsg raw -> Text.unwords (view msgCommand raw : view msgParams raw)
-    Reply (ReplyCode n) xs -> Text.unwords (Text.pack (show n) : xs)
+    Reply srv (ReplyCode n) xs -> Text.unwords (srv : Text.pack (show n) : xs)
     Nick x y       -> Text.unwords [renderUserInfo x, idText y]
     Join x _ _ _   -> renderUserInfo x
     Part x _ mb    -> Text.unwords (renderUserInfo x : maybeToList mb)
@@ -300,6 +302,7 @@ ircMsgText msg =
     Authenticate{} -> ""
     BatchStart{}   -> ""
     BatchEnd{}     -> ""
+    Invite _ _ _   -> ""
     Chghost x a b  -> Text.unwords [renderUserInfo x, a, b]
     Wallops x t    -> Text.unwords [renderUserInfo x, t]
 

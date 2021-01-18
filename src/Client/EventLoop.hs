@@ -354,7 +354,7 @@ startTLSLine network cs st raw =
 
      case irc of
        Notice{} -> pure st1
-       Reply RPL_STARTTLS _ ->
+       Reply _ RPL_STARTTLS _ ->
          do upgrade (view csSocket cs)
             pure (set ( clientConnections . ix network . csPingStatus
                       . _PingConnecting . _3)
