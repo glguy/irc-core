@@ -406,7 +406,7 @@ tabReload _ st _ = commandFailure st
 commandNameCompletion :: Bool -> ClientState -> Maybe ClientState
 commandNameCompletion isReversed st =
   do guard (cursorPos == n)
-     clientTextBox (wordComplete plainWordCompleteMode isReversed [] possibilities) st
+     clientTextBox (wordComplete (' ' /=) plainWordCompleteMode isReversed [] possibilities) st
   where
     n = length white + length leadingPart
     (cursorPos, line) = clientLine st

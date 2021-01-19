@@ -56,22 +56,38 @@ simpleTabCompletion ::
   Bool               {- ^ reversed order       -} ->
   ClientState        {- ^ client state         -} ->
   IO CommandResult
-simpleTabCompletion mode hints completions isReversed st =
+simpleTabCompletion = simpleTabCompletion' (' ' /=)
+
+simpleTabCompletion' ::
+  Prefix a =>
+  (Char -> Bool)     {- ^ valid characters     -} ->
+  WordCompletionMode {- ^ word completion mode -} ->
+  [a]                {- ^ hints                -} ->
+  [a]                {- ^ all completions      -} ->
+  Bool               {- ^ reversed order       -} ->
+  ClientState        {- ^ client state         -} ->
+  IO CommandResult
+simpleTabCompletion' p mode hints completions isReversed st =
   case traverseOf clientTextBox tryCompletion st of
     Nothing  -> commandFailure st
     Just st' -> commandSuccess st'
   where
-    tryCompletion = wordComplete mode isReversed hints completions
+    tryCompletion = wordComplete p mode isReversed hints completions
 
 -- | Complete the nickname at the current cursor position using the
 -- userlist for the currently focused channel (if any)
 nickTabCompletion :: Bool {- ^ reversed -} -> ClientState -> IO CommandResult
 nickTabCompletion isReversed st =
-  simpleTabCompletion mode hint completions isReversed st
+  simpleTabCompletion' isNickChar mode hint completions isReversed st
   where
     hint          = activeNicks st
     completions   = currentCompletionList st
     mode          = currentNickCompletionMode st
+
+isNickChar :: Char -> Bool
+isNickChar x = inrange 'a' 'z' || inrange 'A' 'Z' || inrange '0' '9'
+            || x `elem` "-[\\]^_`{}|"
+  where inrange lo hi = lo <= x && x <= hi
 
 activeNicks ::
   ClientState ->

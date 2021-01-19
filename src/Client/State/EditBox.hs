@@ -63,7 +63,6 @@ module Client.State.EditBox
 
 import           Client.State.EditBox.Content
 import           Control.Lens hiding (below)
-import           Data.Char
 import           Data.List.NonEmpty (NonEmpty)
 
 
@@ -226,16 +225,16 @@ yank e
 
 -- | Kill the content from the cursor back to the previous word boundary.
 -- When @yank@ is set the yank buffer will be updated.
-killWordBackward :: Bool {- ^ yank -} -> EditBox -> EditBox
-killWordBackward saveKill e
+killWordBackward :: (Char -> Bool) -> Bool {- ^ yank -} -> EditBox -> EditBox
+killWordBackward p saveKill e
   = sometimesUpdateYank
   $ set line (Line (length l') (l'++r))
   $ e
   where
   Line n txt = view line e
   (l,r) = splitAt n txt
-  (sp,l1) = span  isSpace (reverse l)
-  (wd,l2) = break isSpace l1
+  (sp,l1) = span  p (reverse l)
+  (wd,l2) = break p l1
   l' = reverse l2
   yanked = reverse (sp++wd)
 
@@ -245,16 +244,16 @@ killWordBackward saveKill e
 
 -- | Kill the content from the curser forward to the next word boundary.
 -- When @yank@ is set the yank buffer will be updated
-killWordForward :: Bool {- ^ yank -} -> EditBox -> EditBox
-killWordForward saveKill e
+killWordForward :: (Char -> Bool) -> Bool {- ^ yank -} -> EditBox -> EditBox
+killWordForward p saveKill e
   = sometimesUpdateYank
   $ set line (Line (length l) (l++r2))
   $ e
   where
   Line n txt = view line e
   (l,r) = splitAt n txt
-  (sp,r1) = span  isSpace r
-  (wd,r2) = break isSpace r1
+  (sp,r1) = span  p r
+  (wd,r2) = break p r1
   yanked = sp++wd
 
   sometimesUpdateYank

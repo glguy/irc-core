@@ -42,6 +42,7 @@ import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Data.ByteString (ByteString)
+import           Data.Char (isSpace)
 import           Data.Foldable
 import           Data.Traversable
 import           Data.List
@@ -445,8 +446,8 @@ doAction vty action st =
     -- edits
     ActKillHome          -> changeEditor Edit.killHome
     ActKillEnd           -> changeEditor Edit.killEnd
-    ActKillWordBack      -> changeEditor (Edit.killWordBackward True)
-    ActKillWordForward   -> changeEditor (Edit.killWordForward True)
+    ActKillWordBack      -> changeEditor (Edit.killWordBackward isSpace True)
+    ActKillWordForward   -> changeEditor (Edit.killWordForward isSpace True)
     ActYank              -> changeEditor Edit.yank
     ActToggle            -> changeContent Edit.toggle
     ActDelete            -> changeContent Edit.delete

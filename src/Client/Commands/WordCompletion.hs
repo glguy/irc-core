@@ -63,13 +63,14 @@ slackNickWordCompleteMode = WordCompletionMode "@" " " "@" ""
 -- completions.
 wordComplete ::
   Prefix a =>
+  (Char -> Bool) {- ^ valid character predicate -} ->
   WordCompletionMode {- ^ leading update operation -} ->
   Bool               {- ^ reversed -} ->
   [a]       {- ^ priority completions -} ->
   [a]       {- ^ possible completions -} ->
   Edit.EditBox -> Maybe Edit.EditBox
-wordComplete mode isReversed hint vals box =
-  do let current = currentWord mode box
+wordComplete p mode isReversed hint vals box =
+  do let current = currentWord p mode box
      guard (not (null current))
      let cur = fromString current
      case view Edit.lastOperation box of
@@ -77,7 +78,7 @@ wordComplete mode isReversed hint vals box =
          | isPrefix pat cur ->
 
          do next <- tabSearch isReversed pat cur vals
-            Just $ replaceWith mode (toString next) box
+            Just $ replaceWith p mode (toString next) box
          where
            pat = fromString patternStr
 
@@ -85,11 +86,11 @@ wordComplete mode isReversed hint vals box =
          do next <- find (isPrefix cur) hint <|>
                     tabSearch isReversed cur cur vals
             Just $ set Edit.lastOperation (Edit.TabOperation current)
-                 $ replaceWith mode (toString next) box
+                 $ replaceWith p mode (toString next) box
 
-replaceWith :: WordCompletionMode -> String -> Edit.EditBox -> Edit.EditBox
-replaceWith (WordCompletionMode spfx ssfx mpfx msfx) str box =
-    let box1 = Edit.killWordBackward False box
+replaceWith :: (Char -> Bool) -> WordCompletionMode -> String -> Edit.EditBox -> Edit.EditBox
+replaceWith p (WordCompletionMode spfx ssfx mpfx msfx) str box =
+    let box1 = Edit.killWordBackward (not . p) False box
         str1 | view Edit.pos box1 == 0 = spfx ++ str ++ ssfx
              | otherwise               = mpfx ++ str ++ msfx
     in over Edit.content (Edit.insertString str1) box1
@@ -98,11 +99,11 @@ replaceWith (WordCompletionMode spfx ssfx mpfx msfx) str box =
 -- | Find the word preceeding the cursor skipping over any
 -- characters that can be found in the prefix and suffix for
 -- the current completion mode.
-currentWord :: WordCompletionMode -> Edit.EditBox -> String
-currentWord (WordCompletionMode spfx ssfx mpfx msfx) box
+currentWord :: (Char -> Bool) -> WordCompletionMode -> Edit.EditBox -> String
+currentWord p (WordCompletionMode spfx ssfx mpfx msfx) box
   = dropWhile (`elem`pfx)
   $ reverse
-  $ takeWhile (/= ' ')
+  $ takeWhile p
   $ dropWhile (`elem`sfx)
   $ reverse
   $ take n txt
