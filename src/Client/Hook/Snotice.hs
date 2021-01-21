@@ -84,6 +84,7 @@ patterns = map toPattern
     (1, "k", [str|^[^ @]+@freenode/utility-bot/sigyn\{[^ ]+ added global [0-9]+ min. K-Line for |]),
     (1, "k", [str|^[^ @]+@freenode/bot/proxyscan\{[^ ]+ added global [0-9]+ min. K-Line for |]),
     (2, "k", [str|^[^ ]+ added global [0-9]+ min. K-Line for |]),
+    (2, "k", [str|^[^ ]+ added global [0-9]+ min. X-Line for |]),
     -- Global kline expiring, more complete regex: ^Propagated ban for \[[^ ]+\] expired$
     (0, "k", [str|^Propagated ban for |]),
     -- Chancreate
@@ -118,8 +119,10 @@ patterns = map toPattern
     (3, "f", [str|^Failed (OPER|CHALLENGE) attempt|]), -- ORDER IMPORTANT - catch all failed attempts that aren't host mismatch
 
     (1, "k", [str|^KLINE active for|]),
+    (1, "k", [str|^XLINE active for|]),
     (3, "k", [str|^KLINE over-ruled for |]),
     (2, "k", [str|^[^ ]+ added global [0-9]+ min. K-Line from [^ ]+![^ ]+@[^ ]+\{[^ ]+\} for \[[^ ]+\] \[.*\]$|]),
+    (2, "k", [str|^[^ ]+ added global [0-9]+ min. X-Line from [^ ]+![^ ]+@[^ ]+\{[^ ]+\} for \[[^ ]+\] \[.*\]$|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the global K-Line for: \[.*\]$|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the temporary K-Line for: \[.*\]$|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} added temporary [0-9]+ min. D-Line for \[[^ ]+\] \[.*\]$|]),
