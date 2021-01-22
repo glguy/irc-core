@@ -305,7 +305,7 @@ computeModeCompletion ::
   ([Identifier],[Identifier]) {- ^ (hint, complete) -}
 computeModeCompletion pol mode channel cs st
   | mode `elem` view modesLists modeSettings =
-        if pol then ([],usermasks) else ([],masks)
+        if pol then ([],usermasks <> accounts) else ([],masks)
   | otherwise = (activeNicks st, nicks)
   where
     modeSettings = view csModeTypes cs
@@ -317,6 +317,12 @@ computeModeCompletion pol mode channel cs st
       [ mkId ("*!*@" <> host)
         | nick <- HashMap.keys (view (csChannels . ix channel . chanUsers) cs)
         , UserAndHost _ host _ <- toListOf (csUsers . ix nick) cs
+        ]
+    accounts =
+      [ mkId ("$a:" <> account)
+        | nick <- HashMap.keys (view (csChannels . ix channel . chanUsers) cs)
+        , UserAndHost _ _ account <- toListOf (csUsers . ix nick) cs
+        , not (Text.null account)
         ]
 
 -- | Predicate for mode commands that can be performed without ops
