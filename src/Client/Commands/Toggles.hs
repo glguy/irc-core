@@ -48,6 +48,11 @@ togglesCommands = CommandSection "View toggles"
       "Toggle multi-window layout mode.\n"
     $ ClientCommand cmdToggleLayout noClientTab
 
+  , Command
+      (pure "toggle-editor")
+      (pure ())
+      "Toggle editor mode.\n"
+    $ ClientCommand cmdToggleEditor noClientTab
   ]
 
 cmdToggleDetail :: ClientCommand ()
@@ -67,3 +72,9 @@ cmdToggleLayout st _ = commandSuccess (set clientScroll 0 (over clientLayout aux
   where
     aux OneColumn = TwoColumn
     aux TwoColumn = OneColumn
+
+cmdToggleEditor :: ClientCommand ()
+cmdToggleEditor st _ = commandSuccess (over clientEditMode aux st)
+  where
+    aux SingleLineEditor = MultiLineEditor
+    aux MultiLineEditor = SingleLineEditor

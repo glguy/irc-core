@@ -235,6 +235,7 @@ initialKeyMap = KeyMap $
           , (KFun 3, ActCommand "toggle-activity-bar")
           , (KFun 4, ActCommand "toggle-metadata")
           , (KFun 5, ActCommand "toggle-layout")
+          , (KFun 6, ActCommand "toggle-editor")
           ])
     :
 

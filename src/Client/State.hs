@@ -45,6 +45,7 @@ module Client.State
   , clientActivityReturn
   , clientErrorMsg
   , clientLayout
+  , clientEditMode
   , clientRtsStats
   , clientConfigPath
   , clientStsPolicy
@@ -192,7 +193,8 @@ data ClientState = ClientState
   , _clientActivityBar       :: !Bool                     -- ^ visible activity bar
   , _clientShowPing          :: !Bool                     -- ^ visible ping time
   , _clientRegex             :: Maybe Matcher             -- ^ optional persistent filter
-  , _clientLayout            :: !LayoutMode               -- ^ layout mode for split screen
+  , _clientLayout            :: LayoutMode                -- ^ layout mode for split screen
+  , _clientEditMode          :: EditMode                  -- ^ editor rendering mode
 
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
@@ -283,6 +285,7 @@ withClientState cfgPath cfg k =
         , _clientDetailView        = False
         , _clientRegex             = Nothing
         , _clientLayout            = view configLayout cfg
+        , _clientEditMode          = SingleLineEditor
         , _clientActivityBar       = view configActivityBar cfg
         , _clientShowPing          = view configShowPing cfg
         , _clientBell              = False

@@ -21,6 +21,7 @@ import           Client.Commands.Arguments.Renderer
 import           Client.Commands.Arguments.Parser
 import           Client.Commands.Interpolation
 import           Client.Commands.Recognizer
+import           Client.Image.LineWrap (fullLineWrap, terminate)
 import           Client.Image.Message
 import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
@@ -35,12 +36,79 @@ import           Graphics.Vty.Attributes
 import qualified Graphics.Vty.Image as Vty
 import           Irc.Identifier
 
+textboxImage :: Int -> Int -> ClientState -> (Int, Int, Int, Vty.Image) -- ^ cursor column, new offset, image
+textboxImage maxHeight width st =
+  case view clientEditMode st of
+    SingleLineEditor -> singleLineTextboxImage maxHeight width st
+    MultiLineEditor  -> multiLineTextboxImage  maxHeight width st
+
+multiLineTextboxImage :: Int -> Int -> ClientState -> (Int, Int, Int, Vty.Image) -- ^ cursor column, new offset, image
+multiLineTextboxImage _maxHeight width st = (cursorRow, cursorCol, view clientTextBoxOffset st, output)
+  where
+  output = Vty.vertCat (terminate width . unpackImage <$> imgs)
+
+  imgs = as ++ c ++ bs
+
+  content = view (clientTextBox . Edit.content) st
+
+  as  = concatMap (fullLineWrap width)
+      $ mapHead (beginning <>)
+      $ map (<> plainText "\n")
+      $ rndr False <$> reverse (view Edit.above content)
+
+  bs  = concatMap (fullLineWrap width)
+      $ endAfters
+      $ rndr False <$> view Edit.below content
+
+  cur = view Edit.line content
+  curTxt  = view Edit.text cur
+
+  cursorBase
+    = imageWidth $ parseIrcText' True
+    $ Text.pack
+    $ take (view Edit.pos cur) curTxt
+
+  (cursorRow, cursorCol) =
+    calcCol (length c + length bs) c (if null as then 1 + cursorBase else cursorBase)
+
+  c = fullLineWrap width
+    $ (if null as then beginning else mempty)
+   <> rndr True curTxt
+   <> (if null bs then ending else plainText "\n")
+
+  rndr = renderLine st pal hilites macros
+  pal = clientPalette st
+  hilites = clientHighlightsFocus (view clientFocus st) st
+  macros = views (clientConfig . configMacros) (fmap macroSpec) st
+
+  attr      = view palTextBox pal
+  beginning = char attr '^'
+  ending    = char attr '$'
+
+  endAfters [] = []
+  endAfters [x] = [x <> ending]
+  endAfters (x:xs) = x <> plainText "\n" : endAfters xs
+
+  -- Using fullLineWrap make calculating the cursor much easier
+  -- to switch to word-breaking lineWrap we'll need some extra
+  -- logic to count skipped spaces.
+  calcCol row [] _ = (row, 0)
+  calcCol row (i:is) n
+    | n < w = (row, n)
+    | otherwise = calcCol (row-1) is (n-w)
+    where
+      w = imageWidth i
+
+mapHead :: (a -> a) -> [a] -> [a]
+mapHead f (x:xs) = f x : xs
+mapHead _ []     = []
+
 -- | Compute the UI image for the text input box. This computes
 -- the logical cursor position on the screen to compensate for
 -- VTY's cursor placement behavior.
-textboxImage :: Int -> ClientState -> (Int, Int, Vty.Image) -- ^ cursor column, new offset, image
-textboxImage width st
-  = (newPos, newOffset, croppedImage)
+singleLineTextboxImage :: Int -> Int -> ClientState -> (Int, Int, Int, Vty.Image) -- ^ cursor column, new offset, image
+singleLineTextboxImage _maxHeight width st
+  = (1, newPos, newOffset, croppedImage)
   where
   macros = views (clientConfig . configMacros) (fmap macroSpec) st
   (txt, content) =

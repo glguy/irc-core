@@ -23,9 +23,9 @@ import           Graphics.Vty.Image
 clientPicture :: ClientState -> (Picture, ClientState)
 clientPicture st = (pic, st')
     where
-      (pos, img, st') = clientImage st
+      (row, col, img, st') = clientImage st
       pic = Picture
-              { picCursor     = AbsoluteCursor pos (view clientHeight st - 1)
+              { picCursor     = AbsoluteCursor col (view clientHeight st - row)
               , picBackground = ClearBackground
               , picLayers     = [img]
               }
@@ -33,11 +33,11 @@ clientPicture st = (pic, st')
 -- | Primary UI render logic
 clientImage ::
   ClientState               {- ^ client state -} ->
-  (Int, Image, ClientState) {- ^ text box cursor position, image, updated state -}
-clientImage st = (pos, img, st')
+  (Int, Int, Image, ClientState) {- ^ cursor row, cursor col, image, updated state -}
+clientImage st = (row, col, img, st')
   where
     -- update client state for scroll clamp
     !st' = set clientTextBoxOffset nextOffset
          $ over clientScroll (max 0 . subtract overscroll) st
 
-    (overscroll, pos, nextOffset, img) = drawLayout st
+    (overscroll, row, col, nextOffset, img) = drawLayout st

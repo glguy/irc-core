@@ -21,6 +21,7 @@ module Client.Configuration
     Configuration(..)
   , ConfigurationFailure(..)
   , LayoutMode(..)
+  , EditMode(..)
   , PaddingMode(..)
   , ExtensionConfiguration(..)
 
@@ -143,6 +144,10 @@ data LayoutMode
   | TwoColumn
   deriving Show
 
+data EditMode
+  = SingleLineEditor
+  | MultiLineEditor
+  deriving Show
 
 -- | Failure cases when loading a configuration file.
 data ConfigurationFailure

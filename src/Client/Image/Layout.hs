@@ -24,7 +24,7 @@ import Graphics.Vty.Attributes (defAttr)
 -- | Compute the combined image for all the visible message windows.
 drawLayout ::
   ClientState            {- ^ client state                                     -} ->
-  (Int, Int, Int, Image) {- ^ overscroll, cursor pos, next offset, final image -}
+  (Int, Int, Int, Int, Image) {- ^ overscroll, cursor row, cursor col, next offset, final image -}
 drawLayout st =
   case view clientLayout st of
     TwoColumn | not (null extrafocus) -> drawLayoutTwo st extrafocus
@@ -36,15 +36,15 @@ drawLayout st =
 drawLayoutOne ::
   ClientState            {- ^ client state                 -} ->
   [(Focus, Subfocus)]    {- ^ extra windows                -} ->
-  (Int, Int, Int, Image) {- ^ overscroll and final image   -}
+  (Int, Int, Int, Int, Image) {- ^ overscroll and final image   -}
 drawLayoutOne st extrafocus =
-  (overscroll, pos, nextOffset, output)
+  (overscroll, row, col, nextOffset, output)
   where
     w      = view clientWidth st
     h:hs   = splitHeights (rows - saveRows) (length extraLines)
     scroll = view clientScroll st
 
-    (overscroll, pos, nextOffset, main) =
+    (overscroll, row, col, nextOffset, main) =
         drawMain w (saveRows + h) scroll st
 
     output = vertCat $ reverse
@@ -64,9 +64,9 @@ drawLayoutOne st extrafocus =
 drawLayoutTwo ::
   ClientState            {- ^ client state                                -} ->
   [(Focus, Subfocus)]    {- ^ extra windows                               -} ->
-  (Int, Int, Int, Image) {- ^ overscroll, cursor pos, offset, final image -}
+  (Int, Int, Int, Int, Image) {- ^ overscroll, cursor row, cursor col, offset, final image -}
 drawLayoutTwo st extrafocus =
-  (overscroll, pos, nextOffset, output)
+  (overscroll, row, col, nextOffset, output)
   where
     [wl,wr] = divisions (view clientWidth st - 1) 2
     hs      = divisions (rows - length extraLines) (length extraLines)
@@ -78,7 +78,7 @@ drawLayoutTwo st extrafocus =
              [ drawExtra st wr h' foc subfoc imgs
                  | (h', (foc, subfoc, imgs)) <- zip hs extraLines]
 
-    (overscroll, pos, nextOffset, main) =
+    (overscroll, row, col, nextOffset, main) =
         drawMain wl rows scroll st
 
     pal     = clientPalette st
@@ -93,8 +93,8 @@ drawMain ::
   Int         {- ^ draw height     -} ->
   Int         {- ^ scroll amount   -} ->
   ClientState {- ^ client state    -} ->
-  (Int,Int,Int,Image)
-drawMain w h scroll st = (overscroll, pos, nextOffset, msgs <-> bottomImg)
+  (Int,Int,Int,Int,Image)
+drawMain w h scroll st = (overscroll, row, col, nextOffset, msgs <-> bottomImg)
   where
     focus = view clientFocus st
     subfocus = view clientSubfocus st
@@ -106,7 +106,7 @@ drawMain w h scroll st = (overscroll, pos, nextOffset, msgs <-> bottomImg)
     h' = max 0 (h - imageHeight bottomImg)
 
     bottomImg = statusLineImage w st <-> tbImage
-    (pos, nextOffset, tbImage) = textboxImage w st
+    (row, col, nextOffset, tbImage) = textboxImage 3 w st
 
 
 -- | Draw one of the extra windows from @/splits@
