@@ -199,6 +199,25 @@ chatCommands = CommandSection "IRC commands"
     $ NetworkCommand cmdNotice simpleNetworkTab
 
   , Command
+      (pure "wallops")
+      (remainingArg "message")
+      "\^BParameters:\^B\n\
+      \\n\
+      \    message: Formatted message body\n\
+      \\n\
+      \\^BDescription:\^B\n\
+      \\n\
+      \    Send a network-wide WALLOPS message. These message go out\n\
+      \    to users who have the 'w' usermode set.\n\
+      \\n\
+      \\^BExamples:\^B\n\
+      \\n\
+      \    /wallops Hi everyone, thanks for using this network!\n\
+      \\n\
+      \\^BSee also:\^B me, msg, say\n"
+    $ NetworkCommand cmdWallops simpleNetworkTab
+
+  , Command
       (pure "ctcp")
       (liftA3 (,,) (simpleToken "target") (simpleToken "command") (remainingArg "arguments"))
       "\^BParameters:\^B\n\
@@ -388,6 +407,15 @@ cmdCtcp cs st (target, cmd, args) =
      chatCommand
         (\src tgt -> Ctcp src tgt cmdTxt argTxt)
         tgtTxt cs st
+
+-- | Implementation of @/wallops@
+cmdWallops :: NetworkCommand String
+cmdWallops cs st rest
+  | null rest = commandFailureMsg "empty message" st
+  | otherwise =
+      do let restTxt = Text.pack rest
+         sendMsg cs (ircWallops restTxt)
+         commandSuccess st
 
 -- | Implementation of @/notice@
 cmdNotice :: NetworkCommand (String, String)
