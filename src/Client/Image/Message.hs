@@ -605,6 +605,8 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
         ERR_NOPRIVS      -> params_2_3_Image
         ERR_HELPNOTFOUND -> params_2_3_Image
         ERR_NEEDMOREPARAMS -> params_2_3_Image
+        ERR_NOSUCHNICK   -> params_2_3_Image
+        ERR_NOSUCHSERVER -> params_2_3_Image
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
