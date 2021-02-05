@@ -1083,6 +1083,7 @@ clientHighlightsFocus focus st =
     Unfocused        -> base
   where
     base = HashMap.fromList [(x, HighlightMe) | x <- view (clientConfig . configExtraHighlights) st]
+        <> HashMap.fromList [(x, HighlightNone) | x <- view (clientConfig . configNeverHighlights) st]
         <> view clientHighlights st
 
     replace x y =

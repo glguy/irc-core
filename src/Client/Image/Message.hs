@@ -1083,6 +1083,7 @@ data Highlight
   = HighlightMe
   | HighlightNick
   | HighlightError
+  | HighlightNone
   deriving Eq
 
 -- | Parse message text to construct an image. If the text has formatting
@@ -1111,6 +1112,7 @@ highlightNicks palette hilites txt = foldMap highlight1 txtParts
     highlight1 part =
       case HashMap.lookup partId hilites of
         Nothing -> ctxt part
+        Just HighlightNone -> ctxt part
         Just HighlightError -> text' (view palError palette) part
         _ -> coloredIdentifier palette PrivmsgIdentifier hilites partId
       where

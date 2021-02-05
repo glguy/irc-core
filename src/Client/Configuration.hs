@@ -35,6 +35,7 @@ module Client.Configuration
   , configMacros
   , configExtensions
   , configExtraHighlights
+  , configNeverHighlights
   , configUrlOpener
   , configIgnores
   , configActivityBar
@@ -108,6 +109,7 @@ data Configuration = Configuration
   , _configPalette         :: Palette -- ^ User-customized color palette
   , _configWindowNames     :: Text -- ^ Names of windows, used when alt-jumping)
   , _configExtraHighlights :: [Identifier] -- ^ Extra highlight nicks/terms
+  , _configNeverHighlights :: [Identifier] -- ^ Never highlight nicks/terms
   , _configNickPadding     :: PaddingMode -- ^ Padding of nicks in messages
   , _configDownloadDir     :: FilePath -- ^ Directory for downloads, default to HOME
   , _configMacros          :: Recognizer Macro -- ^ command macros
@@ -287,6 +289,8 @@ configurationSpec = sectionsSpec "config-file" $
                                "External command used by /url command"
      _configExtraHighlights <- sec' mempty "extra-highlights" (listSpec identifierSpec)
                                "Extra words to highlight in chat messages"
+     _configNeverHighlights <- sec' mempty "never-highlights" (listSpec identifierSpec)
+                               "Words to avoid highlighting in chat messages"
      _configNickPadding     <- sec' NoPadding "nick-padding" nickPaddingSpec
                                "Amount of space to reserve for nicknames in chat messages"
      _configIgnores         <- sec' [] "ignores" anySpec
