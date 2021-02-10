@@ -126,6 +126,8 @@ patterns = map toPattern
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the global K-Line for: \[.*\]$|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the temporary K-Line for: \[.*\]$|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} added temporary [0-9]+ min. D-Line for \[[^ ]+\] \[.*\]$|]),
+    (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the X-Line for:|]),
+    (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} is removing the X-Line for|]),
 
     (0, "m", [str|^Received SAVE message for|]),
     (0, "m", [str|^Ignored noop SAVE message for|]),
@@ -203,6 +205,7 @@ patterns = map toPattern
     (2, "o", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} added X-Line for \[.*\]|]),
     (2, "o", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} is adding a permanent RESV for \[.*\]|]),
     (2, "o", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} added RESV for \[.*\]|]),
+    (2, "o", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the RESV for:|]),
     (3, "o", [str|^[^ ]+ is an idiot\. Dropping |]), -- someone k-lined *@*
     (3, "o", [str|^Rejecting email for |]), -- registering from a badmailed address won't trigger this, emailing broken?
     (3, "o", [str|^ERROR |]),
