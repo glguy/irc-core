@@ -95,8 +95,9 @@ defaults:
   username:        "yourusername"
   realname:        "Your real name"
   password:        "IRC server password"
-  tls:             yes -- or: yes-insecure or no
+  tls:             yes -- or: no, or: starttls
                        -- enabling tls automatically uses port 6697
+  tls-verify:      yes -- or: no
   tls-client-cert: "/path/to/cert.pem"
   tls-client-key:  "/path/to/cert.key"
 
@@ -200,7 +201,8 @@ Server Settings
 | `realname`            | text                 | real name / GECOS                                              |
 | `password`            | text                 | server password                                                |
 | `sasl`                | sasl-settings        | SASL authentication settings                                   |
-| `tls`                 | yes/yes-insecure/no  | use TLS to connect (insecure mode disables certificate checks) |
+| `tls`                 | yes/no/starttls      | use TLS to connect                                             |
+| `tls-verify`          | yes/no               | enable/ disable TLS certificate checks                         |
 | `tls-client-cert`     | text                 | path to TLS client certificate                                 |
 | `tls-client-key`      | text                 | path to TLS client key                                         |
 | `tls-server-cert`     | text                 | CA certificate to use when validating certificates             |
