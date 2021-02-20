@@ -73,7 +73,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
 import           Data.Foldable
 import           Data.List (intercalate, partition)
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, mapMaybe)
 import           Foreign.C.String (withCStringLen)
 import           Foreign.Ptr (nullPtr)
 import           Network.Socket (AddrInfo, HostName, PortNumber, SockAddr, Socket, Family)
@@ -136,7 +136,7 @@ data ConnectionFailure
   -- | Failure during 'getAddrInfo' resolving remote host
   = HostnameResolutionFailure HostName String
   -- | Failure during 'connect' to remote host
-  | ConnectionFailure [IOError]
+  | ConnectionFailure [ConnectError]
   -- | Failure during 'recvLine'
   | LineTooLong
   -- | Incomplete line during 'recvLine'
@@ -179,6 +179,12 @@ instance Exception ConnectionFailure where
       CmdNotSupported   -> "command not supported"
       AddrNotSupported  -> "address type not supported"
       CommandReply n    -> "unknown reply " ++ show n
+
+data ConnectError = ConnectError SockAddr IOError
+  deriving Show
+
+instance Exception ConnectError where
+  displayException (ConnectError addr e) = show addr ++ ": " ++ displayException e
 
 -- | Default values for TLS that use no client certificates, use
 -- system CA root, @\"HIGH\"@ cipher suite, and which validate hostnames.
@@ -267,7 +273,7 @@ openSocket' h p mbBind =
        (throwIO (HostnameResolutionFailure h "No source/destination address family match"))
      res <- concurrentAttempts connAttemptDelay Socket.close (uncurry connectToAddrInfo <$> pairs)
      case res of
-       Left es -> throwIO (ConnectionFailure [ioe | e <- es, Just ioe <- [fromException e]])
+       Left es -> throwIO (ConnectionFailure (mapMaybe fromException es))
        Right s -> pure s
 
 hints :: AddrInfo
@@ -318,10 +324,12 @@ interleaveAddressFamilies xs = interleave sixes others
 -- by the given 'AddrInfo' and return the connected socket.
 connectToAddrInfo :: Maybe SockAddr -> AddrInfo -> IO Socket
 connectToAddrInfo mbSrc info
-  = bracketOnError (socket' info) Socket.close $ \s ->
+  = let addr = Socket.addrAddress info in
+    bracketOnError (socket' info) Socket.close $ \s ->
     do traverse_ (bind' s) mbSrc
-       Socket.connect s (Socket.addrAddress info)
+       Socket.connect s addr
        pure s
+    `catch` (throwIO . ConnectError addr)
 
 -- | A version of 'Socket.bind' that doesn't bother binding on the wildcard
 -- address. The effect of binding on a wildcard address in this library

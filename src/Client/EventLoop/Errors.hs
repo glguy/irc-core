@@ -58,7 +58,7 @@ explainHookupError :: ConnectionFailure -> NonEmpty String
 explainHookupError e =
   case e of
     ConnectionFailure exs ->
-      "Connect failed" :| map explainIOError exs
+      "Connect failed" :| map displayException exs
 
     LineTooLong ->
       "IRC message too long" :| []
