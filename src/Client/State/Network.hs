@@ -1058,7 +1058,9 @@ nextPingAction cs =
   where
     action =
       case view csPingStatus cs of
-        PingSent{}       -> TimedDisconnect
+        PingSent sentAt
+          | Just sentAt < view csLastReceived cs -> TimedSendPing
+          | otherwise -> TimedDisconnect
         PingNone         -> TimedSendPing
         PingConnecting{} -> TimedSendPing
 
