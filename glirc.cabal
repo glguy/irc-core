@@ -69,7 +69,6 @@ library
                        Client.Commands.Chat
                        Client.Commands.Certificate
                        Client.Commands.Connection
-                       Client.Commands.DCC
                        Client.Commands.Exec
                        Client.Commands.Interpolation
                        Client.Commands.Operator
@@ -112,7 +111,6 @@ library
                        Client.Options
                        Client.State
                        Client.State.Channel
-                       Client.State.DCC
                        Client.State.EditBox
                        Client.State.EditBox.Content
                        Client.State.Extensions
@@ -124,7 +122,6 @@ library
                        Client.View.Cert
                        Client.View.ChannelInfo
                        Client.View.Digraphs
-                       Client.View.DCCList
                        Client.View.Help
                        Client.View.IgnoreList
                        Client.View.KeyMap
@@ -173,7 +170,6 @@ library
                        process              >=1.4.2  && <1.7,
                        psqueues             >=0.2.7  && <0.3,
                        regex-tdfa           >=1.3.1  && <1.4,
-                       semigroupoids        >=5.1    && <5.4,
                        split                >=0.2    && <0.3,
                        stm                  >=2.4    && <2.6,
                        template-haskell     >=2.11   && <2.18,

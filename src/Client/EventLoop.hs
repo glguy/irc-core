@@ -19,7 +19,7 @@ module Client.EventLoop
 
 import           Client.CApi (ThreadEntry, popTimer)
 import           Client.Commands
-import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDownloadDir)
+import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames)
 import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Actions
 import           Client.EventLoop.Errors (exceptionToLines)
@@ -32,8 +32,7 @@ import           Client.Log
 import           Client.Message
 import           Client.Network.Async
 import           Client.State
-import           Client.State.DCC
-import qualified Client.State.EditBox     as Edit
+import qualified Client.State.EditBox as Edit
 import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
@@ -70,7 +69,6 @@ data ClientEvent
   | NetworkEvents (NonEmpty (Text, NetworkEvent)) -- ^ Incoming network events
   | TimerEvent Text TimedAction      -- ^ Timed action and the applicable network
   | ExtTimerEvent Int                     -- ^ extension ID
-  | DCCUpdate DCCUpdate                   -- ^ Event on any transfer
   | ThreadEvent Int ThreadEntry
 
 
@@ -82,7 +80,7 @@ getEvent ::
   IO ClientEvent
 getEvent vty st =
   do timer <- prepareTimer
-     atomically (asum [timer, vtyEvent, networkEvents, dccUpdate, threadJoin])
+     atomically (asum [timer, vtyEvent, networkEvents, threadJoin])
   where
     vtyEvent = VtyEvent <$> readTChan (_eventChannel (inputIface vty))
 
@@ -104,8 +102,6 @@ getEvent vty st =
              return $ do ready <- readTVar var
                          unless ready retry
                          return event
-
-    dccUpdate = DCCUpdate <$> readTChan (view clientDCCUpdates st)
 
     threadJoin =
       do (i,r) <- readTQueue (view clientThreadJoins st)
@@ -156,8 +152,6 @@ eventLoop vty st =
          traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
        NetworkEvents networkEvents ->
          eventLoop vty =<< foldM doNetworkEvent st' networkEvents
-       DCCUpdate upd ->
-         eventLoop vty =<< doDCCUpdate upd st'
 
 -- | Apply a single network event to the client state.
 doNetworkEvent :: ClientState -> (Text, NetworkEvent) -> IO ClientState
@@ -331,10 +325,9 @@ doNetworkLine networkId time line st =
                                       , _msgBody    = IrcBody irc'
                                       }
 
-                    let (replies, dccUp, st3) =
+                    let (replies, st3) =
                           applyMessageToClientState time irc networkId cs st2
 
-                    traverse_ (atomically . writeTChan (view clientDCCUpdates st3)) dccUp
                     traverse_ (sendMsg cs) replies
                     clientResponse time' irc cs st3
 
@@ -532,24 +525,3 @@ doTimerEvent networkId action =
   traverseOf
     (clientConnection networkId)
     (applyTimedAction action)
-
-doDCCUpdate :: DCCUpdate -> ClientState -> IO ClientState
-doDCCUpdate upd st0 =
-  case upd of
-    PercentUpdate k newVal -> return $ set (commonLens k . dtProgress) newVal st0
-    SocketInterrupted k    -> reportKill k LostConnection
-    UserInterrupted k      -> reportKill k UserKilled
-    Finished k             -> reportKill k CorrectlyFinished
-    accept@(Accept k _ _) ->
-      do let dccState0 = view clientDCC st0
-             dccState1 = acceptUpdate accept dccState0
-             -- st1 = set clientDCC dccState1 st0
-
-             updChan = view clientDCCUpdates st0
-             mdir = view (clientConfig . configDownloadDir) st0
-
-         dccState2 <- supervisedDownload mdir k updChan dccState1
-         return $ set clientDCC dccState2 st0
-  where
-    reportKill k status = return $ over clientDCC (reportStopWithStatus k status) st0
-    commonLens k = clientDCC . dsTransfers . at k . _Just

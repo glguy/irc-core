@@ -32,6 +32,7 @@ module Client.Image.Palette
   , palCommandPlaceholder
   , palCommandPrefix
   , palCommandError
+  , palCommandPrompt
   , palWindowDivider
   , palLineMarker
   , palCModes
@@ -72,6 +73,7 @@ data Palette = Palette
   , _palCommandPrefix :: Attr -- ^ prefix of known command
   , _palCommandError  :: Attr -- ^ unknown command
   , _palCommandPlaceholder :: Attr -- ^ command argument placeholder
+  , _palCommandPrompt :: Attr -- ^ Command input prefix @CMD:@
   , _palWindowDivider :: Attr -- ^ Divider between split windows
   , _palLineMarker    :: Attr -- ^ Divider between new and old messages
   , _palAway          :: Attr -- ^ color of nickname when away
@@ -104,6 +106,7 @@ defaultPalette = Palette
   , _palCommandPrefix           = withForeColor defAttr blue
   , _palCommandError            = withForeColor defAttr red
   , _palCommandPlaceholder      = withStyle defAttr reverseVideo
+  , _palCommandPrompt           = defAttr `withStyle` bold `withBackColor` green `withForeColor` white
   , _palWindowDivider           = withStyle defAttr reverseVideo
   , _palLineMarker              = defAttr
   , _palAway                    = withForeColor defAttr brightBlack
@@ -141,6 +144,7 @@ paletteMap =
   , ("command-placeholder", Lens palCommandPlaceholder)
   , ("command-prefix"   , Lens palCommandPrefix)
   , ("command-error"    , Lens palCommandError)
+  , ("command-prompt"   , Lens palCommandPrompt)
   , ("window-divider"   , Lens palWindowDivider)
   , ("line-marker"      , Lens palLineMarker)
   , ("away"             , Lens palAway)

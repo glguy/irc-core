@@ -20,8 +20,6 @@ module Client.State
   , clientTextBox
   , clientTextBoxOffset
   , clientConnections
-  , clientDCC
-  , clientDCCUpdates
   , clientThreadJoins
   , clientWidth
   , clientHeight
@@ -68,7 +66,6 @@ module Client.State
   , addConnection
   , removeNetwork
   , clientTick
-  , queueDCCTransfer
   , applyMessageToClientState
   , clientHighlightsFocus
   , clientWindowNames
@@ -129,7 +126,6 @@ import qualified Client.State.EditBox as Edit
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
-import           Client.State.DCC
 import           ContextFilter
 import           Control.Applicative
 import           Control.Concurrent.MVar
@@ -176,8 +172,6 @@ data ClientState = ClientState
 
   , _clientConnections       :: !(HashMap Text NetworkState) -- ^ state of active connections
   , _clientEvents            :: !(TQueue NetworkEvent)    -- ^ incoming network event queue
-  , _clientDCC               :: !DCCState                 -- ^ DCC subsystem
-  , _clientDCCUpdates        :: !(TChan DCCUpdate)        -- ^ DCC update events
   , _clientThreadJoins       :: TQueue (Int, ThreadEntry) -- ^ Finished threads ready to report
 
   , _clientConfig            :: !Configuration            -- ^ client configuration
@@ -257,7 +251,6 @@ withClientState cfgPath cfg k =
   withExtensionState $ \exts ->
 
   do events    <- atomically newTQueue
-     dccEvents <- atomically newTChan
      threadQueue <- atomically newTQueue
      sts       <- readPolicyFile
      let ignoreIds = map mkId (view configIgnores cfg)
@@ -266,8 +259,6 @@ withClientState cfgPath cfg k =
         , _clientIgnores           = HashSet.fromList ignoreIds
         , _clientIgnoreMask        = buildMask ignoreIds
         , _clientConnections       = _Empty # ()
-        , _clientDCC               = emptyDCCState
-        , _clientDCCUpdates        = dccEvents
         , _clientThreadJoins       = threadQueue
         , _clientTextBox           = Edit.defaultEditBox
         , _clientTextBoxOffset     = 0
@@ -856,29 +847,13 @@ applyMessageToClientState ::
   Text                       {- ^ network name             -} ->
   NetworkState               {- ^ network connection state -} ->
   ClientState                {- ^ client state             -} ->
-  ([RawIrcMsg], Maybe DCCUpdate, ClientState) {- ^ response , DCC updates, updated state -}
+  ([RawIrcMsg], ClientState) {- ^ response , DCC updates, updated state -}
 applyMessageToClientState time irc network cs st =
-  cs' `seq` (reply, dccUp, st')
+  cs' `seq` (reply, st')
   where
     Apply reply cs' = applyMessage time irc cs
-    (st', dccUp) = queueDCCTransfer network irc
-                 $ applyWindowRenames network irc
-                 $ set (clientConnections . ix network) cs' st
-
--- | Queue a DCC transfer when the message is correct. Await for user
---   confirmation to start the download.
-queueDCCTransfer :: Text -> IrcMsg -> ClientState
-                 -> (ClientState, Maybe DCCUpdate)
-queueDCCTransfer network ctcpMsg st
-  | Just (fromU, _target, command, txt) <- ctcpToTuple ctcpMsg
-  , command == "DCC", dccState <- view clientDCC st
-  = case (parseSEND network fromU txt, parseACCEPT dccState fromU txt) of
-      (Right offer, _) -> (set clientDCC (insertAsNewMax offer dccState) st, Nothing)
-      (_, Just upd) -> (st, Just upd)
-      (_, _) -> (st, Nothing)
-
-  | otherwise = (st, Nothing)
-
+    st' = applyWindowRenames network irc
+        $ set (clientConnections . ix network) cs' st
 
 -- | When a nick change happens and there is an open query window for that nick
 -- and there isn't an open query window for the new nick, rename the window.

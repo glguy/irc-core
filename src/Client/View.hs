@@ -19,7 +19,6 @@ import           Client.State.Focus
 import           Client.View.Cert
 import           Client.View.ChannelInfo
 import           Client.View.Digraphs
-import           Client.View.DCCList
 import           Client.View.Help
 import           Client.View.IgnoreList
 import           Client.View.KeyMap
@@ -46,7 +45,6 @@ viewLines focus subfocus w !st =
     (ChannelFocus network channel, FocusMasks mode) ->
       maskListImages mode network channel w st
     (_, FocusWindows filt) -> windowsImages filt st
-    (_, FocusDCC)          -> dccImages st
     (_, FocusMentions)     -> mentionsViewLines w st
     (_, FocusPalette)      -> paletteViewLines pal
     (_, FocusDigraphs)     -> digraphLines w st

@@ -88,7 +88,6 @@ import           Control.Lens
 import           Control.Monad ((>=>))
 import qualified Data.ByteString as B
 import           Data.ByteString (ByteString)
-import           Data.Functor.Alt                    ((<!>))
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.List.Split (chunksOf, splitOn)

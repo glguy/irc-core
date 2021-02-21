@@ -19,7 +19,6 @@ module Client.Configuration.Colors
 import           Config.Schema
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import           Data.Functor.Alt ((<!>))
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 

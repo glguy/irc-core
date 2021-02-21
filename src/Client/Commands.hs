@@ -56,7 +56,6 @@ import           Client.Commands.Channel (channelCommands)
 import           Client.Commands.Certificate (newCertificateCommand)
 import           Client.Commands.Chat (chatCommands, chatCommand', executeChat)
 import           Client.Commands.Connection (connectionCommands)
-import           Client.Commands.DCC (dccCommands)
 import           Client.Commands.Operator (operatorCommands)
 import           Client.Commands.Queries (queryCommands)
 import           Client.Commands.Toggles (togglesCommands)
@@ -332,8 +331,8 @@ commandsList =
   ],
 
   togglesCommands, connectionCommands, windowCommands, chatCommands,
-  queryCommands, channelCommands, zncCommands, operatorCommands,
-  dccCommands ]
+  queryCommands, channelCommands, zncCommands, operatorCommands
+  ]
 
 -- | Implementation of @/exit@ command.
 cmdExit :: ClientCommand ()
