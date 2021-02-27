@@ -270,7 +270,7 @@ ircRemove chan who msg = rawIrcMsg "REMOVE" (idText chan : who : nonempty msg)
 
 -- | QUIT command
 ircQuit :: Text {- ^ quit message -} -> RawIrcMsg
-ircQuit = rawIrcMsg "QUIT" . nonempty
+ircQuit msg = rawIrcMsg "QUIT" [msg]
 
 -- | PASS command
 ircPass :: Text {- ^ password -} -> RawIrcMsg
