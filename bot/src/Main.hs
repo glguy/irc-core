@@ -56,14 +56,9 @@ mkParams :: Config -> ConnectionParams
 mkParams config = ConnectionParams
   { cpHost = configHost config
   , cpPort = 6697 -- IRC over TLS
-  , cpTls = Just TlsParams
-               { tpClientCertificate = Nothing
-               , tpClientPrivateKey  = Nothing
-               , tpServerCertificate = Nothing
-               , tpCipherSuite       = "HIGH"
-               , tpInsecure          = False }
+  , cpTls = Just defaultTlsParams
   , cpSocks = Nothing
-  , cpFamily = defaultFamily
+  , cpBind  = Nothing
   }
 
 -- | Open a connection which will stay open for duration of executing
@@ -126,7 +121,7 @@ authenticateLoop user pass bot =
             authenticateLoop user pass bot
 
        Authenticate "+" ->
-         do let payload = encodePlainAuthentication (Text.pack user) (Text.pack pass)
+         do let payload = encodePlainAuthentication (Text.pack user) (Text.pack user) (Text.pack pass)
             traverse_ (sendMsg bot) (ircAuthenticates payload)
             authenticateLoop user pass bot
 

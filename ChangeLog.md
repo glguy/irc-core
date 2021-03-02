@@ -1,5 +1,21 @@
 # Revision history for glirc
 
+## 2.38
+
+* Avoid ping timeout disconnects while other packets are still arriving
+* Add `never-highlights` configuration setting to stop common words from being treated as nicknames
+* Add a multi-line editor mode (default toggle with F6)
+* More tolerate nickname completion
+* Preserve server names in server replies (visible in detail view)
+* Window names are persistent rather than alphabetical. Manage them with `/setname` and `/setwindow`
+* Added hook for extension to query window lines
+* More complete rendering for rare server replies
+* Prettier columns in `/names`
+* Add small scroll with Meta-PgUp/PgDown
+* Built-in support for `/umode` for changing user modes (a common macro previously)
+* Support strikethrough formatting (can require terminfo edits on common terminals to see it)
+* Removed DCC support
+
 ## 2.37
 
 * Add `/new-self-signed-certificate PATH [keysize]` to make it easier to configure secure services logon

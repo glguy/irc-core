@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.6
+
+* Include SockAddr in connection exceptions
+
 ## 0.5
 
 * Don't use `AI_ADDRCONFIG` flag
