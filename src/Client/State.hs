@@ -327,7 +327,7 @@ recordChannelMessage ::
   ClientState ->
   ClientState
 recordChannelMessage network channel msg st
-  = recordLogLine msg channel
+  = recordLogLine msg statusModes channel'
   $ recordWindowLine focus wl st
   where
     focus      = ChannelFocus network channel'
@@ -356,14 +356,15 @@ recordChannelMessage network channel msg st
 
 recordLogLine ::
   ClientMessage {- ^ message      -} ->
+  [Char]        {- ^ status modes -} ->
   Identifier    {- ^ target       -} ->
   ClientState   {- ^ client state -} ->
   ClientState
-recordLogLine msg target st =
+recordLogLine msg statusModes target st =
   case view (clientConnection (view msgNetwork msg) . csSettings . ssLogDir) st of
     Nothing -> st
     Just dir ->
-      case renderLogLine msg dir target of
+      case renderLogLine msg dir statusModes target of
         Nothing  -> st
         Just ll  -> over clientLogQueue (cons ll) st
 

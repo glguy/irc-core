@@ -59,20 +59,21 @@ ignoreProblems m = () <$ (try m :: IO (Either IOError ()))
 renderLogLine ::
   ClientMessage {- ^ message       -} ->
   FilePath      {- ^ log directory -} ->
+  [Char]        {- ^ status modes  -} ->
   Identifier    {- ^ target        -} ->
   Maybe LogLine
-renderLogLine !msg dir target =
+renderLogLine !msg dir statusModes target =
   case view msgBody msg of
     NormalBody{} -> Nothing
     ErrorBody {} -> Nothing
     IrcBody irc ->
       case irc of
         Privmsg who _ txt ->
-           success (L.fromChunks ["<", idText (userNick who), "> ", cleanText txt])
+           success (L.fromChunks (statuspart ["<", idText (userNick who), "> ", cleanText txt]))
         Notice who _ txt ->
-           success (L.fromChunks ["-", idText (userNick who), "- ", cleanText txt])
+           success (L.fromChunks (statuspart ["-", idText (userNick who), "- ", cleanText txt]))
         Ctcp who _ "ACTION" txt ->
-           success (L.fromChunks ["* ", idText (userNick who), " ", cleanText txt])
+           success (L.fromChunks (statuspart ["* ", idText (userNick who), " ", cleanText txt]))
         _          -> Nothing
 
   where
@@ -87,3 +88,6 @@ renderLogLine !msg dir target =
       , logTarget  = Text.toLower (idTextNorm target)
       , logLine    = L.fromChunks ["[", Text.pack todStr, "] "] <> txt <> "\n"
       }
+    statuspart rest
+      | null statusModes = rest
+      | otherwise = "statusmsg(" : Text.pack statusModes : ") " : rest
