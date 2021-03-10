@@ -86,7 +86,7 @@ nickTabCompletion isReversed st =
 
 isNickChar :: Char -> Bool
 isNickChar x = inrange 'a' 'z' || inrange 'A' 'Z' || inrange '0' '9'
-            || x `elem` "-[\\]^_`{}|"
+            || x `elem` "-[\\]^_`{}|#"
   where inrange lo hi = lo <= x && x <= hi
 
 activeNicks ::
