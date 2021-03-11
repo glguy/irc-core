@@ -94,7 +94,7 @@ executeUserCommand discoTime command st = do
       rest = dropWhile (==' ') (dropWhile (/=' ') command)
 
   case views (clientConfig . configMacros) (recognize key) st of
-    Exact (Macro (MacroSpec spec) cmdExs) ->
+    Exact (Macro _ (MacroSpec spec) cmdExs) ->
       case doExpansion spec cmdExs rest of
         Nothing   -> commandFailureMsg "macro expansions failed" st
         Just cmds -> process cmds st

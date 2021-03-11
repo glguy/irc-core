@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings, DeriveFunctor #-}
+{-# Language OverloadedStrings, DeriveTraversable #-}
 
 {-|
 Module      : Client.Commands.Recognizer
@@ -35,7 +35,7 @@ import Prelude hiding (all,lookup)
 -- detailed information when looking up keys that are not actually in the map.
 data Recognizer a
   = Branch !Text !(Maybe a) !(HashMap Char (Recognizer a))
-  deriving (Show, Functor)
+  deriving (Show, Functor, Foldable)
 
 instance Monoid (Recognizer a) where
   mempty = Branch "" Nothing empty

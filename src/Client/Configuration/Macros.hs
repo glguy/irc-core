@@ -29,7 +29,7 @@ macroValueSpec = sectionsSpec "macro" $
      spec     <- fromMaybe noMacroArguments
              <$> optSection' "arguments" macroArgumentsSpec ""
      commands <- reqSection' "commands" (oneOrList macroCommandSpec) ""
-     return (name, Macro spec commands)
+     return (name, Macro name spec commands)
 
 macroArgumentsSpec :: ValueSpec MacroSpec
 macroArgumentsSpec = customSpec "macro-arguments" anySpec parseMacroSpecs

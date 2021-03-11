@@ -51,7 +51,8 @@ data ExpansionChunk
 
 data Macro
   = Macro
-  { macroSpec :: MacroSpec
+  { macroName :: Text
+  , macroSpec :: MacroSpec
   , macroCommands :: [[ExpansionChunk]]
   } deriving Show
 

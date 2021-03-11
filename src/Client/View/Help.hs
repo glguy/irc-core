@@ -1,4 +1,4 @@
-{-# Language BangPatterns, OverloadedStrings #-}
+{-# Language BangPatterns, OverloadedStrings, TransformListComp #-}
 
 {-|
 Module      : Client.View.Help
@@ -14,8 +14,10 @@ module Client.View.Help
   ( helpImageLines
   ) where
 
-import           Client.State (ClientState)
+import           Client.State (ClientState, clientConfig)
+import           Client.Configuration (configMacros)
 import           Client.Commands
+import           Client.Commands.Interpolation
 import           Client.Commands.Arguments.Spec
 import           Client.Commands.Arguments.Renderer
 import           Client.Commands.Recognizer
@@ -24,7 +26,7 @@ import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Control.Lens
 import           Data.Foldable (toList)
-import           Data.List (delete, intercalate)
+import           Data.List (delete, intercalate, sortOn)
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -97,7 +99,23 @@ listAllCommands ::
 listAllCommands st pal
   = intercalate [emptyLine]
   $ map reverse
-  $ listCommandSection st pal <$> commandsList
+  $ (listCommandSection st pal <$> commandsList)
+ ++ [macroCommandSection st pal]
+
+macroCommandSection ::
+  ClientState    {- ^ client state    -} ->
+  Palette        {- ^ palette         -} ->
+  [Image']       {- ^ help lines      -}
+macroCommandSection st pal
+  | null macros = []
+  | otherwise =
+      text' (withStyle defAttr bold) "Macros" :
+      [ commandSummary st pal (pure name) spec
+      | Macro name (MacroSpec spec) _ <- macros
+      , then sortOn by name
+      ]
+  where
+    macros = toListOf (clientConfig . configMacros . folded) st
 
 listCommandSection ::
   ClientState    {- ^ client state    -} ->
