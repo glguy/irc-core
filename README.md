@@ -98,8 +98,6 @@ defaults:
   tls:             yes -- or: no, or: starttls
                        -- enabling tls automatically uses port 6697
   tls-verify:      yes -- or: no
-  tls-client-cert: "/path/to/cert.pem"
-  tls-client-key:  "/path/to/cert.key"
 
 -- Override the defaults when connecting to specific servers
 servers:
