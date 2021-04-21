@@ -275,16 +275,16 @@ serverSpec = sectionsSpec "server-settings" $
       , req "tls-verify" ssTlsVerify yesOrNoSpec
         "Enable server certificate hostname verification (default yes)"
 
-      , opt "tls-client-cert" ssTlsClientCert stringSpec
+      , opt "tls-client-cert" ssTlsClientCert filepathSpec
         "Path to TLS client certificate"
 
-      , opt "tls-client-key" ssTlsClientKey stringSpec
+      , opt "tls-client-key" ssTlsClientKey filepathSpec
         "Path to TLS client key"
 
       , opt "tls-client-key-password" ssTlsClientKeyPassword anySpec
         "Password for decrypting TLS client key PEM file"
 
-      , opt "tls-server-cert" ssTlsServerCert stringSpec
+      , opt "tls-server-cert" ssTlsServerCert filepathSpec
         "Path to CA certificate bundle"
 
       , req "tls-ciphers" ssTlsCiphers stringSpec
@@ -323,7 +323,7 @@ serverSpec = sectionsSpec "server-settings" $
       , req "nick-completion" ssNickCompletion nickCompletionSpec
         "Behavior for nickname completion with TAB"
 
-      , opt "log-dir" ssLogDir stringSpec
+      , opt "log-dir" ssLogDir filepathSpec
         "Path to log file directory for this server"
 
       , opt "bind-hostname" ssBindHostName stringSpec
@@ -371,7 +371,13 @@ saslMechanismSpec = plain <!> external <!> ecdsa
       sectionsSpec "sasl-ecdsa-nist256p-challenge-mech" $
       SaslEcdsa <$ mech "ecdsa-nist256p-challenge" <*>
       authzid <*> username <*>
-      reqSection' "private-key" stringSpec "Private key file"
+      reqSection' "private-key" filepathSpec "Private key file"
+
+filepathSpec :: ValueSpec FilePath
+filepathSpec = customSpec "path" stringSpec $ \str ->
+  if null str
+  then Left "empty path"
+  else Right str
 
 hookSpec :: ValueSpec HookConfig
 hookSpec =
