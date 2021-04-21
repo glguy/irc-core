@@ -227,11 +227,12 @@ pattern ERR_TOOMANYCHANNELS         = ReplyCode 405
 pattern ERR_WASNOSUCHNICK           = ReplyCode 406
 pattern ERR_TOOMANYTARGETS          = ReplyCode 407
 pattern ERR_NOORIGIN                = ReplyCode 409
+pattern ERR_INVALIDCAPCMD           = ReplyCode 410
 pattern ERR_NORECIPIENT             = ReplyCode 411
 pattern ERR_NOTEXTTOSEND            = ReplyCode 412
 pattern ERR_NOTOPLEVEL              = ReplyCode 413
 pattern ERR_WILDTOPLEVEL            = ReplyCode 414
-pattern ERR_BADMASK                 = ReplyCode 415
+pattern ERR_MSGNEEDREGGEDNICK       = ReplyCode 415
 pattern ERR_TOOMANYMATCHES          = ReplyCode 416
 pattern ERR_LENGTHTRUNCATED         = ReplyCode 419
 pattern ERR_UNKNOWNCOMMAND          = ReplyCode 421
@@ -655,11 +656,12 @@ replyCodeInfoTable
   , (ERR_WASNOSUCHNICK         , ReplyCodeInfo ErrorReply "was-no-such-nick")
   , (ERR_TOOMANYTARGETS        , ReplyCodeInfo ErrorReply "too-many-targets")
   , (ERR_NOORIGIN              , ReplyCodeInfo ErrorReply "no-origin")
+  , (ERR_INVALIDCAPCMD         , ReplyCodeInfo ErrorReply "invalid-cap-cmd")
   , (ERR_NORECIPIENT           , ReplyCodeInfo ErrorReply "no-recipient")
   , (ERR_NOTEXTTOSEND          , ReplyCodeInfo ErrorReply "no-text-to-send")
   , (ERR_NOTOPLEVEL            , ReplyCodeInfo ErrorReply "no-top-level")
   , (ERR_WILDTOPLEVEL          , ReplyCodeInfo ErrorReply "wild-top-level")
-  , (ERR_BADMASK               , ReplyCodeInfo ErrorReply "bad-mask")
+  , (ERR_MSGNEEDREGGEDNICK     , ReplyCodeInfo ErrorReply "msg-need-regged-nick")
   , (ERR_TOOMANYMATCHES        , ReplyCodeInfo ErrorReply "too-many-matches")
   , (ERR_LENGTHTRUNCATED       , ReplyCodeInfo ErrorReply "length-truncated")
   , (ERR_UNKNOWNCOMMAND        , ReplyCodeInfo ErrorReply "unknown-command")
