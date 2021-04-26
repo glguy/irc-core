@@ -11,10 +11,11 @@ struct thread_state *
 new_thread_state(lua_State *L, size_t n)
 {
         struct thread_state *st = lua_newuserdata(L, n);
+        st->L = L;
+
         lua_rotate(L, -2, 1);
         lua_setuservalue(L, -2);
         lua_rawsetp(L, LUA_REGISTRYINDEX, st);
-        st->L = L;
         return st;
 }
 

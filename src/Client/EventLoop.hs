@@ -1,4 +1,4 @@
-{-# Language BangPatterns, OverloadedStrings, NondecreasingIndentation #-}
+{-# Language BlockArguments, BangPatterns, OverloadedStrings, NondecreasingIndentation #-}
 
 {-|
 Module      : Client.EventLoop
@@ -36,6 +36,7 @@ import qualified Client.State.EditBox as Edit
 import           Client.State.Extensions
 import           Client.State.Focus
 import           Client.State.Network
+import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
@@ -61,6 +62,7 @@ import           Irc.Codes
 import           Irc.RawIrcMsg
 import           LensUtils
 import           Hookup (ConnectionFailure(..))
+import System.IO
 
 
 -- | Sum of the five possible event types the event loop handles
@@ -80,6 +82,7 @@ getEvent ::
   IO ClientEvent
 getEvent vty st =
   do timer <- prepareTimer
+     True <- isCurrentThreadBound
      atomically (asum [timer, vtyEvent, networkEvents, threadJoin])
   where
     vtyEvent = VtyEvent <$> readTChan (_eventChannel (inputIface vty))
@@ -97,19 +100,23 @@ getEvent vty st =
         Nothing -> return retry
         Just (runAt,event) ->
           do now <- getCurrentTime
-             let microsecs = truncate (1000000 * diffUTCTime runAt now)
-             var <- registerDelay (max 0 microsecs)
-             return $ do ready <- readTVar var
-                         unless ready retry
-                         return event
+             let microsecs = max 0 (truncate (1000000 * diffUTCTime runAt now))
+
+             if microsecs < 10000 then pure (pure event)
+               else do hPrint stderr microsecs
+                       var <- registerDelay microsecs
+                       return do ready <- readTVar var
+                                 unless ready retry
+                                 return event
 
     threadJoin =
       do (i,r) <- readTQueue (view clientThreadJoins st)
          pure (ThreadEvent i r)
 
+
 -- | Compute the earliest scheduled timed action for the client
 earliestEvent :: ClientState -> Maybe (UTCTime, ClientEvent)
-earliestEvent st = earliest2 networkEvent extensionEvent
+earliestEvent st = extensionEvent
   where
     earliest2 (Just (time1, action1)) (Just (time2, action2))
       | time1 < time2 = Just (time1, action1)

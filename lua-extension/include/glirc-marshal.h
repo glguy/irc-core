@@ -6,15 +6,8 @@
 
 #include "glirc-api.h"
 
-static inline struct glirc *get_glirc(lua_State *L)
-{
-        return *(struct glirc **)lua_getextraspace(L);
-}
-
-static inline void set_glirc(lua_State *L, struct glirc *G)
-{
-        *(struct glirc **)lua_getextraspace(L) = G;
-}
+struct glirc *get_glirc(lua_State *L);
+void set_glirc(lua_State *L, struct glirc *G);
 
 void push_glirc_chat(lua_State *L, const struct glirc_chat *chat);
 void push_glirc_message(lua_State *L, const struct glirc_message *msg);

@@ -32,7 +32,7 @@ static int glirc_lua_send_message(lua_State *L)
         /* This function is careful to leave strings on the stack
          * while it is adding them to the message struct.
          */
-        struct glirc_string params[15];
+        struct glirc_string params[15] = {};
         struct glirc_message msg = { .params = params };
 
         msg.network.str = luaL_checklstring(L, 1, &msg.network.len);
@@ -536,8 +536,11 @@ static int glirc_lua_resolve_path(lua_State *L)
 static void on_timer(void *dat, timer_id tid) {
         (void)tid;
 
+
         struct thread_state * const st = dat;
         lua_State * const L = st->L;
+
+        fprintf(stderr, "token: %p\n", get_glirc(L));
 
         // get callback function
         thread_state_value(st);
@@ -673,7 +676,7 @@ for the result.
 @function system
 @tparam string command Shell command
 @tparam function callback Callback to run on system return value
-@usage glirc.window_lines('curl URL > tmpfile', print)
+@usage glirc.system('curl URL > tmpfile', print)
 */
 int glirc_lua_system(lua_State *L) {
 
@@ -682,7 +685,7 @@ int glirc_lua_system(lua_State *L) {
         const char *command = luaL_checklstring(L, 1, &command_len);
         luaL_checkany(L, 2); // callback
         luaL_checktype(L, 3, LUA_TNONE);
-        
+
         // BUILD THREAD STATE
         struct system_state *st =
                 (struct system_state *)
