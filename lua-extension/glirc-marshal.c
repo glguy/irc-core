@@ -1,21 +1,5 @@
 #include "glirc-marshal.h"
 
-static char token_key;
-
-struct glirc *get_glirc(lua_State *L)
-{
-        lua_rawgetp(L, LUA_REGISTRYINDEX, &token_key);
-        struct glirc *token = lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        return token;
-}
-
-void set_glirc(lua_State *L, struct glirc *G)
-{
-        lua_pushlightuserdata(L, G);
-        lua_rawsetp(L, LUA_REGISTRYINDEX, &token_key);
-}
-
 /* Helper
  * Pushes the string represented by the argument to the top of the stack
  *

@@ -236,7 +236,7 @@ msgTarget me msg =
     BatchEnd{}               -> TargetNetwork
     Account user _           -> TargetUser (userNick user)
     Chghost user _ _         -> TargetUser (userNick user)
-    Wallops _ _              -> TargetNetwork
+    Wallops src _            -> TargetWindow (userNick src)
   where
     directed src tgt
       | Text.null (userHost src) = TargetNetwork -- server message
