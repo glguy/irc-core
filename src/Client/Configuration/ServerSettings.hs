@@ -35,6 +35,7 @@ module Client.Configuration.ServerSettings
   , ssTlsClientKeyPassword
   , ssTlsServerCert
   , ssTlsCiphers
+  , ssTls13Ciphers
   , ssConnectCmds
   , ssSocksHost
   , ssSocksPort
@@ -119,6 +120,7 @@ data ServerSettings = ServerSettings
   , _ssTlsClientKeyPassword :: !(Maybe Secret) -- ^ client key PEM password
   , _ssTlsServerCert    :: !(Maybe FilePath) -- ^ additional CA certificates for validating server
   , _ssTlsCiphers       :: String            -- ^ OpenSSL cipher suite
+  , _ssTls13Ciphers     :: Maybe String      -- ^ OpenSSL TLS 1.3 cipher suite
   , _ssTlsPubkeyFingerprint :: !(Maybe Fingerprint) -- ^ optional acceptable public key fingerprint
   , _ssTlsCertFingerprint   :: !(Maybe Fingerprint) -- ^ optional acceptable certificate fingerprint
   , _ssSts              :: !Bool -- ^ Honor STS policies when true
@@ -203,6 +205,7 @@ defaultServerSettings =
        , _ssTlsClientKeyPassword = Nothing
        , _ssTlsServerCert = Nothing
        , _ssTlsCiphers    = "HIGH"
+       , _ssTls13Ciphers  = Nothing
        , _ssTlsPubkeyFingerprint = Nothing
        , _ssTlsCertFingerprint   = Nothing
        , _ssSts              = True
@@ -289,6 +292,9 @@ serverSpec = sectionsSpec "server-settings" $
 
       , req "tls-ciphers" ssTlsCiphers stringSpec
         "OpenSSL cipher specification. Default to \"HIGH\""
+
+      , opt "tls-1.3-ciphers" ssTls13Ciphers stringSpec
+        "OpenSSL TLS 1.3 cipher specification."
 
       , opt "socks-host" ssSocksHost stringSpec
         "Hostname of SOCKS5 proxy server"

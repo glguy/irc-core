@@ -34,6 +34,7 @@ tlsParams ss = TlsParams
   , tpClientPrivateKey   = view ssTlsClientKey ss <|> view ssTlsClientCert ss
   , tpServerCertificate  = view ssTlsServerCert ss
   , tpCipherSuite        = view ssTlsCiphers ss
+  , tpCipherSuiteTls13   = view ssTls13Ciphers ss
   , tpInsecure           = not (view ssTlsVerify ss)
   , tpClientPrivateKeyPassword =
       case view ssTlsClientKeyPassword ss of

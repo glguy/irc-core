@@ -128,6 +128,7 @@ data TlsParams = TlsParams
   , tpClientPrivateKeyPassword :: Maybe ByteString -- ^ Private key decryption password
   , tpServerCertificate  :: Maybe FilePath -- ^ Path to CA certificate bundle
   , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. @\"HIGH\"@)
+  , tpCipherSuiteTls13   :: Maybe String -- ^ OpenSSL cipher suites for TLS 1.3
   , tpInsecure           :: Bool -- ^ Disables certificate checking when 'True'
   }
 
@@ -195,6 +196,7 @@ defaultTlsParams = TlsParams
   , tpClientPrivateKeyPassword = Nothing
   , tpServerCertificate  = Nothing -- use system provided CAs
   , tpCipherSuite        = "HIGH"
+  , tpCipherSuiteTls13   = Nothing
   , tpInsecure           = False
   }
 
@@ -549,6 +551,7 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
 
      -- configure context
      SSL.contextSetCiphers          ctx (tpCipherSuite tp)
+     traverse_ (contextSetTls13Ciphers ctx) (tpCipherSuiteTls13 tp)
      installVerification            ctx hostname
      SSL.contextSetVerificationMode ctx (verificationMode (tpInsecure tp))
      SSL.contextAddOption           ctx SSL.SSL_OP_ALL

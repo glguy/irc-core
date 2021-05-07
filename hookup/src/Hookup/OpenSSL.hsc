@@ -15,11 +15,11 @@ Maintainer  : emertens@gmail.com
 #error "OpenSSL 1.0.2 or later is required. This version was released in Jan 2015 and adds hostname verification"
 #endif
 
-module Hookup.OpenSSL (withDefaultPassword, installVerification, getPubKeyDer) where
+module Hookup.OpenSSL (withDefaultPassword, installVerification, getPubKeyDer, contextSetTls13Ciphers) where
 
 import           Control.Exception (bracket, bracket_)
 import           Control.Monad (unless)
-import           Foreign.C (CStringLen, CString(..), CSize(..), CUInt(..), CInt(..), withCStringLen, CChar(..))
+import           Foreign.C (CStringLen, CString(..), CSize(..), CUInt(..), CInt(..), withCString, withCStringLen, CChar(..))
 import           Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr, nullFunPtr)
 import           Foreign.StablePtr (StablePtr, deRefStablePtr, castPtrToStablePtr)
 import           Foreign.Marshal (with)
@@ -131,3 +131,18 @@ installVerification ctx host =
          (#const X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS)
        success <- x509VerifyParamSet1Host param ptr (fromIntegral len)
        unless (success == 1) (fail "Unable to set verification host")
+
+foreign import ccall unsafe "SSL_CTX_set_ciphersuites"
+   sslCtxSetCiphersuites :: Ptr SSLContext_ -> CString -> IO CInt
+
+-- | Set the ciphers to be used by the given context for TLS 1.3
+--   https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_set_cipher_list.html
+--
+--   Unrecognised ciphers are ignored. If no ciphers from the list are
+--   recognised, an exception is raised.
+contextSetTls13Ciphers :: SSLContext -> String -> IO ()
+contextSetTls13Ciphers context list =
+  withContext context $ \ctx ->
+  withCString list    $ \cpath ->
+  do success <- sslCtxSetCiphersuites ctx cpath
+     unless (success == 1) (fail "Unable to set ciphersuites")

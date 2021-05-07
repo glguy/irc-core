@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.7
+
+* Add ability to specify TLS 1.3 cipher suites
+
 ## 0.6
 
 * Include SockAddr in connection exceptions
