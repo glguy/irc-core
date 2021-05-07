@@ -40,11 +40,11 @@ remap ::
   Bool {- ^ enable debugging -} ->
   IrcMsg -> MessageResult
 remap debug (Privmsg user chan msg)
-  | userNick user == "*buffextras"
+  | userNick (srcUser user) == "*buffextras"
   , Right newMsg <- parseOnly (prefixedParser chan) msg
   = RemapMessage newMsg
 
-  | userNick user == "*buffextras"
+  | userNick (srcUser user) == "*buffextras"
   , not debug
   = OmitMessage
 
@@ -53,14 +53,15 @@ remap _ _ = PassMessage
 prefixedParser :: Identifier -> Parser IrcMsg
 prefixedParser chan = do
     pfx <- prefixParser
+    let src = Source pfx ""
     choice
-      [ Join pfx chan "" "" <$ skipToken "joined"
-      , Quit pfx . filterEmpty <$ skipToken "quit:" <*> P.takeText
-      , Part pfx chan . filterEmpty <$ skipToken "parted:" <*> P.takeText
-      , Nick pfx . mkId <$ skipToken "is now known as" <*> simpleTokenParser
-      , Mode pfx chan <$ skipToken "set mode:" <*> allTokens
-      , Kick pfx chan <$ skipToken "kicked" <*> parseId <* skipToken "with reason:" <*> P.takeText
-      , Topic pfx chan <$ skipToken "changed the topic to:" <*> P.takeText
+      [ Join src chan "" "" <$ skipToken "joined"
+      , Quit src . filterEmpty <$ skipToken "quit:" <*> P.takeText
+      , Part src chan . filterEmpty <$ skipToken "parted:" <*> P.takeText
+      , Nick src . mkId <$ skipToken "is now known as" <*> simpleTokenParser
+      , Mode src chan <$ skipToken "set mode:" <*> allTokens
+      , Kick src chan <$ skipToken "kicked" <*> parseId <* skipToken "with reason:" <*> P.takeText
+      , Topic src chan <$ skipToken "changed the topic to:" <*> P.takeText
       ]
 
 allTokens :: Parser [Text]

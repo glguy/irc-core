@@ -43,7 +43,6 @@ import           Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import           Data.List
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text

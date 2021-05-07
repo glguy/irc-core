@@ -32,12 +32,12 @@ snoticeHook = MessageHook "snotice" True remap
 remap ::
   IrcMsg -> MessageResult
 
-remap (Notice (UserInfo u "" "") _ msg)
+remap (Notice (Source (UserInfo u "" "") _) _ msg)
   | Just msg1 <- Text.stripPrefix "*** Notice -- " msg
   , let msg2 = Text.filter (\x -> x /= '\x02' && x /= '\x0f') msg1
   , Just (lvl, cat) <- characterize msg2
   = if lvl < 1 then OmitMessage
-               else RemapMessage (Notice (UserInfo u "" "*") cat msg1)
+               else RemapMessage (Notice (Source (UserInfo u "" "*") "") cat msg1)
 
 remap _ = PassMessage
 

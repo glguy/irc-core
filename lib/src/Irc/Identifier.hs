@@ -25,12 +25,9 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.Char
 import           Data.Foldable
-import           Data.Function
 import           Data.Hashable
-import           Data.Monoid
 import           Data.String
 import           Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Vector.Primitive as PV
 import qualified Data.Primitive.ByteArray as BA

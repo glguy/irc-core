@@ -25,11 +25,14 @@ module Irc.Message
   , ircMsgText
   , msgTarget
   , msgActor
+  , msgSource
 
   -- * Helper functions
   , nickSplit
   , computeMaxMessageLength
   , capCmdText
+
+  , Source(..)
   ) where
 
 import           Control.Monad
@@ -48,17 +51,17 @@ import           View
 data IrcMsg
   = UnknownMsg !RawIrcMsg -- ^ pass-through for unhandled messages
   | Reply !Text !ReplyCode [Text] -- ^ server code arguments
-  | Nick !UserInfo !Identifier -- ^ old new
-  | Join !UserInfo !Identifier !Text !Text -- ^ user channel account account gecos
-  | Part !UserInfo !Identifier (Maybe Text) -- ^ user channel reason
-  | Quit !UserInfo (Maybe Text) -- ^ user reason
-  | Kick !UserInfo !Identifier !Identifier !Text -- ^ kicker channel kickee comment
-  | Topic !UserInfo !Identifier !Text -- ^ user channel topic
-  | Privmsg !UserInfo !Identifier !Text -- ^ source target txt
-  | Ctcp !UserInfo !Identifier !Text !Text -- ^ source target command txt
-  | CtcpNotice !UserInfo !Identifier !Text !Text -- ^ source target command txt
-  | Notice !UserInfo !Identifier !Text -- ^ source target txt
-  | Mode !UserInfo !Identifier [Text] -- ^ source target txt
+  | Nick !Source !Identifier -- ^ old new
+  | Join !Source !Identifier !Text !Text -- ^ user channel account account gecos
+  | Part !Source !Identifier (Maybe Text) -- ^ user channel reason
+  | Quit !Source (Maybe Text) -- ^ user reason
+  | Kick !Source !Identifier !Identifier !Text -- ^ kicker channel kickee comment
+  | Topic !Source !Identifier !Text -- ^ user channel topic
+  | Privmsg !Source !Identifier !Text -- ^ source target txt
+  | Ctcp !Source !Identifier !Text !Text -- ^ source target command txt
+  | CtcpNotice !Source !Identifier !Text !Text -- ^ source target command txt
+  | Notice !Source !Identifier !Text -- ^ source target txt
+  | Mode !Source !Identifier [Text] -- ^ source target txt
   | Authenticate !Text -- ^ parameters
   | Cap !CapCmd -- ^ cap command and parameters
   | Ping [Text] -- ^ parameters
@@ -66,10 +69,13 @@ data IrcMsg
   | Error !Text -- ^ message
   | BatchStart !Text !Text [Text] -- ^ reference-id type parameters
   | BatchEnd !Text -- ^ reference-id
-  | Account !UserInfo !Text -- ^ user account name changed (account-notify extension)
-  | Chghost !UserInfo !Text !Text -- ^ Target, new username and new hostname
-  | Wallops  !UserInfo !Text -- ^ Braodcast message: Source, message
-  | Invite !UserInfo !Identifier !Identifier -- ^ sender target channel
+  | Account !Source !Text -- ^ user account name changed (account-notify extension)
+  | Chghost !Source !Text !Text -- ^ Target, new username and new hostname
+  | Wallops  !Source !Text -- ^ Braodcast message: Source, message
+  | Invite !Source !Identifier !Identifier -- ^ sender target channel
+  deriving Show
+
+data Source = Source { srcUser :: {-# UNPACK #-}!UserInfo, srcAcct :: !Text }
   deriving Show
 
 data CapMore = CapMore | CapDone
@@ -98,6 +104,16 @@ cookCapCmd cmd args =
     ("DEL" , [     caps]) -> Just (CapDel (Text.words caps))
     _                     -> Nothing
 
+msgSource :: RawIrcMsg -> Maybe Source
+msgSource msg =
+  case view msgPrefix msg of
+    Nothing -> Nothing
+    Just p ->
+      case [a | TagEntry "account" a <- view msgTags msg ] of
+        []  -> Just (Source p "")
+        a:_ -> Just (Source p a)
+
+
 -- | Interpret a low-level 'RawIrcMsg' as a high-level 'IrcMsg'.
 -- Messages that can't be understood are wrapped in 'UnknownMsg'.
 cookIrcMsg :: RawIrcMsg -> IrcMsg
@@ -115,50 +131,50 @@ cookIrcMsg msg =
     "PING" -> Ping (view msgParams msg)
     "PONG" -> Pong (view msgParams msg)
 
-    "PRIVMSG" | Just user <- view msgPrefix msg
+    "PRIVMSG" | Just source <- msgSource msg
            , [chan,txt]   <- view msgParams msg ->
 
            case parseCtcp txt of
-             Just (cmd,args) -> Ctcp user (mkId chan) (Text.toUpper cmd) args
-             Nothing         -> Privmsg user (mkId chan) txt
+             Just (cmd,args) -> Ctcp source (mkId chan) (Text.toUpper cmd) args
+             Nothing         -> Privmsg source (mkId chan) txt
 
-    "NOTICE" | Just user <- view msgPrefix msg
+    "NOTICE" | Just source <- msgSource msg
            , [chan,txt]    <- view msgParams msg ->
 
            case parseCtcp txt of
-             Just (cmd,args) -> CtcpNotice user (mkId chan) (Text.toUpper cmd) args
-             Nothing         -> Notice user (mkId chan) txt
+             Just (cmd,args) -> CtcpNotice source (mkId chan) (Text.toUpper cmd) args
+             Nothing         -> Notice source (mkId chan) txt
 
-    "JOIN" | Just user <- view msgPrefix msg
+    "JOIN" | Just source <- msgSource msg
            , chan:rest <- view msgParams msg
            , let (a, r) = case rest of
                             [acct, real] -> (acct, real)
                             _            -> ("", "") ->
-           Join user (mkId chan) a r
+           Join source (mkId chan) a r
 
-    "QUIT" | Just user <- view msgPrefix msg
+    "QUIT" | Just source <- msgSource msg
            , reasons   <- view msgParams msg ->
-           Quit user (listToMaybe reasons)
+           Quit source (listToMaybe reasons)
 
-    "PART" | Just user    <- view msgPrefix msg
+    "PART" | Just source <- msgSource msg
            , chan:reasons <- view msgParams msg ->
-           Part user (mkId chan) (listToMaybe reasons)
+           Part source (mkId chan) (listToMaybe reasons)
 
-    "NICK"  | Just user <- view msgPrefix msg
+    "NICK"  | Just source <- msgSource msg
             , newNick:_ <- view msgParams msg ->
-           Nick user (mkId newNick)
+           Nick source (mkId newNick)
 
-    "KICK"  | Just user <- view msgPrefix msg
+    "KICK"  | Just source <- msgSource msg
             , [chan,nick,reason] <- view msgParams msg ->
-           Kick user (mkId chan) (mkId nick) reason
+           Kick source (mkId chan) (mkId nick) reason
 
-    "TOPIC" | Just user <- view msgPrefix msg
+    "TOPIC" | Just source <- msgSource msg
             , [chan,topic] <- view msgParams msg ->
-            Topic user (mkId chan) topic
+            Topic source (mkId chan) topic
 
-    "MODE"  | Just user <- view msgPrefix msg
+    "MODE"  | Just source <- msgSource msg
             , target:modes <- view msgParams msg ->
-            Mode user (mkId target) modes
+            Mode source (mkId target) modes
 
     "ERROR" | [reason] <- view msgParams msg ->
             Error reason
@@ -171,21 +187,21 @@ cookIrcMsg msg =
             , Just ('-',refid') <- Text.uncons refid ->
             BatchEnd refid'
 
-    "ACCOUNT" | Just user <- view msgPrefix msg
+    "ACCOUNT" | Just source <- msgSource msg
               , [acct] <- view msgParams msg ->
-      Account user (if acct == "*" then "" else acct)
+      Account source (if acct == "*" then "" else acct)
 
-    "CHGHOST" | Just user <- view msgPrefix msg
+    "CHGHOST" | Just source <- msgSource msg
               , [newuser, newhost] <- view msgParams msg ->
-      Chghost user newuser newhost
+      Chghost source newuser newhost
 
-    "WALLOPS" | Just user <- view msgPrefix msg
+    "WALLOPS" | Just source <- msgSource msg
               , [txt] <- view msgParams msg ->
-      Wallops user txt
+      Wallops source txt
 
-    "INVITE" | Just user <- view msgPrefix msg
+    "INVITE" | Just source <- msgSource msg
              , [target, channel] <- view msgParams msg ->
-      Invite user (mkId target) (mkId channel)
+      Invite source (mkId target) (mkId channel)
 
     _      -> UnknownMsg msg
 
@@ -213,19 +229,19 @@ msgTarget :: Identifier -> IrcMsg -> MessageTarget
 msgTarget me msg =
   case msg of
     UnknownMsg{}             -> TargetNetwork
-    Nick user _              -> TargetUser (userNick user)
+    Nick user _              -> TargetUser (userNick (srcUser user))
     Mode _ tgt _ | tgt == me -> TargetNetwork
                  | otherwise -> TargetWindow tgt
     Join _ chan _ _          -> TargetWindow chan
     Part _ chan _            -> TargetWindow chan
-    Quit user _              -> TargetUser (userNick user)
+    Quit user _              -> TargetUser (userNick (srcUser user))
     Kick _ chan _ _          -> TargetWindow chan
     Topic _ chan _           -> TargetWindow chan
     Invite{}                 -> TargetNetwork
-    Privmsg src tgt _        -> directed src tgt
-    Ctcp src tgt _ _         -> directed src tgt
-    CtcpNotice src tgt _ _   -> directed src tgt
-    Notice  src tgt _        -> directed src tgt
+    Privmsg src tgt _        -> directed (srcUser src) tgt
+    Ctcp src tgt _ _         -> directed (srcUser src) tgt
+    CtcpNotice src tgt _ _   -> directed (srcUser src) tgt
+    Notice  src tgt _        -> directed (srcUser src) tgt
     Authenticate{}           -> TargetNetwork
     Ping{}                   -> TargetNetwork
     Pong{}                   -> TargetNetwork
@@ -234,8 +250,8 @@ msgTarget me msg =
     Reply _ code args        -> replyTarget code args
     BatchStart{}             -> TargetNetwork
     BatchEnd{}               -> TargetNetwork
-    Account user _           -> TargetUser (userNick user)
-    Chghost user _ _         -> TargetUser (userNick user)
+    Account user _           -> TargetUser (userNick (srcUser user))
+    Chghost user _ _         -> TargetUser (userNick (srcUser user))
     Wallops _ _              -> TargetNetwork
   where
     directed src tgt
@@ -248,7 +264,7 @@ msgTarget me msg =
     replyTarget _                _        = TargetNetwork
 
 -- | 'UserInfo' of the user responsible for a message.
-msgActor :: IrcMsg -> Maybe UserInfo
+msgActor :: IrcMsg -> Maybe Source
 msgActor msg =
   case msg of
     UnknownMsg{}  -> Nothing
@@ -276,6 +292,10 @@ msgActor msg =
     Chghost x _ _ -> Just x
     Wallops x _   -> Just x
 
+renderSource :: Source -> Text
+renderSource (Source u "") = renderUserInfo u
+renderSource (Source u a) = renderUserInfo u <> "(" <> a <> ")"
+
 -- | Text representation of an IRC message to be used for matching with
 -- regular expressions.
 ircMsgText :: IrcMsg -> Text
@@ -283,28 +303,28 @@ ircMsgText msg =
   case msg of
     UnknownMsg raw -> Text.unwords (view msgCommand raw : view msgParams raw)
     Reply srv (ReplyCode n) xs -> Text.unwords (srv : Text.pack (show n) : xs)
-    Nick x y       -> Text.unwords [renderUserInfo x, idText y]
-    Join x _ _ _   -> renderUserInfo x
-    Part x _ mb    -> Text.unwords (renderUserInfo x : maybeToList mb)
-    Quit x mb      -> Text.unwords (renderUserInfo x : maybeToList mb)
-    Kick x _ z r   -> Text.unwords [renderUserInfo x, idText z, r]
-    Topic x _ t    -> Text.unwords [renderUserInfo x, t]
-    Privmsg x _ t  -> Text.unwords [renderUserInfo x, t]
-    Ctcp x _ c t   -> Text.unwords [renderUserInfo x, c, t]
-    CtcpNotice x _ c t -> Text.unwords [renderUserInfo x, c, t]
-    Notice x _ t   -> Text.unwords [renderUserInfo x, t]
-    Mode x _ xs    -> Text.unwords (renderUserInfo x:"set mode":xs)
+    Nick x y       -> Text.unwords [renderSource x, idText y]
+    Join x _ _ _   -> renderSource x
+    Part x _ mb    -> Text.unwords (renderSource x : maybeToList mb)
+    Quit x mb      -> Text.unwords (renderSource x : maybeToList mb)
+    Kick x _ z r   -> Text.unwords [renderSource x, idText z, r]
+    Topic x _ t    -> Text.unwords [renderSource x, t]
+    Privmsg x _ t  -> Text.unwords [renderSource x, t]
+    Ctcp x _ c t   -> Text.unwords [renderSource x, c, t]
+    CtcpNotice x _ c t -> Text.unwords [renderSource x, c, t]
+    Notice x _ t   -> Text.unwords [renderSource x, t]
+    Mode x _ xs    -> Text.unwords (renderSource x:"set mode":xs)
     Ping xs        -> Text.unwords xs
     Pong xs        -> Text.unwords xs
     Cap cmd        -> capCmdText cmd
     Error t        -> t
-    Account x a    -> Text.unwords [renderUserInfo x, a]
+    Account x a    -> Text.unwords [renderSource x, a]
     Authenticate{} -> ""
     BatchStart{}   -> ""
     BatchEnd{}     -> ""
     Invite _ _ _   -> ""
-    Chghost x a b  -> Text.unwords [renderUserInfo x, a, b]
-    Wallops x t    -> Text.unwords [renderUserInfo x, t]
+    Chghost x a b  -> Text.unwords [renderSource x, a, b]
+    Wallops x t    -> Text.unwords [renderSource x, t]
 
 capCmdText :: CapCmd -> Text
 capCmdText cmd =

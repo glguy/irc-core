@@ -330,39 +330,40 @@ applyMessage' msgWhen msg cs =
     Pong _    -> noReply (doPong msgWhen cs)
     Join user chan acct _ ->
          reply response
-         $ recordUser user acct
-         $ overChannel chan (joinChannel (userNick user))
-         $ createOnJoin user chan cs
+         $ recordUser (srcUser user) acct
+         $ overChannel chan (joinChannel (userNick (srcUser user)))
+         $ createOnJoin (srcUser user) chan cs
      where
        showAccounts = view (csSettings . ssShowAccounts) cs
        response
-         | userNick user == view csNick cs =
+         | userNick (srcUser user) == view csNick cs =
               ircMode chan [] :
               [ircWho [idText chan, "%tuhna,616"] | showAccounts ]
          | otherwise = []
 
     Account user acct ->
            noReply
-         $ recordUser user acct cs
+         $ recordUser (srcUser user) acct cs
 
     Chghost user newUser newHost ->
            noReply
-         $ updateUserInfo (userNick user) newUser newHost cs
+         $ updateUserInfo (userNick (srcUser user)) newUser newHost cs
 
     Quit user _reason ->
            noReply
-         $ forgetUser (userNick user)
-         $ overChannels (partChannel (userNick user)) cs
+         $ forgetUser (userNick (srcUser user))
+         $ overChannels (partChannel (userNick (srcUser user))) cs
 
-    Part user chan _mbreason -> exitChannel chan (userNick user)
+    Part user chan _mbreason -> exitChannel chan (userNick (srcUser user))
 
     Kick _kicker chan nick _reason -> exitChannel chan nick
 
     Nick oldNick newNick ->
+         let nick = userNick (srcUser oldNick) in
            noReply
-         $ renameUser (userNick oldNick) newNick
-         $ updateMyNick (userNick oldNick) newNick
-         $ overChannels (nickChange (userNick oldNick) newNick) cs
+         $ renameUser nick newNick
+         $ updateMyNick nick newNick
+         $ overChannels (nickChange nick newNick) cs
 
     Reply _ RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
     Reply _ RPL_SASLSUCCESS _ -> reply [ircCapEnd] cs
@@ -388,8 +389,8 @@ applyMessage' msgWhen msg cs =
     Reply _ code args      -> doRpl code msgWhen args cs
     Cap cmd                -> doCap cmd cs
     Authenticate param     -> doAuthenticate param cs
-    Mode who target (modes:params) -> doMode msgWhen who target modes params cs
-    Topic user chan topic  -> noReply (doTopic msgWhen user chan topic cs)
+    Mode who target (modes:params) -> doMode msgWhen (srcUser who) target modes params cs
+    Topic user chan topic  -> noReply (doTopic msgWhen (srcUser user) chan topic cs)
     _                      -> noReply cs
   where
     exitChannel chan nick
@@ -761,7 +762,8 @@ selectCaps cs offered = (supported `intersect` Map.keys capMap)
       sasl ++ serverTime ++
       ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"
       , "cap-notify", "extended-join", "account-notify", "chghost"
-      , "userhost-in-names", "account-tag" ]
+      , "userhost-in-names", "account-tag", "solanum.chat/identify-msg"
+      , "solanum.chat/realhost" ]
 
     -- logic for using IRCv3.2 server-time if available and falling back
     -- to ZNC's specific extension otherwise.

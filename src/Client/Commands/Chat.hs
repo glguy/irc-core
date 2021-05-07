@@ -31,7 +31,6 @@ import           Irc.Commands
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.RawIrcMsg
-import           Irc.UserInfo
 
 chatCommands :: CommandSection
 chatCommands = CommandSection "IRC commands"
@@ -445,7 +444,7 @@ cmdMsg cs st (target, rest)
 
 -- | Common logic for @/msg@ and @/notice@
 chatCommand ::
-  (UserInfo -> Identifier -> IrcMsg) ->
+  (Source -> Identifier -> IrcMsg) ->
   Text {- ^ target  -} ->
   NetworkState         ->
   ClientState          ->
@@ -455,7 +454,7 @@ chatCommand mkmsg target cs st =
 
 -- | Common logic for @/msg@ and @/notice@ returning the client state
 chatCommand' ::
-  (UserInfo -> Identifier -> IrcMsg) ->
+  (Source -> Identifier -> IrcMsg) ->
   Text {- ^ target  -} ->
   NetworkState         ->
   ClientState          ->
@@ -464,7 +463,7 @@ chatCommand' con targetsTxt cs st =
   do now <- getZonedTime
      let targetTxts = Text.split (==',') targetsTxt
          targetIds  = mkId <$> targetTxts
-         !myNick = UserInfo (view csNick cs) "" ""
+         !myNick = Source (view csUserInfo cs) ""
          network = view csNetwork cs
          entries = [ (targetId,
                           ClientMessage
@@ -515,7 +514,7 @@ cmdMe :: ChannelCommand String
 cmdMe channelId cs st rest =
   do now <- getZonedTime
      let actionTxt = Text.pack ("\^AACTION " ++ rest ++ "\^A")
-         !myNick = UserInfo (view csNick cs) "" ""
+         !myNick = Source (view csUserInfo cs) ""
          network = view csNetwork cs
          entry = ClientMessage
                     { _msgTime = now
@@ -543,7 +542,7 @@ executeChat msg st =
 
              when allow (sendMsg cs (ircPrivmsg tgtTxt msgTxt))
 
-             let myNick = UserInfo (view csNick cs) "" ""
+             let myNick = Source (view csUserInfo cs) ""
                  entry = ClientMessage
                    { _msgTime    = now
                    , _msgNetwork = network

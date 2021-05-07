@@ -411,8 +411,8 @@ msgImportance msg st =
           | otherwise -> checkTxt txt
         Ctcp{} -> WLNormal
         Wallops{} -> WLImportant
-        Part who _ _ | isMe (userNick who) -> WLImportant
-                     | otherwise           -> WLBoring
+        Part who _ _ | isMe (userNick (srcUser who)) -> WLImportant
+                     | otherwise -> WLBoring
         Kick _ _ kicked _ | isMe kicked -> WLImportant
                           | otherwise   -> WLNormal
         Error{} -> WLImportant
@@ -443,8 +443,8 @@ ircIgnorable msg !st =
     _                    -> Nothing
   where
     checkUser !who
-      | identIgnored who st = Just (userNick who)
-      | otherwise           = Nothing
+      | identIgnored (srcUser who) st = Just (userNick (srcUser who))
+      | otherwise = Nothing
 
 
 
@@ -489,7 +489,7 @@ computeMsgLineSigils ::
   [Char] {- ^ sigils -}
 computeMsgLineSigils network channel msg st =
   case msgActor =<< preview (msgBody . _IrcBody) msg of
-    Just user -> computeUserSigils network channel (userNick user) st
+    Just user -> computeUserSigils network channel (userNick (srcUser user)) st
     Nothing   -> []
 
 -- | Compute sigils for a user on a channel
@@ -868,7 +868,7 @@ applyWindowRenames network (Nick old new) st
                         $ over clientWindows moveWindow st
   | otherwise = st
   where
-    old' = userNick old
+    old' = userNick (srcUser old)
 
     mkFocus = ChannelFocus network
 

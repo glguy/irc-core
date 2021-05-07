@@ -1,4 +1,4 @@
-{-# Language RecordWildCards #-}
+{-# Language OverloadedStrings, RecordWildCards #-}
 {-|
 Module      : Client.CApi.Exports
 Description : Foreign exports which expose functionality for extensions
@@ -248,7 +248,7 @@ glirc_inject_chat stab netPtr netLen srcPtr srcLen tgtPtr tgtLen msgPtr msgLen =
      now  <- getZonedTime
 
      let msg = ClientMessage
-                 { _msgBody    = IrcBody (Privmsg (parseUserInfo src) tgt txt)
+                 { _msgBody    = IrcBody (Privmsg (Source (parseUserInfo src) "") tgt txt)
                  , _msgTime    = now
                  , _msgNetwork = net
                  }

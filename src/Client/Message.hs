@@ -86,16 +86,16 @@ msgSummary (NormalBody _  ) = NoSummary
 ircSummary :: IrcMsg -> IrcSummary
 ircSummary msg =
   case msg of
-    Join who _ _ _  -> JoinSummary (userNick who)
-    Part who _ _    -> PartSummary (userNick who)
-    Quit who _      -> QuitSummary (userNick who)
-    Nick who who'   -> NickSummary (userNick who) who'
-    Privmsg who _ _ -> ChatSummary who
-    Notice who _ _  -> ChatSummary who
-    Ctcp who _ "ACTION" _ -> ChatSummary who
-    Ctcp who _ _ _ -> CtcpSummary (userNick who)
-    CtcpNotice who _ _ _ -> ChatSummary who
+    Join who _ _ _  -> JoinSummary (userNick (srcUser who))
+    Part who _ _    -> PartSummary (userNick (srcUser who))
+    Quit who _      -> QuitSummary (userNick (srcUser who))
+    Nick who who'   -> NickSummary (userNick (srcUser who)) who'
+    Privmsg who _ _ -> ChatSummary (srcUser who)
+    Notice who _ _  -> ChatSummary (srcUser who)
+    Ctcp who _ "ACTION" _ -> ChatSummary (srcUser who)
+    Ctcp who _ _ _ -> CtcpSummary (userNick (srcUser who))
+    CtcpNotice who _ _ _ -> ChatSummary (srcUser who)
     Reply _ code _  -> ReplySummary code
-    Account who _   -> AcctSummary (userNick who)
-    Chghost who _ _ -> ChngSummary (userNick who)
+    Account who _   -> AcctSummary (userNick (srcUser who))
+    Chghost who _ _ -> ChngSummary (userNick (srcUser who))
     _               -> NoSummary

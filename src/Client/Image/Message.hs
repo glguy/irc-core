@@ -38,6 +38,7 @@ import           Client.Image.Palette
 import           Client.Message
 import           Client.State.Window
 import           Client.UserHost
+import           Control.Applicative ((<|>))
 import           Control.Lens
 import           Data.Char
 import           Data.Hashable (hash)
@@ -214,18 +215,20 @@ ircLinePrefix !rp body =
 
       who n   = string (view palSigil pal) sigils <> ui
         where
-          baseUI    = coloredUserInfo pal rm hilites n
+          baseUI    = coloredUserInfo pal rm hilites (srcUser n)
           ui = case rendAccounts rp of
                  Nothing -> baseUI -- not tracking any accounts
                  Just accts ->
-                   let isKnown acct = not (Text.null acct || acct == "*")
-                       mbAcct = accts
-                             ^? ix (userNick n)
+                   let tagAcct = if Text.null (srcAcct n) then Nothing else Just (srcAcct n)
+
+                       isKnown acct = not (Text.null acct || acct == "*")
+                       lkupAcct = accts
+                             ^? ix (userNick (srcUser n))
                               . uhAccount
                               . filtered isKnown in
-                   case mbAcct of
+                   case tagAcct <|> lkupAcct of
                      Just acct
-                       | mkId acct == userNick n -> baseUI
+                       | mkId acct == userNick (srcUser n) -> baseUI
                        | otherwise -> baseUI <> "(" <> ctxt acct <> ")"
                      Nothing -> "~" <> baseUI
   in
@@ -263,8 +266,8 @@ ircLinePrefix !rp body =
     Reply _ code _ -> replyCodePrefix code
 
     UnknownMsg irc ->
-      case view msgPrefix irc of
-        Just ui -> who ui
+      case msgSource irc of
+        Just src -> who src
         Nothing -> string (view palError pal) "?"
 
     Cap cmd ->
@@ -355,9 +358,10 @@ fullIrcLineImage !rp body =
         string (view palSigil pal) sigils <>
 
         -- nick!user@host
-        plainWho n <>
+        plainWho (srcUser n) <>
 
-        case rendAccounts rp ^? folded . ix (userNick n) . uhAccount of
+        case rendAccounts rp ^? folded . ix (userNick (srcUser n)) . uhAccount of
+          _ | not (Text.null (srcAcct n)) -> text' quietAttr ("(" <> cleanText (srcAcct n) <> ")")
           Just acct
             | not (Text.null acct) -> text' quietAttr ("(" <> cleanText acct <> ")")
           _ -> ""
@@ -371,12 +375,13 @@ fullIrcLineImage !rp body =
 
     Join nick _chan acct gecos ->
       string quietAttr "join " <>
-      plainWho nick <>
+      plainWho (srcUser nick) <>
       accountPart <> gecosPart
       where
         accountPart
-          | Text.null acct = mempty
-          | otherwise      = text' quietAttr ("(" <> cleanText acct <> ")")
+          | not (Text.null (srcAcct nick)) = text' quietAttr ("(" <> cleanText (srcAcct nick) <> ")")
+          | not (Text.null acct) = text' quietAttr ("(" <> cleanText acct <> ")")
+          | otherwise = mempty
         gecosPart
           | Text.null gecos = mempty
           | otherwise       = text' quietAttr (" [" <> cleanText gecos <> "]")

@@ -69,11 +69,11 @@ renderLogLine !msg dir statusModes target =
     IrcBody irc ->
       case irc of
         Privmsg who _ txt ->
-           success (L.fromChunks (statuspart ["<", idText (userNick who), "> ", cleanText txt]))
+           success (L.fromChunks (statuspart ["<", idText (userNick (srcUser who)), "> ", cleanText txt]))
         Notice who _ txt ->
-           success (L.fromChunks (statuspart ["-", idText (userNick who), "- ", cleanText txt]))
+           success (L.fromChunks (statuspart ["-", idText (userNick (srcUser who)), "- ", cleanText txt]))
         Ctcp who _ "ACTION" txt ->
-           success (L.fromChunks (statuspart ["* ", idText (userNick who), " ", cleanText txt]))
+           success (L.fromChunks (statuspart ["* ", idText (userNick (srcUser who)), " ", cleanText txt]))
         _          -> Nothing
 
   where
