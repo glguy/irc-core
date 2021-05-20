@@ -63,7 +63,7 @@ modesNeverArg f m = (\x -> m { _modesNeverArg = x }) <$> f (_modesNeverArg m)
 modesPrefixModes :: Functor f => ([(Char,Char)] -> f [(Char,Char)]) -> ModeTypes -> f ModeTypes
 modesPrefixModes f m = (\x -> m { _modesPrefixModes = x }) <$> f (_modesPrefixModes m)
 
--- | The channel modes used by Freenode
+-- | The channel modes used by Solanum
 defaultModeTypes :: ModeTypes
 defaultModeTypes = ModeTypes
   { _modesLists     = "eIbq"
@@ -73,7 +73,7 @@ defaultModeTypes = ModeTypes
   , _modesPrefixModes = [('o','@'),('v','+')]
   }
 
--- | The default UMODE used by Freenode
+-- | The default UMODE used by Solanum
 defaultUmodeTypes :: ModeTypes
 defaultUmodeTypes = ModeTypes
   { _modesLists     = ""

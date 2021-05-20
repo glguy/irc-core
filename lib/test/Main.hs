@@ -75,8 +75,8 @@ ircWithPrefix :: Test
 ircWithPrefix = test
   [ assertEqual ""
       (Just (rawIrcMsg "254" ["glguytest", "57555", "channels formed"])
-            { _msgPrefix = Just (UserInfo "morgan.freenode.net" "" "") })
-      (parseRawIrcMsg ":morgan.freenode.net 254 glguytest 57555 :channels formed")
+            { _msgPrefix = Just (UserInfo "morgan.example.net" "" "") })
+      (parseRawIrcMsg ":morgan.example.net 254 glguytest 57555 :channels formed")
   ]
 
 ircWithTags :: Test
@@ -121,7 +121,7 @@ renderUserInfos = test
       "glguy"
       (renderUserInfo (UserInfo "glguy" "" ""))
 
-  , assertEqual "freenode cloak"
+  , assertEqual "example cloak"
       "glguy!~glguy@haskell/developer/glguy"
       (renderUserInfo (UserInfo "glguy" "~glguy" "haskell/developer/glguy"))
 
@@ -138,8 +138,8 @@ renderUserInfos = test
       (renderUserInfo (UserInfo "nick" "user" "server@name"))
 
   , assertEqual "servername in nick"
-      "morgan.freenode.net"
-      (renderUserInfo (UserInfo "morgan.freenode.net" "" ""))
+      "morgan.example.net"
+      (renderUserInfo (UserInfo "morgan.example.net" "" ""))
   ]
 
 userInfoFields :: Test
@@ -156,7 +156,7 @@ parseUserInfos = test
       (UserInfo "glguy" "" "")
       (parseUserInfo "glguy")
 
-  , assertEqual "freenode cloak"
+  , assertEqual "example cloak"
       (UserInfo "glguy" "~glguy" "haskell/developer/glguy")
       (parseUserInfo "glguy!~glguy@haskell/developer/glguy")
 
@@ -173,17 +173,17 @@ parseUserInfos = test
       (parseUserInfo "nick!user@server@name")
 
   , assertEqual "servername in nick"
-      (UserInfo "morgan.freenode.net" "" "")
-      (parseUserInfo "morgan.freenode.net")
+      (UserInfo "morgan.example.net" "" "")
+      (parseUserInfo "morgan.example.net")
   ]
 
 renderIrc :: Test
 renderIrc = test
   [ assertEqual ""
-      ":morgan.freenode.net 254 glguytest 57555 :channels formed\r\n"
+      ":morgan.example.net 254 glguytest 57555 :channels formed\r\n"
       (renderRawIrcMsg
           (rawIrcMsg "254" ["glguytest", "57555", "channels formed"])
-          { _msgPrefix = Just (UserInfo "morgan.freenode.net" "" "") })
+          { _msgPrefix = Just (UserInfo "morgan.example.net" "" "") })
 
   , assertEqual ""
       "254 glguytest 57555 :channels formed\r\n"

@@ -463,7 +463,7 @@ replyCodeInfo (ReplyCode w) =
 defaultReplyCodeInfo :: Int -> ReplyCodeInfo
 defaultReplyCodeInfo = ReplyCodeInfo UnknownReply . Text.pack . show
 
--- | Information about reply codes as derived from Freenode's ircd-seven.
+-- | Information about reply codes as derived from ircd-seven.
 replyCodeInfoTable :: Vector ReplyCodeInfo
 replyCodeInfoTable
   = Vector.accumulate

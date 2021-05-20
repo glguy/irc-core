@@ -7,8 +7,7 @@ License     : ISC
 Maintainer  : emertens@gmail.com
 
 Implementation of ECDSA-NIST256P-CHALLENGE SASL authentication mode
-as implemented at <https://github.com/kaniini/ecdsatool> and used
-on Freenode.
+as implemented at <https://github.com/kaniini/ecdsatool>.
 
 Using this mode requires that the @ecdsa@ utility program is available
 in your search path.

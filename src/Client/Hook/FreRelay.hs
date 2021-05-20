@@ -1,17 +1,17 @@
 {-# Language QuasiQuotes, OverloadedStrings #-}
 {-|
-Module      : Client.Hook.FreRelay
-Description : Hook for interpreting FreFrelay messages
+Module      : Client.Hook.DroneBLRelay
+Description : Hook for interpreting DroneBL relay messages
 Copyright   : (c) Eric Mertens 2019
 License     : ISC
 Maintainer  : emertens@gmail.com
 
-The #dronebl channel uses the FreRelay bot to relay messages from
+The #dronebl channels use a bot to relay messages from
 other networks. This hook integrates those messages into the native
 format.
 
 -}
-module Client.Hook.FreRelay
+module Client.Hook.DroneBLRelay
   ( freRelayHook
   ) where
 
@@ -29,12 +29,12 @@ import           Irc.Identifier (mkId, Identifier)
 import           Irc.UserInfo (UserInfo(..))
 import           StrQuote (str)
 
--- | Hook for mapping frerelay messages in #dronebl on freenode
+-- | Hook for mapping messages in #dronebl
 -- to appear like native messages.
 freRelayHook :: [Text] -> Maybe MessageHook
-freRelayHook args = Just (MessageHook "frerelay" False (remap (map mkId args)))
+freRelayHook args = Just (MessageHook "droneblrelay" False (remap (map mkId args)))
 
--- | Remap messages from frerelay on #dronebl that match one of the
+-- | Remap messages from #dronebl that match one of the
 -- rewrite rules.
 remap :: [Identifier] -> IrcMsg -> MessageResult
 remap nicks (Privmsg (Source (UserInfo nick _ _) _) chan@"#dronebl" msg)
@@ -42,7 +42,7 @@ remap nicks (Privmsg (Source (UserInfo nick _ _) _) chan@"#dronebl" msg)
   , Just sub <- rules chan msg = RemapMessage sub
 remap _ _ = PassMessage
 
--- | Generate a replacement message for a chat message from frerelay
+-- | Generate a replacement message for a chat message
 -- when the message matches one of the replacement rules.
 rules ::
   Identifier {- ^ channel -} ->

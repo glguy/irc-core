@@ -101,8 +101,8 @@ defaults:
 
 -- Override the defaults when connecting to specific servers
 servers:
-  * name: "fn"
-    hostname:      "chat.freenode.net"
+  * name: "libera"
+    hostname:      "irc.libera.chat"
     sasl:
       username: "someuser"
       password: "somepass"

@@ -262,7 +262,7 @@
 ## 2.18
 
 * Add digraph support under `M-k` and `/digraphs`
-* Add ECDSA-NIST256P-CHALLENGE support for Freenode via Tor
+* Add ECDSA-NIST256P-CHALLENGE support
 * Load mask list on `/masks`
 * Add `C-x` to change to next network window
 * Allow `/clear NETWORK *` to clear all windows for the given network
@@ -395,7 +395,7 @@
 ## 2.1
 
 * Add red highlighting for own nick
-* Synchronize reply codes with Freenode
+* Synchronize reply codes with ircd-seven
 * Add textual interpretation of reply codes
 * Add SASL support
 * Add `/channelinfo` command

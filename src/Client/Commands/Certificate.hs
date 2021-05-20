@@ -63,7 +63,7 @@ newCertificateCommand =
       \\^BExample configuration:\^B\n\
       \    servers:\n\
       \      * name:                    \"fn\"\n\
-      \        hostname:                \"chat.freenode.net\"\n\
+      \        hostname:                \"irc.libera.chat\"\n\
       \        sasl: mechanism:         external\n\
       \        tls:                     yes\n\
       \        tls-client-cert:         \"my.pem\"\n\
