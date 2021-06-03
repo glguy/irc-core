@@ -30,7 +30,7 @@ certViewLines st
   , Just cs <- preview (clientConnection network) st
   , let xs = view csCertificate cs
   , not (null xs)
-  = map parseIrcText
+  = map (parseIrcText pal)
   $ clientFilter st LText.fromStrict xs
 
   | otherwise = [text' (view palError pal) "No certificate available"]

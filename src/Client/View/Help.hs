@@ -65,7 +65,7 @@ commandHelpLines st cmdName pal =
               : aliasLines
              ++ explainContext impl
               : emptyLine
-              : map parseIrcText (Text.lines doc)
+              : map (parseIrcText pal) (Text.lines doc)
       where
         aliasLines =
           case delete cmdName (toList names) of

@@ -69,6 +69,7 @@ data Action
   | ActUnderline
   | ActStrikethrough
   | ActReverseVideo
+  | ActMonospace
   | ActClearFormat
   | ActInsertEnter
   | ActDigraph
@@ -140,6 +141,7 @@ actionInfos =
   ,("underline"         , (ActUnderline        , [ctrl (KChar '_')]))
   ,("clear-format"      , (ActClearFormat      , [ctrl (KChar 'o')]))
   ,("reverse-video"     , (ActReverseVideo     , [ctrl (KChar 'v')]))
+  ,("monospace"         , (ActMonospace        , [ctrl (KChar 'q')]))
 
   ,("insert-newline"    , (ActInsertEnter      , [meta KEnter]))
   ,("insert-digraph"    , (ActDigraph          , [meta (KChar 'k')]))

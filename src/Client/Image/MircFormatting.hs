@@ -20,6 +20,7 @@ module Client.Image.MircFormatting
   ) where
 
 import           Client.Image.PackedImage as I
+import           Client.Image.Palette (Palette, palMonospace)
 import           Control.Applicative ((<|>), empty)
 import           Control.Lens
 import           Data.Attoparsec.Text as Parse
@@ -39,15 +40,16 @@ makeLensesFor
   ''Attr
 
 -- | Parse mIRC encoded format characters and hide the control characters.
-parseIrcText :: Text -> Image'
+parseIrcText :: Palette -> Text -> Image'
 parseIrcText = parseIrcText' False
 
 -- | Parse mIRC encoded format characters and render the control characters
 -- explicitly. This view is useful when inputting control characters to make
 -- it clear where they are in the text.
-parseIrcText' :: Bool -> Text -> Image'
-parseIrcText' explicit = either plainText id
-                       . parseOnly (pIrcLine explicit defAttr)
+parseIrcText' :: Bool -> Palette -> Text -> Image'
+parseIrcText' explicit pal
+  = either plainText id
+  . parseOnly (pIrcLine pal explicit False defAttr)
 
 data Segment = TextSegment Text | ControlSegment Char
 
@@ -55,17 +57,17 @@ pSegment :: Parser Segment
 pSegment = TextSegment    <$> takeWhile1 (not . isControl)
        <|> ControlSegment <$> satisfy isControl
 
-pIrcLine :: Bool -> Attr -> Parser Image'
-pIrcLine explicit fmt =
+pIrcLine :: Palette -> Bool -> Bool -> Attr -> Parser Image'
+pIrcLine pal explicit mono fmt =
   do seg <- option Nothing (Just <$> pSegment)
      case seg of
        Nothing -> return mempty
        Just (TextSegment txt) ->
-           do rest <- pIrcLine explicit fmt
+           do rest <- pIrcLine pal explicit mono fmt
               return (text' fmt txt <> rest)
        Just (ControlSegment '\^C') ->
            do (numberText, colorNumbers) <- match (pColorNumbers pColorNumber)
-              rest <- pIrcLine explicit (applyColors colorNumbers fmt)
+              rest <- pIrcLine pal explicit mono (applyColors colorNumbers fmt)
               return $ if explicit
                          then controlImage '\^C'
                               <> text' defAttr numberText
@@ -73,12 +75,18 @@ pIrcLine explicit fmt =
                           else rest
        Just (ControlSegment '\^D') ->
            do (numberText, colorNumbers) <- match (pColorNumbers pColorHex)
-              rest <- pIrcLine explicit (applyColors colorNumbers fmt)
+              rest <- pIrcLine pal explicit mono (applyColors colorNumbers fmt)
               return $ if explicit
                          then controlImage '\^D'
                               <> text' defAttr numberText
                               <> rest
                           else rest
+       Just (ControlSegment '\^Q')
+         | explicit -> (controlImage '\^Q' <>) <$> rest
+         | otherwise -> rest
+         where
+           rest = pIrcLine pal explicit (not mono)
+                    (if mono then defAttr else view palMonospace pal)
        Just (ControlSegment c)
           -- always render control codes that we don't understand
           | isNothing mbFmt' || explicit ->
@@ -87,7 +95,7 @@ pIrcLine explicit fmt =
           | otherwise -> next
           where
             mbFmt' = applyControlEffect c fmt
-            next   = pIrcLine explicit (fromMaybe fmt mbFmt')
+            next   = pIrcLine pal explicit mono (fromMaybe fmt mbFmt')
 
 pColorNumbers ::
   Parser (MaybeDefault Color) ->

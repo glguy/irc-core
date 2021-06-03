@@ -156,8 +156,8 @@ bodyImage rm params body =
   case body of
     IrcBody irc | NormalRender   <- rm -> ircLineImage     params irc
                 | DetailedRender <- rm -> fullIrcLineImage params irc
-    ErrorBody  txt                     -> parseIrcText txt
-    NormalBody txt                     -> parseIrcText txt
+    ErrorBody  txt                     -> parseIrcText (rendPalette params) txt
+    NormalBody txt                     -> parseIrcText (rendPalette params) txt
 
 -- | Render a 'ZonedTime' as time using quiet attributes
 --
@@ -301,7 +301,7 @@ ircLineImage !rp body =
     Nick        {} -> mempty
     Authenticate{} -> "***"
 
-    Error                   txt -> parseIrcText txt
+    Error                   txt -> parseIrcText pal txt
     Topic _ _ txt ->
       "changed the topic: " <>
       parseIrcTextWithNicks pal hilites False txt
@@ -317,19 +317,19 @@ ircLineImage !rp body =
     Wallops    _            txt -> parseIrcTextWithNicks pal hilites False txt
     Ctcp       _ _ "ACTION" txt -> parseIrcTextWithNicks pal hilites False txt
     Ctcp {}                     -> mempty
-    CtcpNotice _ _ cmd      txt -> parseIrcText cmd <> " " <>
+    CtcpNotice _ _ cmd      txt -> parseIrcText pal cmd <> " " <>
                                    parseIrcTextWithNicks pal hilites False txt
 
     Reply srv code params -> renderReplyCode pal NormalRender srv code params
     UnknownMsg irc ->
       ctxt (view msgCommand irc) <>
       char defAttr ' ' <>
-      separatedParams (view msgParams irc)
+      separatedParams pal (view msgParams irc)
     Cap cmd           -> ctxt (capCmdText cmd)
 
     Mode _ _ params ->
       "set mode: " <>
-      ircWords params
+      ircWords pal params
 
     Invite _ tgt chan ->
       "invited " <>
@@ -390,14 +390,14 @@ fullIrcLineImage !rp body =
       string quietAttr "part " <>
       who nick <>
       foldMap (\reason -> string quietAttr " (" <>
-                          parseIrcText reason <>
+                          parseIrcText pal reason <>
                           string quietAttr ")") mbreason
 
     Quit nick mbreason ->
       string quietAttr "quit "   <>
       who nick <>
       foldMap (\reason -> string quietAttr " (" <>
-                          parseIrcText reason <>
+                          parseIrcText pal reason <>
                           string quietAttr ")") mbreason
 
     Kick kicker _channel kickee reason ->
@@ -406,13 +406,13 @@ fullIrcLineImage !rp body =
       " kicked " <>
       coloredIdentifier pal NormalIdentifier hilites kickee <>
       ": " <>
-      parseIrcText reason
+      parseIrcText pal reason
 
     Topic src _dst txt ->
       string quietAttr "tpic " <>
       who src <>
       " changed the topic: " <>
-      parseIrcText txt
+      parseIrcText pal txt
 
     Invite src tgt chan ->
       string quietAttr "invt " <>
@@ -448,25 +448,25 @@ fullIrcLineImage !rp body =
       string quietAttr "ctcp " <>
       string (withForeColor defAttr blue) "! " <>
       who src <> " " <>
-      parseIrcText cmd <>
-      if Text.null txt then mempty else separatorImage <> parseIrcText txt
+      parseIrcText pal cmd <>
+      if Text.null txt then mempty else separatorImage <> parseIrcText pal txt
 
     CtcpNotice src _dst cmd txt ->
       string quietAttr "ctcp " <>
       string (withForeColor defAttr red) "! " <>
       who src <> " " <>
-      parseIrcText cmd <>
-      if Text.null txt then mempty else separatorImage <> parseIrcText txt
+      parseIrcText pal cmd <>
+      if Text.null txt then mempty else separatorImage <> parseIrcText pal txt
 
     Ping params ->
-      "PING " <> separatedParams params
+      "PING " <> separatedParams pal params
 
     Pong params ->
-      "PONG " <> separatedParams params
+      "PONG " <> separatedParams pal params
 
     Error reason ->
       string (view palError pal) "ERROR " <>
-      parseIrcText reason
+      parseIrcText pal reason
 
     Reply srv code params ->
       renderReplyCode pal DetailedRender srv code params
@@ -476,7 +476,7 @@ fullIrcLineImage !rp body =
         (view msgPrefix irc) <>
       ctxt (view msgCommand irc) <>
       char defAttr ' ' <>
-      separatedParams (view msgParams irc)
+      separatedParams pal (view msgParams irc)
 
     Cap cmd ->
       text' (withForeColor defAttr magenta) (renderCapCmd cmd) <>
@@ -486,7 +486,7 @@ fullIrcLineImage !rp body =
     Mode nick _chan params ->
       string quietAttr "mode " <>
       who nick <> " set mode: " <>
-      ircWords params
+      ircWords pal params
 
     Authenticate{} -> "AUTHENTICATE ***"
     BatchStart{}   -> "BATCH +"
@@ -519,12 +519,12 @@ separatorImage = char (withForeColor defAttr blue) '·'
 -- | Process list of 'Text' as individual IRC formatted words
 -- separated by a special separator to distinguish parameters
 -- from words within parameters.
-separatedParams :: [Text] -> Image'
-separatedParams = mconcat . intersperse separatorImage . map parseIrcText
+separatedParams :: Palette -> [Text] -> Image'
+separatedParams pal = mconcat . intersperse separatorImage . map (parseIrcText pal)
 
 -- | Process list of 'Text' as individual IRC formatted words
-ircWords :: [Text] -> Image'
-ircWords = mconcat . intersperse (char defAttr ' ') . map parseIrcText
+ircWords :: Palette -> [Text] -> Image'
+ircWords pal = mconcat . intersperse (char defAttr ' ') . map (parseIrcText pal)
 
 replyCodePrefix :: ReplyCode -> Image'
 replyCodePrefix code = text' attr (replyCodeText info) <> ":"
@@ -613,7 +613,7 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
   where
     label t = text' (view palLabel pal) t <> ": "
 
-    rawParamsImage = separatedParams params'
+    rawParamsImage = separatedParams pal params'
 
     params' = case rm of
                 DetailedRender -> params
@@ -667,7 +667,7 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
           text' (view palLabel pal) "@" <>
           ctxt host <>
           label " gecos" <>
-          parseIrcText' False real
+          parseIrcText' False pal real
         _ -> rawParamsImage
 
     whoisIdleParamsImage =
@@ -681,9 +681,9 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
     whoisServerParamsImage =
       case params of
         [_, _, host, txt] ->
-          parseIrcText' False host <>
+          parseIrcText' False pal host <>
           label " note" <>
-          parseIrcText' False txt
+          parseIrcText' False pal txt
         _ -> rawParamsImage
 
     testlineParamsImage =
@@ -846,7 +846,7 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
 
     awayParamsImage =
       case params of
-        [_, nick, txt] -> ctxt nick <> label " msg" <> parseIrcText txt
+        [_, nick, txt] -> ctxt nick <> label " msg" <> parseIrcText pal txt
         _ -> rawParamsImage
 
     listParamsImage =
@@ -1099,7 +1099,7 @@ parseIrcTextWithNicks ::
   Text               {- ^ input text   -} ->
   Image'             {- ^ colored text -}
 parseIrcTextWithNicks palette hilite explicit txt
-  | Text.any isControl txt = parseIrcText' explicit txt
+  | Text.any isControl txt = parseIrcText' explicit palette txt
   | otherwise              = highlightNicks palette hilite txt
 
 -- | Given a list of nicknames and a chat message, this will generate

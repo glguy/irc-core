@@ -454,6 +454,7 @@ doAction vty action st =
     ActUnderline         -> changeEditor (Edit.insert '\^_')
     ActClearFormat       -> changeEditor (Edit.insert '\^O')
     ActReverseVideo      -> changeEditor (Edit.insert '\^V')
+    ActMonospace         -> changeEditor (Edit.insert '\^Q')
     ActDigraph           -> mbChangeEditor Edit.insertDigraph
     ActInsertEnter       -> changeEditor (Edit.insert '\^J')
 

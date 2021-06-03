@@ -68,7 +68,7 @@ renderArg pal r placeholders spec = putState $
         | placeholders = return (" " <> string (view palCommandPlaceholder pal) name)
         | otherwise    = return mempty
 
-      draw = parseIrcText' True . Text.pack
+      draw = parseIrcText' True pal . Text.pack
   in
 
   case spec of

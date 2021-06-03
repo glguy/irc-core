@@ -64,7 +64,7 @@ multiLineTextboxImage _maxHeight width st = (cursorRow, cursorCol, view clientTe
   curTxt  = view Edit.text cur
 
   cursorBase
-    = imageWidth $ parseIrcText' True
+    = imageWidth $ parseIrcText' True pal
     $ Text.pack
     $ take (view Edit.pos cur) curTxt
 
@@ -167,7 +167,7 @@ renderContent st hilites macros pal c = (leftLen, wholeImg)
   -- ["one","two"] "three" --> "two one three"
   leftLen = length leftImgs -- separators
           + sum (map imageWidth leftImgs)
-          + imageWidth (parseIrcText' True (Text.pack leftCur))
+          + imageWidth (parseIrcText' True pal (Text.pack leftCur))
 
   rndr = renderLine st pal hilites macros
 

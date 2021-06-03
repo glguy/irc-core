@@ -62,7 +62,7 @@ channelInfoImages' pal myNicks !channel
     label = text' (view palLabel pal)
 
     topicLine = label "Topic: " <>
-                parseIrcText (view chanTopic channel)
+                parseIrcText pal (view chanTopic channel)
 
 
     utcTimeImage = string defAttr . formatTime defaultTimeLocale "%F %T"
@@ -84,14 +84,14 @@ channelInfoImages' pal myNicks !channel
     urlLines =
         case view chanUrl channel of
           Nothing -> []
-          Just url -> [ label "Channel URL: " <> parseIrcText url ]
+          Just url -> [ label "Channel URL: " <> parseIrcText pal url ]
 
     modeLines = [label "Modes: " <> string defAttr modes | not (null modes) ]
       where
         modes = views chanModes Map.keys channel
 
     modeArgLines =
-      [ string (view palLabel pal) ("Mode " ++ [mode, ':', ' ']) <> parseIrcText arg
+      [ string (view palLabel pal) ("Mode " ++ [mode, ':', ' ']) <> parseIrcText pal arg
         | (mode, arg) <- Map.toList (view chanModes channel)
         , not (Text.null arg)
         ]
