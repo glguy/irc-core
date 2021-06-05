@@ -42,6 +42,6 @@ library
     stm                   ^>=2.5,
     network               >=3.0  && <3.2,
     bytestring            >=0.10 && <0.11,
-    attoparsec            >=0.13 && <0.14,
+    attoparsec            ^>=0.14,
     HsOpenSSL             >=0.11.2.3 && <0.12,
     HsOpenSSL-x509-system >=0.1  && <0.2,
