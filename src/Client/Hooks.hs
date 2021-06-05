@@ -26,7 +26,7 @@ import Client.Hook.Znc.Buffextras
 -- | All the available message hooks.
 messageHooks :: HashMap Text ([Text] -> Maybe MessageHook)
 messageHooks = fromList
-  [ ("snotice"   , \_ -> Just snoticeHook)
-  , ("frerelay"  , freRelayHook)
+  [ ("snotice", \_ -> Just snoticeHook)
+  , ("droneblrelay", droneblRelayHook)
   , ("buffextras", buffextrasHook)
   ]

@@ -12,7 +12,7 @@ format.
 
 -}
 module Client.Hook.DroneBLRelay
-  ( freRelayHook
+  ( droneblRelayHook
   ) where
 
 import           Data.List (uncons)
@@ -31,8 +31,8 @@ import           StrQuote (str)
 
 -- | Hook for mapping messages in #dronebl
 -- to appear like native messages.
-freRelayHook :: [Text] -> Maybe MessageHook
-freRelayHook args = Just (MessageHook "droneblrelay" False (remap (map mkId args)))
+droneblRelayHook :: [Text] -> Maybe MessageHook
+droneblRelayHook args = Just (MessageHook "droneblrelay" False (remap (map mkId args)))
 
 -- | Remap messages from #dronebl that match one of the
 -- rewrite rules.
