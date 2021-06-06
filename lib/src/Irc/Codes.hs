@@ -148,6 +148,7 @@ pattern RPL_WHOISADMIN              = ReplyCode 308
 pattern RPL_NICKTRACE               = ReplyCode 309
 pattern RPL_WHOISSADMIN             = ReplyCode 309
 pattern RPL_WHOISHELPER             = ReplyCode 309
+pattern RPL_WHOISHELPOP             = ReplyCode 310
 pattern RPL_WHOISUSER               = ReplyCode 311
 pattern RPL_WHOISSERVER             = ReplyCode 312
 pattern RPL_WHOISOPERATOR           = ReplyCode 313
@@ -577,6 +578,7 @@ replyCodeInfoTable
   , (RPL_NICKTRACE             , ReplyCodeInfo CommandReply "nick-trace")
   , (RPL_WHOISSADMIN           , ReplyCodeInfo CommandReply "whois-sadmin")
   , (RPL_WHOISHELPER           , ReplyCodeInfo CommandReply "whois-helper")
+  , (RPL_WHOISHELPOP           , ReplyCodeInfo CommandReply "whois-helpop")
   , (RPL_WHOISUSER             , ReplyCodeInfo CommandReply "whois-user")
   , (RPL_WHOISSERVER           , ReplyCodeInfo CommandReply "whois-server")
   , (RPL_WHOISOPERATOR         , ReplyCodeInfo CommandReply "whois-operator")
