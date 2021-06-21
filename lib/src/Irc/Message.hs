@@ -56,6 +56,7 @@ data IrcMsg
   | Part !Source !Identifier (Maybe Text) -- ^ user channel reason
   | Quit !Source (Maybe Text) -- ^ user reason
   | Kick !Source !Identifier !Identifier !Text -- ^ kicker channel kickee comment
+  | Kill !Source !Identifier !Text -- ^ killer killee reason
   | Topic !Source !Identifier !Text -- ^ user channel topic
   | Privmsg !Source !Identifier !Text -- ^ source target txt
   | Ctcp !Source !Identifier !Text !Text -- ^ source target command txt
@@ -168,6 +169,10 @@ cookIrcMsg msg =
             , [chan,nick,reason] <- view msgParams msg ->
            Kick source (mkId chan) (mkId nick) reason
 
+    "KILL"  | Just source <- msgSource msg
+            , [nick,reason] <- view msgParams msg ->
+           Kill source (mkId nick) reason
+
     "TOPIC" | Just source <- msgSource msg
             , [chan,topic] <- view msgParams msg ->
             Topic source (mkId chan) topic
@@ -236,6 +241,7 @@ msgTarget me msg =
     Part _ chan _            -> TargetWindow chan
     Quit user _              -> TargetUser (userNick (srcUser user))
     Kick _ chan _ _          -> TargetWindow chan
+    Kill _ _ _               -> TargetNetwork
     Topic _ chan _           -> TargetWindow chan
     Invite{}                 -> TargetNetwork
     Privmsg src tgt _        -> directed (srcUser src) tgt
@@ -274,6 +280,7 @@ msgActor msg =
     Part x _ _    -> Just x
     Quit x _      -> Just x
     Kick x _ _ _  -> Just x
+    Kill x _ _    -> Just x
     Topic x _ _   -> Just x
     Privmsg x _ _ -> Just x
     Invite x _ _  -> Just x
@@ -308,6 +315,7 @@ ircMsgText msg =
     Part x _ mb    -> Text.unwords (renderSource x : maybeToList mb)
     Quit x mb      -> Text.unwords (renderSource x : maybeToList mb)
     Kick x _ z r   -> Text.unwords [renderSource x, idText z, r]
+    Kill x z r     -> Text.unwords [renderSource x, idText z, r]
     Topic x _ t    -> Text.unwords [renderSource x, t]
     Privmsg x _ t  -> Text.unwords [renderSource x, t]
     Ctcp x _ c t   -> Text.unwords [renderSource x, c, t]

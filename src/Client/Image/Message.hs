@@ -243,6 +243,7 @@ ircLinePrefix !rp body =
     -- details in message part
     Topic src _ _  -> who src
     Kick src _ _ _ -> who src
+    Kill src _ _   -> who src
     Mode src _ _   -> who src
     Invite src _ _ -> who src
 
@@ -309,6 +310,12 @@ ircLineImage !rp body =
     Kick _who _channel kickee reason ->
       "kicked " <>
       coloredIdentifier pal NormalIdentifier hilites kickee <>
+      ": " <>
+      parseIrcTextWithNicks pal hilites False reason
+
+    Kill _who killee reason ->
+      "killed " <>
+      coloredIdentifier pal NormalIdentifier hilites killee <>
       ": " <>
       parseIrcTextWithNicks pal hilites False reason
 
@@ -405,6 +412,14 @@ fullIrcLineImage !rp body =
       who kicker <>
       " kicked " <>
       coloredIdentifier pal NormalIdentifier hilites kickee <>
+      ": " <>
+      parseIrcText pal reason
+
+    Kill killer killee reason ->
+      string quietAttr "kill " <>
+      who killer <>
+      " killed " <>
+      coloredIdentifier pal NormalIdentifier hilites killee <>
       ": " <>
       parseIrcText pal reason
 
