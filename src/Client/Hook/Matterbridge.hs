@@ -10,7 +10,12 @@ Matterbridge is a simple multi-protocol chat bridge, supporting
 dozens of different protocols. This hook makes Matterbridged messages
 appear native in the client.
 
-message-hooks configuration takes the following form:
+message-hooks configuration takes one of two forms;
+to operate on all channels:
+
+> ["matterbridge", "nick"]
+
+or, to operate only on selected channels:
 
 > ["matterbridge", "nick", "#chan1", "#chan2", ..., "#chann"]
 
@@ -34,15 +39,18 @@ import Irc.UserInfo (UserInfo(..), uiNick)
 data MbMsg = Msg | Act
 
 matterbridgeHook :: [Text] -> Maybe MessageHook
-matterbridgeHook (nick:chans) = Just $ MessageHook "matterbridge" False $ remap (mkId nick) (map mkId chans)
+matterbridgeHook (nick:chans) = Just $ MessageHook "matterbridge" False $ remap (mkId nick) chanfilter
+ where
+  chanfilter | [] <- chans = const True
+             | otherwise   = (`elem` (map mkId chans))
 matterbridgeHook _ = Nothing
 
-remap :: Identifier -> [Identifier] -> IrcMsg -> MessageResult
-remap nick chans ircmsg = case ircmsg of
+remap :: Identifier -> (Identifier -> Bool) -> IrcMsg -> MessageResult
+remap nick chanfilter ircmsg = case ircmsg of
   (Privmsg (Source ui _) chan msg)
-    | view uiNick ui == nick, chan `elem` chans -> remap' Msg ui chan msg
+    | view uiNick ui == nick, chanfilter chan -> remap' Msg ui chan msg
   (Ctcp (Source ui _) chan "ACTION" msg)
-    | view uiNick ui == nick, chan `elem` chans -> remap' Act ui chan msg
+    | view uiNick ui == nick, chanfilter chan -> remap' Act ui chan msg
   _ -> PassMessage
 
 remap' :: MbMsg -> UserInfo -> Identifier -> Text -> MessageResult
