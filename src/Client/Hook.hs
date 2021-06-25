@@ -34,6 +34,7 @@ data MessageResult
   = PassMessage -- ^ continue processing
   | OmitMessage -- ^ stop processing and drop message
   | RemapMessage IrcMsg -- ^ stop processing and return new message
+  deriving Show
 
 -- 'PassMessage' is an identity element
 instance Semigroup MessageResult where
