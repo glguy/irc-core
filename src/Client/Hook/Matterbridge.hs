@@ -39,29 +39,31 @@ import Irc.UserInfo (UserInfo(..), uiNick)
 data MbMsg = Msg | Act
 
 matterbridgeHook :: [Text] -> Maybe MessageHook
-matterbridgeHook (nick:chans) = Just $ MessageHook "matterbridge" False $ remap (mkId nick) chanfilter
+matterbridgeHook [] = Nothing
+matterbridgeHook (nick:chans) = Just (MessageHook "matterbridge" False (remap (mkId nick) chanfilter))
  where
-  chanfilter | [] <- chans = const True
-             | otherwise   = (`elem` (map mkId chans))
-matterbridgeHook _ = Nothing
+  chanfilter
+    | null chans = const True
+    | otherwise  = (`elem` map mkId chans)
 
 remap :: Identifier -> (Identifier -> Bool) -> IrcMsg -> MessageResult
-remap nick chanfilter ircmsg = case ircmsg of
-  (Privmsg (Source ui _) chan msg)
-    | view uiNick ui == nick, chanfilter chan -> remap' Msg ui chan msg
-  (Ctcp (Source ui _) chan "ACTION" msg)
-    | view uiNick ui == nick, chanfilter chan -> remap' Act ui chan msg
-  _ -> PassMessage
+remap nick chanfilter ircmsg =
+  case ircmsg of
+    Privmsg (Source ui _) chan msg
+      | view uiNick ui == nick, chanfilter chan -> remap' Msg ui chan msg
+    Ctcp (Source ui _) chan "ACTION" msg
+      | view uiNick ui == nick, chanfilter chan -> remap' Act ui chan msg
+    _ -> PassMessage
 
 remap' :: MbMsg -> UserInfo -> Identifier -> Text -> MessageResult
-remap' mbmsg ui chan msg
-  | (_,_,_,[nick,msg']) <- msg =~ ("^<([^>]+)> (.*)$" :: Text) :: (Text, Text, Text, [Text])
-  = RemapMessage $ newmsg mbmsg (fakeUser ui nick) chan msg'
-  | otherwise = PassMessage
+remap' mbmsg ui chan msg =
+  case msg =~ ("^<([^>]+)> (.*)$"::Text) of
+    [_,nick,msg']:_ -> RemapMessage (newmsg mbmsg (fakeUser nick ui) chan msg')
+    _               -> PassMessage
 
 newmsg :: MbMsg -> Source -> Identifier -> Text -> IrcMsg
 newmsg Msg src chan msg = Privmsg src chan msg
 newmsg Act src chan msg = Ctcp src chan "ACTION" msg
 
-fakeUser :: UserInfo -> Text -> Source
-fakeUser ui nick = Source (set uiNick (mkId nick) ui) ""
+fakeUser :: Text -> UserInfo -> Source
+fakeUser nick ui = Source (set uiNick (mkId nick) ui) ""
