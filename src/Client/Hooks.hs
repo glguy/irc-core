@@ -20,6 +20,7 @@ import Data.HashMap.Strict
 import Client.Hook
 
 import Client.Hook.DroneBLRelay
+import Client.Hook.Matterbridge
 import Client.Hook.Snotice
 import Client.Hook.Znc.Buffextras
 
@@ -29,4 +30,5 @@ messageHooks = fromList
   [ ("snotice", \_ -> Just snoticeHook)
   , ("droneblrelay", droneblRelayHook)
   , ("buffextras", buffextrasHook)
+  , ("matterbridge", matterbridgeHook)
   ]

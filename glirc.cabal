@@ -91,6 +91,7 @@ library
                        Client.EventLoop.Network
                        Client.Hook
                        Client.Hook.DroneBLRelay
+                       Client.Hook.Matterbridge
                        Client.Hook.Snotice
                        Client.Hook.Znc.Buffextras
                        Client.Hooks
