@@ -149,6 +149,7 @@ patterns = map toPattern
 
     (2, "o", [str|^OPERSPY [^ ]+![^ ]+@[^ ]+\{[^ ]+\} |]),
     (2, "o", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} is overriding |]),
+    (2, "o", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} is using oper-override on |]),
     (2, "o", [str|^[^ ]+ \([^ ]+@[^ ]+\) is now an operator$|]),
     (1, "o", [str|^[^ ]+( \([^ ]+\))? dropped the nick |]),
     (1, "o", [str|^[^ ]+( \([^ ]+\))? dropped the account |]),
