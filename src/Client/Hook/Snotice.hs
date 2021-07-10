@@ -6,8 +6,7 @@ Copyright   : (c) Eric Mertens 2019
 License     : ISC
 Maintainer  : emertens@gmail.com
 
-These sorting rules are based on the kinds of messages that freenode's
-ircd-seven sends.
+These sorting rules are based on the solanum server notices.
 
 -}
 module Client.Hook.Snotice
@@ -73,16 +72,14 @@ patterns = map toPattern
     -- Nick change
     (0, "c", [str|^Nick change: From |]),
     -- Connection limit, more complete regex: ^Too many user connections for [^ ]+![^ ]+@[^ ]+$
-    (0, "u", [str|^Too many user connections for |]),
+    (1, "u", [str|^Too many user connections for |]),
     -- Join alerts, more complete regex: ^User [^ ]+ \([^ ]+@[^ ]+\) trying to join #[^ ]* is a possible spambot$
     (1, "a", [str|^User [^ ]+ \([^ ]+\) trying to join #[^ ]* is a possible spambot|]),
     -- Kline hitting user
     (1, "k", [str|^K/DLINE active for|]),
     -- Connection limit, more complete regex: ^Too many local connections for [^ ]+![^ ]+@[^ ]+$
-    (0, "u", [str|^Too many local connections for |]),
+    (1, "u", [str|^Too many local connections for |]),
     -- Global kline added, more complete regex: ^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} added global [0-9]+ min. K-Line for \[[^ ]+\] \[.*\]$
-    (1, "k", [str|^[^ @]+@freenode/utility-bot/sigyn\{[^ ]+ added global [0-9]+ min. K-Line for |]),
-    (1, "k", [str|^[^ @]+@freenode/bot/proxyscan\{[^ ]+ added global [0-9]+ min. K-Line for |]),
     (2, "k", [str|^[^ ]+ added global [0-9]+ min. K-Line for |]),
     (2, "k", [str|^[^ ]+ added global [0-9]+ min. X-Line for |]),
     -- Global kline expiring, more complete regex: ^Propagated ban for \[[^ ]+\] expired$
@@ -103,10 +100,8 @@ patterns = map toPattern
     (1, "m", [str|^Nick collision on|]),
     -- KILLs
     (0, "k", [str|^Received KILL message for [^ ]+\. From NickServ |]),
-    (0, "k", [str|^Received KILL message for [^ ]+\. From [^ .]+\.freenode\.net \(Nickname regained by services\)|]),
     (0, "k", [str|^Received KILL message for [^ ]+\. From syn Path: [^ ]+ \(Facility Blocked\)|]),
     (1, "k", [str|^Received KILL message for [^ ]+\. From syn Path: [^ ]+ \(Banned\)|]),
-    (1, "k", [str|^Received KILL message for [^ ]+\. From Sigyn Path: [^ ]+ \(Spam is off topic on freenode\.\)|]),
     (2, "k", [str|^Received KILL message|]),
     -- Teporary kline expiring, more complete regex: ^Temporary K-line for \[[^ ]+\] expired$
     (0, "k", [str|^Temporary K-line for |]),
@@ -114,6 +109,7 @@ patterns = map toPattern
     -- PATTERN LIST, uncommon snotes. regex performance isn't very important beyond this point
     (2, "a", [str|^Possible Flooder|]),
     (0, "a", [str|^New Max Local Clients: [0-9]+$|]),
+    (1, "a", [str|^Excessive target change from|]),
 
     (1, "f", [str|^Failed (OPER|CHALLENGE) attempt - host mismatch|]),
     (3, "f", [str|^Failed (OPER|CHALLENGE) attempt|]), -- ORDER IMPORTANT - catch all failed attempts that aren't host mismatch
@@ -128,6 +124,7 @@ patterns = map toPattern
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} added temporary [0-9]+ min. D-Line for \[[^ ]+\] \[.*\]$|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the X-Line for:|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} is removing the X-Line for|]),
+    (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the temporary D-Line for:|]),
 
     (0, "m", [str|^Received SAVE message for|]),
     (0, "m", [str|^Ignored noop SAVE message for|]),
@@ -212,7 +209,7 @@ patterns = map toPattern
     (3, "o", [str|^ERROR |]),
     (3, "o", [str|^No response from [^ ]+, closing link$|]),
 
-    (0, "u", [str|^Too many global connections for [^ ]+![^ ]+@[^ ]+$|]),
+    (1, "u", [str|^Too many global connections for [^ ]+![^ ]+@[^ ]+$|]),
     (0, "u", [str|^Invalid username: |]),
     (0, "u", [str|^HTTP Proxy disconnected: |]),
     (2, "u", [str|^Unauthorised client connection from |]),
