@@ -458,12 +458,10 @@ equivalent. Default values can be provided following a pipe: `${var|default}`.
 * `network` - current network name
 * `nick` - current nickname
 
-The arguments to a command will be mapped to integer indexes. The command
-itself is at index zero.
+The arguments to a command will be mapped to integer indexes.
 
-* `0` - command
-* `1` - first argument
-* `2` - second argument (etc.)
+* `0` - first argument
+* `1` - second argument (etc.)
 
 Hooks
 =====
