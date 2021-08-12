@@ -1,6 +1,7 @@
 packages:
   lib/irc-core.cabal
   hookup/hookup.cabal
+  scram/scram.cabal
   bot/
   glirc.cabal
 

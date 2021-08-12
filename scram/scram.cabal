@@ -1,0 +1,39 @@
+cabal-version:      2.4
+name:               scram
+version:            0.1.0.0
+
+-- A short (one-line) description of the package.
+-- synopsis:
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+
+-- The license under which the package is released.
+license:            BSD-3-Clause
+author:             Eric Mertens
+maintainer:         emertens@gmail.com
+
+-- A copyright notice.
+-- copyright:
+-- category:
+extra-source-files: CHANGELOG.md
+
+library
+    exposed-modules:  Scram
+
+    -- Modules included in this library but not exported.
+    -- other-modules:
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:
+      base >=4.14.1.0 && <4.16,
+      bytestring,
+      HsOpenSSL,
+      base64-bytestring,
+
+    hs-source-dirs:   src
+    default-language: Haskell2010
