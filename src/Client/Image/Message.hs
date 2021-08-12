@@ -1012,6 +1012,7 @@ parseILinePrefix = go []
         '-' -> Just "no-tilde"
         '+' -> Just "need-ident"
         '=' -> Just "spoof-IP"
+        '%' -> Just "need-sasl"
         '|' -> Just "flood-exempt"
         '$' -> Just "dnsbl-exempt"
         '^' -> Just "kline-exempt"
