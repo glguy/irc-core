@@ -58,6 +58,7 @@ library
   build-tool-depends:  hsc2hs:hsc2hs
 
   exposed-modules:     Client.Authentication.Ecdsa
+                       Client.Authentication.Scram
                        Client.CApi
                        Client.CApi.Exports
                        Client.CApi.Types

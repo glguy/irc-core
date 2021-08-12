@@ -81,6 +81,7 @@ module Client.State.Network
   ) where
 
 import qualified Client.Authentication.Ecdsa as Ecdsa
+import qualified Client.Authentication.Scram as Scram
 import           Client.Configuration.ServerSettings
 import           Client.Network.Async
 import           Client.State.Channel
@@ -113,6 +114,9 @@ import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
 import qualified System.Random as Random
+import OpenSSL.EVP.Digest (getDigestByName)
+import System.IO.Unsafe ( unsafePerformIO )
+import qualified Data.ByteString.Base64 as B64
 
 -- | State tracked for each IRC connection
 data NetworkState = NetworkState
@@ -152,7 +156,9 @@ data AuthenticateState
   | AS_EcdsaStarted       -- ^ ECDSA-NIST mode initiated
   | AS_EcdsaWaitChallenge -- ^ ECDSA-NIST user sent waiting for challenge
   | AS_ExternalStarted    -- ^ EXTERNAL mode initiated
-  deriving Show
+  | AS_ScramStarted
+  | AS_Scram1 Scram.Phase1
+  | AS_Scram2 Scram.Phase2
 
 -- | Status of the ping timer
 data PingStatus
@@ -797,18 +803,62 @@ doAuthenticate param cs =
     AS_EcdsaStarted
       | "+" <- param
       , Just (SaslEcdsa mbAuthz authc _) <- view ssSaslMechanism ss
-      , let authz = fromMaybe authc mbAuthz
+      , let authz = fromMaybe "" mbAuthz
       -> reply
            (ircAuthenticates (Ecdsa.encodeAuthentication authz authc))
            (set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
     AS_EcdsaWaitChallenge -> noReply cs -- handled in Client.EventLoop!
 
+    AS_ScramStarted
+      | "+" <- param
+      , Just digest <- unsafePerformIO (getDigestByName "SHA256")
+      , Just (SaslScram mbAuthz user (SecretText pass))
+          <- view ssSaslMechanism ss
+      , let authz = fromMaybe "" mbAuthz
+      , (nonce, cs') <- cs & csSeed %%~ scramNonce
+      , (msg, scram1) <-
+          Scram.initiateScram digest
+            (Text.encodeUtf8 user)
+            (Text.encodeUtf8 authz)
+            (Text.encodeUtf8 pass)
+            nonce
+      -> reply
+           (ircAuthenticates msg)
+           (set csAuthenticationState (AS_Scram1 scram1) cs')
+
+    AS_Scram1 scram1
+      | Right msg <- B64.decode (Text.encodeUtf8 param)
+      , Just (rsp, scram2) <- Scram.addServerFirst scram1 msg
+      -> reply
+           (ircAuthenticates rsp)
+           (set csAuthenticationState (AS_Scram2 scram2) cs)
+
+    AS_Scram2 scram2
+      | Right msg <- B64.decode (Text.encodeUtf8 param)
+      , Scram.addServerFinal scram2 msg
+      -> reply
+           [ircAuthenticate "+"]
+           (set csAuthenticationState AS_None cs)
+
     _ -> reply [ircCapEnd] cs -- really shouldn't happen
 
   where
     ss = view csSettings cs
 
+scramNonce :: Random.StdGen -> (B.ByteString, Random.StdGen)
+scramNonce = go [] nonceSize
+  where
+    alphabet = "!\"#$%&'()*+-./0123456789:;<=>?@\
+               \ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`\
+               \abcdefghijklmnopqrstuvwxyz{|}~"
+
+    nonceSize = 20 :: Int -- ceiling (128 / logBase 9 (length alphabet))
+
+    go acc 0 g = (B.pack acc, g)
+    go acc i g =
+      case Random.randomR (0, B.length alphabet-1) g of
+        (x,g') -> go (B.index alphabet x:acc) (i-1) g'
 
 doCap :: CapCmd -> NetworkState -> Apply
 doCap cmd cs =
@@ -847,6 +897,9 @@ doCap cmd cs =
           SaslExternal{} ->
             reply [ircAuthenticate "EXTERNAL"]
                   (set csAuthenticationState AS_ExternalStarted cs)
+          SaslScram{} ->
+            reply [ircAuthenticate "SCRAM-SHA-256"]
+                  (set csAuthenticationState AS_ScramStarted cs)
 
     _ -> reply [ircCapEnd] cs
 

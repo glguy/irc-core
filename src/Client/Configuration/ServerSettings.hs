@@ -61,6 +61,7 @@ module Client.Configuration.ServerSettings
   , _SaslExternal
   , _SaslEcdsa
   , _SaslPlain
+  , _SaslScram
 
   -- * Secrets
   , Secret(..)
@@ -156,6 +157,7 @@ data SaslMechanism
   = SaslPlain    (Maybe Text) Text Secret -- ^ SASL PLAIN RFC4616 - authzid authcid password
   | SaslEcdsa    (Maybe Text) Text FilePath -- ^ SASL NIST - https://github.com/kaniini/ecdsatool - authzid keypath
   | SaslExternal (Maybe Text)      -- ^ SASL EXTERNAL RFC4422 - authzid
+  | SaslScram    (Maybe Text) Text Secret -- ^ SASL SCRAM-SHA-256 RFC7677 - authzid authcid password
   deriving Show
 
 -- | Regular expression matched with original source to help with debugging.
@@ -358,7 +360,7 @@ tlsModeSpec =
   TlsStart <$ atomSpec "starttls"
 
 saslMechanismSpec :: ValueSpec SaslMechanism
-saslMechanismSpec = plain <!> external <!> ecdsa
+saslMechanismSpec = plain <!> external <!> ecdsa <!> scram
   where
     mech m   = reqSection' "mechanism" (atomSpec m) "Mechanism"
     authzid  = optSection "authzid" "Authorization identity"
@@ -378,6 +380,12 @@ saslMechanismSpec = plain <!> external <!> ecdsa
       SaslEcdsa <$ mech "ecdsa-nist256p-challenge" <*>
       authzid <*> username <*>
       reqSection' "private-key" filepathSpec "Private key file"
+
+    scram =
+      sectionsSpec "sasl-scram" $
+      SaslScram <$ mech "scram" <*>
+      authzid <*> username <*> reqSection "password" "Password"
+
 
 filepathSpec :: ValueSpec FilePath
 filepathSpec = customSpec "path" stringSpec $ \str ->
