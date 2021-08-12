@@ -1140,7 +1140,7 @@ highlightNicks palette hilites txt = foldMap highlight1 txtParts
 metadataImg :: IrcSummary -> Maybe (Image', Identifier, Maybe Identifier)
 metadataImg msg =
   case msg of
-    QuitSummary who     -> Just (char (withForeColor defAttr red   ) 'x', who, Nothing)
+    QuitSummary who _   -> Just (char (withForeColor defAttr red   ) 'x', who, Nothing)
     PartSummary who     -> Just (char (withForeColor defAttr red   ) '-', who, Nothing)
     JoinSummary who     -> Just (char (withForeColor defAttr green ) '+', who, Nothing)
     CtcpSummary who     -> Just (char (withForeColor defAttr white ) 'C', who, Nothing)
@@ -1148,6 +1148,8 @@ metadataImg msg =
     ChngSummary who     -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
     AcctSummary who     -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
     _                   -> Nothing
+
+
 
 -- | Image used when treating ignored chat messages as metadata
 ignoreImage :: Image'

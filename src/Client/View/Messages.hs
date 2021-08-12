@@ -28,6 +28,7 @@ import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
 import           Data.List
+import           Graphics.Vty.Attributes
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.UserInfo
@@ -141,8 +142,11 @@ transitionMetadata acc mbwho who mds palette =
 continueMetadata :: Image' -> MetadataState
 continueMetadata acc _ [] _ = [acc]
 continueMetadata acc who1 ((img, who2, mbwho3):mds) palette
-  | who1 == who2 = let acc' = acc <> img
-                   in transitionMetadata acc' mbwho3 who2 mds palette
+  | who1 /= "" -- empty identifiers don't coallese
+  , who1 == who2
+  , let acc' = acc <> img
+  = transitionMetadata acc' mbwho3 who2 mds palette
+
   | otherwise    = acc : startMetadata img mbwho3 who2 mds palette
 
 ------------------------------------------------------------------------
@@ -154,6 +158,9 @@ gatherMetadataLines ::
   -- ^ metadata entries are reversed
 gatherMetadataLines st = go []
   where
+    go acc ws
+      | Just (img, ws') <- bulkMetadata st ws =
+          go ((img, "", Nothing) : acc) ws'
     go acc (w:ws)
       | Just (img,who,mbnext) <- metadataWindowLine st w =
           go ((img,who,mbnext) : acc) ws
@@ -170,5 +177,24 @@ metadataWindowLine ::
 metadataWindowLine st wl =
   case view wlSummary wl of
     ChatSummary who -> (ignoreImage, userNick who, Nothing) <$ guard (identIgnored who st)
-    DccSendSummary _ -> Nothing -- Show a custom WindowLine latter
     summary         -> metadataImg summary
+
+bulkMetadata ::
+  ClientState ->
+  [WindowLine] ->
+  Maybe (Image', [WindowLine])
+bulkMetadata st wls
+  | (quits, wls') <- span isMassQuit wls
+  , let n = length quits
+  , n > 10
+  = Just (string (view palMeta pal) ("(split:" <> show n <> ")") <>
+          char (withForeColor defAttr red) 'X', wls')
+  where
+    pal = clientPalette st
+
+bulkMetadata _ _ = Nothing
+
+isMassQuit :: WindowLine -> Bool
+isMassQuit wl
+  | QuitSummary _ MassQuit <- view wlSummary wl = True
+  | otherwise = False

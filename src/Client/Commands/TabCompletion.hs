@@ -98,7 +98,7 @@ activeNicks st =
       toListOf
         ( clientWindows    . ix focus
         . winMessages      . each
-        . wlSummary        . folding summaryActor
+        . wlSummary        . folding chatActor
         . filtered isActive
         . filtered isNotSelf ) st
       where
@@ -117,7 +117,7 @@ activeNicks st =
     -- Returns the 'Identifier' of the nickname responsible for
     -- the window line when that action was significant enough to
     -- be considered a hint for tab completion.
-    summaryActor :: IrcSummary -> Maybe Identifier
-    summaryActor (ChatSummary who) = Just $! userNick who
-    summaryActor _                 = Nothing
+    chatActor :: IrcSummary -> Maybe Identifier
+    chatActor (ChatSummary who) = Just $! userNick who
+    chatActor _                 = Nothing
 

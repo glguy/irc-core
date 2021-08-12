@@ -27,6 +27,10 @@ module Client.Message
   -- * Client message operations
   , IrcSummary(..)
   , msgSummary
+  , summaryActor
+
+  -- * Quit message details
+  , QuitKind(..)
 
   -- * Client message operations
   , msgText
@@ -55,15 +59,19 @@ data ClientMessage = ClientMessage
 
 makeLenses ''ClientMessage
 
+data QuitKind
+  = NormalQuit -- ^ User quit
+  | MassQuit   -- ^ Mass event like a netsplit
+  deriving (Eq, Show)
+
 data IrcSummary
   = JoinSummary {-# UNPACK #-} !Identifier
-  | QuitSummary {-# UNPACK #-} !Identifier
+  | QuitSummary {-# UNPACK #-} !Identifier !QuitKind
   | PartSummary {-# UNPACK #-} !Identifier
   | NickSummary {-# UNPACK #-} !Identifier {-# UNPACK #-} !Identifier
   | ReplySummary {-# UNPACK #-} !ReplyCode
   | ChatSummary {-# UNPACK #-} !UserInfo
   | CtcpSummary {-# UNPACK #-} !Identifier
-  | DccSendSummary {-# UNPACK #-} !Identifier
   | ChngSummary {-# UNPACK #-} !Identifier -- ^ Chghost command
   | AcctSummary {-# UNPACK #-} !Identifier -- ^ Account command
   | NoSummary
@@ -88,7 +96,7 @@ ircSummary msg =
   case msg of
     Join who _ _ _  -> JoinSummary (userNick (srcUser who))
     Part who _ _    -> PartSummary (userNick (srcUser who))
-    Quit who _      -> QuitSummary (userNick (srcUser who))
+    Quit who mbTxt  -> QuitSummary (userNick (srcUser who)) (quitKind mbTxt)
     Nick who who'   -> NickSummary (userNick (srcUser who)) who'
     Privmsg who _ _ -> ChatSummary (srcUser who)
     Notice who _ _  -> ChatSummary (srcUser who)
@@ -99,3 +107,24 @@ ircSummary msg =
     Account who _   -> AcctSummary (userNick (srcUser who))
     Chghost who _ _ -> ChngSummary (userNick (srcUser who))
     _               -> NoSummary
+
+quitKind :: Maybe Text -> QuitKind
+quitKind mbReason =
+  case mbReason of
+    Just "*.net *.split"        -> MassQuit
+    _                           -> NormalQuit
+
+summaryActor :: IrcSummary -> Maybe Identifier
+summaryActor s =
+  case s of
+    JoinSummary who   -> Just who
+    QuitSummary who _ -> Just who
+    PartSummary who   -> Just who
+    NickSummary who _ -> Just who
+    ChatSummary who   -> Just (userNick who)
+    CtcpSummary who   -> Just who
+    AcctSummary who   -> Just who
+    ChngSummary who   -> Just who
+    ReplySummary {}   -> Nothing
+    NoSummary         -> Nothing
+

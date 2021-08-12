@@ -28,7 +28,6 @@ import           Data.HashMap.Strict (HashMap)
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
-import           Irc.UserInfo (userNick)
 import           Text.Read (readMaybe)
 
 
@@ -64,21 +63,6 @@ urlSelectionView w focus arg st
 
 matches :: WindowLine -> [(Maybe Identifier, Text)]
 matches wl = [ (views wlSummary summaryActor wl, url) | url <- views wlText urlMatches wl ]
-
-summaryActor :: IrcSummary -> Maybe Identifier
-summaryActor s =
-  case s of
-    JoinSummary who   -> Just who
-    QuitSummary who   -> Just who
-    PartSummary who   -> Just who
-    NickSummary who _ -> Just who
-    ChatSummary who   -> Just (userNick who)
-    CtcpSummary who   -> Just who
-    DccSendSummary who -> Just who
-    AcctSummary who   -> Just who
-    ChngSummary who   -> Just who
-    ReplySummary {}   -> Nothing
-    NoSummary         -> Nothing
 
 
 -- | Render one line of the url list
