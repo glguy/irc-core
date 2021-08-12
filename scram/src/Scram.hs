@@ -1,9 +1,14 @@
 {-# Language OverloadedStrings #-}
 {-# Language RecordWildCards #-}
 {-# Language ImportQualifiedPost #-}
+{-# Language BlockArguments #-}
+{-# Language LambdaCase #-}
+{-# Language ViewPatterns #-}
 module Scram (
+  -- * Transaction state types
   Scram1,
   Scram2,
+  -- * Transaction step functions
   initiateScram,
   addServerFirst,
   addServerFinal,
@@ -19,148 +24,137 @@ import Data.List ( foldl1' )
 import GHC.Word ( Word8 )
 import OpenSSL.EVP.Digest ( Digest, digestBS, getDigestByName, hmacBS )
 
+-- | SCRAM state waiting for server-first-message
 data Scram1 = Scram1
-  { scram1Digest :: Digest
-  , scram1Password :: ByteString
-  , scram1CbindInput :: ByteString
-  , scram1Nonce :: ByteString
-  , scram1ClientFirstBare :: ByteString
+  { scram1Digest          :: Digest     -- ^ underlying cryptographic hash function
+  , scram1Password        :: ByteString -- ^ password
+  , scram1CbindInput      :: ByteString -- ^ cbind-input
+  , scram1Nonce           :: ByteString -- ^ c-nonce
+  , scram1ClientFirstBare :: ByteString -- ^ client-first-bare
   }
 
+-- | Construct client-first-message and extra parameters
+-- needed for 'addServerFirst'.
 initiateScram ::
   Digest ->
-  ByteString {- ^ user -} ->
-  ByteString {- ^ authzid -} ->
-  ByteString {- ^ password -} ->
-  ByteString {- ^ nonce -} ->
-  ByteString {- ^ channel binding -} ->
+  ByteString {- ^ authentication ID -} ->
+  ByteString {- ^ authorization ID  -} ->
+  ByteString {- ^ password          -} ->
+  ByteString {- ^ nonce             -} ->
   (ByteString, Scram1)
-initiateScram digest user authzid pass nonce binding =
-  (msg, Scram1
+initiateScram digest user authzid pass nonce =
+  (clientFirstMessage, Scram1
     { scram1Digest = digest
     , scram1Password = pass
-    , scram1CbindInput = B64.encode (gs2Header <> binding)
+    , scram1CbindInput = B64.encode gs2Header
     , scram1Nonce = nonce
-    , scram1ClientFirstBare = bare
+    , scram1ClientFirstBare = clientFirstMessageBare
     })
   where
-    msg = gs2Header <> bare
-    gs2Header = "n," <> authzid <> ","
-    bare = clientFirstMessageBare user nonce
+    clientFirstMessage = gs2Header <> clientFirstMessageBare
+    gs2Header = "n," <> encodeUsername authzid <> ","
+    clientFirstMessageBare = "n=" <> encodeUsername user <> ",r=" <> nonce
 
-data Scram2 = Scram2
-  { scram2ServerSignature :: ByteString
+-- | SCRAM state waiting for server-final-message
+newtype Scram2 = Scram2
+  { scram2ServerSignature :: ByteString -- ^ base64 encoded expected value
   }
 
+-- | Add server-first-message to current SCRAM transaction,
+-- compute client-final-message and next state for 'addServerFinal'.
 addServerFirst ::
-  Scram1 ->
+  Scram1     {- ^ output of 'initiateScram' -} ->
   ByteString {- ^ server first message -} ->
   Maybe (ByteString, Scram2)
 addServerFirst Scram1{..} serverFirstMessage =
 
-  do let serverFields = parseMessage serverFirstMessage
-     nonce            <-                lookup "r" serverFields
-     Right salt       <- B64.decode <$> lookup "s" serverFields
-     (iterations, "") <- B8.readInt =<< lookup "i" serverFields
+  do -- Parse server-first-message
+     ("r", nonce) :
+       ("s", B64.decode -> Right salt) :
+       ("i", B8.readInt -> Just (iterations, "")) :
+       _extensions
+       <- Just (parseMessage serverFirstMessage)
 
+     -- validate nonce given by server includes ours and isn't empty
      guard (B.isPrefixOf scram1Nonce nonce && scram1Nonce /= nonce)
 
      let clientFinalWithoutProof = "c=" <> scram1CbindInput <> ",r=" <> nonce
-     let authMessage = scram1ClientFirstBare <> "," <>
-                       serverFirstMessage <> "," <>
-                       clientFinalWithoutProof
+
+     let authMessage =
+           scram1ClientFirstBare <> "," <>
+           serverFirstMessage <> "," <>
+           clientFinalWithoutProof
+
      let (clientProof, serverSignature) =
            crypto scram1Digest scram1Password salt iterations authMessage
+
      let proof = "p=" <> B64.encode clientProof
      let clientFinalMessage = clientFinalWithoutProof <> "," <> proof
-     Just (clientFinalMessage, Scram2 {
-       scram2ServerSignature = B64.encode serverSignature
-     })
 
+     let scram2 = Scram2 { scram2ServerSignature = B64.encode serverSignature }
+     Just (clientFinalMessage, scram2)
+
+-- | Add server-final-message to transaction and compute validatity of
+-- the whole transaction.
 addServerFinal ::
-  Scram2 ->
-  ByteString {- ^ server-final-message -} ->
-  Bool
+  Scram2     {- ^ output of 'addServerFirst' -} ->
+  ByteString {- ^ server-final-message   -} ->
+  Bool       {- ^ transaction succeeded? -}
 addServerFinal Scram2{..} serverFinalMessage =
-  case lookup "v" (parseMessage serverFinalMessage) of
-    Just v -> v == scram2ServerSignature
+  case parseMessage serverFinalMessage of
+    ("v", sig) : _extensions -> sig == scram2ServerSignature
     _ -> False
 
+-- | Big endian encoding of a 32-bit number 1.
 int1 :: ByteString
 int1 = B.pack [0,0,0,1]
 
-packZipWith :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString -> ByteString
-packZipWith f x y = B.pack (B.zipWith f x y)
+xorBS :: ByteString -> ByteString -> ByteString
+xorBS x y = B.pack (B.zipWith xor x y)
 
-hi :: Digest -> ByteString -> ByteString -> Int -> ByteString
-hi digest str salt n = foldl1' (packZipWith xor) (take n us)
+-- | Iterated, password-based, key-derivation function.
+hi ::
+  Digest     {- ^ underlying cryptographic hash function -} ->
+  ByteString {- ^ secret -} ->
+  ByteString {- ^ salt -} ->
+  Int        {- ^ iterations -} ->
+  ByteString {- ^ salted, iterated hash of secret -}
+hi digest str salt n = foldl1' xorBS (take n us)
   where
     u1 = hmacBS digest str (salt <> int1)
     us = iterate (hmacBS digest str) u1
 
-saslPrep :: ByteString -> ByteString
-saslPrep x = x
-
-clientFirstMessageBare ::
-  ByteString {- ^ username -} ->
-  ByteString {- ^ nonce -} ->
-  ByteString
-clientFirstMessageBare user nonce =
-  "n=" <> saslPrep user <> ",r=" <> nonce
-
+-- | Break up a SCRAM message into its underlying key-value association list.
 parseMessage :: ByteString -> [(ByteString, ByteString)]
 parseMessage msg =
   [case B8.break ('='==) entry of
      (key, value) -> (key, B.drop 1 value)
   | entry <- B8.split ',' msg]
 
+-- | Tranform all the SCRAM parameters into a @ClientProof@
+-- and @ServerSignature@.
 crypto ::
-  Digest ->
-  ByteString {- ^ password -} ->
-  ByteString {- ^ salt -} ->
-  Int {- ^ iterations -} ->
-  ByteString {- auth message -} ->
-  (ByteString, ByteString)
+  Digest      {- ^ digest       -} ->
+  ByteString  {- ^ password     -} ->
+  ByteString  {- ^ salt         -} ->
+  Int         {- ^ iterations   -} ->
+  ByteString  {- ^ auth message -} ->
+  (ByteString, ByteString) {- ^ client-proof, server-signature -}
 crypto digest password salt iterations authMessage =
   (clientProof, serverSignature)
   where
-    saltedPassword = hi digest password salt iterations
-    storedKey = digestBS digest clientKey
-    clientSignature = hmacBS digest storedKey authMessage
-    clientKey = hmacBS digest saltedPassword "Client Key"
-    serverKey = hmacBS digest saltedPassword "Server Key"
-    serverSignature = hmacBS digest serverKey authMessage
-    clientProof = packZipWith xor clientKey clientSignature
+    saltedPassword  = hi       digest password salt iterations
+    clientKey       = hmacBS   digest saltedPassword "Client Key"
+    storedKey       = digestBS digest clientKey
+    clientSignature = hmacBS   digest storedKey authMessage
+    clientProof     = xorBS clientKey clientSignature
+    serverKey       = hmacBS   digest saltedPassword "Server Key"
+    serverSignature = hmacBS   digest serverKey authMessage
 
-
-manual answer =
-  do Just sha2 <- getDigestByName "SHA256"
-     let (cmsg1, scram1) = initiateScram sha2 "glguy" "" "Z8FU55MpynSKhb7QRPi0n9OOaiRm93QZ" "rOprNGfwEbeRWgbNEkqO" ""
-     print ("Client1:",cmsg1)
-
-     let Right serverFirst = B64.decode answer
-     let Just (cmsg2, scram2) = addServerFirst scram1 serverFirst
-     print ("Client2:",cmsg2)
-     print ("Sendback:")
-     B8.putStrLn $ "AUTHENTICATE " <> B64.encode cmsg2
-
-     print (scram2ServerSignature scram2)
-
-
-
-demo =
-  do Just sha2 <- getDigestByName "SHA256"
-     let (cmsg1, scram1) = initiateScram sha2 "user" "" "pencil" "rOprNGfwEbeRWgbNEkqO" ""
-     print ("Client1:",cmsg1)
-     unless (cmsg1 == "n,,n=user,r=rOprNGfwEbeRWgbNEkqO") (fail "Bad client first")
-
-     let serverFirst = "r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096"
-     let Just (cmsg2, scram2) = addServerFirst scram1 serverFirst
-     print ("Client2:",cmsg2)
-     unless (cmsg2 == "c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=")
-       (fail "bad client 2")
-
-     let serverFinalMessage = "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4="
-     let happy = addServerFinal scram2 serverFinalMessage
-     unless happy
-       (fail "bad server verify")
+-- | Encode usersnames so they fit in the comma/equals delimited
+-- SCRAM message format.
+encodeUsername :: ByteString -> ByteString
+encodeUsername = B8.concatMap \case
+    ',' -> "=2C"
+    '=' -> "=3D"
+    x   -> B8.singleton x

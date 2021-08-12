@@ -157,7 +157,7 @@ data SaslMechanism
   = SaslPlain    (Maybe Text) Text Secret -- ^ SASL PLAIN RFC4616 - authzid authcid password
   | SaslEcdsa    (Maybe Text) Text FilePath -- ^ SASL NIST - https://github.com/kaniini/ecdsatool - authzid keypath
   | SaslExternal (Maybe Text)      -- ^ SASL EXTERNAL RFC4422 - authzid
-  | SaslScram    String (Maybe Text) Text Secret
+  | SaslScram    (Maybe Text) Text Secret -- ^ SASL SCRAM-SHA-256 RFC7677 - authzid authcid password
   deriving Show
 
 -- | Regular expression matched with original source to help with debugging.
@@ -381,13 +381,9 @@ saslMechanismSpec = plain <!> external <!> ecdsa <!> scram
       authzid <*> username <*>
       reqSection' "private-key" filepathSpec "Private key file"
 
-    scramAlgorithm =
-      fromMaybe "SHA256" <$> optSection' "algorithm" stringSpec "Digest algorithm"
-
     scram =
-      sectionsSpec "sasl-scram" $ SaslScram <$
-      mech "scram" <*>
-      scramAlgorithm <*>
+      sectionsSpec "sasl-scram" $
+      SaslScram <$ mech "scram" <*>
       authzid <*> username <*> reqSection "password" "Password"
 
 

@@ -813,21 +813,18 @@ doAuthenticate param cs =
     AS_ScramStarted
       | "+" <- param
       , Just digest <- unsafePerformIO (getDigestByName "SHA256")
-      , Just (SaslScram "SHA256" mbAuthz user (SecretText pass))
+      , Just (SaslScram mbAuthz user (SecretText pass))
           <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
-      , let nonce = "temporary"
-      , let cbind = "" ->
-            let (msg, scram1) =
+      , let (nonce, cs') = cs & csSeed %%~ scramNonce
+      , let (msg, scram1) =
                   initiateScram digest
                     (Text.encodeUtf8 user)
                     (Text.encodeUtf8 authz)
                     (Text.encodeUtf8 pass)
                     nonce
-                    cbind
-            in
-            reply (ircAuthenticates (AuthenticatePayload msg))
-                  (set csAuthenticationState (AS_Scram1 scram1) cs)
+      -> reply (ircAuthenticates (AuthenticatePayload msg))
+               (set csAuthenticationState (AS_Scram1 scram1) cs')
 
     AS_Scram1 scram1
       | Right msg <- B64.decode (Text.encodeUtf8 param)
@@ -846,6 +843,19 @@ doAuthenticate param cs =
   where
     ss = view csSettings cs
 
+scramNonce :: Random.StdGen -> (B.ByteString, Random.StdGen)
+scramNonce = go [] nonceSize
+  where
+    alphabet = "!\"#$%&'()*+-./0123456789:;<=>?@\
+               \ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`\
+               \abcdefghijklmnopqrstuvwxyz{|}~"
+
+    nonceSize = 20 :: Int -- ceiling (128 / logBase 9 (length alphabet))
+
+    go acc 0 g = (B.pack acc, g)
+    go acc i g =
+      case Random.randomR (0, B.length alphabet-1) g of
+        (x,g') -> go (B.index alphabet x:acc) (i-1) g'
 
 doCap :: CapCmd -> NetworkState -> Apply
 doCap cmd cs =
