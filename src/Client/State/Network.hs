@@ -114,8 +114,6 @@ import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
 import qualified System.Random as Random
-import OpenSSL.EVP.Digest (getDigestByName)
-import System.IO.Unsafe ( unsafePerformIO )
 import qualified Data.ByteString.Base64 as B64
 
 -- | State tracked for each IRC connection
@@ -812,8 +810,7 @@ doAuthenticate param cs =
 
     AS_ScramStarted
       | "+" <- param
-      , Just digest <- unsafePerformIO (getDigestByName "SHA256")
-      , Just (SaslScram mbAuthz user (SecretText pass))
+      , Just (SaslScram digest mbAuthz user (SecretText pass))
           <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
       , (nonce, cs') <- cs & csSeed %%~ scramNonce
@@ -897,8 +894,8 @@ doCap cmd cs =
           SaslExternal{} ->
             reply [ircAuthenticate "EXTERNAL"]
                   (set csAuthenticationState AS_ExternalStarted cs)
-          SaslScram{} ->
-            reply [ircAuthenticate "SCRAM-SHA-256"]
+          SaslScram digest _ _ _ ->
+            reply [ircAuthenticate (Scram.mechanismName digest)]
                   (set csAuthenticationState AS_ScramStarted cs)
 
     _ -> reply [ircCapEnd] cs

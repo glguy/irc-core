@@ -81,6 +81,7 @@ module Client.Configuration.ServerSettings
   , getRegex
   ) where
 
+import           Client.Authentication.Scram (ScramDigest(..))
 import           Client.Commands.Interpolation
 import           Client.Commands.WordCompletion
 import           Client.Configuration.Macros (macroCommandSpec)
@@ -157,7 +158,7 @@ data SaslMechanism
   = SaslPlain    (Maybe Text) Text Secret -- ^ SASL PLAIN RFC4616 - authzid authcid password
   | SaslEcdsa    (Maybe Text) Text FilePath -- ^ SASL NIST - https://github.com/kaniini/ecdsatool - authzid keypath
   | SaslExternal (Maybe Text)      -- ^ SASL EXTERNAL RFC4422 - authzid
-  | SaslScram    (Maybe Text) Text Secret -- ^ SASL SCRAM-SHA-256 RFC7677 - authzid authcid password
+  | SaslScram    ScramDigest (Maybe Text) Text Secret -- ^ SASL SCRAM-SHA-256 RFC7677 - authzid authcid password
   deriving Show
 
 -- | Regular expression matched with original source to help with debugging.
@@ -381,9 +382,19 @@ saslMechanismSpec = plain <!> external <!> ecdsa <!> scram
       authzid <*> username <*>
       reqSection' "private-key" filepathSpec "Private key file"
 
+    scramDigest =
+      fromMaybe ScramDigestSha2_256 <$>
+      optSection' "digest" scramDigests "Underlying digest function"
+
+    scramDigests =
+      ScramDigestSha1     <$ atomSpec "sha1" <!>
+      ScramDigestSha2_256 <$ atomSpec "sha2-256" <!>
+      ScramDigestSha2_512 <$ atomSpec "sha2-512"
+
     scram =
       sectionsSpec "sasl-scram" $
       SaslScram <$ mech "scram" <*>
+      scramDigest <*>
       authzid <*> username <*> reqSection "password" "Password"
 
 

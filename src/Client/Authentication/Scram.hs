@@ -12,21 +12,39 @@ module Client.Authentication.Scram (
   initiateScram,
   addServerFirst,
   addServerFinal,
+  -- * Digests
+  ScramDigest(..),
+  mechanismName,
   ) where
 
-import Control.Monad ( guard )
-import Data.Bits ( xor )
+import Control.Monad (guard)
+import Data.Bits (xor)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as B
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Char8 qualified as B8
-import Data.List ( foldl1' )
-import OpenSSL.EVP.Digest ( Digest, digestBS, hmacBS )
+import Data.List (foldl1')
+import Data.Text (Text)
+import OpenSSL.EVP.Digest ( Digest, digestBS, hmacBS, getDigestByName)
 import Irc.Commands (AuthenticatePayload (AuthenticatePayload))
+import System.IO.Unsafe (unsafePerformIO)
+
+data ScramDigest
+  = ScramDigestSha1
+  | ScramDigestSha2_256
+  | ScramDigestSha2_512
+  deriving Show
+
+mechanismName :: ScramDigest -> Text
+mechanismName digest =
+  case digest of
+    ScramDigestSha1     -> "SCRAM-SHA-1"
+    ScramDigestSha2_256 -> "SCRAM-SHA-256"
+    ScramDigestSha2_512 -> "SCRAM-SHA-512"
 
 -- | SCRAM state waiting for server-first-message
 data Phase1 = Phase1
-  { phase1Digest          :: Digest     -- ^ underlying cryptographic hash function
+  { phase1Digest          :: ScramDigest -- ^ underlying cryptographic hash function
   , phase1Password        :: ByteString -- ^ password
   , phase1CbindInput      :: ByteString -- ^ cbind-input
   , phase1Nonce           :: ByteString -- ^ c-nonce
@@ -36,7 +54,7 @@ data Phase1 = Phase1
 -- | Construct client-first-message and extra parameters
 -- needed for 'addServerFirst'.
 initiateScram ::
-  Digest ->
+  ScramDigest ->
   ByteString {- ^ authentication ID -} ->
   ByteString {- ^ authorization ID  -} ->
   ByteString {- ^ password          -} ->
@@ -134,7 +152,7 @@ parseMessage msg =
 -- | Tranform all the SCRAM parameters into a @ClientProof@
 -- and @ServerSignature@.
 crypto ::
-  Digest      {- ^ digest       -} ->
+  ScramDigest {- ^ digest       -} ->
   ByteString  {- ^ password     -} ->
   ByteString  {- ^ salt         -} ->
   Int         {- ^ iterations   -} ->
@@ -143,13 +161,19 @@ crypto ::
 crypto digest password salt iterations authMessage =
   (clientProof, serverSignature)
   where
-    saltedPassword  = hi       digest password salt iterations
-    clientKey       = hmacBS   digest saltedPassword "Client Key"
-    storedKey       = digestBS digest clientKey
-    clientSignature = hmacBS   digest storedKey authMessage
+    saltedPassword  = hi       d password salt iterations
+    clientKey       = hmacBS   d saltedPassword "Client Key"
+    storedKey       = digestBS d clientKey
+    clientSignature = hmacBS   d storedKey authMessage
     clientProof     = xorBS clientKey clientSignature
-    serverKey       = hmacBS   digest saltedPassword "Server Key"
-    serverSignature = hmacBS   digest serverKey authMessage
+    serverKey       = hmacBS   d saltedPassword "Server Key"
+    serverSignature = hmacBS   d serverKey authMessage
+    digestName =
+      case digest of
+        ScramDigestSha1     -> "SHA1"
+        ScramDigestSha2_256 -> "SHA256"
+        ScramDigestSha2_512 -> "SHA512"
+    Just d = unsafePerformIO (getDigestByName digestName)
 
 -- | Encode usersnames so they fit in the comma/equals delimited
 -- SCRAM message format.
