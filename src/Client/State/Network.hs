@@ -159,7 +159,7 @@ data AuthenticateState
   | AS_Scram1 Scram.Phase1
   | AS_Scram2 Scram.Phase2
   | AS_EcdhStarted
-  | AS_EcdhWaitChallenge
+  | AS_EcdhWaitChallenge Ecdh.Phase1
 
 -- | Status of the ping timer
 data PingStatus
@@ -375,6 +375,7 @@ applyMessage' msgWhen msg cs =
     Reply _ RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
     Reply _ RPL_SASLSUCCESS _ -> reply [ircCapEnd] cs
     Reply _ RPL_SASLFAIL _ -> reply [ircCapEnd] cs
+    Reply _ RPL_SASLABORTED _ -> reply [ircCapEnd] cs
 
     Reply _ ERR_NICKNAMEINUSE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs
@@ -782,11 +783,27 @@ selectCaps cs offered = (supported `intersect` Map.keys capMap)
     ss = view csSettings cs
     sasl = ["sasl" | isJust (view ssSaslMechanism ss) ]
 
+decodeAuthParam :: Text -> Maybe B.ByteString
+decodeAuthParam "+" = Just ""
+decodeAuthParam xs =
+  case B64.decode (Text.encodeUtf8 xs) of
+    Right bs -> Just bs
+    Left _ -> Nothing
+
+abortAuth :: NetworkState -> Apply
+abortAuth = reply [ircAuthenticate "*"] . set csAuthenticationState AS_None
+
 doAuthenticate :: Text -> NetworkState -> Apply
-doAuthenticate param cs =
+doAuthenticate paramTxt cs =
+  case decodeAuthParam paramTxt of
+    Nothing -> abortAuth cs
+    Just param -> doAuthenticate' param cs
+
+doAuthenticate' :: B.ByteString -> NetworkState -> Apply
+doAuthenticate' param cs =
   case view csAuthenticationState cs of
     AS_PlainStarted
-      | "+" <- param
+      | B.null param
       , Just (SaslPlain mbAuthz authc (SecretText pass)) <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
       -> reply
@@ -794,7 +811,7 @@ doAuthenticate param cs =
            (set csAuthenticationState AS_None cs)
 
     AS_ExternalStarted
-      | "+" <- param
+      | B.null param
       , Just (SaslExternal mbAuthz) <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
       -> reply
@@ -802,7 +819,7 @@ doAuthenticate param cs =
            (set csAuthenticationState AS_None cs)
 
     AS_EcdsaStarted
-      | "+" <- param
+      | B.null param
       , Just (SaslEcdsa mbAuthz authc _) <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
       -> reply
@@ -812,7 +829,7 @@ doAuthenticate param cs =
     AS_EcdsaWaitChallenge -> noReply cs -- handled in Client.EventLoop!
 
     AS_ScramStarted
-      | "+" <- param
+      | B.null param
       , Just (SaslScram digest mbAuthz user (SecretText pass))
           <- view ssSaslMechanism ss
       , let authz = fromMaybe "" mbAuthz
@@ -828,35 +845,30 @@ doAuthenticate param cs =
            (set csAuthenticationState (AS_Scram1 scram1) cs')
 
     AS_Scram1 scram1
-      | Right msg <- B64.decode (Text.encodeUtf8 param)
-      , Just (rsp, scram2) <- Scram.addServerFirst scram1 msg
+      | Just (rsp, scram2) <- Scram.addServerFirst scram1 param
       -> reply
            (ircAuthenticates rsp)
            (set csAuthenticationState (AS_Scram2 scram2) cs)
 
     AS_Scram2 scram2
-      | Right msg <- B64.decode (Text.encodeUtf8 param)
-      , Scram.addServerFinal scram2 msg
+      | Scram.addServerFinal scram2 param
       -> reply
            [ircAuthenticate "+"]
            (set csAuthenticationState AS_None cs)
 
     AS_EcdhStarted
-      | "+" <- param
-      , Just (SaslEcdh mbAuthz authc _) <- view ssSaslMechanism ss
-      -> reply
-           (ircAuthenticates (Ecdh.clientFirst mbAuthz authc))
-           (set csAuthenticationState AS_EcdhWaitChallenge cs)
-    
-    AS_EcdhWaitChallenge
-      | Right msg <- B64.decode (Text.encodeUtf8 param)
-      , Just (SaslEcdh _ _ (SecretText key) )<- view ssSaslMechanism ss
-      , Just rsp <- Ecdh.computeResponse msg key
+      | B.null param
+      , Just (SaslEcdh mbAuthz authc (SecretText key)) <- view ssSaslMechanism ss
+      , Just (rsp, ecdh1) <- Ecdh.clientFirst mbAuthz authc key
       -> reply
            (ircAuthenticates rsp)
-           (set csAuthenticationState AS_None cs)
+           (set csAuthenticationState (AS_EcdhWaitChallenge ecdh1) cs)
+    
+    AS_EcdhWaitChallenge ecdh1
+      | Just rsp <- Ecdh.clientResponse ecdh1 param
+      -> reply (ircAuthenticates rsp) (set csAuthenticationState AS_None cs)
 
-    _ -> reply [ircCapEnd] cs -- really shouldn't happen
+    _ -> abortAuth cs
 
   where
     ss = view csSettings cs

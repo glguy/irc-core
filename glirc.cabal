@@ -44,9 +44,9 @@ executable glirc
   build-depends:       base, glirc, lens, text, vty
 
   if os(Linux)
-      ld-options: -Wl,--dynamic-list=exec/linux_exported_symbols.txt
+    ld-options: -Wl,--dynamic-list=exec/linux_exported_symbols.txt
   if os(Darwin)
-      ld-options: -Wl,-exported_symbols_list,exec/macos_exported_symbols.txt
+    ld-options: -Wl,-exported_symbols_list,exec/macos_exported_symbols.txt
 
 library
   ghc-options:         -Wall -O2
@@ -57,133 +57,137 @@ library
   default-language:    Haskell2010
   build-tool-depends:  hsc2hs:hsc2hs
 
-  exposed-modules:     Client.Authentication.Ecdsa
-                       Client.Authentication.Ecdh
-                       Client.Authentication.Scram
-                       Client.CApi
-                       Client.CApi.Exports
-                       Client.CApi.Types
-                       Client.Commands
-                       Client.Commands.Arguments.Parser
-                       Client.Commands.Arguments.Renderer
-                       Client.Commands.Arguments.Spec
-                       Client.Commands.Channel
-                       Client.Commands.Chat
-                       Client.Commands.Certificate
-                       Client.Commands.Connection
-                       Client.Commands.Exec
-                       Client.Commands.Interpolation
-                       Client.Commands.Operator
-                       Client.Commands.Queries
-                       Client.Commands.Recognizer
-                       Client.Commands.TabCompletion
-                       Client.Commands.Toggles
-                       Client.Commands.Types
-                       Client.Commands.Window
-                       Client.Commands.WordCompletion
-                       Client.Commands.ZNC
-                       Client.Configuration
-                       Client.Configuration.Colors
-                       Client.Configuration.Macros
-                       Client.Configuration.ServerSettings
-                       Client.Configuration.Sts
-                       Client.EventLoop
-                       Client.EventLoop.Actions
-                       Client.EventLoop.Errors
-                       Client.EventLoop.Network
-                       Client.Hook
-                       Client.Hook.DroneBLRelay
-                       Client.Hook.Matterbridge
-                       Client.Hook.Snotice
-                       Client.Hook.Znc.Buffextras
-                       Client.Hooks
-                       Client.Image
-                       Client.Image.Layout
-                       Client.Image.LineWrap
-                       Client.Image.Message
-                       Client.Image.MircFormatting
-                       Client.Image.PackedImage
-                       Client.Image.Palette
-                       Client.Image.StatusLine
-                       Client.Image.Textbox
-                       Client.Log
-                       Client.Mask
-                       Client.Message
-                       Client.Network.Async
-                       Client.Network.Connect
-                       Client.Options
-                       Client.State
-                       Client.State.Channel
-                       Client.State.EditBox
-                       Client.State.EditBox.Content
-                       Client.State.Extensions
-                       Client.State.Focus
-                       Client.State.Network
-                       Client.State.Window
-                       Client.UserHost
-                       Client.View
-                       Client.View.Cert
-                       Client.View.ChannelInfo
-                       Client.View.Digraphs
-                       Client.View.Help
-                       Client.View.IgnoreList
-                       Client.View.KeyMap
-                       Client.View.MaskList
-                       Client.View.Mentions
-                       Client.View.Messages
-                       Client.View.Palette
-                       Client.View.RtsStats
-                       Client.View.UrlSelection
-                       Client.View.UserList
-                       Client.View.Windows
+  exposed-modules:     
+    Client.Authentication.Ecdsa
+    Client.Authentication.Ecdh
+    Client.Authentication.Scram
+    Client.CApi
+    Client.CApi.Exports
+    Client.CApi.Types
+    Client.Commands
+    Client.Commands.Arguments.Parser
+    Client.Commands.Arguments.Renderer
+    Client.Commands.Arguments.Spec
+    Client.Commands.Channel
+    Client.Commands.Chat
+    Client.Commands.Certificate
+    Client.Commands.Connection
+    Client.Commands.Exec
+    Client.Commands.Interpolation
+    Client.Commands.Operator
+    Client.Commands.Queries
+    Client.Commands.Recognizer
+    Client.Commands.TabCompletion
+    Client.Commands.Toggles
+    Client.Commands.Types
+    Client.Commands.Window
+    Client.Commands.WordCompletion
+    Client.Commands.ZNC
+    Client.Configuration
+    Client.Configuration.Colors
+    Client.Configuration.Macros
+    Client.Configuration.ServerSettings
+    Client.Configuration.Sts
+    Client.EventLoop
+    Client.EventLoop.Actions
+    Client.EventLoop.Errors
+    Client.EventLoop.Network
+    Client.Hook
+    Client.Hook.DroneBLRelay
+    Client.Hook.Matterbridge
+    Client.Hook.Snotice
+    Client.Hook.Znc.Buffextras
+    Client.Hooks
+    Client.Image
+    Client.Image.Layout
+    Client.Image.LineWrap
+    Client.Image.Message
+    Client.Image.MircFormatting
+    Client.Image.PackedImage
+    Client.Image.Palette
+    Client.Image.StatusLine
+    Client.Image.Textbox
+    Client.Log
+    Client.Mask
+    Client.Message
+    Client.Network.Async
+    Client.Network.Connect
+    Client.Options
+    Client.State
+    Client.State.Channel
+    Client.State.EditBox
+    Client.State.EditBox.Content
+    Client.State.Extensions
+    Client.State.Focus
+    Client.State.Network
+    Client.State.Window
+    Client.UserHost
+    Client.View
+    Client.View.Cert
+    Client.View.ChannelInfo
+    Client.View.Digraphs
+    Client.View.Help
+    Client.View.IgnoreList
+    Client.View.KeyMap
+    Client.View.MaskList
+    Client.View.Mentions
+    Client.View.Messages
+    Client.View.Palette
+    Client.View.RtsStats
+    Client.View.UrlSelection
+    Client.View.UserList
+    Client.View.Windows
 
-  other-modules:       ContextFilter
-                       DigraphQuote
-                       Digraphs
-                       LensUtils
-                       RtsStats
-                       StrQuote
-                       StrictUnit
-                       Paths_glirc
-                       Build_glirc
+  other-modules:       
+    ContextFilter
+    DigraphQuote
+    Digraphs
+    LensUtils
+    RtsStats
+    StrQuote
+    StrictUnit
+    Paths_glirc
+    Build_glirc
 
-  autogen-modules:     Paths_glirc
-                       Build_glirc
+  autogen-modules:     
+    Paths_glirc
+    Build_glirc
 
-  build-depends:       base                 >=4.11   && <4.16,
-                       HsOpenSSL            >=0.11   && <0.12,
-                       async                >=2.2    && <2.3,
-                       attoparsec           ^>=0.14,
-                       base64-bytestring    >=1.0.0.1&& <1.3,
-                       bytestring           >=0.10.8 && <0.12,
-                       config-schema        ^>=1.2.1.0,
-                       config-value         ^>=0.8,
-                       containers           >=0.5.7  && <0.7,
-                       curve25519           ^>=0.2.5,
-                       directory            >=1.2.6  && <1.4,
-                       filepath             >=1.4.1  && <1.5,
-                       free                 >=4.12   && <5.2,
-                       gitrev               >=1.2    && <1.4,
-                       hashable             >=1.2.4  && <1.4,
-                       hookup               ^>=0.7,
-                       irc-core             ^>=2.10,
-                       kan-extensions       >=5.0    && <5.3,
-                       lens                 >=4.14   && <5.1,
-                       random               >=1.1    && <1.3,
-                       network              >=2.6.2  && <3.2,
-                       process              >=1.4.2  && <1.7,
-                       psqueues             >=0.2.7  && <0.3,
-                       regex-tdfa           >=1.3.1  && <1.4,
-                       split                >=0.2    && <0.3,
-                       stm                  >=2.4    && <2.6,
-                       template-haskell     >=2.11   && <2.18,
-                       text                 >=1.2.2  && <1.3,
-                       time                 >=1.6    && <1.13,
-                       transformers         >=0.5.2  && <0.7,
-                       unix                 >=2.7    && <2.8,
-                       unordered-containers >=0.2.11 && <0.3,
-                       vector               >=0.11   && <0.13,
-                       vty                  >=5.31   && <5.34
+  build-depends:       
+    base                 >=4.11   && <4.16,
+    HsOpenSSL            >=0.11   && <0.12,
+    async                >=2.2    && <2.3,
+    attoparsec           ^>=0.14,
+    base64-bytestring    >=1.0.0.1&& <1.3,
+    bytestring           >=0.10.8 && <0.12,
+    config-schema        ^>=1.2.1.0,
+    config-value         ^>=0.8,
+    containers           >=0.5.7  && <0.7,
+    curve25519           ^>=0.2.5,
+    directory            >=1.2.6  && <1.4,
+    filepath             >=1.4.1  && <1.5,
+    free                 >=4.12   && <5.2,
+    gitrev               >=1.2    && <1.4,
+    hashable             >=1.2.4  && <1.4,
+    hookup               ^>=0.7,
+    irc-core             ^>=2.10,
+    kan-extensions       >=5.0    && <5.3,
+    lens                 >=4.14   && <5.1,
+    random               >=1.1    && <1.3,
+    network              >=2.6.2  && <3.2,
+    process              >=1.4.2  && <1.7,
+    psqueues             >=0.2.7  && <0.3,
+    regex-tdfa           >=1.3.1  && <1.4,
+    split                >=0.2    && <0.3,
+    stm                  >=2.4    && <2.6,
+    template-haskell     >=2.11   && <2.18,
+    text                 >=1.2.2  && <1.3,
+    time                 >=1.6    && <1.13,
+    transformers         >=0.5.2  && <0.7,
+    unix                 >=2.7    && <2.8,
+    unordered-containers >=0.2.11 && <0.3,
+    vector               >=0.11   && <0.13,
+    vty                  >=5.31   && <5.34,
 
 test-suite test
   type:                exitcode-stdio-1.0
