@@ -14,9 +14,10 @@ import           Client.Commands.Arguments.Spec
 import           Client.Commands.TabCompletion
 import           Client.Commands.Types
 import           Client.State.Network (sendMsg)
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, maybeToList)
 import qualified Data.Text as Text
 import           Irc.Commands
+import           Irc.RawIrcMsg
 
 operatorCommands :: CommandSection
 operatorCommands = CommandSection "Network operator commands"
@@ -87,7 +88,101 @@ operatorCommands = CommandSection "Network operator commands"
       "Display network map.\n"
     $ NetworkCommand cmdMap simpleNetworkTab
 
+  , Command
+      (pure "sconnect")
+      (liftA2 (,) (simpleToken "connect_to") (optionalArg (liftA2 (,) (simpleToken "[port]") (optionalArg (simpleToken "[remote]")))))
+      "Connect two servers together.\n"
+    $ NetworkCommand cmdSconnect simpleNetworkTab
+
+  , Command
+      (pure "squit")
+      (liftA2 (,) (simpleToken "server") (remainingArg "[reason]"))
+      "Split a server away from your side of the network.\n"
+    $ NetworkCommand cmdSquit simpleNetworkTab
+
+  , Command
+      (pure "modload")
+      (liftA2 (,) (simpleToken "[path/]module") (optionalArg (simpleToken "[remote]")))
+      "Load an IRCd module.\n"
+    $ NetworkCommand cmdModload simpleNetworkTab
+
+  , Command
+      (pure "modunload")
+      (liftA2 (,) (simpleToken "module") (optionalArg (simpleToken "[remote]")))
+      "Unload an IRCd module.\n"
+    $ NetworkCommand cmdModunload simpleNetworkTab
+
+  , Command
+      (pure "modlist")
+      (optionalArg (liftA2 (,) (simpleToken "pattern") (optionalArg (simpleToken "[remote]"))))
+      "List loaded IRCd modules.\n"
+    $ NetworkCommand cmdModlist simpleNetworkTab
+
+  , Command
+      (pure "modrestart")
+      (optionalArg (simpleToken "[server]"))
+      "Reload all IRCd modules.\n"
+    $ NetworkCommand cmdModrestart simpleNetworkTab
+
+  , Command
+      (pure "modreload")
+      (liftA2 (,) (simpleToken "module") (optionalArg (simpleToken "[remote]")))
+      "Reload an IRCd module.\n"
+    $ NetworkCommand cmdModreload simpleNetworkTab
+
+  , Command
+      (pure "grant")
+      (liftA2 (,) (simpleToken "target") (simpleToken "privset"))
+      "Manually assign a privset to a user.\n"
+    $ NetworkCommand cmdGrant simpleNetworkTab
+
   ]
+
+cmdGrant :: NetworkCommand (String, String)
+cmdGrant cs st (target, privset) =
+  do sendMsg cs (rawIrcMsg "GRANT" (Text.pack <$> [target, privset]))
+     commandSuccess st
+
+cmdModlist :: NetworkCommand (Maybe (String, Maybe String))
+cmdModlist cs st args =
+  do let argList = case args of
+                     Nothing -> []
+                     Just (x, xs) -> x : maybeToList xs
+     sendMsg cs (rawIrcMsg "MODLIST" (Text.pack <$> argList))
+     commandSuccess st
+
+cmdModrestart :: NetworkCommand (Maybe String)
+cmdModrestart cs st args =
+  do sendMsg cs (rawIrcMsg "MODRESTART" (Text.pack <$> maybeToList args))
+     commandSuccess st
+
+cmdModload :: NetworkCommand (String, Maybe String)
+cmdModload cs st (mod_, remote) =
+  do sendMsg cs (rawIrcMsg "MODLOAD" (Text.pack <$> (mod_ : maybeToList remote)))
+     commandSuccess st
+
+cmdModunload :: NetworkCommand (String, Maybe String)
+cmdModunload cs st (mod_, remote) =
+  do sendMsg cs (rawIrcMsg "MODUNLOAD" (Text.pack <$> (mod_ : maybeToList remote)))
+     commandSuccess st
+
+cmdModreload :: NetworkCommand (String, Maybe String)
+cmdModreload cs st (mod_, remote) =
+  do sendMsg cs (rawIrcMsg "MODRELOAD" (Text.pack <$> (mod_ : maybeToList remote)))
+     commandSuccess st
+
+cmdSquit :: NetworkCommand (String, String)
+cmdSquit cs st (server, reason) =
+  do sendMsg cs (rawIrcMsg "SQUIT" (Text.pack <$> [server, reason]))
+     commandSuccess st
+
+cmdSconnect :: NetworkCommand (String, Maybe (String, Maybe String))
+cmdSconnect cs st (server, rest) =
+  do let args = case rest of
+                  Nothing -> [server]
+                  Just (x, xs) -> server : x : maybeToList xs
+     sendMsg cs (rawIrcMsg "CONNECT" (Text.pack <$> args))
+     commandSuccess st
 
 cmdKill :: NetworkCommand (String, String)
 cmdKill cs st (client,rest) =
