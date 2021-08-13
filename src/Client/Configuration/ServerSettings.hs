@@ -1,4 +1,4 @@
-{-# LANGUAGE ApplicativeDo, TemplateHaskell, OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE ApplicativeDo, TemplateHaskell, OverloadedStrings, RecordWildCards, BlockArguments #-}
 
 {-|
 Module      : Client.Configuration.ServerSettings
@@ -159,6 +159,7 @@ data SaslMechanism
   | SaslEcdsa    (Maybe Text) Text FilePath -- ^ SASL NIST - https://github.com/kaniini/ecdsatool - authzid keypath
   | SaslExternal (Maybe Text)      -- ^ SASL EXTERNAL RFC4422 - authzid
   | SaslScram    ScramDigest (Maybe Text) Text Secret -- ^ SASL SCRAM-SHA-256 RFC7677 - authzid authcid password
+  | SaslEcdh     (Maybe Text) Text Secret -- ^ SASL ECDH-X25519-CHALLENGE - authzid authcid private-key
   deriving Show
 
 -- | Regular expression matched with original source to help with debugging.
@@ -361,7 +362,7 @@ tlsModeSpec =
   TlsStart <$ atomSpec "starttls"
 
 saslMechanismSpec :: ValueSpec SaslMechanism
-saslMechanismSpec = plain <!> external <!> ecdsa <!> scram
+saslMechanismSpec = plain <!> external <!> ecdsa <!> scram <!> ecdh
   where
     mech m   = reqSection' "mechanism" (atomSpec m) "Mechanism"
     authzid  = optSection "authzid" "Authorization identity"
@@ -396,6 +397,13 @@ saslMechanismSpec = plain <!> external <!> ecdsa <!> scram
       SaslScram <$ mech "scram" <*>
       scramDigest <*>
       authzid <*> username <*> reqSection "password" "Password"
+
+    ecdh =
+      sectionsSpec "sasl-ecdh-x25519-challenge" $
+      SaslEcdh <$ mech "ecdh-x25519-challenge" <*>
+      authzid <*> username <*> reqSection "private-key" "Private Key"
+
+
 
 
 filepathSpec :: ValueSpec FilePath
@@ -486,7 +494,9 @@ loadSecrets :: ServerSettings -> IO ServerSettings
 loadSecrets =
   traverseOf (ssPassword             . _Just                  ) (loadSecret "server password") >=>
   traverseOf (ssSaslMechanism        . _Just . _SaslPlain . _3) (loadSecret "SASL password") >=>
-  traverseOf (ssTlsClientKeyPassword . _Just                  ) (loadSecret "TLS key password")
+  traverseOf (ssTlsClientKeyPassword . _Just                  ) (loadSecret "TLS key password") >=>
+  traverseOf (ssSaslMechanism        . _Just . _SaslScram . _4) (loadSecret "SASL password") >=>
+  traverseOf (ssSaslMechanism        . _Just . _SaslEcdh  . _3) (loadSecret "SASL private key")
 
 -- | Run a command if found and replace it with the first line of stdout result.
 loadSecret :: String -> Secret -> IO Secret

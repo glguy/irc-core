@@ -58,6 +58,7 @@ library
   build-tool-depends:  hsc2hs:hsc2hs
 
   exposed-modules:     Client.Authentication.Ecdsa
+                       Client.Authentication.Ecdh
                        Client.Authentication.Scram
                        Client.CApi
                        Client.CApi.Exports
@@ -158,6 +159,7 @@ library
                        config-schema        ^>=1.2.1.0,
                        config-value         ^>=0.8,
                        containers           >=0.5.7  && <0.7,
+                       curve25519           ^>=0.2.5,
                        directory            >=1.2.6  && <1.4,
                        filepath             >=1.4.1  && <1.5,
                        free                 >=4.12   && <5.2,

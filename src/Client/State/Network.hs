@@ -81,6 +81,7 @@ module Client.State.Network
   ) where
 
 import qualified Client.Authentication.Ecdsa as Ecdsa
+import qualified Client.Authentication.Ecdh as Ecdh
 import qualified Client.Authentication.Scram as Scram
 import           Client.Configuration.ServerSettings
 import           Client.Network.Async
@@ -157,6 +158,8 @@ data AuthenticateState
   | AS_ScramStarted
   | AS_Scram1 Scram.Phase1
   | AS_Scram2 Scram.Phase2
+  | AS_EcdhStarted
+  | AS_EcdhWaitChallenge
 
 -- | Status of the ping timer
 data PingStatus
@@ -838,6 +841,21 @@ doAuthenticate param cs =
            [ircAuthenticate "+"]
            (set csAuthenticationState AS_None cs)
 
+    AS_EcdhStarted
+      | "+" <- param
+      , Just (SaslEcdh mbAuthz authc _) <- view ssSaslMechanism ss
+      -> reply
+           (ircAuthenticates (Ecdh.clientFirst mbAuthz authc))
+           (set csAuthenticationState AS_EcdhWaitChallenge cs)
+    
+    AS_EcdhWaitChallenge
+      | Right msg <- B64.decode (Text.encodeUtf8 param)
+      , Just (SaslEcdh _ _ (SecretText key) )<- view ssSaslMechanism ss
+      , Just rsp <- Ecdh.computeResponse msg key
+      -> reply
+           (ircAuthenticates rsp)
+           (set csAuthenticationState AS_None cs)
+
     _ -> reply [ircCapEnd] cs -- really shouldn't happen
 
   where
@@ -897,6 +915,9 @@ doCap cmd cs =
           SaslScram digest _ _ _ ->
             reply [ircAuthenticate (Scram.mechanismName digest)]
                   (set csAuthenticationState AS_ScramStarted cs)
+          SaslEcdh{} ->
+            reply [ircAuthenticate Ecdh.mechanismName]
+                  (set csAuthenticationState AS_EcdhStarted cs)
 
     _ -> reply [ircCapEnd] cs
 
