@@ -424,10 +424,10 @@ pattern RPL_LOGGEDIN                = ReplyCode 900
 pattern RPL_LOGGEDOUT               = ReplyCode 901
 pattern RPL_NICKLOCKED              = ReplyCode 902
 pattern RPL_SASLSUCCESS             = ReplyCode 903
-pattern RPL_SASLFAIL                = ReplyCode 904
-pattern RPL_SASLTOOLONG             = ReplyCode 905
-pattern RPL_SASLABORTED             = ReplyCode 906
-pattern RPL_SASLALREADY             = ReplyCode 907
+pattern ERR_SASLFAIL                = ReplyCode 904
+pattern ERR_SASLTOOLONG             = ReplyCode 905
+pattern ERR_SASLABORTED             = ReplyCode 906
+pattern ERR_SASLALREADY             = ReplyCode 907
 pattern RPL_SASLMECHS               = ReplyCode 908
 pattern ERR_CANNOTDOCOMMAND         = ReplyCode 972
 pattern ERR_CANNOTCHANGEUMODE       = ReplyCode 973
@@ -854,10 +854,10 @@ replyCodeInfoTable
   , (RPL_LOGGEDOUT             , ReplyCodeInfo CommandReply "logged-out")
   , (RPL_NICKLOCKED            , ReplyCodeInfo CommandReply "nick-locked")
   , (RPL_SASLSUCCESS           , ReplyCodeInfo CommandReply "sasl-success")
-  , (RPL_SASLFAIL              , ReplyCodeInfo CommandReply "sasl-fail")
-  , (RPL_SASLTOOLONG           , ReplyCodeInfo CommandReply "sasl-toolong")
-  , (RPL_SASLABORTED           , ReplyCodeInfo CommandReply "sasl-aborted")
-  , (RPL_SASLALREADY           , ReplyCodeInfo CommandReply "sasl-already")
+  , (ERR_SASLFAIL              , ReplyCodeInfo ErrorReply "sasl-fail")
+  , (ERR_SASLTOOLONG           , ReplyCodeInfo ErrorReply "sasl-toolong")
+  , (ERR_SASLABORTED           , ReplyCodeInfo ErrorReply "sasl-aborted")
+  , (ERR_SASLALREADY           , ReplyCodeInfo ErrorReply "sasl-already")
   , (RPL_SASLMECHS             , ReplyCodeInfo CommandReply "sasl-mechs")
   , (ERR_CANNOTDOCOMMAND       , ReplyCodeInfo ErrorReply "cannot-do-command")
   , (ERR_CANNOTCHANGEUMODE     , ReplyCodeInfo ErrorReply "cannot-change-umode")

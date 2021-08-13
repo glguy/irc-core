@@ -374,8 +374,9 @@ applyMessage' msgWhen msg cs =
 
     Reply _ RPL_WELCOME (me:_) -> doWelcome msgWhen (mkId me) cs
     Reply _ RPL_SASLSUCCESS _ -> reply [ircCapEnd] cs
-    Reply _ RPL_SASLFAIL _ -> reply [ircCapEnd] cs
-    Reply _ RPL_SASLABORTED _ -> reply [ircCapEnd] cs
+    Reply _ ERR_SASLFAIL _ -> reply [ircCapEnd] cs
+    Reply _ ERR_SASLABORTED _ -> reply [ircCapEnd] cs
+    Reply _ RPL_SASLMECHS _ -> reply [ircCapEnd] cs
 
     Reply _ ERR_NICKNAMEINUSE (_:badnick:_)
       | PingConnecting{} <- view csPingStatus cs -> doBadNick badnick cs

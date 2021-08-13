@@ -50,12 +50,12 @@ clientResponse (Phase1 privateKey) serverMessage =
 
      let sharedSecret = Curve.makeShared privateKey serverPublic
      let clientPublic = Curve.generatePublic privateKey
-     let ikm = digestBS sha2
+     let ikm = digestBS sha256
              $ sharedSecret <> Curve.exportPublic clientPublic <> serverPubBS
-     let prk = hmacBS sha2 sessionSalt ikm
-     let betterSecret = hmacBS sha2 prk "ECDH-X25519-CHALLENGE\1"
+     let prk = hmacBS sha256 sessionSalt ikm
+     let betterSecret = hmacBS sha256 prk "ECDH-X25519-CHALLENGE\1"
      let sessionChallenge = B.pack (B.zipWith xor maskedChallenge betterSecret)
      Just $! AuthenticatePayload sessionChallenge
 
-sha2 :: Digest
-Just sha2 = unsafePerformIO (getDigestByName "SHA256")
+sha256 :: Digest
+Just sha256 = unsafePerformIO (getDigestByName "SHA256")
