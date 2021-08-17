@@ -53,6 +53,12 @@ togglesCommands = CommandSection "View toggles"
       (pure ())
       "Toggle editor mode.\n"
     $ ClientCommand cmdToggleEditor noClientTab
+
+  , Command
+      (pure "toggle-edit-lock")
+      (pure ())
+      "Toggle editor lock mode.\n"
+    $ ClientCommand cmdToggleEditLock noClientTab
   ]
 
 cmdToggleDetail :: ClientCommand ()
@@ -78,3 +84,6 @@ cmdToggleEditor st _ = commandSuccess (over clientEditMode aux st)
   where
     aux SingleLineEditor = MultiLineEditor
     aux MultiLineEditor = SingleLineEditor
+
+cmdToggleEditLock :: ClientCommand ()
+cmdToggleEditLock st _ = commandSuccess (over clientEditLock not st)

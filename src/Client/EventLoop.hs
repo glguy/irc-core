@@ -478,7 +478,9 @@ doAction vty action st =
     ActTabComplete       -> doCommandResult False =<< tabCompletion False st
 
     ActInsert c          -> changeEditor (Edit.insert c)
-    ActEnter             -> doCommandResult True =<< executeInput st
+    ActEnter             -> if view clientEditLock st
+                            then when (view clientBell st) (beep vty) >> continue st
+                            else doCommandResult True =<< executeInput st
     ActRefresh           -> refresh vty >> continue st
     ActCommand cmd       -> do resp <- executeUserCommand Nothing (Text.unpack cmd) st
                                case resp of

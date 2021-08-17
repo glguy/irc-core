@@ -44,6 +44,7 @@ module Client.State
   , clientErrorMsg
   , clientLayout
   , clientEditMode
+  , clientEditLock
   , clientRtsStats
   , clientConfigPath
   , clientStsPolicy
@@ -189,6 +190,7 @@ data ClientState = ClientState
   , _clientRegex             :: Maybe Matcher             -- ^ optional persistent filter
   , _clientLayout            :: LayoutMode                -- ^ layout mode for split screen
   , _clientEditMode          :: EditMode                  -- ^ editor rendering mode
+  , _clientEditLock          :: Bool                      -- ^ editor locked and won't send
 
   , _clientBell              :: !Bool                     -- ^ sound a bell next draw
 
@@ -277,6 +279,7 @@ withClientState cfgPath cfg k =
         , _clientRegex             = Nothing
         , _clientLayout            = view configLayout cfg
         , _clientEditMode          = SingleLineEditor
+        , _clientEditLock          = False
         , _clientActivityBar       = view configActivityBar cfg
         , _clientShowPing          = view configShowPing cfg
         , _clientBell              = False

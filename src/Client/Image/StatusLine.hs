@@ -65,6 +65,7 @@ statusLineImage w st =
       , nometaImage (view clientFocus st) st
       , scrollImage st
       , filterImage st
+      , lockImage st
       , latency
       ]
 
@@ -126,6 +127,15 @@ filterImage :: ClientState -> Image'
 filterImage st
   | clientIsFiltered st = infoBubble (string attr "filtered")
   | otherwise           = mempty
+  where
+    pal  = clientPalette st
+    attr = view palError pal
+
+-- | Indicate when the client editor is locked
+lockImage :: ClientState -> Image'
+lockImage st
+  | view clientEditLock st = infoBubble (string attr "locked")
+  | otherwise              = mempty
   where
     pal  = clientPalette st
     attr = view palError pal

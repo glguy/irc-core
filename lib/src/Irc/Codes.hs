@@ -542,7 +542,7 @@ replyCodeInfoTable
   , (RPL_ADMINEMAIL            , ReplyCodeInfo CommandReply "admin-email")
   , (RPL_TRACELOG              , ReplyCodeInfo CommandReply "trace-log")
   , (RPL_ENDOFTRACE            , ReplyCodeInfo CommandReply "end-of-trace")
-  , (RPL_LOAD2HI               , ReplyCodeInfo CommandReply "load-too-hi")
+  , (RPL_LOAD2HI               , ReplyCodeInfo CommandReply "load-too-high")
   , (RPL_LOCALUSERS            , ReplyCodeInfo CommandReply "local-users")
   , (RPL_GLOBALUSERS           , ReplyCodeInfo CommandReply "global-users")
   , (RPL_START_NETSTAT         , ReplyCodeInfo CommandReply "start-netstat")
