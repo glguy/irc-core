@@ -341,12 +341,8 @@ applyMessage' msgWhen msg cs =
          $ overChannel chan (joinChannel (userNick (srcUser user)))
          $ createOnJoin (srcUser user) chan cs
      where
-       showAccounts = view (csSettings . ssShowAccounts) cs
-       response
-         | userNick (srcUser user) == view csNick cs =
-              ircMode chan [] :
-              [ircWho [idText chan, "%tuhna,616"] | showAccounts ]
-         | otherwise = []
+       response =
+         [ircMode chan [] | userNick (srcUser user) == view csNick cs]
 
     Account user acct ->
            noReply
