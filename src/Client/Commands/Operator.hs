@@ -136,11 +136,21 @@ operatorCommands = CommandSection "Network operator commands"
       "Manually assign a privset to a user.\n"
     $ NetworkCommand cmdGrant simpleNetworkTab
 
+  , Command
+      (pure "privs")
+      (optionalArg (simpleToken "[target]"))
+      "Check operator privileges of the target.\n"
+    $ NetworkCommand cmdPrivs simpleNetworkTab
   ]
 
 cmdGrant :: NetworkCommand (String, String)
 cmdGrant cs st (target, privset) =
   do sendMsg cs (rawIrcMsg "GRANT" (Text.pack <$> [target, privset]))
+     commandSuccess st
+
+cmdPrivs :: NetworkCommand (Maybe String)
+cmdPrivs cs st mbTarget =
+  do sendMsg cs (rawIrcMsg "PRIVS" (Text.pack <$> maybeToList mbTarget))
      commandSuccess st
 
 cmdModlist :: NetworkCommand (Maybe (String, Maybe String))

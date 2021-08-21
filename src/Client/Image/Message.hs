@@ -601,6 +601,7 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
         RPL_GLOBALUSERS  -> lusersParamsImage
         RPL_LUSEROP      -> params_2_3_Image
         RPL_LUSERCHANNELS-> params_2_3_Image
+        RPL_LUSERUNKNOWN -> params_2_3_Image
         RPL_ENDOFSTATS   -> params_2_3_Image
         RPL_AWAY         -> awayParamsImage
         RPL_TRACEUSER    -> traceUserParamsImage
@@ -618,12 +619,15 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
         RPL_LIST         -> listParamsImage
         RPL_LINKS        -> linksParamsImage
         RPL_ENDOFLINKS   -> params_2_3_Image
+        RPL_PRIVS        -> privsImage
+        RPL_LOGGEDIN     -> loggedInImage
 
         ERR_NOPRIVS      -> params_2_3_Image
         ERR_HELPNOTFOUND -> params_2_3_Image
         ERR_NEEDMOREPARAMS -> params_2_3_Image
         ERR_NOSUCHNICK   -> params_2_3_Image
         ERR_NOSUCHSERVER -> params_2_3_Image
+        ERR_NICKNAMEINUSE -> params_2_3_Image
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
@@ -977,6 +981,25 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
           label " class" <> ctxt klass <>
           label " p1" <> ctxt p1 <>
           label " p2" <> ctxt p2
+        _ -> rawParamsImage
+
+    loggedInImage =
+      case params of
+        [_, mask, account, _txt] ->
+          ctxt mask <>
+          label " account: " <> ctxt account
+        _ -> rawParamsImage
+
+    privsImage =
+      case params of
+        [_, target, list] ->
+          case Text.stripPrefix "* " list of
+            Nothing ->
+              ctxt target <>
+              label " end" <> ctxt list
+            Just list' ->
+              ctxt target <>
+              label " ..." <> ctxt list'
         _ -> rawParamsImage
 
 parseCLineFlags :: Text -> [Text]
