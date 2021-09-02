@@ -35,7 +35,7 @@ tlsParams ss = TlsParams
   , tpServerCertificate  = view ssTlsServerCert ss
   , tpCipherSuite        = view ssTlsCiphers ss
   , tpCipherSuiteTls13   = view ssTls13Ciphers ss
-  , tpInsecure           = not (view ssTlsVerify ss)
+  , tpVerify = view ssTlsVerify ss
   , tpClientPrivateKeyPassword =
       case view ssTlsClientKeyPassword ss of
         Just (SecretText str) -> Just (Text.encodeUtf8 str)

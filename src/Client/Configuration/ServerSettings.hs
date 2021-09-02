@@ -105,6 +105,7 @@ import qualified System.Exit as Exit
 import qualified System.Process as Process
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.Text (compile)
+import           Hookup (TlsVerify(..))
 
 -- | Static server-level settings
 data ServerSettings = ServerSettings
@@ -116,7 +117,7 @@ data ServerSettings = ServerSettings
   , _ssHostName         :: !HostName -- ^ server hostname
   , _ssPort             :: !(Maybe PortNumber) -- ^ server port
   , _ssTls              :: !TlsMode -- ^ use TLS to connect
-  , _ssTlsVerify        :: !Bool -- ^ verify TLS hostname
+  , _ssTlsVerify        :: !TlsVerify -- ^ verify TLS hostname
   , _ssTlsClientCert    :: !(Maybe FilePath) -- ^ path to client TLS certificate
   , _ssTlsClientKey     :: !(Maybe FilePath) -- ^ path to client TLS key
   , _ssTlsClientKeyPassword :: !(Maybe Secret) -- ^ client key PEM password
@@ -203,7 +204,7 @@ defaultServerSettings =
        , _ssHostName      = ""
        , _ssPort          = Nothing
        , _ssTls           = TlsNo
-       , _ssTlsVerify     = True
+       , _ssTlsVerify     = VerifyDefault
        , _ssTlsClientCert = Nothing
        , _ssTlsClientKey  = Nothing
        , _ssTlsClientKeyPassword = Nothing
@@ -279,8 +280,8 @@ serverSpec = sectionsSpec "server-settings" $
       , req "tls" ssTls tlsModeSpec
         "Use TLS to connect (default no)"
 
-      , req "tls-verify" ssTlsVerify yesOrNoSpec
-        "Enable server certificate hostname verification (default yes)"
+      , req "tls-verify" ssTlsVerify tlsVerifySpec
+        "Enable server certificate hostname verification (default yes, string to override hostname)"
 
       , opt "tls-client-cert" ssTlsClientCert filepathSpec
         "Path to TLS client certificate"
@@ -360,6 +361,12 @@ tlsModeSpec =
   TlsYes   <$ atomSpec "yes"      <!>
   TlsNo    <$ atomSpec "no"       <!>
   TlsStart <$ atomSpec "starttls"
+
+tlsVerifySpec :: ValueSpec TlsVerify
+tlsVerifySpec =
+  VerifyDefault  <$ atomSpec "yes"      <!>
+  VerifyNone     <$ atomSpec "no"       <!>
+  VerifyHostname <$> stringSpec
 
 saslMechanismSpec :: ValueSpec SaslMechanism
 saslMechanismSpec = plain <!> external <!> ecdsa <!> scram <!> ecdh

@@ -43,6 +43,7 @@ module Hookup
   ConnectionParams(..),
   SocksParams(..),
   TlsParams(..),
+  TlsVerify(..),
   PEM.PemPasswordSupply(..),
   defaultTlsParams,
 
@@ -129,8 +130,14 @@ data TlsParams = TlsParams
   , tpServerCertificate  :: Maybe FilePath -- ^ Path to CA certificate bundle
   , tpCipherSuite        :: String -- ^ OpenSSL cipher suite name (e.g. @\"HIGH\"@)
   , tpCipherSuiteTls13   :: Maybe String -- ^ OpenSSL cipher suites for TLS 1.3
-  , tpInsecure           :: Bool -- ^ Disables certificate checking when 'True'
+  , tpVerify             :: TlsVerify -- ^ Hostname to use when checking certificate validity
   }
+
+data TlsVerify
+  = VerifyDefault -- ^ Use the connection hostname to verify
+  | VerifyNone -- ^ No verification
+  | VerifyHostname String -- ^ Use the given hostname to verify
+  deriving Show
 
 -- | Type for errors that can be thrown by this package.
 data ConnectionFailure
@@ -197,7 +204,7 @@ defaultTlsParams = TlsParams
   , tpServerCertificate  = Nothing -- use system provided CAs
   , tpCipherSuite        = "HIGH"
   , tpCipherSuiteTls13   = Nothing
-  , tpInsecure           = False
+  , tpVerify             = VerifyDefault
   }
 
 ------------------------------------------------------------------------
@@ -552,8 +559,14 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
      -- configure context
      SSL.contextSetCiphers          ctx (tpCipherSuite tp)
      traverse_ (contextSetTls13Ciphers ctx) (tpCipherSuiteTls13 tp)
-     installVerification            ctx hostname
-     SSL.contextSetVerificationMode ctx (verificationMode (tpInsecure tp))
+     case tpVerify tp of
+       VerifyDefault ->
+         do installVerification ctx hostname
+            SSL.contextSetVerificationMode ctx verifyPeer
+       VerifyHostname h ->
+         do installVerification ctx h
+            SSL.contextSetVerificationMode ctx verifyPeer
+       VerifyNone    -> pure ()
      SSL.contextAddOption           ctx SSL.SSL_OP_ALL
      SSL.contextRemoveOption        ctx SSL.SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
 
@@ -591,15 +604,12 @@ setupCertificate ctx path =
      SSL.contextSetCertificate ctx x509
      pure x509
 
-
-verificationMode :: Bool {- ^ insecure -} -> SSL.VerificationMode
-verificationMode insecure
-  | insecure  = SSL.VerifyNone
-  | otherwise = SSL.VerifyPeer
-                  { SSL.vpFailIfNoPeerCert = True
-                  , SSL.vpClientOnce       = True
-                  , SSL.vpCallback         = Nothing
-                  }
+verifyPeer :: SSL.VerificationMode
+verifyPeer = SSL.VerifyPeer
+  { SSL.vpFailIfNoPeerCert = True
+  , SSL.vpClientOnce       = True
+  , SSL.vpCallback         = Nothing
+  }
 
 -- | Get peer certificate if one exists.
 getPeerCertificate :: Connection -> IO (Maybe X509.X509)
