@@ -48,7 +48,7 @@ paletteViewLines pal = reverse $
   [ ""
   , "Chat formatting modes:"
   , ""
-  , "   C-b  C-_       C-]    C-v     C-^           C-Q       C-o"
+  , "   C-b  C-_       C-]    C-v     C-^           C-q       C-o"
   , parseIrcText pal "   \^Bbold\^B \^_underline\^_ \^]italic\^] \^Vreverse\^V \^^strikethrough\^^ \^Qmonospace\^Q reset"
   , ""
   , "Chat formatting colors: C-c[foreground[,background]]"
