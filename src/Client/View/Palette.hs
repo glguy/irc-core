@@ -63,7 +63,7 @@ paletteViewLines pal = reverse $
 
 terminalColorTable :: [Image']
 terminalColorTable =
-  isoColors :
+  isoColors ++
   "" : colorBox 0x10 ++
   "" : colorBox 0x7c ++
   "" : indent (foldMap (\c -> colorBlock showPadHex c (Color240 (fromIntegral (c-16)))) [0xe8 .. 0xf3])
@@ -89,8 +89,11 @@ isLight (Color240 c) =
     Nothing        -> True
 
 
-isoColors :: Image'
-isoColors = indent (foldMap (\c -> colorBlock showPadHex c (ISOColor (fromIntegral c))) [0 .. 15])
+isoColors :: [Image']
+isoColors =
+  [ indent (foldMap (\c -> colorBlock showPadHex c (ISOColor (fromIntegral c))) [0 .. 7])
+  , indent (foldMap (\c -> colorBlock showPadHex c (ISOColor (fromIntegral c))) [8 .. 15])
+  ]
 
 colorTable :: [Image']
 colorTable
