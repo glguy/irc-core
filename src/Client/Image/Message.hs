@@ -772,7 +772,7 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
       case params of
         [_, flag, host, reason] ->
           ctxt flag <>
-          label " host:" <> ctxt host <>
+          label " host" <> ctxt host <>
           label " reason" <> ctxt reason
         _ -> rawParamsImage
 
@@ -987,7 +987,7 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
       case params of
         [_, mask, account, _txt] ->
           ctxt mask <>
-          label " account: " <> ctxt account
+          label " account" <> ctxt account
         _ -> rawParamsImage
 
     privsImage =
