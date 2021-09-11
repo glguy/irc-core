@@ -278,7 +278,7 @@ chatCommands = CommandSection "IRC commands"
     $ NetworkCommand cmdAway simpleNetworkTab
 
   , Command
-      ("users" :| ["names"])
+      (pure "names")
       (pure ())
       "\^BDescription:\^B\n\
       \\n\
@@ -288,7 +288,7 @@ chatCommands = CommandSection "IRC commands"
       \    Press ESC to exit the userlist.\n\
       \\n\
       \\^BSee also:\^B channelinfo, masks\n"
-    $ ChannelCommand cmdUsers  noChannelTab
+    $ ChannelCommand cmdChanNames noChannelTab
 
   , Command
       (pure "channelinfo")
@@ -351,8 +351,8 @@ cmdMonitor cs st args =
   do sendMsg cs (ircMonitor (fmap Text.pack args))
      commandSuccess st
 
-cmdUsers :: ChannelCommand ()
-cmdUsers _ _ st _ = commandSuccess (changeSubfocus FocusUsers st)
+cmdChanNames :: ChannelCommand ()
+cmdChanNames _ _ st _ = commandSuccess (changeSubfocus FocusUsers st)
 
 cmdChannelInfo :: ChannelCommand ()
 cmdChannelInfo _ _ st _ = commandSuccess (changeSubfocus FocusInfo st)

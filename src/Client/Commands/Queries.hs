@@ -9,7 +9,6 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Queries (queryCommands) where
 
-import           Control.Applicative
 import           Client.Commands.Arguments.Spec
 import           Client.Commands.TabCompletion
 import           Client.Commands.Types
@@ -64,9 +63,15 @@ queryCommands = CommandSection "Queries"
 
   , Command
       (pure "lusers")
-      (optionalArg (liftA2 (,) (simpleToken "mask") (optionalArg (simpleToken "[servername]"))))
-      "Send LUSERS query to server with given arguments.\n"
+      (optionalArg (simpleToken "[servername]"))
+      "Send LUSERS query to a given server.\n"
     $ NetworkCommand cmdLusers simpleNetworkTab
+
+  , Command
+      (pure "users")
+      (optionalArg (simpleToken "[servername]"))
+      "Send USERS query to a given server.\n"
+    $ NetworkCommand cmdUsers simpleNetworkTab
 
   , Command
       (pure "motd") (optionalArg (simpleToken "[servername]"))
@@ -123,13 +128,17 @@ cmdList cs st rest =
   do sendMsg cs (ircList (Text.pack <$> words rest))
      commandSuccess st
 
-cmdLusers :: NetworkCommand (Maybe (String, Maybe String))
+cmdLusers :: NetworkCommand (Maybe String)
 cmdLusers cs st arg =
   do sendMsg cs $ ircLusers $ fmap Text.pack $
        case arg of
-         Nothing           -> []
-         Just (x, Nothing) -> [x]
-         Just (x, Just y)  -> [x,y]
+         Nothing -> []
+         Just x -> ["*", x] -- mask field is legacy
+     commandSuccess st
+
+cmdUsers :: NetworkCommand (Maybe String)
+cmdUsers cs st arg =
+  do sendMsg cs $ ircUsers $ maybe "" Text.pack arg
      commandSuccess st
 
 cmdMotd :: NetworkCommand (Maybe String)
