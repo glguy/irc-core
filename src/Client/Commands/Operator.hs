@@ -42,13 +42,31 @@ operatorCommands = CommandSection "Network operator commands"
 
   , Command
       (pure "unkline")
-      (simpleToken "user@host")
+      (liftA2 (,) (simpleToken "[user@]host") (optionalArg (simpleToken "[servername]")))
       "Unban a client from the server.\n"
     $ NetworkCommand cmdUnkline simpleNetworkTab
 
   , Command
+      (pure "undline")
+      (liftA2 (,) (simpleToken "host") (optionalArg (simpleToken "[servername]")))
+      "Unban a client from the server.\n"
+    $ NetworkCommand cmdUndline simpleNetworkTab
+
+  , Command
+      (pure "unxline")
+      (liftA2 (,) (simpleToken "gecos") (optionalArg (simpleToken "[servername]")))
+      "Unban a gecos from the server.\n"
+    $ NetworkCommand cmdUnxline simpleNetworkTab
+
+  , Command
+      (pure "unresv")
+      (liftA2 (,) (simpleToken "channel|nick") (optionalArg (simpleToken "[servername]")))
+      "Unban a channel or nickname from the server.\n"
+    $ NetworkCommand cmdUnresv simpleNetworkTab
+
+  , Command
       (pure "testline")
-      (simpleToken "[[nick!]user@]host")
+      (liftA2 (,) (simpleToken "[[nick!]user@]host") (optionalArg (simpleToken "[servername]")))
       "Check matching I/K/D lines for a [[nick!]user@]host\n"
     $ NetworkCommand cmdTestline simpleNetworkTab
 
@@ -204,13 +222,28 @@ cmdKline cs st (minutes, mask, reason) =
   do sendMsg cs (ircKline (Text.pack minutes) (Text.pack mask) (Text.pack reason))
      commandSuccess st
 
-cmdUnkline :: NetworkCommand String
-cmdUnkline cs st mask =
-  do sendMsg cs (ircUnkline (Text.pack mask))
+cmdUnkline :: NetworkCommand (String, Maybe String)
+cmdUnkline cs st (mask, server) =
+  do sendMsg cs (ircUnkline (Text.pack mask) (Text.pack <$> server))
      commandSuccess st
 
-cmdTestline :: NetworkCommand String
-cmdTestline cs st mask =
+cmdUndline :: NetworkCommand (String, Maybe String)
+cmdUndline cs st (mask, server) =
+  do sendMsg cs (ircUndline (Text.pack mask) (Text.pack <$> server))
+     commandSuccess st
+
+cmdUnxline :: NetworkCommand (String, Maybe String)
+cmdUnxline cs st (mask, server) =
+  do sendMsg cs (ircUnxline (Text.pack mask) (Text.pack <$> server))
+     commandSuccess st
+
+cmdUnresv :: NetworkCommand (String, Maybe String)
+cmdUnresv cs st (mask, server) =
+  do sendMsg cs (ircUnresv (Text.pack mask) (Text.pack <$> server))
+     commandSuccess st
+
+cmdTestline :: NetworkCommand (String, Maybe String)
+cmdTestline cs st (mask, server) =
   do sendMsg cs (ircTestline (Text.pack mask))
      commandSuccess st
 

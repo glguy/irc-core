@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, BlockArguments #-}
 {-|
 Module      : Irc.Commands
 Description : Smart constructors for "RawIrcMsg"
@@ -51,7 +51,10 @@ module Irc.Commands
   , ircTime
   , ircTopic
   , ircTrace
+  , ircUndline
   , ircUnkline
+  , ircUnxline
+  , ircUnresv
   , ircUser
   , ircUserhost
   , ircUserip
@@ -225,8 +228,42 @@ ircKline minutes mask reason = rawIrcMsg "KLINE" [minutes, mask, reason]
 -- | UNKLINE command
 ircUnkline ::
   Text {- ^ mask -} ->
+  Maybe Text {- ^ server -} ->
   RawIrcMsg
-ircUnkline mask = rawIrcMsg "UNKLINE" [mask]
+ircUnkline mask mbServer = rawIrcMsg "UNKLINE"
+  case mbServer of
+    Nothing     -> [mask]
+    Just server -> [mask, "ON", server]
+
+-- | UNDLINE command
+ircUndline ::
+  Text {- ^ mask -} ->
+  Maybe Text {- ^ server -} ->
+  RawIrcMsg
+ircUndline mask mbServer = rawIrcMsg "UNDLINE"
+  case mbServer of
+    Nothing     -> [mask]
+    Just server -> [mask, "ON", server]
+
+-- | UNXLINE command
+ircUnxline ::
+  Text       {- ^ mask -} ->
+  Maybe Text {- ^ server -} ->
+  RawIrcMsg
+ircUnxline mask mbServer = rawIrcMsg "UNXLINE"
+  case mbServer of
+    Nothing     -> [mask]
+    Just server -> [mask, "ON", server]
+
+-- | UNRESV command
+ircUnresv ::
+  Text       {- ^ mask   -} ->
+  Maybe Text {- ^ server -} ->
+  RawIrcMsg
+ircUnresv mask mbServer = rawIrcMsg "UNRESV"
+  case mbServer of
+    Nothing     -> [mask]
+    Just server -> [mask, "ON", server]
 
 -- | TESTLINE command
 ircTestline ::
