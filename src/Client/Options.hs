@@ -39,7 +39,7 @@ import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Version
-import           Development.GitRev (gitHash, gitDirty)
+import           GitHash (GitInfo, giHash, giDirty, tGitInfoCwd)
 import           System.Console.GetOpt
 import           System.Environment
 import           System.Exit
@@ -167,10 +167,13 @@ gitHashTxt
   | hashTxt == "UNKNOWN" = ""
   | otherwise            = '-':hashTxt
   where
-    hashTxt = $gitHash
+    hashTxt = giHash gi
 
 -- | Returns @"-dirty"@ when in a dirty git repository, @""@ otherwise.
 gitDirtyTxt :: String
 gitDirtyTxt
-  | $gitDirty = "-dirty"
+  | giDirty gi = "-dirty"
   | otherwise = ""
+
+gi :: GitInfo
+gi = $$tGitInfoCwd
