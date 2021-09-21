@@ -66,9 +66,15 @@ operatorCommands = CommandSection "Network operator commands"
 
   , Command
       (pure "testline")
-      (liftA2 (,) (simpleToken "[[nick!]user@]host") (optionalArg (simpleToken "[servername]")))
+      (simpleToken "[[nick!]user@]host")
       "Check matching I/K/D lines for a [[nick!]user@]host\n"
     $ NetworkCommand cmdTestline simpleNetworkTab
+
+  , Command
+      (pure "testkline")
+      (simpleToken "[user@]host")
+      "Check matching K/D lines for a [user@]host\n"
+    $ NetworkCommand cmdTestkline simpleNetworkTab
 
   , Command
       (pure "testmask")
@@ -242,9 +248,14 @@ cmdUnresv cs st (mask, server) =
   do sendMsg cs (ircUnresv (Text.pack mask) (Text.pack <$> server))
      commandSuccess st
 
-cmdTestline :: NetworkCommand (String, Maybe String)
-cmdTestline cs st (mask, server) =
+cmdTestline :: NetworkCommand String
+cmdTestline cs st mask =
   do sendMsg cs (ircTestline (Text.pack mask))
+     commandSuccess st
+
+cmdTestkline :: NetworkCommand String
+cmdTestkline cs st mask =
+  do sendMsg cs (rawIrcMsg "TESTKLINE" [Text.pack mask])
      commandSuccess st
 
 cmdTestmask :: NetworkCommand (String, String)
