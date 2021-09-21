@@ -77,6 +77,12 @@ operatorCommands = CommandSection "Network operator commands"
     $ NetworkCommand cmdTestkline simpleNetworkTab
 
   , Command
+      (pure "testgecos")
+      (simpleToken "gecos")
+      "Check matching X lines for a gecos\n"
+    $ NetworkCommand cmdTestGecos simpleNetworkTab
+
+  , Command
       (pure "testmask")
       (liftA2 (,) (simpleToken "[nick!]user@host") (remainingArg "[gecos]"))
       "Test how many local and global clients match a mask.\n"
@@ -256,6 +262,11 @@ cmdTestline cs st mask =
 cmdTestkline :: NetworkCommand String
 cmdTestkline cs st mask =
   do sendMsg cs (rawIrcMsg "TESTKLINE" [Text.pack mask])
+     commandSuccess st
+
+cmdTestGecos :: NetworkCommand String
+cmdTestGecos cs st mask =
+  do sendMsg cs (rawIrcMsg "TESTGECOS" [Text.pack mask])
      commandSuccess st
 
 cmdTestmask :: NetworkCommand (String, String)
