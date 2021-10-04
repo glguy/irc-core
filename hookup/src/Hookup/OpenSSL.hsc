@@ -18,7 +18,7 @@ Maintainer  : emertens@gmail.com
 module Hookup.OpenSSL (withDefaultPassword, installVerification, getPubKeyDer, contextSetTls13Ciphers) where
 
 import           Control.Exception (bracket, bracket_)
-import           Control.Monad (unless)
+import           Control.Monad (when)
 import           Foreign.C (CStringLen, CString(..), CSize(..), CUInt(..), CInt(..), withCString, withCStringLen, CChar(..))
 import           Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr, nullFunPtr)
 import           Foreign.StablePtr (StablePtr, deRefStablePtr, castPtrToStablePtr)
@@ -98,6 +98,13 @@ foreign import ccall unsafe "X509_VERIFY_PARAM_set1_host"
     CSize                  {- ^ namelen              -} ->
     IO CInt                {- ^ 1 success, 0 failure -}
 
+-- int X509_VERIFY_PARAM_set1_ip_asc(X509_VERIFY_PARAM *param, const char *ipasc);
+foreign import ccall unsafe "X509_VERIFY_PARAM_set1_ip_asc"
+  x509VerifyParamSet1IpAsc ::
+    Ptr X509_VERIFY_PARAM_ {- ^ param                -} ->
+    CString                {- ^ IP address as string -} ->
+    IO CInt                {- ^ 1 success, 0 failure -}
+
 -- X509_PUBKEY *X509_get_X509_PUBKEY(X509 *x);
 foreign import capi unsafe "openssl/x509.h X509_get_X509_PUBKEY"
   x509getX509Pubkey ::
@@ -124,13 +131,22 @@ getPubKeyDer x509 =
 -- Partial wildcards matching is disabled.
 installVerification :: SSLContext -> String {- ^ hostname -} -> IO ()
 installVerification ctx host =
-  withContext ctx     $ \ctxPtr ->
-  withCStringLen host $ \(ptr,len) ->
+  withContext ctx $ \ctxPtr ->
     do param <- sslGet0Param ctxPtr
        x509VerifyParamSetHostflags param
          (#const X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS)
-       success <- x509VerifyParamSet1Host param ptr (fromIntegral len)
-       unless (success == 1) (fail "Unable to set verification host")
+
+       ip_success <-
+         withCString host $ \ptr ->
+           x509VerifyParamSet1IpAsc param ptr
+
+       when (ip_success == 0) $
+         do success <-
+              withCStringLen host $ \(ptr,len) ->
+                x509VerifyParamSet1Host param ptr (fromIntegral len)
+
+            when (success == 0)
+              (fail "Unable to set verification host")
 
 foreign import ccall unsafe "SSL_CTX_set_ciphersuites"
    sslCtxSetCiphersuites :: Ptr SSLContext_ -> CString -> IO CInt
@@ -145,4 +161,4 @@ contextSetTls13Ciphers context list =
   withContext context $ \ctx ->
   withCString list    $ \cpath ->
   do success <- sslCtxSetCiphersuites ctx cpath
-     unless (success == 1) (fail "Unable to set ciphersuites")
+     when (success == 0) (fail "Unable to set ciphersuites")
