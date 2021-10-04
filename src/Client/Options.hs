@@ -39,7 +39,7 @@ import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Version
-import           GitHash (GitInfo, giHash, giDirty, tGitInfoCwd)
+import           GitHash (GitInfo, giHash, giDirty, tGitInfoCwdTry)
 import           System.Console.GetOpt
 import           System.Environment
 import           System.Exit
@@ -136,9 +136,14 @@ tryHelpTxt =
 
 versionTxt :: String
 versionTxt = unlines
-  [ "glirc-" ++ showVersion version ++ gitHashTxt ++ gitDirtyTxt
+  [ "glirc-" ++ showVersion version ++ gitHashTxt
   , "Copyright 2016-2020 Eric Mertens"
   ]
+  where
+    gitHashTxt =
+      case $$tGitInfoCwdTry of
+        Left{}   -> ""
+        Right gi -> giHash gi ++ if giDirty gi then "-dirty" else ""
 
 fullVersionTxt :: String
 fullVersionTxt =
@@ -158,22 +163,3 @@ fullVersionTxt =
   :"Transitive dependencies:"
   : [ name ++ "-" ++ intercalate "." (map show ver) | (name,ver) <- sort deps ]
   )
-
--- git version information ---------------------------------------------
-
--- | Returns @"-SOMEHASH"@ when in a git repository, @""@ otherwise.
-gitHashTxt :: String
-gitHashTxt
-  | hashTxt == "UNKNOWN" = ""
-  | otherwise            = '-':hashTxt
-  where
-    hashTxt = giHash gi
-
--- | Returns @"-dirty"@ when in a dirty git repository, @""@ otherwise.
-gitDirtyTxt :: String
-gitDirtyTxt
-  | giDirty gi = "-dirty"
-  | otherwise = ""
-
-gi :: GitInfo
-gi = $$tGitInfoCwd
