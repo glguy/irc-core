@@ -114,6 +114,8 @@ patterns = map toPattern
     (1, "f", [str|^Failed (OPER|CHALLENGE) attempt - host mismatch|]),
     (3, "f", [str|^Failed (OPER|CHALLENGE) attempt|]), -- ORDER IMPORTANT - catch all failed attempts that aren't host mismatch
 
+    (1, "k", [str|^Rejecting [XK]-Lined user|]),
+    (1, "k", [str|^Disconnecting [XK]-Lined user|]),
     (1, "k", [str|^KLINE active for|]),
     (1, "k", [str|^XLINE active for|]),
     (3, "k", [str|^KLINE over-ruled for |]),
