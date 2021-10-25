@@ -818,9 +818,8 @@ doAuthenticate' param cs =
     AS_EcdsaStarted
       | B.null param
       , Just (SaslEcdsa mbAuthz authc _) <- view ssSaslMechanism ss
-      , let authz = fromMaybe "" mbAuthz
       -> reply
-           (ircAuthenticates (Ecdsa.encodeAuthentication authz authc))
+           (ircAuthenticates (Ecdsa.encodeAuthentication mbAuthz authc))
            (set csAuthenticationState AS_EcdsaWaitChallenge cs)
 
     AS_EcdsaWaitChallenge -> noReply cs -- handled in Client.EventLoop!

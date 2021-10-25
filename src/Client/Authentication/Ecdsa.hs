@@ -37,11 +37,13 @@ authenticationMode = "ECDSA-NIST256P-CHALLENGE"
 
 -- | Encode a username as specified in this authentication mode.
 encodeAuthentication ::
-  Text {- ^ authorization identity  -} ->
+  Maybe Text {- ^ authorization identity  -} ->
   Text {- ^ authentication identity -} ->
   AuthenticatePayload
-encodeAuthentication authz authc =
-  AuthenticatePayload (Text.encodeUtf8 (authz <> "\0" <> authc <> "\0"))
+encodeAuthentication Nothing authc =
+  AuthenticatePayload (Text.encodeUtf8 authc)
+encodeAuthentication (Just authz) authc =
+  AuthenticatePayload (Text.encodeUtf8 (authc <> "\0" <> authz))
 
 
 -- | Compute the response for a given challenge using the @ecdsatool@
