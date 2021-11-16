@@ -628,6 +628,7 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
         ERR_NOSUCHNICK   -> params_2_3_Image
         ERR_NOSUCHSERVER -> params_2_3_Image
         ERR_NICKNAMEINUSE -> params_2_3_Image
+        ERR_MLOCKRESTRICTED -> mlockRestrictedImage
         _                -> rawParamsImage
   where
     label t = text' (view palLabel pal) t <> ": "
@@ -1000,6 +1001,14 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
             Just list' ->
               ctxt target <>
               label " ..." <> ctxt list'
+        _ -> rawParamsImage
+
+    mlockRestrictedImage =
+      case params of
+        [_, chan, mode, mlock, _] ->
+          ctxt chan <>
+          label " mode" <> ctxt mode <>
+          label " mlock" <> ctxt mlock
         _ -> rawParamsImage
 
 parseCLineFlags :: Text -> [Text]
