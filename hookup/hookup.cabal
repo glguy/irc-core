@@ -37,7 +37,7 @@ library
     cbits/pem_password_cb.c
 
   build-depends:
-    base                  >=4.11 && <4.16,
+    base                  >=4.11 && <4.17,
     async                 ^>=2.2,
     stm                   ^>=2.5,
     network               >=3.0  && <3.2,

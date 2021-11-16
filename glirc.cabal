@@ -23,7 +23,7 @@ bug-reports:         https://github.com/glguy/irc-core/issues
 tested-with:         GHC==8.6.5
 
 custom-setup
-  setup-depends: base     >=4.12 && <4.16,
+  setup-depends: base     >=4.12 && <4.17,
                  filepath >=1.4  && <1.5,
                  Cabal    >=2.2  && <4
 
@@ -57,7 +57,7 @@ library
   default-language:    Haskell2010
   build-tool-depends:  hsc2hs:hsc2hs
 
-  exposed-modules:     
+  exposed-modules:
     Client.Authentication.Ecdsa
     Client.Authentication.Ecdh
     Client.Authentication.Scram
@@ -138,7 +138,7 @@ library
     Client.View.UserList
     Client.View.Windows
 
-  other-modules:       
+  other-modules:
     ContextFilter
     DigraphQuote
     Digraphs
@@ -149,12 +149,12 @@ library
     Paths_glirc
     Build_glirc
 
-  autogen-modules:     
+  autogen-modules:
     Paths_glirc
     Build_glirc
 
-  build-depends:       
-    base                 >=4.11   && <4.16,
+  build-depends:
+    base                 >=4.11   && <4.17,
     HsOpenSSL            >=0.11   && <0.12,
     async                >=2.2    && <2.3,
     attoparsec           ^>=0.14,
@@ -168,11 +168,11 @@ library
     filepath             >=1.4.1  && <1.5,
     free                 >=4.12   && <5.2,
     githash              ^>=0.1.6,
-    hashable             >=1.2.4  && <1.4,
+    hashable             >=1.2.4  && <1.5,
     hookup               ^>=0.7,
     irc-core             ^>=2.10,
     kan-extensions       >=5.0    && <5.3,
-    lens                 >=4.14   && <5.1,
+    lens                 >=4.14   && <5.2,
     random               >=1.1    && <1.3,
     network              >=2.6.2  && <3.2,
     process              >=1.4.2  && <1.7,
@@ -180,9 +180,9 @@ library
     regex-tdfa           >=1.3.1  && <1.4,
     split                >=0.2    && <0.3,
     stm                  >=2.4    && <2.6,
-    template-haskell     >=2.11   && <2.18,
+    template-haskell     >=2.11   && <2.19,
     text                 >=1.2.2  && <1.3,
-    time                 >=1.6    && <1.13,
+    time                 >=1.6    && <1.14,
     transformers         >=0.5.2  && <0.7,
     unix                 >=2.7    && <2.8,
     unordered-containers >=0.2.11 && <0.3,
