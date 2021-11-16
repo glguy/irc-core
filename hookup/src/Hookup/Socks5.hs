@@ -1,5 +1,4 @@
 {-# Language PatternSynonyms #-}
-{-# OPTIONS_GHC -Wall -Wno-missing-pattern-synonym-signatures #-}
 {-|
 Module      : Hookup.Socks5
 Description : SOCKS5 network protocol implementation
@@ -80,6 +79,9 @@ import qualified Data.ByteString.Lazy       as L
 
 -- | SOCKS authentication methods
 newtype AuthMethod                      = AuthMethod Word8 deriving (Eq, Show)
+
+pattern AuthNoAuthenticationRequired, AuthGssApi, AuthUsernamePassword, AuthNoAcceptableMethods :: AuthMethod
+
 pattern AuthNoAuthenticationRequired    = AuthMethod 0x00
 pattern AuthGssApi                      = AuthMethod 0x01
 pattern AuthUsernamePassword            = AuthMethod 0x02
@@ -87,18 +89,28 @@ pattern AuthNoAcceptableMethods         = AuthMethod 0xFF
 
 -- | SOCKS client commands
 newtype Command                         = Command Word8 deriving (Eq, Show)
+
+pattern Connect, Bind, UdpAssociate :: Command
+
 pattern Connect                         = Command 1
 pattern Bind                            = Command 2
 pattern UdpAssociate                    = Command 3
 
 -- | Tags used in the protocol messages for encoded 'Host' values
 newtype HostTag                         = HostTag Word8 deriving (Eq, Show)
+
+pattern IPv4Tag, DomainNameTag, IPv6Tag :: HostTag
+
 pattern IPv4Tag                         = HostTag 1
 pattern DomainNameTag                   = HostTag 3
 pattern IPv6Tag                         = HostTag 4
 
 -- | SOCKS command reply codes
 newtype CommandReply                    = CommandReply Word8 deriving (Eq, Show)
+
+pattern Succeeded, GeneralFailure, NotAllowed, NetUnreachable, HostUnreachable,
+  ConnectionRefused, TTLExpired, CmdNotSupported, AddrNotSupported :: CommandReply
+
 pattern Succeeded                       = CommandReply 0
 pattern GeneralFailure                  = CommandReply 1
 pattern NotAllowed                      = CommandReply 2
@@ -122,13 +134,13 @@ data Host
 
 
 -- | Initial SOCKS sent by client with proposed list of authentication methods.
-data ClientHello = ClientHello
+newtype ClientHello = ClientHello
   { cHelloMethods :: [AuthMethod] -- ^ proposed methods (maximum length 255)
   }
   deriving Show
 
 -- | Initial SOCKS sent by server with chosen authentication method.
-data ServerHello = ServerHello
+newtype ServerHello = ServerHello
   { sHelloMethod  :: AuthMethod
   }
   deriving Show
