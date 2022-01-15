@@ -37,6 +37,7 @@ module Irc.Commands
   , ircNick
   , ircNotice
   , ircOper
+  , ircOperwall
   , ircPart
   , ircPass
   , ircPing
@@ -166,6 +167,12 @@ ircWallops ::
   Text {- ^ message -} ->
   RawIrcMsg
 ircWallops msg = rawIrcMsg "WALLOPS" [msg]
+
+-- | OPERWALL command
+ircOperwall ::
+  Text {- ^ message -} ->
+  RawIrcMsg
+ircOperwall msg = rawIrcMsg "OPERWALL" [msg]
 
 -- | NICK command
 ircNick ::

@@ -199,7 +199,7 @@ chatCommands = CommandSection "IRC commands"
 
   , Command
       (pure "wallops")
-      (remainingArg "message")
+      (remainingArg "message to +w users")
       "\^BParameters:\^B\n\
       \\n\
       \    message: Formatted message body\n\
@@ -215,6 +215,25 @@ chatCommands = CommandSection "IRC commands"
       \\n\
       \\^BSee also:\^B me, msg, say\n"
     $ NetworkCommand cmdWallops simpleNetworkTab
+
+  , Command
+      (pure "operwall")
+      (remainingArg "message to +z opers")
+      "\^BParameters:\^B\n\
+      \\n\
+      \    message: Formatted message body\n\
+      \\n\
+      \\^BDescription:\^B\n\
+      \\n\
+      \    Send a network-wide WALLOPS message to opers. These message go\n\
+      \    out to opers who have the 'z' usermode set.\n\
+      \\n\
+      \\^BExamples:\^B\n\
+      \\n\
+      \    /operwall What's this even for?\n\
+      \\n\
+      \\^BSee also:\^B me, msg, say\n"
+    $ NetworkCommand cmdOperwall simpleNetworkTab
 
   , Command
       (pure "ctcp")
@@ -414,6 +433,15 @@ cmdWallops cs st rest
   | otherwise =
       do let restTxt = Text.pack rest
          sendMsg cs (ircWallops restTxt)
+         commandSuccess st
+
+-- | Implementation of @/operwall@
+cmdOperwall :: NetworkCommand String
+cmdOperwall cs st rest
+  | null rest = commandFailureMsg "empty message" st
+  | otherwise =
+      do let restTxt = Text.pack rest
+         sendMsg cs (ircOperwall restTxt)
          commandSuccess st
 
 -- | Implementation of @/notice@
