@@ -584,12 +584,22 @@ startTls tp hostname mkSocket = SSL.withOpenSSL $
      -- leaking the file descriptor in the cases of exceptions above.
      ssl <- SSL.connection ctx =<< mkSocket
 
-     -- configure hostname used for certificate validation
-     SSL.setTlsextHostName ssl hostname
+     -- configure hostname used for SNI
+     isip <- isIpAddress hostname
+     unless isip (SSL.setTlsextHostName ssl hostname)
 
      SSL.connect ssl
 
      return (clientCert, ssl)
+
+isIpAddress :: HostName -> IO Bool
+isIpAddress host =
+ do res <- try (Socket.getAddrInfo
+                  (Just Socket.defaultHints{Socket.addrFlags=[Socket.AI_NUMERICHOST]})
+                  (Just host) Nothing)
+    case res :: Either IOError [AddrInfo] of
+      Right{} -> pure True
+      Left {} -> pure False
 
 setupCaCertificates :: SSLContext -> Maybe FilePath -> IO ()
 setupCaCertificates ctx mbPath =

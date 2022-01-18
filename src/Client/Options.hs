@@ -39,7 +39,7 @@ import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Version
-import           GitHash (GitInfo, giHash, giDirty, tGitInfoCwdTry)
+import           GitHash (giHash, giDirty, tGitInfoCwdTry)
 import           System.Console.GetOpt
 import           System.Environment
 import           System.Exit
