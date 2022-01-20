@@ -401,10 +401,10 @@ cmdQuery st (target, msg) =
       | Just cs <- preview (clientConnection net) st ->
            do let tgtTxt = idText tgt
                   msgTxt = Text.pack msg
-              sendMsg cs (ircPrivmsg tgtTxt msgTxt)
               chatCommand
-                 (\src tgt1 -> Privmsg src tgt1 msgTxt)
-                 tgtTxt cs st'
+                (ircPrivmsg tgtTxt msgTxt)
+                (\src tgt1 -> Privmsg src tgt1 msgTxt)
+                tgtTxt cs st'
       where
        firstTgt = mkId (Text.takeWhile (','/=) (idText tgt))
        st' = changeFocus (ChannelFocus net firstTgt) st
@@ -414,17 +414,17 @@ cmdQuery st (target, msg) =
 -- | Implementation of @/ctcp@
 cmdCtcp :: NetworkCommand (String, String, String)
 cmdCtcp cs st (target, cmd, args) =
-  do let cmdTxt = Text.toUpper (Text.pack cmd)
-         argTxt = Text.pack args
-         tgtTxt = Text.pack target
+ do let cmdTxt = Text.toUpper (Text.pack cmd)
+        argTxt = Text.pack args
+        tgtTxt = Text.pack target
 
-     sendMsg cs (ircPrivmsg tgtTxt
-                   ("\^A" <> cmdTxt <>
-                    (if Text.null argTxt then "" else " " <> argTxt) <>
-                    "\^A"))
-     chatCommand
-        (\src tgt -> Ctcp src tgt cmdTxt argTxt)
-        tgtTxt cs st
+    let msg = "\^A" <> cmdTxt <>
+              (if Text.null argTxt then "" else " " <> argTxt) <>
+              "\^A"
+    chatCommand
+      (ircPrivmsg tgtTxt msg)
+      (\src tgt -> Ctcp src tgt cmdTxt argTxt)
+      tgtTxt cs st
 
 -- | Implementation of @/wallops@
 cmdWallops :: NetworkCommand String
@@ -449,48 +449,54 @@ cmdNotice :: NetworkCommand (String, String)
 cmdNotice cs st (target, rest)
   | null rest = commandFailureMsg "empty message" st
   | otherwise =
-      do let restTxt = Text.pack rest
-             tgtTxt = Text.pack target
-
-         sendMsg cs (ircNotice tgtTxt restTxt)
-         chatCommand
-            (\src tgt -> Notice src tgt restTxt)
-            tgtTxt cs st
+     do let restTxt = Text.pack rest
+            tgtTxt = Text.pack target
+        chatCommand
+          (ircNotice tgtTxt restTxt)
+          (\src tgt -> Notice src tgt restTxt)
+          tgtTxt cs st
 
 -- | Implementation of @/msg@
 cmdMsg :: NetworkCommand (String, String)
 cmdMsg cs st (target, rest)
   | null rest = commandFailureMsg "empty message" st
   | otherwise =
-      do let restTxt = Text.pack rest
-             tgtTxt = Text.pack target
+     do let restTxt = Text.pack rest
+            tgtTxt = Text.pack target
+        chatCommand
+          (ircPrivmsg tgtTxt restTxt)
+          (\src tgt -> Privmsg src tgt restTxt)
+          tgtTxt cs st
+        
 
-         sendMsg cs (ircPrivmsg tgtTxt restTxt)
-         chatCommand
-            (\src tgt -> Privmsg src tgt restTxt)
-            tgtTxt cs st
 
 -- | Common logic for @/msg@ and @/notice@
 chatCommand ::
+  RawIrcMsg {- ^ irc command -} ->
   (Source -> Identifier -> IrcMsg) ->
-  Text {- ^ target  -} ->
+  Text {- ^ targets -} ->
   NetworkState         ->
   ClientState          ->
   IO CommandResult
-chatCommand mkmsg target cs st =
-  commandSuccess =<< chatCommand' mkmsg target cs st
+chatCommand ircMsg mkmsg tgtsTxt cs st
+  | any Text.null tgtTxts = commandFailureMsg "empty target" st
+  | otherwise =
+   do sendMsg cs ircMsg
+      st' <- chatCommand' mkmsg tgtTxts cs st
+      commandSuccess st'
+  where
+    tgtTxts = Text.split (','==) tgtsTxt
 
 -- | Common logic for @/msg@ and @/notice@ returning the client state
 chatCommand' ::
   (Source -> Identifier -> IrcMsg) ->
-  Text {- ^ target  -} ->
+  [Text] {- ^ targets  -} ->
   NetworkState         ->
   ClientState          ->
   IO ClientState
-chatCommand' con targetsTxt cs st =
+chatCommand' con targetTxts cs st =
   do now <- getZonedTime
-     let targetTxts = Text.split (==',') targetsTxt
-         targetIds  = mkId <$> targetTxts
+     let targetIds = mkId <$> targetTxts
          !myNick = Source (view csUserInfo cs) ""
          network = view csNetwork cs
          entries = [ (targetId,

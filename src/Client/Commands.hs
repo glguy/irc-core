@@ -490,7 +490,7 @@ cmdExec st rest =
         do sendMsg cs (ircPrivmsg channel msg)
            chatCommand'
               (\src tgt -> Privmsg src tgt msg)
-              channel
+              [channel]
               cs st1) st (filter (not . Text.null) msgs)
 
     currentNetworkState =
