@@ -51,13 +51,13 @@ togglesCommands = CommandSection "View toggles"
   , Command
       (pure "toggle-editor")
       (pure ())
-      "Toggle editor mode.\n"
+      "Toggle between single-line and multi-line editor mode.\n"
     $ ClientCommand cmdToggleEditor noClientTab
 
   , Command
       (pure "toggle-edit-lock")
       (pure ())
-      "Toggle editor lock mode.\n"
+      "Toggle editor lock mode. When editor is locked pressing Enter is disabled.\n"
     $ ClientCommand cmdToggleEditLock noClientTab
   ]
 
