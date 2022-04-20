@@ -14,13 +14,18 @@ in Vim and as specified in RFC 1345 (2-character only).
 
 -}
 module Digraphs
-  ( lookupDigraph
+  ( Digraph(..)
+  , lookupDigraph
   , digraphs
   ) where
 
 import           DigraphQuote
 import           Data.Text (Text)
 import qualified Data.Text as Text
+
+-- | Two-character key for digraph lookup
+data Digraph = Digraph !Char !Char
+  deriving (Eq, Ord, Read, Show)
 
 -- | States for the digraph lookup state machine
 data St
@@ -32,8 +37,8 @@ data St
 
 -- | Find the entry in the digraph table give a two-character
 -- key and return the matched value.
-lookupDigraph :: Char -> Char -> Maybe Char
-lookupDigraph !x !y = Text.foldr step finish digraphs Ready
+lookupDigraph :: Digraph -> Maybe Char
+lookupDigraph (Digraph x y) = Text.foldr step finish digraphs Ready
   where
     finish _st = Nothing
     step z k st =

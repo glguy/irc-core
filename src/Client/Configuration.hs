@@ -4,6 +4,7 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ApplicativeDo     #-}
 {-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE LambdaCase        #-}
 
 {-|
 Module      : Client.Configuration
@@ -44,6 +45,7 @@ module Client.Configuration
   , configLayout
   , configShowPing
   , configJumpModifier
+  , configDigraphs
 
   , extensionPath
   , extensionRtldFlags
@@ -84,11 +86,14 @@ import           Data.Foldable                       (foldl', toList)
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
 import qualified Data.List.NonEmpty                  as NonEmpty
+import           Data.Map                            (Map)
+import qualified Data.Map                            as Map
 import           Data.Maybe
 import           Data.Monoid                         (Endo(..))
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
 import qualified Data.Vector                         as Vector
+import           Digraphs (Digraph(..))
 import           Graphics.Vty.Input.Events (Modifier(..), Key(..))
 import           Graphics.Vty.Attributes             (Attr)
 import           Irc.Identifier                      (Identifier)
@@ -119,6 +124,7 @@ data Configuration = Configuration
   , _configLayout          :: LayoutMode -- ^ Default layout on startup
   , _configShowPing        :: Bool -- ^ visibility of ping time
   , _configJumpModifier    :: [Modifier] -- ^ Modifier used for jumping windows
+  , _configDigraphs        :: Map Digraph Text -- ^ Extra digraphs
   }
   deriving Show
 
@@ -286,6 +292,8 @@ configurationSpec = sectionsSpec "config-file" $
                                "Initial setting for window layout"
      _configShowPing        <- sec' True "show-ping" yesOrNoSpec
                                "Initial setting for visibility of ping times"
+     _configDigraphs        <- sec' mempty "extra-digraphs" (Map.fromList <$> listSpec digraphSpec)
+                               "Extra digraphs"
      return (\def ->
              let _configDefaults = snd ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
@@ -473,6 +481,17 @@ urlOpenerSpec = simpleCase <!> complexCase
 
     argSpec = UrlArgUrl     <$  atomSpec "url"
           <!> UrlArgLiteral <$> stringSpec
+
+digraphSpec :: ValueSpec (Digraph, Text)
+digraphSpec =
+  sectionsSpec "digraph" $
+   do ~(x,y) <- reqSection' "input" twoChars "digraph key"
+      val    <- reqSection' "output" textSpec "replacement text"
+      pure (Digraph x y, val)
+  where
+    twoChars = customSpec "two" stringSpec $ \case
+        [x,y] -> Right (x,y)
+        _     -> Left "exactly two characters required"
 
 buildServerMap ::
   ServerSettings {- ^ defaults -} ->

@@ -19,7 +19,7 @@ module Client.EventLoop
 
 import           Client.CApi (ThreadEntry, popTimer)
 import           Client.Commands
-import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames)
+import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs)
 import           Client.Configuration.ServerSettings
 import           Client.EventLoop.Actions
 import           Client.EventLoop.Errors (exceptionToLines)
@@ -455,7 +455,7 @@ doAction vty action st =
     ActClearFormat       -> changeEditor (Edit.insert '\^O')
     ActReverseVideo      -> changeEditor (Edit.insert '\^V')
     ActMonospace         -> changeEditor (Edit.insert '\^Q')
-    ActDigraph           -> mbChangeEditor Edit.insertDigraph
+    ActDigraph           -> mbChangeEditor (Edit.insertDigraph (view (clientConfig . configDigraphs) st))
     ActInsertEnter       -> changeEditor (Edit.insert '\^J')
 
     -- focus jumps
@@ -467,8 +467,8 @@ doAction vty action st =
     ActAdvanceNetwork    -> continue (advanceNetworkFocus st)
 
     ActReset             -> continue (changeSubfocus FocusMessages st)
-    ActOlderLine         -> changeEditor $ \ed      -> fromMaybe ed $ Edit.earlier ed
-    ActNewerLine         -> changeEditor $ \ed      -> fromMaybe ed $ Edit.later ed
+    ActOlderLine         -> changeEditor $ \ed -> fromMaybe ed $ Edit.earlier ed
+    ActNewerLine         -> changeEditor $ \ed -> fromMaybe ed $ Edit.later ed
     ActScrollUp          -> continue (scrollClient ( scrollAmount st) st)
     ActScrollDown        -> continue (scrollClient (-scrollAmount st) st)
     ActScrollUpSmall     -> continue (scrollClient ( 3) st)

@@ -731,6 +731,18 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
 
     authLineParamsImage =
       case params of
+        [_, "I", name, pass, mask, port, klass, note] ->
+          ctxt name <>
+          (if pass == "<NULL>" then mempty else label " pass" <> ctxt pass) <>
+          label " mask" <> ctxt mask' <>
+          (if port == "0" then mempty else label " port" <> ctxt port) <>
+          label " class" <> ctxt klass <>
+          (if null special then mempty else
+            label " special" <> ctxt (Text.unwords special)) <>
+          (if Text.null note then mempty else
+            label " note" <> ctxt note)
+          where
+            (mask', special) = parseILinePrefix mask
         [_, "I", name, pass, mask, port, klass] ->
           ctxt name <>
           (if pass == "<NULL>" then mempty else label " pass" <> ctxt pass) <>

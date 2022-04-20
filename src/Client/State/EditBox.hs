@@ -64,6 +64,9 @@ module Client.State.EditBox
 import           Client.State.EditBox.Content
 import           Control.Lens hiding (below)
 import           Data.List.NonEmpty (NonEmpty)
+import           Digraphs (Digraph)
+import           Data.Map (Map)
+import           Data.Text (Text)
 
 
 data EditBox = EditBox
@@ -273,7 +276,7 @@ insertPaste paste
   . set lastOperation OtherOperation
 
 
-insertDigraph :: EditBox -> Maybe EditBox
-insertDigraph
-  = content digraph
+insertDigraph :: Map Digraph Text -> EditBox -> Maybe EditBox
+insertDigraph extras
+  = content (digraph extras)
   . set lastOperation OtherOperation

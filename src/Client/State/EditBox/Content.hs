@@ -48,12 +48,17 @@ module Client.State.EditBox.Content
   , digraph
   ) where
 
+import           Control.Applicative ((<|>))
 import           Control.Lens hiding ((<|), below)
 import           Control.Monad (guard)
 import           Data.Char (isAlphaNum)
 import           Data.List (find)
 import           Data.List.NonEmpty (NonEmpty(..), (<|))
-import           Digraphs (lookupDigraph)
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Digraphs (Digraph(..), lookupDigraph)
 
 data Line = Line
   { _pos  :: !Int
@@ -279,13 +284,15 @@ toggle !c
 
 -- | Use the two characters preceeding the cursor as a digraph and replace
 -- them with the corresponding character.
-digraph :: Content -> Maybe Content
-digraph !c =
+digraph :: Map Digraph Text -> Content -> Maybe Content
+digraph extras !c =
   do let Line n txt = view line c
      guard (2 <= n)
      let (pfx,x:y:sfx) = splitAt (n - 2) txt
-     d <- lookupDigraph x y
-     let line' = Line (n-1) (pfx++d:sfx)
+     let key = Digraph x y
+     d <-  Text.unpack <$> Map.lookup key extras
+       <|> pure        <$> lookupDigraph key
+     let line' = Line (n-1) (pfx++d++sfx)
      Just $! set line line' c
 
 fromStrings :: NonEmpty String -> Content
