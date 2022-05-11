@@ -128,10 +128,10 @@ authenticateLoop user pass bot =
        Reply _ RPL_SASLSUCCESS _ ->
          do sendMsg bot ircCapEnd
 
-       Reply _ RPL_SASLFAIL    _ -> fail "SASL failed"
-       Reply _ RPL_SASLTOOLONG _ -> fail "SASL failed"
-       Reply _ RPL_SASLABORTED _ -> fail "SASL failed"
-       Reply _ RPL_SASLALREADY _ -> fail "SASL failed"
+       Reply _ ERR_SASLFAIL    _ -> fail "SASL failed"
+       Reply _ ERR_SASLTOOLONG _ -> fail "SASL failed"
+       Reply _ ERR_SASLABORTED _ -> fail "SASL failed"
+       Reply _ ERR_SASLALREADY _ -> fail "SASL failed"
        Reply _ RPL_SASLMECHS   _ -> fail "SASL failed"
 
        _ -> print msg >> authenticateLoop user pass bot
@@ -170,13 +170,13 @@ processIrcMsg bot msg =
 
     Nick oldNick newNick
       -- the server changed our nickname
-      | userNick oldNick == botNick bot ->
+      | userNick (srcUser oldNick) == botNick bot ->
         do pure bot { botNick = newNick }
 
     -- unsupported message; ignore it
     _ -> pure bot
 
-needAdmin :: Bot -> UserInfo -> IO Bot -> IO Bot
+needAdmin :: Bot -> Source -> IO Bot -> IO Bot
 needAdmin bot who action
-  | Set.member (userNick who) (botAdmins bot) = action
+  | Set.member (userNick (srcUser who)) (botAdmins bot) = action
   | otherwise = pure bot
