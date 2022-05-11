@@ -1,5 +1,14 @@
 # Revision history for glirc
 
+## 2.39
+
+* Extra oper commands and reply parsing
+* Account tracking with account-tags
+* Added matterbridge hook
+* Support SASL SCRAM
+* Add locked editor mode (F7)
+* Add `tls-verify` to specify expected certificate hostname
+
 ## 2.38
 
 * Avoid ping timeout disconnects while other packets are still arriving

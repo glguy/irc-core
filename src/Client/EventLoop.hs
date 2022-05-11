@@ -56,6 +56,7 @@ import qualified Data.Text.Encoding.Error as Text
 import           Data.Time
 import           GHC.IO.Exception (IOErrorType(..), ioe_type)
 import           Graphics.Vty
+import           Graphics.Vty.Input.Events
 import           Irc.Message
 import           Irc.Codes
 import           Irc.RawIrcMsg
@@ -65,7 +66,7 @@ import           Hookup (ConnectionFailure(..))
 
 -- | Sum of the five possible event types the event loop handles
 data ClientEvent
-  = VtyEvent Event                        -- ^ Key presses and resizing
+  = VtyEvent InternalEvent -- ^ Key presses and resizing
   | NetworkEvents (NonEmpty (Text, NetworkEvent)) -- ^ Incoming network events
   | TimerEvent Text TimedAction      -- ^ Timed action and the applicable network
   | ExtTimerEvent Int                     -- ^ extension ID
@@ -148,8 +149,10 @@ eventLoop vty st =
          eventLoop vty =<< clientThreadJoin i result st'
        TimerEvent networkId action ->
          eventLoop vty =<< doTimerEvent networkId action st'
-       VtyEvent vtyEvent ->
+       VtyEvent (InputEvent vtyEvent) ->
          traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
+       VtyEvent ResumeAfterSignal ->
+         eventLoop vty =<< updateTerminalSize vty st
        NetworkEvents networkEvents ->
          eventLoop vty =<< foldM doNetworkEvent st' networkEvents
 
