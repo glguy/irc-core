@@ -87,6 +87,7 @@ isLight (Color240 c) =
   case color240CodeToRGB c of
     Just (r, g, b) -> (r `max` g `max` b) > 200
     Nothing        -> True
+isLight (RGBColor r g b) = (r `max` g `max` b) > 200
 
 
 isoColors :: [Image']

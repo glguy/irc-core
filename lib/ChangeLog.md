@@ -1,5 +1,11 @@
 # Revision history for irc-core
 
+## 2.11
+
+* Added extra reply code patterns. Sasl errors renamed to ERR_ prefix
+* Added extra ircoper specific commands
+* Added 'Source' type to allow account names to be tracked on messages
+
 ## 2.10
 
 * Track servername in `Reply` constructor
