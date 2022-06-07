@@ -851,7 +851,7 @@ applyMessageToClientState ::
   Text                       {- ^ network name             -} ->
   NetworkState               {- ^ network connection state -} ->
   ClientState                {- ^ client state             -} ->
-  ([RawIrcMsg], ClientState) {- ^ response , DCC updates, updated state -}
+  ([RawIrcMsg], ClientState) {- ^ response , updated state -}
 applyMessageToClientState time irc network cs st =
   cs' `seq` (reply, st')
   where

@@ -45,7 +45,6 @@ data Subfocus
   = FocusMessages    -- ^ Show messages
   | FocusInfo        -- ^ Show channel metadata
   | FocusUsers       -- ^ Show channel user list
-  | FocusDCC         -- ^ Show DCC offers list
   | FocusMasks !Char -- ^ Show channel mask list for given mode
   | FocusWindows WindowsFilter -- ^ Show client windows
   | FocusPalette     -- ^ Show current palette
