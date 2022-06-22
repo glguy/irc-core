@@ -26,7 +26,8 @@ import           Config.Schema.Load (loadValue)
 import           Control.Exception (try)
 import           Control.Lens (makeLenses)
 import           Data.Maybe (fromMaybe)
-import           Data.Time (UTCTime, defaultTimeLocale, formatTime, parseTimeM, iso8601DateFormat)
+import           Data.Time (UTCTime)
+import           Data.Time.Format.ISO8601
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -68,7 +69,7 @@ encodePolicy p =
           Section () "until"
             (Text ()
                (Text.pack
-                 (formatTime defaultTimeLocale dateTimeFormat
+                 (formatShow iso8601Format
                    (_stsExpiration v))))
         ]
     | (k, v) <- HashMap.toList p ]
@@ -106,7 +107,4 @@ dateTimeSpec :: ValueSpec UTCTime
 dateTimeSpec
   = customSpec "date-time" stringSpec
   $ maybe (Left "unable to parse") Right
-  . parseTimeM False defaultTimeLocale dateTimeFormat
-
-dateTimeFormat :: String
-dateTimeFormat = iso8601DateFormat (Just "%H:%M:%S")
+  . formatParseM iso8601Format

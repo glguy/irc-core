@@ -182,11 +182,11 @@ library
     stm                  >=2.4    && <2.6,
     template-haskell     >=2.11   && <2.19,
     text                 >=1.2.2  && <2.1,
-    time                 >=1.6    && <1.14,
+    time                 >=1.10   && <1.14,
     transformers         >=0.5.2  && <0.7,
     unix                 >=2.7    && <2.8,
     unordered-containers >=0.2.11 && <0.3,
-    vector               >=0.11   && <0.13,
+    vector               >=0.11   && <0.14,
     vty                  >=5.35   && <5.36,
 
 test-suite test

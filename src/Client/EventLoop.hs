@@ -54,6 +54,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import           Data.Time
+import           Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
 import           GHC.IO.Exception (IOErrorType(..), ioe_type)
 import           Graphics.Vty
 import           Graphics.Vty.Input.Events
@@ -370,8 +371,7 @@ computeEffectiveTime time tags = fromMaybe time zncTime
 
 -- | Parses the time format used by ZNC for buffer playback
 parseZncTime :: String -> Maybe UTCTime
-parseZncTime = parseTimeM True defaultTimeLocale
-             $ iso8601DateFormat (Just "%T%Q%Z")
+parseZncTime = formatParseM iso8601Format
 
 
 -- | Update the height and width fields of the client state
