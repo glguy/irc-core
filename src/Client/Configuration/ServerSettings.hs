@@ -1,4 +1,4 @@
-{-# LANGUAGE ApplicativeDo, TemplateHaskell, OverloadedStrings, RecordWildCards, BlockArguments #-}
+{-# LANGUAGE LambdaCase, ApplicativeDo, TemplateHaskell, OverloadedStrings, RecordWildCards, BlockArguments #-}
 
 {-|
 Module      : Client.Configuration.ServerSettings
@@ -55,6 +55,7 @@ module Client.Configuration.ServerSettings
   , ssTlsCertFingerprint
   , ssShowAccounts
   , ssCapabilities
+  , ssWindowHints
 
   -- * SASL Mechanisms
   , SaslMechanism(..)
@@ -85,6 +86,7 @@ import           Client.Authentication.Scram (ScramDigest(..))
 import           Client.Commands.Interpolation
 import           Client.Commands.WordCompletion
 import           Client.Configuration.Macros (macroCommandSpec)
+import           Client.State.Focus ( Focus (NetworkFocus, ChannelFocus) )
 import           Config.Schema.Spec
 import           Control.Exception (Exception, displayException, throwIO, try)
 import           Control.Lens
@@ -94,6 +96,8 @@ import           Data.ByteString (ByteString)
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.List.Split (chunksOf, splitOn)
+import           Data.Map (Map)
+import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe)
 import           Data.Monoid
 import           Data.Text (Text)
@@ -143,6 +147,7 @@ data ServerSettings = ServerSettings
   , _ssBindHostName     :: Maybe HostName -- ^ Local bind host
   , _ssShowAccounts     :: !Bool -- ^ Render account names
   , _ssCapabilities     :: ![Text] -- ^ Extra capabilities to unconditionally request
+  , _ssWindowHints      :: Map Focus Char
   }
   deriving Show
 
@@ -230,6 +235,7 @@ defaultServerSettings =
        , _ssBindHostName     = Nothing
        , _ssShowAccounts     = False
        , _ssCapabilities     = []
+       , _ssWindowHints      = Map.empty
        }
 
 serverSpec :: ValueSpec (Maybe Text, ServerSettings -> ServerSettings)
@@ -354,7 +360,26 @@ serverSpec = sectionsSpec "server-settings" $
 
       , req "capabilities" ssCapabilities anySpec
         "Extra capabilities to unconditionally request from the server"
+
+      , req "window-hints" ssWindowHints windowHintsSpec
+        "Hints for naming windows"
       ]
+
+windowHintsSpec :: ValueSpec (Map Focus Char)
+windowHintsSpec = Map.fromList <$> listSpec entrySpec
+  where
+    entrySpec =
+      sectionsSpec "window-hint"
+        do focus  <- reqSection' "window" focusSpec ""
+           hotkey <- reqSection' "hotkey" hotkeySpec ""
+           pure (focus, hotkey)
+    focusSpec =
+      NetworkFocus "" <$ atomSpec "network" <!>
+      ChannelFocus "" . mkId <$> textSpec
+    hotkeySpec =
+      customSpec "letter" stringSpec \case
+        [x] -> Right x
+        _   -> Left "expected a single letter"
 
 tlsModeSpec :: ValueSpec TlsMode
 tlsModeSpec =

@@ -553,13 +553,30 @@ recordError now net msg =
     , _msgBody    = ErrorBody msg
     }
 
-clientNextWindowName :: ClientState -> Char
-clientNextWindowName st =
-  case clientWindowNames st \\ usedNames of
-    []  -> '\0'
-    c:_ -> c
+clientNextWindowName :: Focus -> ClientState -> Char
+clientNextWindowName focus st
+  | Just n <- hint, n `notElem` usedNames = n
+  | c:_ <- availableNames \\ usedNames    = c
+  | otherwise                             = '\0'
   where
     usedNames = toListOf (clientWindows . folded . winName . _Just) st
+
+    hintFocus =
+      case focus of
+        Unfocused -> Unfocused
+        NetworkFocus {} -> NetworkFocus ""
+        ChannelFocus _ x -> ChannelFocus "" x
+
+    availableNames :: String
+    availableNames = clientWindowNames st \\ reservedNames
+
+    reservedNames :: String
+    reservedNames =
+      toListOf (clientConnections . folded . csSettings . ssWindowHints . folded) st
+
+    hint =
+     do net <- focusNetwork focus
+        preview (clientConnection net . csSettings . ssWindowHints . ix hintFocus) st
 
 -- | Record window line at the given focus creating the window if necessary
 recordWindowLine ::
@@ -570,7 +587,7 @@ recordWindowLine ::
 recordWindowLine focus wl st = st2
   where
     freshWindow = emptyWindow
-      { _winName' = clientNextWindowName st
+      { _winName' = clientNextWindowName focus st
       , _winHideMeta = view (clientConfig . configHideMeta) st
       }
 

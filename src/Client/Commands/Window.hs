@@ -256,7 +256,7 @@ cmdSetWindowName st arg =
   case mbSt1 of
     Nothing -> commandFailureMsg "no current window" st
     Just st1 ->
-      let next = clientNextWindowName st
+      let next = clientNextWindowName (view clientFocus st) st
           mbName =
             case arg of
               Just [n] | n `elem` clientWindowNames st -> Right n
