@@ -362,7 +362,7 @@ serverSpec = sectionsSpec "server-settings" $
         "Extra capabilities to unconditionally request from the server"
 
       , req "window-hints" ssWindowHints windowHintsSpec
-        "Hints for naming windows"
+        "Reserved characters for window hotkeys"
       ]
 
 windowHintsSpec :: ValueSpec (Map Focus Char)
@@ -370,14 +370,16 @@ windowHintsSpec = Map.fromList <$> listSpec entrySpec
   where
     entrySpec =
       sectionsSpec "window-hint"
-        do focus  <- reqSection' "window" focusSpec ""
-           hotkey <- reqSection' "hotkey" hotkeySpec ""
+        do focus  <- reqSection' "window" focusSpec "channel name or network"
+           hotkey <- reqSection' "hotkey" hotkeySpec "reserved hotkey"
            pure (focus, hotkey)
+
     focusSpec =
       NetworkFocus "" <$ atomSpec "network" <!>
       ChannelFocus "" . mkId <$> textSpec
+
     hotkeySpec =
-      customSpec "letter" stringSpec \case
+      customSpec "single letter" stringSpec \case
         [x] -> Right x
         _   -> Left "expected a single letter"
 
