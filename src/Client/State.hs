@@ -74,6 +74,7 @@ module Client.State
   , clientAutoconnects
   , clientActiveCommand
   , clientNextWindowName
+  , clientWindowHint
 
   , clientExtraFocuses
   , currentNickCompletionMode
@@ -553,30 +554,30 @@ recordError now net msg =
     , _msgBody    = ErrorBody msg
     }
 
-clientNextWindowName :: Focus -> ClientState -> Char
-clientNextWindowName focus st
-  | Just n <- hint, n `notElem` usedNames = n
+clientNextWindowName :: Maybe WindowHint -> ClientState -> Char
+clientNextWindowName hint st
+  | Just n <- windowHintName =<< hint, n `notElem` usedNames = n
   | c:_ <- availableNames \\ usedNames    = c
   | otherwise                             = '\0'
   where
     usedNames = toListOf (clientWindows . folded . winName . _Just) st
-
-    hintFocus =
-      case focus of
-        Unfocused -> Unfocused
-        NetworkFocus {} -> NetworkFocus ""
-        ChannelFocus _ x -> ChannelFocus "" x
 
     availableNames :: String
     availableNames = clientWindowNames st \\ reservedNames
 
     reservedNames :: String
     reservedNames =
-      toListOf (clientConnections . folded . csSettings . ssWindowHints . folded) st
+      toListOf (clientConnections . folded . csSettings . ssWindowHints . folded . to windowHintName  . folded) st
 
-    hint =
-     do net <- focusNetwork focus
-        preview (clientConnection net . csSettings . ssWindowHints . ix hintFocus) st
+clientWindowHint :: Focus -> ClientState -> Maybe WindowHint
+clientWindowHint focus st =
+ do net <- focusNetwork focus
+    let hintFocus =
+          case focus of
+            Unfocused -> Unfocused
+            NetworkFocus {} -> NetworkFocus ""
+            ChannelFocus _ x -> ChannelFocus "" x
+    preview (clientConnection net . csSettings . ssWindowHints . ix hintFocus) st
 
 -- | Record window line at the given focus creating the window if necessary
 recordWindowLine ::
@@ -586,9 +587,13 @@ recordWindowLine ::
   ClientState
 recordWindowLine focus wl st = st2
   where
+    hints = clientWindowHint focus st
+
     freshWindow = emptyWindow
-      { _winName' = clientNextWindowName focus st
-      , _winHideMeta = view (clientConfig . configHideMeta) st
+      { _winName'    = clientNextWindowName hints st
+      , _winHideMeta = fromMaybe (view (clientConfig . configHideMeta) st) (windowHintHideMeta =<< hints)
+      , _winHidden   = fromMaybe False (windowHintHidden =<< hints)
+      , _winSilent   = fromMaybe False (windowHintSilent =<< hints)
       }
 
     st1 = over (clientWindows . at focus)

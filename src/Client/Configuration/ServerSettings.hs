@@ -69,6 +69,9 @@ module Client.Configuration.ServerSettings
   , SecretException(..)
   , loadSecrets
 
+  -- * Window Hints
+  , WindowHint(..)
+
   -- * Defaults
   , defaultServerSettings
 
@@ -147,7 +150,7 @@ data ServerSettings = ServerSettings
   , _ssBindHostName     :: Maybe HostName -- ^ Local bind host
   , _ssShowAccounts     :: !Bool -- ^ Render account names
   , _ssCapabilities     :: ![Text] -- ^ Extra capabilities to unconditionally request
-  , _ssWindowHints      :: Map Focus Char
+  , _ssWindowHints      :: Map Focus WindowHint
   }
   deriving Show
 
@@ -167,6 +170,13 @@ data SaslMechanism
   | SaslScram    ScramDigest (Maybe Text) Text Secret -- ^ SASL SCRAM-SHA-256 RFC7677 - authzid authcid password
   | SaslEcdh     (Maybe Text) Text Secret -- ^ SASL ECDH-X25519-CHALLENGE - authzid authcid private-key
   deriving Show
+
+data WindowHint = WindowHint {
+  windowHintName     :: Maybe Char,
+  windowHintHideMeta :: Maybe Bool,
+  windowHintSilent   :: Maybe Bool,
+  windowHintHidden   :: Maybe Bool
+} deriving Show
 
 -- | Regular expression matched with original source to help with debugging.
 data KnownRegex = KnownRegex Text Regex
@@ -362,23 +372,27 @@ serverSpec = sectionsSpec "server-settings" $
         "Extra capabilities to unconditionally request from the server"
 
       , req "window-hints" ssWindowHints windowHintsSpec
-        "Reserved characters for window hotkeys"
+        "Persistent settings for windows"
       ]
 
-windowHintsSpec :: ValueSpec (Map Focus Char)
+windowHintsSpec :: ValueSpec (Map Focus WindowHint)
 windowHintsSpec = Map.fromList <$> listSpec entrySpec
   where
     entrySpec =
       sectionsSpec "window-hint"
-        do focus  <- reqSection' "window" focusSpec "channel name or network"
-           hotkey <- reqSection' "hotkey" hotkeySpec "reserved hotkey"
-           pure (focus, hotkey)
+        do focus              <- reqSection' "window"    focusSpec   "channel name or network"
+           windowHintName     <- optSection' "hotkey"    hotkeySpec  "reserved hotkey"
+           windowHintHidden   <- optSection' "hidden"    yesOrNoSpec "hide from statusbar"
+           windowHintHideMeta <- optSection' "hide-meta" yesOrNoSpec "hide metadata by default"
+           windowHintSilent   <- optSection' "silent"    yesOrNoSpec "hide activity counters"
+           pure (focus, WindowHint{..})
 
     focusSpec =
       NetworkFocus "" <$ atomSpec "network" <!>
       ChannelFocus "" . mkId <$> textSpec
 
     hotkeySpec =
+      '\0' <$ atomSpec "none" <!>
       customSpec "single letter" stringSpec \case
         [x] -> Right x
         _   -> Left "expected a single letter"
