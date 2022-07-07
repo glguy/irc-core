@@ -233,7 +233,7 @@ windowCommands = CommandSection "Window management"
       \\n\
       \\^Bloud\^B / \^Bsilent\^B\n\
       \    Toggles if window activity appears in the status bar.\n\
-      \n\
+      \\n\
       \\^Bshow\^B / \^Bhide\^B\n\
       \    Toggles if window appears in window command shortcuts.\n"
     $ ClientCommand cmdSetWindow tabSetWindow
