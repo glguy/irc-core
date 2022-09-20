@@ -95,6 +95,7 @@ import           Control.Exception (Exception, displayException, throwIO, try)
 import           Control.Lens
 import           Control.Monad ((>=>))
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as L
 import           Data.ByteString (ByteString)
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -105,11 +106,12 @@ import           Data.Maybe (fromMaybe)
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import           Irc.Identifier (Identifier, mkId)
 import           Network.Socket (HostName, PortNumber)
 import           Numeric (readHex)
 import qualified System.Exit as Exit
-import qualified System.Process as Process
+import qualified System.Process.Typed as Process
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.Text (compile)
 import           Hookup (TlsVerify(..))
@@ -551,8 +553,14 @@ loadSecret :: String -> Secret -> IO Secret
 loadSecret _ (SecretText txt) = pure (SecretText txt)
 loadSecret label (SecretCommand (cmd NonEmpty.:| args)) =
   do let u = Text.unpack
-     res <- try (Process.readProcessWithExitCode (u cmd) (map u args) "")
+     res <- try (Process.readProcess (Process.proc (u cmd) (map u args)))
      case res of
-       Right (Exit.ExitSuccess,out,_) -> pure (SecretText (Text.pack (takeWhile ('\n' /=) out)))
-       Right (Exit.ExitFailure{},_,err) -> throwIO (SecretException label err)
+       Right (Exit.ExitSuccess,out,_) ->
+         case Text.decodeUtf8' (L.toStrict out) of
+             Right str -> pure (SecretText (Text.takeWhile ('\n' /=) str))
+             Left e -> throwIO (SecretException label (displayException e))
+       Right (Exit.ExitFailure{},_,err) ->
+         case Text.decodeUtf8' (L.toStrict err) of
+             Right str -> throwIO (SecretException label (Text.unpack str))
+             Left e -> throwIO (SecretException label (displayException e))
        Left ioe -> throwIO (SecretException label (displayException (ioe::IOError)))

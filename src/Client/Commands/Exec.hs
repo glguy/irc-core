@@ -29,7 +29,10 @@ import           Control.Exception
 import           Control.Lens
 import           Data.List
 import           System.Console.GetOpt
-import           System.Process
+import           System.Process.Typed
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.ByteString.Lazy as L
 
 -- | Settings for @/exec@ command.
 --
@@ -103,13 +106,15 @@ runExecCmd ::
   ExecCmd                       {- ^ exec configuration          -} ->
   IO (Either [String] [String]) {- ^ error lines or output lines -}
 runExecCmd cmd =
-  do res <- try (readProcessWithExitCode
-                   (view execCommand   cmd)
-                   (view execArguments cmd)
-                   (view execStdIn     cmd))
+  do res <- try (readProcessStdout_
+                   (setStdin (byteStringInput (L.fromStrict (Text.encodeUtf8 (Text.pack (view execStdIn cmd)))))
+                   (proc (view execCommand   cmd) (view execArguments cmd))))
      return $! case res of
-       Left er                  -> Left [displayException (er :: IOError)]
-       Right (_code, out, _err) -> Right (lines out)
+       Left er   -> Left [displayException (er :: IOError)]
+       Right out ->
+          case Text.decodeUtf8' (L.toStrict out) of
+             Right str -> Right (lines (Text.unpack str))
+             Left e -> Left [displayException e]
 
 -- | Power words is similar to 'words' except that when it encounters
 -- a word formatted as a Haskell 'String' literal it parses it as

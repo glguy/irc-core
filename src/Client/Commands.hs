@@ -50,7 +50,7 @@ import           Irc.Identifier
 import           Irc.RawIrcMsg
 import           Irc.Message
 import           RtsStats (getStats)
-import           System.Process
+import           System.Process.Typed
 
 import           Client.Commands.Channel (channelCommands)
 import           Client.Commands.Certificate (newCertificateCommand)
@@ -521,7 +521,7 @@ openUrl :: UrlOpener -> String -> ClientState -> IO CommandResult
 openUrl (UrlOpener opener args) url st =
   do let argStr (UrlArgLiteral str) = str
          argStr UrlArgUrl           = url
-     res <- try (callProcess opener (map argStr args))
+     res <- try (runProcess_ (proc opener (map argStr args)))
      case res of
        Left e  -> commandFailureMsg (Text.pack (displayException (e :: IOError))) st
        Right{} -> commandSuccess st

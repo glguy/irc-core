@@ -23,8 +23,9 @@ import           Control.Exception (displayException, try)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           System.Process (readProcess)
+import           System.Process.Typed (readProcessStdout_, proc)
 import           Irc.Commands (AuthenticatePayload(..))
+import qualified Data.ByteString.Lazy as L
 
 
 -- | Identifier for SASL ECDSA challenge response authentication
@@ -53,11 +54,11 @@ computeResponse ::
   Text                    {- ^ challenge string                 -} ->
   IO (Either String Text) {- ^ error message or response string -}
 computeResponse privateKeyFile challenge =
-  do res <- try $ readProcess
-                    "ecdsatool"
-                    ["sign", privateKeyFile, Text.unpack challenge]
-                    "" -- stdin
-     return $! case words <$> res of
-                 Right [resp] -> Right $! Text.pack resp
-                 Right _      -> Left "bad sasl ecdsa response message"
-                 Left e       -> Left (displayException (e :: IOError))
+  do res <- try (readProcessStdout_ (proc "ecdsatool" ["sign", privateKeyFile, Text.unpack challenge]))
+     return $! case res of
+                 Left e -> Left (displayException (e :: IOError))
+                 Right resp ->
+                     case Text.words <$> Text.decodeUtf8' (L.toStrict resp) of
+                         Left e      -> Left (displayException e)
+                         Right [str] -> Right str
+                         Right _     -> Left "bad sasl ecdsa response message"
