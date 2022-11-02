@@ -768,7 +768,7 @@ selectCaps cs offered = (supported `intersect` Map.keys capMap)
       ["multi-prefix", "batch", "znc.in/playback", "znc.in/self-message"
       , "cap-notify", "extended-join", "account-notify", "chghost"
       , "userhost-in-names", "account-tag", "solanum.chat/identify-msg"
-      , "solanum.chat/realhost" ]
+      , "solanum.chat/realhost", "away-notify"]
 
     -- logic for using IRCv3.2 server-time if available and falling back
     -- to ZNC's specific extension otherwise.

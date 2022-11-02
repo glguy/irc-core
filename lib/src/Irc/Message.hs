@@ -74,6 +74,7 @@ data IrcMsg
   | Chghost !Source !Text !Text -- ^ Target, new username and new hostname
   | Wallops  !Source !Text -- ^ Braodcast message: Source, message
   | Invite !Source !Identifier !Identifier -- ^ sender target channel
+  | Away !Source (Maybe Text)
   deriving Show
 
 data Source = Source { srcUser :: {-# UNPACK #-}!UserInfo, srcAcct :: !Text }
@@ -208,6 +209,10 @@ cookIrcMsg msg =
              , [target, channel] <- view msgParams msg ->
       Invite source (mkId target) (mkId channel)
 
+    "AWAY" | Just source <- msgSource msg
+           , message <- view msgParams msg ->
+           Away source (listToMaybe message)
+
     _      -> UnknownMsg msg
 
 -- | Parse a CTCP encoded message:
@@ -223,9 +228,10 @@ parseCtcp txt =
 
 -- | Targets used to direct a message to a window for display
 data MessageTarget
-  = TargetUser   !Identifier -- ^ Metadata update for a user
-  | TargetWindow !Identifier -- ^ Directed message to channel or from user
-  | TargetNetwork            -- ^ Network-level message
+  = TargetUser     !Identifier -- ^ Metadata update for a user
+  | TargetExisting !Identifier -- ^ Directed message to window that already exists
+  | TargetWindow   !Identifier -- ^ Directed message to channel or from user
+  | TargetNetwork              -- ^ Network-level message
   deriving (Show)
 
 -- | Target information for the window that could be appropriate to
@@ -259,6 +265,7 @@ msgTarget me msg =
     Account user _           -> TargetUser (userNick (srcUser user))
     Chghost user _ _         -> TargetUser (userNick (srcUser user))
     Wallops _ _              -> TargetNetwork
+    Away user _              -> TargetExisting (userNick (srcUser user))
   where
     directed src tgt
       | Text.null (userHost src) = TargetNetwork -- server message
@@ -267,7 +274,9 @@ msgTarget me msg =
 
     replyTarget RPL_TOPIC    (_:chan:_)   = TargetWindow (mkId chan)
     replyTarget RPL_INVITING (_:_:chan:_) = TargetWindow (mkId chan)
-    replyTarget _                _        = TargetNetwork
+    replyTarget RPL_NOWAWAY  (who:_)      = TargetUser (mkId who)
+    replyTarget RPL_UNAWAY   (who:_)      = TargetUser (mkId who)
+    replyTarget _             _           = TargetNetwork
 
 -- | 'UserInfo' of the user responsible for a message.
 msgActor :: IrcMsg -> Maybe Source
@@ -298,6 +307,7 @@ msgActor msg =
     BatchEnd{}    -> Nothing
     Chghost x _ _ -> Just x
     Wallops x _   -> Just x
+    Away x _      -> Just x
 
 renderSource :: Source -> Text
 renderSource (Source u "") = renderUserInfo u
@@ -333,6 +343,8 @@ ircMsgText msg =
     Invite _ _ _   -> ""
     Chghost x a b  -> Text.unwords [renderSource x, a, b]
     Wallops x t    -> Text.unwords [renderSource x, t]
+    Away x (Just t) -> Text.unwords [renderSource x, "away", t]
+    Away x Nothing  -> Text.unwords [renderSource x, "back"]
 
 capCmdText :: CapCmd -> Text
 capCmdText cmd =

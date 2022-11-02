@@ -37,6 +37,7 @@ module Client.Message
   ) where
 
 import           Control.Lens
+import           Data.Maybe (isJust)
 import           Data.Text (Text)
 import           Data.Time (ZonedTime)
 import           Irc.Message
@@ -74,6 +75,7 @@ data IrcSummary
   | CtcpSummary {-# UNPACK #-} !Identifier
   | ChngSummary {-# UNPACK #-} !Identifier -- ^ Chghost command
   | AcctSummary {-# UNPACK #-} !Identifier -- ^ Account command
+  | AwaySummary {-# UNPACK #-} !Identifier !Bool
   | NoSummary
   deriving (Eq, Show)
 
@@ -103,9 +105,12 @@ ircSummary msg =
     Ctcp who _ "ACTION" _ -> ChatSummary (srcUser who)
     Ctcp who _ _ _ -> CtcpSummary (userNick (srcUser who))
     CtcpNotice who _ _ _ -> ChatSummary (srcUser who)
+    Reply _ RPL_NOWAWAY (who:_) -> AwaySummary (mkId who) True
+    Reply _ RPL_UNAWAY  (who:_) -> AwaySummary (mkId who) False
     Reply _ code _  -> ReplySummary code
     Account who _   -> AcctSummary (userNick (srcUser who))
     Chghost who _ _ -> ChngSummary (userNick (srcUser who))
+    Away who mb     -> AwaySummary (userNick (srcUser who)) (isJust mb)
     _               -> NoSummary
 
 quitKind :: Maybe Text -> QuitKind
@@ -125,6 +130,6 @@ summaryActor s =
     CtcpSummary who   -> Just who
     AcctSummary who   -> Just who
     ChngSummary who   -> Just who
+    AwaySummary who _ -> Just who
     ReplySummary {}   -> Nothing
     NoSummary         -> Nothing
-

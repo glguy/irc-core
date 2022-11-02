@@ -323,6 +323,7 @@ recordSuccess now ste m =
     , _msgNetwork = ""
     } ste
 
+
 -- | Add a message to the window associated with a given channel
 recordChannelMessage ::
   Text       {- ^ network -} ->
@@ -330,9 +331,18 @@ recordChannelMessage ::
   ClientMessage ->
   ClientState ->
   ClientState
-recordChannelMessage network channel msg st
+recordChannelMessage = recordChannelMessage' True
+
+recordChannelMessage' ::
+  Bool       {- ^ create  -} ->
+  Text       {- ^ network -} ->
+  Identifier {- ^ channel -} ->
+  ClientMessage ->
+  ClientState ->
+  ClientState
+recordChannelMessage' create network channel msg st
   = recordLogLine msg statusModes channel'
-  $ recordWindowLine focus wl st
+  $ recordWindowLine' create focus wl st
   where
     focus      = ChannelFocus network channel'
     wl         = toWindowLine rendParams importance msg
@@ -421,6 +431,9 @@ msgImportance msg st =
                           | otherwise   -> WLNormal
         Error{} -> WLImportant
 
+        -- away notices
+        Reply _ RPL_AWAY _     -> WLBoring
+
         -- channel information
         Reply _ RPL_TOPIC _    -> WLBoring
         Reply _ RPL_INVITING _ -> WLBoring
@@ -469,9 +482,10 @@ recordIrcMessage ::
 recordIrcMessage network target msg st =
   updateTransientError (NetworkFocus network) msg $
   case target of
-    TargetNetwork     -> recordNetworkMessage msg st
-    TargetWindow chan -> recordChannelMessage network chan msg st
-    TargetUser user   ->
+    TargetNetwork      -> recordNetworkMessage msg st
+    TargetExisting win -> recordChannelMessage' False network win  msg st
+    TargetWindow chan  -> recordChannelMessage' True  network chan msg st
+    TargetUser user    ->
       foldl' (\st' chan -> overStrict
                              (clientWindows . ix (ChannelFocus network chan))
                              (addToWindow wl) st')
@@ -585,7 +599,15 @@ recordWindowLine ::
   WindowLine ->
   ClientState ->
   ClientState
-recordWindowLine focus wl st = st2
+recordWindowLine = recordWindowLine' True
+
+recordWindowLine' ::
+  Bool ->
+  Focus ->
+  WindowLine ->
+  ClientState ->
+  ClientState
+recordWindowLine' create focus wl st = st2
   where
     hints = clientWindowHint focus st
 
@@ -596,9 +618,10 @@ recordWindowLine focus wl st = st2
       , _winSilent   = fromMaybe False (windowHintSilent =<< hints)
       }
 
-    st1 = over (clientWindows . at focus)
-               (\w -> Just $! addToWindow wl (fromMaybe freshWindow w))
-               st
+    add True  w = Just $! addToWindow wl (fromMaybe freshWindow w)
+    add False w = addToWindow wl <$> w
+
+    st1 = over (clientWindows . at focus) (add create) st
 
     st2
       | not (view clientBell st)

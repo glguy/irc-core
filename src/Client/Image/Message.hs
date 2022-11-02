@@ -239,6 +239,7 @@ ircLinePrefix !rp body =
     Ping       {} -> mempty
     Pong       {} -> mempty
     Nick       {} -> mempty
+    Away       {} -> mempty
 
     -- details in message part
     Topic src _ _  -> who src
@@ -301,6 +302,7 @@ ircLineImage !rp body =
     BatchEnd    {} -> mempty
     Nick        {} -> mempty
     Authenticate{} -> "***"
+    Away        {} -> mempty
 
     Error                   txt -> parseIrcText pal txt
     Topic _ _ txt ->
@@ -516,6 +518,15 @@ fullIrcLineImage !rp body =
       string quietAttr "chng " <>
       who user <> ": " <>
       ctxt newuser <> " " <> ctxt newhost
+
+    Away user (Just txt) ->
+      string quietAttr "away " <>
+      who user <> ": " <>
+      parseIrcTextWithNicks pal hilites False txt
+
+    Away user Nothing ->
+      string quietAttr "back " <>
+      who user
 
 
 renderCapCmd :: CapCmd -> Text
@@ -1185,14 +1196,16 @@ highlightNicks palette hilites txt = foldMap highlight1 txtParts
 metadataImg :: IrcSummary -> Maybe (Image', Identifier, Maybe Identifier)
 metadataImg msg =
   case msg of
-    QuitSummary who _   -> Just (char (withForeColor defAttr red   ) 'x', who, Nothing)
-    PartSummary who     -> Just (char (withForeColor defAttr red   ) '-', who, Nothing)
-    JoinSummary who     -> Just (char (withForeColor defAttr green ) '+', who, Nothing)
-    CtcpSummary who     -> Just (char (withForeColor defAttr white ) 'C', who, Nothing)
-    NickSummary old new -> Just (char (withForeColor defAttr yellow) '>', old, Just new)
-    ChngSummary who     -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
-    AcctSummary who     -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
-    _                   -> Nothing
+    QuitSummary who _     -> Just (char (withForeColor defAttr red   ) 'x', who, Nothing)
+    PartSummary who       -> Just (char (withForeColor defAttr red   ) '-', who, Nothing)
+    JoinSummary who       -> Just (char (withForeColor defAttr green ) '+', who, Nothing)
+    CtcpSummary who       -> Just (char (withForeColor defAttr white ) 'C', who, Nothing)
+    NickSummary old new   -> Just (char (withForeColor defAttr yellow) '>', old, Just new)
+    ChngSummary who       -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
+    AcctSummary who       -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
+    AwaySummary who True  -> Just (char (withForeColor defAttr yellow) 'a', who, Nothing)
+    AwaySummary who False -> Just (char (withForeColor defAttr green ) 'b', who, Nothing)
+    _                     -> Nothing
 
 
 
