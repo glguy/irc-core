@@ -142,7 +142,7 @@ nick-padding:
    side: left -- try right if you don't like left padding
    width: 13
 
-url-opener: "open" -- This works on macOS, "gnome-open" for GNOME
+url-opener: "open" -- This works on macOS, "xdg-open" for most Linuxes
 
 key-bindings:
   * bind: "C-M-b"
@@ -178,7 +178,7 @@ Configuration sections:
 | `indent-wrapped-lines` | nonnegative integer | How far to indent lines when they are wrapped                                              |
 | `extra-highlights`     | list of text        | Extra words/nicks to highlight                                                             |
 | `extensions`           | list of text        | Filenames of extension to load                                                             |
-| `url-opener`           | text                | Command to execute with URL parameter for `/url` e.g. gnome-open on GNOME or open on macOS |
+| `url-opener`           | text                | Command to execute with URL parameter for `/url` e.g. xdg-open on most Linuxes or open on macOS |
 | `ignores`              | list of text        | Initial list of nicknames to ignore                                                        |
 | `activity-bar`         | yes or no           | Initial setting for visibility of activity bar (default no)                                |
 | `bell-on-mention`      | yes or no           | Sound terminal bell on transition from not mentioned to mentioned (default no)             |
