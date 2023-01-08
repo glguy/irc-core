@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                hookup
-version:             0.7
+version:             0.8
 synopsis:            Abstraction over creating network connections with SOCKS5 and TLS
 description:         This package provides an abstraction for communicating with line-oriented
                      network services while abstracting over the use of SOCKS5 and TLS (via OpenSSL)

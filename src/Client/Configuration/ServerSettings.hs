@@ -39,6 +39,8 @@ module Client.Configuration.ServerSettings
   , ssConnectCmds
   , ssSocksHost
   , ssSocksPort
+  , ssSocksUsername
+  , ssSocksPassword
   , ssChanservChannels
   , ssFloodPenalty
   , ssFloodThreshold
@@ -139,6 +141,8 @@ data ServerSettings = ServerSettings
   , _ssConnectCmds      :: ![[ExpansionChunk]] -- ^ commands to execute upon successful connection
   , _ssSocksHost        :: !(Maybe HostName) -- ^ hostname of SOCKS proxy
   , _ssSocksPort        :: !PortNumber -- ^ port of SOCKS proxy
+  , _ssSocksUsername    :: !(Maybe Text)
+  , _ssSocksPassword    :: !(Maybe Text)
   , _ssChanservChannels :: ![Identifier] -- ^ Channels with chanserv permissions
   , _ssFloodPenalty     :: !Rational -- ^ Flood limiter penalty (seconds)
   , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
@@ -234,6 +238,8 @@ defaultServerSettings =
        , _ssConnectCmds   = []
        , _ssSocksHost     = Nothing
        , _ssSocksPort     = 1080
+       , _ssSocksUsername = Nothing
+       , _ssSocksPassword = Nothing
        , _ssChanservChannels = []
        , _ssFloodPenalty     = 2 -- RFC 1459 defaults
        , _ssFloodThreshold   = 10
@@ -324,6 +330,12 @@ serverSpec = sectionsSpec "server-settings" $
 
       , req "socks-port" ssSocksPort numSpec
         "Port number of SOCKS5 proxy server"
+
+      , opt "socks-username" ssSocksUsername textSpec
+        "Username of SOCKS5 proxy server"
+
+      , opt "socks-password" ssSocksPassword textSpec
+        "Password of SOCKS5 proxy server"
 
       , req "connect-cmds" ssConnectCmds (listSpec macroCommandSpec)
         "Command to be run upon successful connection to server"

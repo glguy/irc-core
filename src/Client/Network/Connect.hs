@@ -45,7 +45,14 @@ tlsParams ss = TlsParams
 proxyParams :: ServerSettings -> Maybe SocksParams
 proxyParams ss =
   view ssSocksHost ss <&> \host ->
-  SocksParams host (view ssSocksPort ss)
+  SocksParams {
+    spHost = host,
+    spPort = view ssSocksPort ss,
+    spAuth =
+      case (view ssSocksUsername ss, view ssSocksPassword ss) of
+        (Just u, Just p) -> UsernamePasswordSocksAuthentication (Text.encodeUtf8 u) (Text.encodeUtf8 p)
+        _ -> NoSocksAuthentication
+  }
 
 buildConnectionParams :: ServerSettings -> ConnectionParams
 buildConnectionParams ss = ConnectionParams

@@ -1,5 +1,9 @@
 # Revision history for hookup
 
+## 0.8
+
+* Add support for plaintext socks5 authentication
+
 ## 0.7
 
 * Add ability to specify TLS 1.3 cipher suites

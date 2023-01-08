@@ -42,6 +42,16 @@ module Hookup.Socks5
       , AuthUsernamePassword
       , AuthNoAcceptableMethods )
 
+  -- * Plaintext authentication request message
+  , PlainAuthentication(..)
+  , buildPlainAuthentication
+  , parsePlainAuthentication
+
+  -- * Plaintext authentication reply message
+  , PlainAuthenticationReply(..)
+  , buildPlainAuthenticationReply
+  , parsePlainAuthenticationReply
+
   -- * Commands
   , Command
       ( Connect
@@ -132,6 +142,20 @@ data Host
   | DomainName ByteString -- ^ Domain name (maximum length 255)
   deriving Show
 
+-- RFC 1929 Username/Password
+
+-- | Plaintext username and password request
+data PlainAuthentication = PlainAuthentication
+  { plainUsername :: ByteString -- ^ username
+  , plainPassword :: ByteString -- ^ password
+  }
+  deriving Show
+
+-- | Plaintext username and password response
+newtype PlainAuthenticationReply = PlainAuthenticationReply
+  { plainStatus :: Word8 -- ^ @0@ for success, failure otherwise
+  }
+  deriving Show
 
 -- | Initial SOCKS sent by client with proposed list of authentication methods.
 newtype ClientHello = ClientHello
@@ -213,7 +237,7 @@ buildHostAddress hostAddr =
 parseHostAddress :: Parser HostAddress
 parseHostAddress =
   do [a1,a2,a3,a4] <- replicateM 4 Parser.anyWord8
-     return $! tupleToHostAddress (a1,a2,a3,a4)
+     pure $! tupleToHostAddress (a1,a2,a3,a4)
 
 ------------------------------------------------------------------------
 
@@ -226,7 +250,7 @@ buildHostAddress6 hostAddr =
 parseHostAddress6 :: Parser HostAddress6
 parseHostAddress6 =
   do [a1,a2,a3,a4,a5,a6,a7,a8] <- replicateM 8 parseWord16BE
-     return $! tupleToHostAddress6 (a1,a2,a3,a4,a5,a6,a7,a8)
+     pure $! tupleToHostAddress6 (a1,a2,a3,a4,a5,a6,a7,a8)
 
 ------------------------------------------------------------------------
 
@@ -364,9 +388,47 @@ parseResponse =
 
 ------------------------------------------------------------------------
 
+buildPlainAuthentication :: PlainAuthentication -> ByteString
+buildPlainAuthentication msg =
+  runBuilder $
+  Builder.word8 1 <> -- subnegotiation version
+  buildBS (plainUsername msg) <>
+  buildBS (plainPassword msg)
+  where
+    buildBS x =
+      Builder.word8 (fromIntegral (B.length x)) <>
+      Builder.byteString x
+
+parsePlainAuthentication :: Parser PlainAuthentication
+parsePlainAuthentication =
+  PlainAuthentication
+    <$  Parser.word8 1 -- subnegotiation version
+    <*> parseBS
+    <*> parseBS
+  where
+    parseBS =
+     do len <- Parser.anyWord8
+        Parser.take (fromIntegral len)
+
+------------------------------------------------------------------------
+
+buildPlainAuthenticationReply :: PlainAuthenticationReply -> ByteString
+buildPlainAuthenticationReply msg =
+  runBuilder $
+  Builder.word8 1 <> -- subnegotiation version
+  Builder.word8 (plainStatus msg)
+
+parsePlainAuthenticationReply :: Parser PlainAuthenticationReply
+parsePlainAuthenticationReply =
+  PlainAuthenticationReply
+    <$  Parser.word8 1 -- subnegotiation version
+    <*> Parser.anyWord8
+
+------------------------------------------------------------------------
+
 -- | Match a 16-bit, big-endian word.
 parseWord16BE :: Parser Word16
 parseWord16BE =
   do hi <- Parser.anyWord8
      lo <- Parser.anyWord8
-     return $! fromIntegral hi * 0x100 + fromIntegral lo
+     pure $! fromIntegral hi * 0x100 + fromIntegral lo

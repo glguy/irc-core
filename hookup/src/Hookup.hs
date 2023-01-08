@@ -1,4 +1,4 @@
-{-# Language BlockArguments #-}
+{-# Language BlockArguments, LambdaCase #-}
 {-|
 Module      : Hookup
 Description : Network connections generalized over TLS and SOCKS
@@ -42,11 +42,11 @@ module Hookup
   -- * Configuration
   ConnectionParams(..),
   SocksParams(..),
+  SocksAuthentication(..),
   TlsParams(..),
   TlsVerify(..),
   PEM.PemPasswordSupply(..),
   defaultTlsParams,
-
 
   -- * Errors
   ConnectionFailure(..),
@@ -63,16 +63,14 @@ module Hookup
   , getPeerPubkeyFingerprintSha512
   ) where
 
-import           Control.Concurrent.Async
-import           Control.Concurrent.STM
 import           Control.Concurrent
 import           Control.Exception
-import           Control.Monad
+import           Control.Monad (when, unless)
 import           System.IO.Error (isDoesNotExistError, ioeGetErrorString)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B8
-import           Data.Foldable
+import           Data.Foldable (for_, traverse_)
 import           Data.List (intercalate, partition)
 import           Data.Maybe (fromMaybe, mapMaybe)
 import           Foreign.C.String (withCStringLen)
@@ -83,7 +81,7 @@ import qualified Network.Socket.ByteString as SocketB
 import           OpenSSL.Session (SSL, SSLContext)
 import qualified OpenSSL as SSL
 import qualified OpenSSL.Session as SSL
-import           OpenSSL.X509.SystemStore
+import           OpenSSL.X509.SystemStore (contextLoadSystemCerts)
 import           OpenSSL.X509 (X509)
 import qualified OpenSSL.X509 as X509
 import qualified OpenSSL.PEM as PEM
@@ -114,12 +112,20 @@ data ConnectionParams = ConnectionParams
   , cpTls   :: Maybe TlsParams   -- ^ Optional TLS parameters
   , cpBind  :: Maybe HostName    -- ^ Source address to bind
   }
+  deriving Show
 
 -- | SOCKS connection parameters
 data SocksParams = SocksParams
   { spHost :: HostName   -- ^ SOCKS server host
   , spPort :: PortNumber -- ^ SOCKS server port
+  , spAuth :: SocksAuthentication -- ^ SOCKS authentication method
   }
+  deriving Show
+
+data SocksAuthentication
+  = NoSocksAuthentication -- ^ no credentials
+  | UsernamePasswordSocksAuthentication ByteString ByteString -- ^ RFC 1929 username and password
+  deriving Show
 
 -- | TLS connection parameters. These parameters are passed to
 -- OpenSSL when making a secure connection.
@@ -132,6 +138,7 @@ data TlsParams = TlsParams
   , tpCipherSuiteTls13   :: Maybe String -- ^ OpenSSL cipher suites for TLS 1.3
   , tpVerify             :: TlsVerify -- ^ Hostname to use when checking certificate validity
   }
+  deriving Show
 
 data TlsVerify
   = VerifyDefault -- ^ Use the connection hostname to verify
@@ -152,7 +159,11 @@ data ConnectionFailure
   -- | Socks command rejected by server by given reply code
   | SocksError CommandReply
   -- | Socks authentication method was not accepted
-  | SocksAuthenticationError
+  | SocksAuthenticationMethodRejected
+  -- | Socks authentication method was not accepted
+  | SocksAuthenticationCredentialsRejected
+  -- | Username or password were too long
+  | SocksBadAuthenticationCredentials
   -- | Socks server sent an invalid message or no message.
   | SocksProtocolError
   -- | Domain name was too long for SOCKS protocol
@@ -168,8 +179,12 @@ instance Exception ConnectionFailure where
       intercalate ", " (map displayException xs)
   displayException (HostnameResolutionFailure h s) =
     "hostname resolution failed (" ++ h ++ "): "  ++ s
-  displayException SocksAuthenticationError =
+  displayException SocksAuthenticationMethodRejected =
     "SOCKS authentication method rejected"
+  displayException SocksAuthenticationCredentialsRejected =
+    "SOCKS authentication credentials rejected"
+  displayException SocksBadAuthenticationCredentials =
+    "SOCKS authentication credentials too long"
   displayException SocksProtocolError =
     "SOCKS server protocol error"
   displayException SocksBadDomainName =
@@ -218,10 +233,11 @@ openSocket params =
   case cpSocks params of
     Nothing -> openSocket' (cpHost params) (cpPort params) (cpBind params)
     Just sp ->
-      do sock <- openSocket' (spHost sp) (spPort sp) (cpBind params)
-         (sock <$ socksConnect sock (cpHost params) (cpPort params))
-           `onException` Socket.close sock
-
+      bracketOnError
+        (openSocket' (spHost sp) (spPort sp) (cpBind params))
+        Socket.close
+        \sock ->
+          sock <$ socksConnect sock (cpHost params) (cpPort params) (spAuth sp)
 
 netParse :: Show a => Socket -> Parser a -> IO a
 netParse sock parser =
@@ -233,41 +249,51 @@ netParse sock parser =
                  parser
                  B.empty
      case result of
-       Parser.Done i x | B.null i -> return x
+       Parser.Done i x | B.null i -> pure x
        _ -> throwIO SocksProtocolError
 
+socksConnect :: Socket -> HostName -> PortNumber -> SocksAuthentication -> IO ()
+socksConnect sock host port auth =
+ do case auth of
+      NoSocksAuthentication ->
+       do SocketB.sendAll sock $
+            buildClientHello ClientHello
+              { cHelloMethods = [AuthNoAuthenticationRequired] }
+          hello <- netParse sock parseServerHello
+          unless (sHelloMethod hello == AuthNoAuthenticationRequired)
+            (throwIO SocksAuthenticationMethodRejected)
 
-socksConnect :: Socket -> HostName -> PortNumber -> IO ()
-socksConnect sock host port =
-  do SocketB.sendAll sock $
-       buildClientHello ClientHello
-         { cHelloMethods = [AuthNoAuthenticationRequired] }
+      UsernamePasswordSocksAuthentication u p ->
+       do unless (B.length u < 256 && B.length p < 256)
+            (throwIO SocksBadAuthenticationCredentials)
 
-     validateHello =<< netParse sock parseServerHello
+          SocketB.sendAll sock $
+            buildClientHello ClientHello
+              { cHelloMethods = [AuthUsernamePassword] }
+          hello <- netParse sock parseServerHello
+          unless (sHelloMethod hello == AuthUsernamePassword)
+            (throwIO SocksAuthenticationMethodRejected)
 
-     let dnBytes = B8.pack host
-     unless (B.length dnBytes < 256)
-       (throwIO SocksBadDomainName)
+          SocketB.sendAll sock $
+            buildPlainAuthentication PlainAuthentication
+              { plainUsername = u, plainPassword = p }
+          status <- netParse sock parsePlainAuthenticationReply
+          unless (0 == plainStatus status)
+            (throwIO SocksAuthenticationCredentialsRejected)
 
-     SocketB.sendAll sock $
-       buildRequest Request
-         { reqCommand  = Connect
-         , reqAddress  = Address (DomainName dnBytes) port
-         }
+    let dnBytes = B8.pack host
+    unless (B.length dnBytes < 256)
+      (throwIO SocksBadDomainName)
 
-     validateResponse =<< netParse sock parseResponse
+    SocketB.sendAll sock $
+      buildRequest Request
+        { reqCommand  = Connect
+        , reqAddress  = Address (DomainName dnBytes) port
+        }
 
-
-validateHello :: ServerHello -> IO ()
-validateHello hello =
-  unless (sHelloMethod hello == AuthNoAuthenticationRequired)
-    (throwIO SocksAuthenticationError)
-
-validateResponse :: Response -> IO ()
-validateResponse response =
-  unless (rspReply response == Succeeded )
-    (throwIO (SocksError (rspReply response)))
-
+    response <- netParse sock parseResponse
+    unless (rspReply response == Succeeded )
+      (throwIO (SocksError (rspReply response)))
 
 openSocket' ::
   HostName       {- ^ destination      -} ->
@@ -295,7 +321,7 @@ resolve :: Maybe PortNumber -> HostName -> IO [AddrInfo]
 resolve mbPort host =
   do res <- try (Socket.getAddrInfo (Just hints) (Just host) (show<$>mbPort))
      case res of
-       Right ais -> return ais
+       Right ais -> pure ais
        Left ioe
          | isDoesNotExistError ioe ->
              throwIO (HostnameResolutionFailure host (ioeGetErrorString ioe))
@@ -334,7 +360,7 @@ interleaveAddressFamilies xs = interleave sixes others
 connectToAddrInfo :: Maybe SockAddr -> AddrInfo -> IO Socket
 connectToAddrInfo mbSrc info
   = let addr = Socket.addrAddress info in
-    bracketOnError (socket' info) Socket.close $ \s ->
+    bracketOnError (socket' info) Socket.close \s ->
     do traverse_ (bind' s) mbSrc
        Socket.connect s addr
        pure s
@@ -365,7 +391,6 @@ socket' ai =
 
 data NetworkHandle = SSL (Maybe X509) SSL | Socket Socket
 
-
 openNetworkHandle ::
   ConnectionParams {- ^ parameters             -} ->
   IO Socket        {- ^ socket creation action -} ->
@@ -376,7 +401,6 @@ openNetworkHandle params mkSocket =
     Just tls ->
         do (clientCert, ssl) <- startTls tls (cpHost params) mkSocket
            pure (SSL clientCert ssl)
-
 
 closeNetworkHandle :: NetworkHandle -> IO ()
 closeNetworkHandle (Socket s) = Socket.close s
@@ -391,7 +415,6 @@ networkSend (SSL  _ s) = SSL.write       s
 networkRecv :: NetworkHandle -> Int -> IO ByteString
 networkRecv (Socket s) = SocketB.recv s
 networkRecv (SSL  _ s) = SSL.read     s
-
 
 ------------------------------------------------------------------------
 -- Sockets with a receive buffer
@@ -416,8 +439,8 @@ connect ::
   ConnectionParams {- ^ parameters      -} ->
   IO Connection    {- ^ open connection -}
 connect params =
-  do h <- openNetworkHandle params (openSocket params)
-     Connection <$> newMVar B.empty <*> newMVar h
+ do h <- openNetworkHandle params (openSocket params)
+    Connection <$> newMVar B.empty <*> newMVar h
 
 -- | Create a new 'Connection' using an already connected socket.
 -- This will attempt to start TLS if configured but will ignore
@@ -430,14 +453,14 @@ connectWithSocket ::
   Socket           {- ^ connected socket -} ->
   IO Connection    {- ^ open connection  -}
 connectWithSocket params sock =
-  do h <- openNetworkHandle params (return sock)
-     Connection <$> newMVar B.empty <*> newMVar h
+ do h <- openNetworkHandle params (pure sock)
+    Connection <$> newMVar B.empty <*> newMVar h
 
 -- | Close network connection.
 close ::
   Connection {- ^ open connection -} ->
   IO ()
-close (Connection _ m) = withMVar m $ \h -> closeNetworkHandle h
+close (Connection _ m) = withMVar m \h -> closeNetworkHandle h
 
 -- | Receive the next chunk from the stream. This operation will first
 -- return the buffer if it contains a non-empty chunk. Otherwise it will
@@ -449,12 +472,13 @@ recv ::
   Int           {- ^ maximum underlying recv size -} ->
   IO ByteString {- ^ next chunk from stream       -}
 recv (Connection bufVar hVar) n =
-  modifyMVar bufVar $ \bufChunk ->
-  do if B.null bufChunk
-       then do h <- readMVar hVar
-               bs <- networkRecv h n
-               return (B.empty, bs)
-       else return (B.empty, bufChunk)
+  modifyMVar bufVar \bufChunk ->
+  if B.null bufChunk then
+   do h <- readMVar hVar
+      bs <- networkRecv h n
+      pure (B.empty, bs)
+  else
+      pure (B.empty, bufChunk)
 
 -- | Receive a line from the network connection. Both
 -- @"\\r\\n"@ and @"\\n"@ are recognized.
@@ -472,27 +496,26 @@ recvLine ::
   Int                   {- ^ maximum line length        -} ->
   IO (Maybe ByteString) {- ^ next line or end-of-stream -}
 recvLine (Connection bufVar hVar) n =
-  modifyMVar bufVar $ \bs ->
-    do h <- readMVar hVar
-       go h (B.length bs) bs []
+  modifyMVar bufVar \bs ->
+   do h <- readMVar hVar
+      go h (B.length bs) bs []
   where
     -- bsn: cached length of concatenation of (bs:bss)
     -- bs : most recent chunk
     -- bss: other chunks ordered from most to least recent
     go h bsn bs bss =
       case B8.elemIndex '\n' bs of
-        Just i -> return (B.tail b, -- tail drops newline
-                          Just (cleanEnd (B.concat (reverse (a:bss)))))
+        Just i -> pure (B.tail b, -- tail drops newline
+                        Just (cleanEnd (B.concat (reverse (a:bss)))))
           where
             (a,b) = B.splitAt i bs
         Nothing ->
           do when (bsn >= n) (throwIO LineTooLong)
              more <- networkRecv h n
              if B.null more -- connection closed
-               then if bsn == 0 then return (B.empty, Nothing)
+               then if bsn == 0 then pure (B.empty, Nothing)
                                 else throwIO LineTruncated
                else go h (bsn + B.length more) more (bs:bss)
-
 
 -- | Push a 'ByteString' onto the buffer so that it will be the first
 -- bytes to be read on the next receive operation. This could perhaps
@@ -503,15 +526,13 @@ putBuf ::
   ByteString {- ^ new head of buffer -} ->
   IO ()
 putBuf (Connection bufVar _) bs =
-  modifyMVar_ bufVar (\old -> return $! B.append bs old)
-
+  modifyMVar_ bufVar (\old -> pure $! B.append bs old)
 
 -- | Remove the trailing @'\\r'@ if one is found.
 cleanEnd :: ByteString -> ByteString
 cleanEnd bs
   | B.null bs || B8.last bs /= '\r' = bs
   | otherwise                       = B.init bs
-
 
 -- | Send bytes on the network connection. This ensures the whole chunk is
 -- transmitted, which might take multiple underlying sends.
@@ -525,23 +546,21 @@ send (Connection _ hVar) bs =
   do h <- readMVar hVar
      networkSend h bs
 
-
 upgradeTls ::
   TlsParams {- ^ connection params -} ->
   String {- ^ hostname -} ->
   Connection ->
   IO ()
 upgradeTls tp hostname (Connection bufVar hVar) =
-  modifyMVar_ bufVar $ \buf ->
-  modifyMVar  hVar   $ \h ->
+  modifyMVar_ bufVar \buf ->
+  modifyMVar  hVar   \h ->
   case h of
-    SSL{} -> return (h, buf)
+    SSL{} -> pure (h, buf)
     Socket s ->
       do (cert, ssl) <- startTls tp hostname (pure s)
-         return (SSL cert ssl, B.empty)
+         pure (SSL cert ssl, B.empty)
 
 ------------------------------------------------------------------------
-
 
 -- | Initiate a TLS session on the given socket destined for
 -- the given hostname. When successful an active TLS connection
@@ -554,43 +573,44 @@ startTls ::
   IO Socket {- ^ socket creation action -} ->
   IO (Maybe X509, SSL) {- ^ (client certificate, connected TLS) -}
 startTls tp hostname mkSocket = SSL.withOpenSSL $
-  do ctx <- SSL.context
+ do ctx <- SSL.context
 
-     -- configure context
-     SSL.contextSetCiphers          ctx (tpCipherSuite tp)
-     traverse_ (contextSetTls13Ciphers ctx) (tpCipherSuiteTls13 tp)
-     case tpVerify tp of
-       VerifyDefault ->
-         do installVerification ctx hostname
-            SSL.contextSetVerificationMode ctx verifyPeer
-       VerifyHostname h ->
-         do installVerification ctx h
-            SSL.contextSetVerificationMode ctx verifyPeer
-       VerifyNone    -> pure ()
-     SSL.contextAddOption           ctx SSL.SSL_OP_ALL
-     SSL.contextRemoveOption        ctx SSL.SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
+    -- configure context
+    SSL.contextSetCiphers          ctx (tpCipherSuite tp)
+    traverse_ (contextSetTls13Ciphers ctx) (tpCipherSuiteTls13 tp)
+    
+    case tpVerify tp of
+      VerifyNone -> pure ()
+      VerifyDefault ->
+       do installVerification ctx hostname
+          SSL.contextSetVerificationMode ctx verifyPeer
+      VerifyHostname h ->
+       do installVerification ctx h
+          SSL.contextSetVerificationMode ctx verifyPeer
+    
+    SSL.contextAddOption           ctx SSL.SSL_OP_ALL
+    SSL.contextRemoveOption        ctx SSL.SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
 
+    -- configure certificates
+    setupCaCertificates ctx (tpServerCertificate tp)
+    clientCert <- traverse (setupCertificate ctx) (tpClientCertificate tp)
 
-     -- configure certificates
-     setupCaCertificates ctx (tpServerCertificate tp)
-     clientCert <- traverse (setupCertificate ctx) (tpClientCertificate tp)
+    for_ (tpClientPrivateKey tp) \path ->
+      withDefaultPassword ctx (tpClientPrivateKeyPassword tp) $
+        SSL.contextSetPrivateKeyFile ctx path
 
-     for_ (tpClientPrivateKey tp) $ \path ->
-       withDefaultPassword ctx (tpClientPrivateKeyPassword tp) $
-         SSL.contextSetPrivateKeyFile ctx path
+    -- add socket to context
+    -- creation of the socket is delayed until this point to avoid
+    -- leaking the file descriptor in the cases of exceptions above.
+    ssl <- SSL.connection ctx =<< mkSocket
 
-     -- add socket to context
-     -- creation of the socket is delayed until this point to avoid
-     -- leaking the file descriptor in the cases of exceptions above.
-     ssl <- SSL.connection ctx =<< mkSocket
+    -- configure hostname used for SNI
+    isip <- isIpAddress hostname
+    unless isip (SSL.setTlsextHostName ssl hostname)
 
-     -- configure hostname used for SNI
-     isip <- isIpAddress hostname
-     unless isip (SSL.setTlsextHostName ssl hostname)
+    SSL.connect ssl
 
-     SSL.connect ssl
-
-     return (clientCert, ssl)
+    pure (clientCert, ssl)
 
 isIpAddress :: HostName -> IO Bool
 isIpAddress host =
@@ -606,7 +626,6 @@ setupCaCertificates ctx mbPath =
   case mbPath of
     Nothing   -> contextLoadSystemCerts ctx
     Just path -> withDefaultPassword ctx Nothing (SSL.contextSetCAFile ctx path)
-
 
 setupCertificate :: SSLContext -> FilePath -> IO X509
 setupCertificate ctx path =
@@ -624,18 +643,17 @@ verifyPeer = SSL.VerifyPeer
 -- | Get peer certificate if one exists.
 getPeerCertificate :: Connection -> IO (Maybe X509.X509)
 getPeerCertificate (Connection _ hVar) =
-  withMVar hVar $ \h ->
-  case h of
-    Socket{} -> return Nothing
+  withMVar hVar \case
+    Socket{} -> pure Nothing
     SSL _ ssl -> SSL.getPeerCertificate ssl
 
 -- | Get peer certificate if one exists.
 getClientCertificate :: Connection -> IO (Maybe X509.X509)
 getClientCertificate (Connection _ hVar) =
-  do h <- readMVar hVar
-     return $ case h of
-                Socket{} -> Nothing
-                SSL c _  -> c
+ do h <- readMVar hVar
+    pure case h of
+      Socket{} -> Nothing
+      SSL c _  -> c
 
 getPeerCertFingerprintSha1 :: Connection -> IO (Maybe ByteString)
 getPeerCertFingerprintSha1 = getPeerCertFingerprint "sha1"
@@ -650,13 +668,13 @@ getPeerCertFingerprint :: String -> Connection -> IO (Maybe ByteString)
 getPeerCertFingerprint name h =
    do mb <- getPeerCertificate h
       case mb of
-        Nothing -> return Nothing
+        Nothing -> pure Nothing
         Just x509 ->
-          do der <- X509.writeDerX509 x509
-             mbdigest <- Digest.getDigestByName name
-             case mbdigest of
-               Nothing -> return Nothing
-               Just digest -> return $! Just $! Digest.digestLBS digest der
+         do der <- X509.writeDerX509 x509
+            mbdigest <- Digest.getDigestByName name
+            pure $! case mbdigest of
+              Nothing -> Nothing
+              Just digest -> Just $! Digest.digestLBS digest der
 
 getPeerPubkeyFingerprintSha1 :: Connection -> IO (Maybe ByteString)
 getPeerPubkeyFingerprintSha1 = getPeerPubkeyFingerprint "sha1"
@@ -667,15 +685,14 @@ getPeerPubkeyFingerprintSha256 = getPeerPubkeyFingerprint "sha256"
 getPeerPubkeyFingerprintSha512 :: Connection -> IO (Maybe ByteString)
 getPeerPubkeyFingerprintSha512 = getPeerPubkeyFingerprint "sha512"
 
-
 getPeerPubkeyFingerprint :: String -> Connection -> IO (Maybe ByteString)
 getPeerPubkeyFingerprint name h =
-   do mb <- getPeerCertificate h
-      case mb of
-        Nothing -> return Nothing
-        Just x509 ->
-          do der <- getPubKeyDer x509
-             mbdigest <- Digest.getDigestByName name
-             case mbdigest of
-               Nothing -> return Nothing
-               Just digest -> return $! Just $! Digest.digestBS digest der
+ do mb <- getPeerCertificate h
+    case mb of
+      Nothing -> pure Nothing
+      Just x509 ->
+       do der <- getPubKeyDer x509
+          mbdigest <- Digest.getDigestByName name
+          pure $! case mbdigest of
+            Nothing -> Nothing
+            Just digest -> Just $! Digest.digestBS digest der
