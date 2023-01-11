@@ -142,7 +142,7 @@ data ServerSettings = ServerSettings
   , _ssSocksHost        :: !(Maybe HostName) -- ^ hostname of SOCKS proxy
   , _ssSocksPort        :: !PortNumber -- ^ port of SOCKS proxy
   , _ssSocksUsername    :: !(Maybe Text)
-  , _ssSocksPassword    :: !(Maybe Text)
+  , _ssSocksPassword    :: !(Maybe Secret)
   , _ssChanservChannels :: ![Identifier] -- ^ Channels with chanserv permissions
   , _ssFloodPenalty     :: !Rational -- ^ Flood limiter penalty (seconds)
   , _ssFloodThreshold   :: !Rational -- ^ Flood limited threshold (seconds)
@@ -334,7 +334,7 @@ serverSpec = sectionsSpec "server-settings" $
       , opt "socks-username" ssSocksUsername textSpec
         "Username of SOCKS5 proxy server"
 
-      , opt "socks-password" ssSocksPassword textSpec
+      , opt "socks-password" ssSocksPassword anySpec
         "Password of SOCKS5 proxy server"
 
       , req "connect-cmds" ssConnectCmds (listSpec macroCommandSpec)
@@ -542,8 +542,9 @@ regexSpec = customSpec "regex" anySpec $ \str ->
     Right r -> Right (KnownRegex str r)
 
 instance HasSpec Secret where
-  anySpec = SecretText <$> textSpec <!>
-            SecretCommand <$> sectionsSpec "command" (reqSection "command" "Command and arguments to execute to secret")
+  anySpec =
+    SecretText <$> textSpec <!>
+    SecretCommand <$> sectionsSpec "command" (reqSection "command" "Command and arguments to execute to secret")
 
 data SecretException = SecretException String String
   deriving Show
@@ -554,11 +555,17 @@ instance Exception SecretException
 -- Throws 'SecretException'
 loadSecrets :: ServerSettings -> IO ServerSettings
 loadSecrets =
-  traverseOf (ssPassword             . _Just                  ) (loadSecret "server password") >=>
-  traverseOf (ssSaslMechanism        . _Just . _SaslPlain . _3) (loadSecret "SASL password") >=>
-  traverseOf (ssTlsClientKeyPassword . _Just                  ) (loadSecret "TLS key password") >=>
-  traverseOf (ssSaslMechanism        . _Just . _SaslScram . _4) (loadSecret "SASL password") >=>
-  traverseOf (ssSaslMechanism        . _Just . _SaslEcdh  . _3) (loadSecret "SASL private key")
+  traverseOf (ssPassword             . _Just) (loadSecret "server password") >=>
+  traverseOf (ssSocksPassword        . _Just) (loadSecret "socks password") >=>
+  traverseOf (ssTlsClientKeyPassword . _Just) (loadSecret "TLS key password") >=>
+  traverseOf (ssSaslMechanism        . _Just) loadSaslSecret
+
+-- | Populate secrets from sasl mechanism
+loadSaslSecret :: SaslMechanism -> IO SaslMechanism
+loadSaslSecret =
+  traverseOf (_SaslPlain . _3) (loadSecret "SASL plain password") >=>
+  traverseOf (_SaslScram . _4) (loadSecret "SASL scram password") >=>
+  traverseOf (_SaslEcdh  . _3) (loadSecret "SASL ecdh private key")
 
 -- | Run a command if found and replace it with the first line of stdout result.
 loadSecret :: String -> Secret -> IO Secret

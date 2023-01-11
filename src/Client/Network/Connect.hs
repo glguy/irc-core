@@ -50,7 +50,8 @@ proxyParams ss =
     spPort = view ssSocksPort ss,
     spAuth =
       case (view ssSocksUsername ss, view ssSocksPassword ss) of
-        (Just u, Just p) -> UsernamePasswordSocksAuthentication (Text.encodeUtf8 u) (Text.encodeUtf8 p)
+        (Just u, Just (SecretText p)) ->
+          UsernamePasswordSocksAuthentication (Text.encodeUtf8 u) (Text.encodeUtf8 p)
         _ -> NoSocksAuthentication
   }
 
