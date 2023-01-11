@@ -19,19 +19,19 @@ module Client.Image.MircFormatting
   , mircColors
   ) where
 
-import           Client.Image.PackedImage as I
-import           Client.Image.Palette (Palette, palMonospace)
-import           Control.Applicative ((<|>), empty)
-import           Control.Lens
-import           Data.Attoparsec.Text as Parse
-import           Data.Bits
-import           Data.Char
-import           Data.Maybe
-import           Data.Text (Text)
-import           Graphics.Vty.Attributes
-import           Data.Vector (Vector)
-import qualified Data.Vector as Vector
-import           Numeric (readHex)
+import Client.Image.PackedImage as I
+import Client.Image.Palette (Palette, palMonospace)
+import Control.Applicative ((<|>), empty)
+import Control.Lens (view, over, set, makeLensesFor)
+import Data.Attoparsec.Text as Parse
+import Data.Bits (Bits(xor))
+import Data.Char (ord, chr, isControl, isHexDigit)
+import Data.Maybe (fromMaybe, isNothing)
+import Data.Text (Text)
+import Data.Vector (Vector)
+import Data.Vector qualified as Vector
+import Graphics.Vty.Attributes
+import Numeric (readHex)
 
 makeLensesFor
   [ ("attrForeColor", "foreColorLens")

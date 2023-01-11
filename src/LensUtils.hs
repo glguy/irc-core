@@ -20,9 +20,9 @@ module LensUtils
   , localTimeDay
   ) where
 
-import           Control.Lens
-import           Data.Time
-import           StrictUnit
+import Control.Lens (Lens', (??), set, ASetter, LensLike)
+import Data.Time (ZonedTime(ZonedTime), LocalTime(LocalTime), Day, TimeOfDay)
+import StrictUnit (StrictUnit(..))
 
 -- | Modify the target of a 'Setter' with a function. The result
 -- is strict in the results of applying the function. Strict version

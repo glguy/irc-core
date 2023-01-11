@@ -61,12 +61,12 @@ module Client.State.EditBox
 
   ) where
 
-import           Client.State.EditBox.Content
-import           Control.Lens hiding (below)
-import           Data.List.NonEmpty (NonEmpty)
-import           Digraphs (Digraph)
-import           Data.Map (Map)
-import           Data.Text (Text)
+import Client.State.EditBox.Content
+import Control.Lens hiding (below)
+import Data.List.NonEmpty (NonEmpty)
+import Data.Map (Map)
+import Data.Text (Text)
+import Digraphs (Digraph)
 
 
 data EditBox = EditBox

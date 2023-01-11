@@ -8,18 +8,18 @@ Maintainer  : emertens@gmail.com
 -}
 module Client.Image.Layout (scrollAmount, drawLayout) where
 
-import Control.Lens
-import Client.State
-import Client.State.Focus
 import Client.Configuration (LayoutMode(..))
-import Client.Image.PackedImage (Image', unpackImage)
-import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
-import Client.Image.Textbox
 import Client.Image.LineWrap (lineWrap, terminate)
-import Client.Image.Palette
-import Client.View
-import Graphics.Vty.Image
+import Client.Image.PackedImage (Image', unpackImage)
+import Client.Image.Palette (palWindowDivider)
+import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
+import Client.Image.Textbox (textboxImage)
+import Client.State
+import Client.State.Focus ( Focus, Subfocus )
+import Client.View (viewLines)
+import Control.Lens (view)
 import Graphics.Vty.Attributes (defAttr)
+import Graphics.Vty.Image
 
 -- | Compute the combined image for all the visible message windows.
 drawLayout ::

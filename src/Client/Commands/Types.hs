@@ -9,13 +9,13 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Types where
 
-import           Client.State (ClientState, clientErrorMsg)
-import           Client.State.Network (NetworkState)
-import           Data.Text (Text)
-import           Data.List.NonEmpty (NonEmpty)
-import           Client.Commands.Arguments.Spec
-import           Irc.Identifier (Identifier)
-import           Control.Lens
+import Client.Commands.Arguments.Spec (Args)
+import Client.State (ClientState, clientErrorMsg)
+import Client.State.Network (NetworkState)
+import Control.Lens (set)
+import Data.List.NonEmpty (NonEmpty)
+import Data.Text (Text)
+import Irc.Identifier (Identifier)
 
 -- | Possible results of running a command
 data CommandResult

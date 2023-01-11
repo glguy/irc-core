@@ -19,8 +19,8 @@ import Data.ByteString.Base64 qualified as B64
 import Data.Text (Text)
 import Data.Text.Encoding qualified as Text
 import Irc.Commands (AuthenticatePayload (AuthenticatePayload))
-import OpenSSL.EVP.Digest ( digestBS, getDigestByName, hmacBS, Digest )
-import System.IO.Unsafe ( unsafePerformIO )
+import OpenSSL.EVP.Digest (digestBS, getDigestByName, hmacBS, Digest)
+import System.IO.Unsafe (unsafePerformIO)
 
 newtype Phase1 = Phase1 Curve.PrivateKey
 

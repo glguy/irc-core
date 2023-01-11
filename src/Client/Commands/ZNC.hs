@@ -9,17 +9,16 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.ZNC (zncCommands) where
 
-import           Control.Applicative
-import           Client.Commands.Arguments.Spec
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
-import           Client.State.Network (sendMsg)
-import           Data.Foldable (asum)
-import qualified Data.Text as Text
-import           Data.Time
-import           Irc.Commands
-import           Control.Lens
-import           LensUtils (localTimeDay, localTimeTimeOfDay, zonedTimeLocalTime)
+import Control.Applicative (asum, liftA2)
+import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken)
+import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
+import Client.Commands.Types
+import Client.State.Network (sendMsg)
+import Data.Text qualified as Text
+import Data.Time
+import Irc.Commands (ircZnc)
+import Control.Lens ((<<.~), (??), over)
+import LensUtils (localTimeDay, localTimeTimeOfDay, zonedTimeLocalTime)
 
 zncCommands :: CommandSection
 zncCommands = CommandSection "ZNC Support"

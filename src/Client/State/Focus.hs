@@ -27,9 +27,9 @@ module Client.State.Focus
   , _Unfocused
   ) where
 
-import           Control.Lens
-import           Data.Text (Text)
-import           Irc.Identifier
+import Control.Lens (makePrisms)
+import Data.Text (Text)
+import Irc.Identifier (Identifier)
 
 -- | Currently focused window
 data Focus

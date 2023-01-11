@@ -9,18 +9,18 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Connection (connectionCommands) where
 
-import           Client.Commands.Arguments.Spec
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
-import           Client.Commands.WordCompletion
-import           Client.Configuration
-import           Client.State
-import           Client.State.Focus
-import           Client.State.Network
-import           Control.Lens
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text as Text
-import           Irc.Commands (ircMode, ircQuit)
+import Client.Commands.Arguments.Spec ( remainingArg, simpleToken )
+import Client.Commands.TabCompletion
+import Client.Commands.Types
+import Client.Commands.WordCompletion ( plainWordCompleteMode )
+import Client.Configuration ( configServers )
+import Client.State
+import Client.State.Focus (focusNetwork, Focus(NetworkFocus), Subfocus(FocusCert))
+import Client.State.Network (csLastReceived, csNetwork, csNick, sendMsg)
+import Control.Lens (view, folded, preview, views)
+import Data.HashMap.Strict qualified as HashMap
+import Data.Text qualified as Text
+import Irc.Commands (ircMode, ircQuit)
 
 connectionCommands :: CommandSection
 connectionCommands = CommandSection "Connection commands"

@@ -1,5 +1,4 @@
-{-# Language OverloadedStrings #-}
-{-# Language ApplicativeDo #-}
+{-# Language OverloadedStrings, ApplicativeDo, LambdaCase, BlockArguments #-}
 
 {-|
 Module      : Client.Configuration
@@ -16,11 +15,11 @@ module Client.Configuration.Colors
   , attrSpec
   ) where
 
-import           Config.Schema
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-import           Data.Text (Text)
-import           Graphics.Vty.Attributes
+import Config.Schema
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.Text (Text)
+import Graphics.Vty.Attributes
 
 -- | Parse a text attribute. This value should be a sections with the @fg@ and/or
 -- @bg@ attributes. Otherwise it should be a color entry that will be used
@@ -83,10 +82,9 @@ colorNumberSpec = customSpec "terminal color" anySpec $ \i ->
 -- | Configuration section that matches 3 integers in the range 0-255
 -- representing red, green, and blue values.
 rgbSpec :: ValueSpec Color
-rgbSpec = customSpec "RGB" anySpec $ \rgb ->
-  case rgb of
-    [r,g,b] -> rgbColor <$> valid r <*> valid g <*> valid b
-    _ -> Left "expected 3 numbers"
+rgbSpec = customSpec "RGB" anySpec \case
+  [r,g,b] -> rgbColor <$> valid r <*> valid g <*> valid b
+  _       -> Left "expected 3 numbers"
   where
     valid x
       | x < 0     = Left "minimum color value is 0"

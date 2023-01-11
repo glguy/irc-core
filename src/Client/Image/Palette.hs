@@ -47,12 +47,12 @@ module Client.Image.Palette
   , defaultPalette
   ) where
 
-import           Control.Lens
-import           Data.Text (Text)
-import           Data.Vector (Vector)
-import           Graphics.Vty.Attributes
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import Control.Lens (makeLenses, ReifiedLens(Lens), ReifiedLens')
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.Text (Text)
+import Data.Vector (Vector)
+import Graphics.Vty.Attributes
 
 -- | Color palette used for rendering the client UI
 data Palette = Palette

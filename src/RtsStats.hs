@@ -15,13 +15,13 @@ module RtsStats
   , statsToEntries
   ) where
 
-import           Data.Int        (Int64)
-import           Data.List       (intercalate)
-import           Data.List.Split (chunksOf)
-import           Data.Text       (Text)
-import qualified Data.Text as Text
-import           Data.Word       (Word32, Word64)
-import           GHC.Stats
+import Data.Int        (Int64)
+import Data.List       (intercalate)
+import Data.List.Split (chunksOf)
+import Data.Text       (Text)
+import Data.Text qualified as Text
+import Data.Word       (Word32, Word64)
+import GHC.Stats
 
 class    Render a      where render :: a -> Text
 instance Render Word32 where render = prettyNum

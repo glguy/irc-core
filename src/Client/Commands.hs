@@ -25,44 +25,44 @@ module Client.Commands
   , commandsList
   ) where
 
-import           Client.Commands.Arguments.Spec
-import           Client.Commands.Arguments.Parser
-import           Client.Commands.Exec
-import           Client.Commands.Interpolation
-import           Client.Commands.Recognizer
-import           Client.Commands.WordCompletion
-import           Client.Configuration
-import           Client.State
-import           Client.State.Extensions
-import           Client.State.Focus
-import           Client.State.Network
-import           Client.State.Window
-import           Control.Applicative
-import           Control.Exception (displayException, try)
-import           Control.Lens
-import           Control.Monad
-import           Data.Foldable
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Time (getZonedTime)
-import           Irc.Commands
-import           Irc.Identifier
-import           Irc.RawIrcMsg
-import           Irc.Message
-import           RtsStats (getStats)
-import           System.Process.Typed
+import Client.Commands.Arguments.Parser (parse)
+import Client.Commands.Arguments.Spec (optionalArg, optionalNumberArg, remainingArg, simpleToken)
+import Client.Commands.Exec
+import Client.Commands.Interpolation (resolveMacroExpansions, Macro(Macro), MacroSpec(MacroSpec))
+import Client.Commands.Recognizer (fromCommands, keys, recognize, Recognition(Exact), Recognizer)
+import Client.Commands.WordCompletion (caseText, plainWordCompleteMode, wordComplete)
+import Client.Configuration
+import Client.State
+import Client.State.Extensions (clientCommandExtension, clientStartExtensions)
+import Client.State.Focus
+import Client.State.Network (csNick, isChannelIdentifier, sendMsg)
+import Client.State.Window (winMessages, wlText)
+import Control.Applicative (liftA2, (<|>))
+import Control.Exception (displayException, try)
+import Control.Lens
+import Control.Monad (guard, foldM)
+import Data.Foldable (foldl', toList)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (getZonedTime)
+import Irc.Commands (ircPrivmsg)
+import Irc.Identifier (idText)
+import Irc.Message (IrcMsg(Privmsg))
+import Irc.RawIrcMsg (parseRawIrcMsg)
+import RtsStats (getStats)
+import System.Process.Typed (proc, runProcess_)
 
-import           Client.Commands.Channel (channelCommands)
-import           Client.Commands.Certificate (newCertificateCommand)
-import           Client.Commands.Chat (chatCommands, chatCommand', executeChat)
-import           Client.Commands.Connection (connectionCommands)
-import           Client.Commands.Operator (operatorCommands)
-import           Client.Commands.Queries (queryCommands)
-import           Client.Commands.Toggles (togglesCommands)
-import           Client.Commands.Window (windowCommands)
-import           Client.Commands.ZNC (zncCommands)
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
+import Client.Commands.Certificate (newCertificateCommand)
+import Client.Commands.Channel (channelCommands)
+import Client.Commands.Chat (chatCommands, chatCommand', executeChat)
+import Client.Commands.Connection (connectionCommands)
+import Client.Commands.Operator (operatorCommands)
+import Client.Commands.Queries (queryCommands)
+import Client.Commands.TabCompletion
+import Client.Commands.Toggles (togglesCommands)
+import Client.Commands.Types
+import Client.Commands.Window (windowCommands)
+import Client.Commands.ZNC (zncCommands)
 
 -- | Interpret the given chat message or command. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message will

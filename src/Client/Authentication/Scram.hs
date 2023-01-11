@@ -25,8 +25,8 @@ import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Char8 qualified as B8
 import Data.List (foldl1')
 import Data.Text (Text)
-import OpenSSL.EVP.Digest ( Digest, digestBS, hmacBS, getDigestByName)
 import Irc.Commands (AuthenticatePayload (AuthenticatePayload))
+import OpenSSL.EVP.Digest (Digest, digestBS, hmacBS, getDigestByName)
 import System.IO.Unsafe (unsafePerformIO)
 
 data ScramDigest

@@ -60,15 +60,15 @@ module Client.CApi.Types
   , poke'
   ) where
 
-import           Control.Monad
-import           Data.Text (Text)
-import qualified Data.Text.Foreign as Text
-import           Data.Word
-import           Data.Int
-import           Foreign.C
-import           Foreign.Marshal.Array
-import           Foreign.Ptr
-import           Foreign.Storable
+import Control.Monad
+import Data.Int
+import Data.Text (Text)
+import Data.Text.Foreign qualified as Text
+import Data.Word
+import Foreign.C
+import Foreign.Marshal.Array
+import Foreign.Ptr
+import Foreign.Storable
 
 -- | Tag for describing the kind of message to display in the client
 -- as used in `glirc_print`. See 'normalMessage' and 'errorMessage'.

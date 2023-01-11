@@ -13,24 +13,24 @@ module Client.View
   ( viewLines
   ) where
 
-import           Client.Image.PackedImage
-import           Client.State
-import           Client.State.Focus
-import           Client.View.Cert
-import           Client.View.ChannelInfo
-import           Client.View.Digraphs
-import           Client.View.Help
-import           Client.View.IgnoreList
-import           Client.View.KeyMap
-import           Client.View.MaskList
-import           Client.View.Mentions
-import           Client.View.Messages
-import           Client.View.Palette
-import           Client.View.RtsStats
-import           Client.View.UrlSelection
-import           Client.View.UserList
-import           Client.View.Windows
-import           Control.Lens
+import Client.Image.PackedImage (Image')
+import Client.State
+import Client.State.Focus
+import Client.View.Cert (certViewLines)
+import Client.View.ChannelInfo (channelInfoImages)
+import Client.View.Digraphs (digraphLines)
+import Client.View.Help (helpImageLines)
+import Client.View.IgnoreList (ignoreListLines)
+import Client.View.KeyMap (keyMapLines)
+import Client.View.MaskList (maskListImages)
+import Client.View.Mentions (mentionsViewLines)
+import Client.View.Messages (chatMessageImages)
+import Client.View.Palette (paletteViewLines)
+import Client.View.RtsStats (rtsStatsLines)
+import Client.View.UrlSelection (urlSelectionView)
+import Client.View.UserList (userInfoImages, userListImages)
+import Client.View.Windows (windowsImages)
+import Control.Lens (view)
 
 viewLines :: Focus -> Subfocus -> Int -> ClientState -> [Image']
 viewLines focus subfocus w !st =

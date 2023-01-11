@@ -15,10 +15,10 @@ module Client.Image.LineWrap
   , terminate
   ) where
 
-import           Client.Image.PackedImage
-import qualified Graphics.Vty.Image as Vty
-import           Graphics.Vty.Attributes
-import qualified Data.Text.Lazy as L
+import Client.Image.PackedImage (char, imageText, imageWidth, splitImage, string, Image')
+import Graphics.Vty.Image qualified as Vty
+import Graphics.Vty.Attributes (defAttr)
+import Data.Text.Lazy qualified as L
 
 
 -- | Trailing space with default attributes deals with bug in VTY

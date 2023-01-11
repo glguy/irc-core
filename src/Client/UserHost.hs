@@ -17,8 +17,8 @@ module Client.UserHost
   , uhAccount
   ) where
 
-import           Control.Lens (makeLenses)
-import           Data.Text (Text)
+import Control.Lens (makeLenses)
+import Data.Text (Text)
 
 -- | Pair of username and hostname. Empty strings represent missing information.
 data UserAndHost = UserAndHost

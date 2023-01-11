@@ -9,30 +9,30 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Channel (channelCommands) where
 
-import           Client.Commands.Arguments.Spec
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
-import           Client.Commands.WordCompletion
-import           Client.State
-import           Client.State.Channel
-import           Client.State.Focus
-import           Client.State.Network
-import           Client.UserHost
-import           Control.Applicative
-import           Control.Lens
-import           Control.Monad
-import           Data.Foldable (traverse_)
-import           Data.List.Split (chunksOf)
-import           Data.Maybe (fromMaybe)
-import           Data.Text (Text)
-import qualified Client.State.EditBox as Edit
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text as Text
-import           Irc.Commands
-import           Irc.Modes
-import           Irc.UserInfo
-import           Irc.Identifier
-import           LensUtils (setStrict)
+import Client.Commands.Arguments.Spec
+import Client.Commands.TabCompletion (activeNicks, noChannelTab, simpleChannelTab, simpleTabCompletion)
+import Client.Commands.Types
+import Client.Commands.WordCompletion (plainWordCompleteMode)
+import Client.State
+import Client.State.Channel (chanLists, chanModes, chanTopic, chanUsers)
+import Client.State.EditBox qualified as Edit
+import Client.State.Focus
+import Client.State.Network
+import Client.UserHost ( UserAndHost(UserAndHost) )
+import Control.Applicative (liftA2)
+import Control.Lens
+import Control.Monad (unless)
+import Data.Foldable (traverse_)
+import Data.HashMap.Strict qualified as HashMap
+import Data.List.Split (chunksOf)
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Irc.Commands (ircInvite, ircKick, ircMode, ircRemove)
+import Irc.Identifier (Identifier, mkId)
+import Irc.Modes
+import Irc.UserInfo (UserInfo(UserInfo), renderUserInfo)
+import LensUtils (setStrict)
 
 channelCommands :: CommandSection
 channelCommands = CommandSection "IRC channel management"

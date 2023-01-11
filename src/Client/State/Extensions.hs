@@ -20,26 +20,24 @@ module Client.State.Extensions
   , clientThreadJoin
   ) where
 
-import Control.Concurrent.MVar
-import Control.Monad.IO.Class
-import Control.Exception
-import Control.Lens
-import Control.Monad
-import Data.Foldable
-import Data.Text (Text)
-import Data.Time
-import Foreign.Ptr
-import Foreign.StablePtr
-import qualified Data.Text as Text
-import qualified Data.IntMap as IntMap
-
-import Irc.RawIrcMsg
-
-import Client.State
-import Client.Message
 import Client.CApi
 import Client.CApi.Types
-import Client.Configuration
+import Client.Configuration (configExtensions, ExtensionConfiguration)
+import Client.Message
+import Client.State
+import Control.Concurrent.MVar (putMVar, takeMVar)
+import Control.Exception (displayException, try)
+import Control.Lens
+import Control.Monad (foldM)
+import Control.Monad.IO.Class (liftIO)
+import Data.Foldable (find)
+import Data.IntMap qualified as IntMap
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (getZonedTime)
+import Foreign.Ptr (Ptr, nullFunPtr)
+import Foreign.StablePtr (castStablePtrToPtr)
+import Irc.RawIrcMsg (RawIrcMsg)
 
 -- | Start extensions after ensuring existing ones are stopped
 clientStartExtensions ::

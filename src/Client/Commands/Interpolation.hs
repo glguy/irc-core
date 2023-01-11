@@ -28,14 +28,13 @@ module Client.Commands.Interpolation
   , noMacroArguments
   ) where
 
-import           Control.Applicative
-import           Data.Attoparsec.Text as P
-import           Data.Char
-import           Data.Maybe
-import qualified Data.Text as Text
-import           Data.Text (Text)
-
-import           Client.Commands.Arguments.Spec
+import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken, Args)
+import Control.Applicative (Alternative, liftA2, (<|>), many, optional)
+import Data.Attoparsec.Text as P
+import Data.Char (isAlpha)
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import Data.Text qualified as Text
 
 -- | Parsed chunk of an expandable command
 data ExpansionChunk

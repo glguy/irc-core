@@ -19,9 +19,9 @@ module Digraphs
   , digraphs
   ) where
 
-import           DigraphQuote
-import           Data.Text (Text)
-import qualified Data.Text as Text
+import DigraphQuote (digraphTable)
+import Data.Text (Text)
+import Data.Text qualified as Text
 
 -- | Two-character key for digraph lookup
 data Digraph = Digraph !Char !Char

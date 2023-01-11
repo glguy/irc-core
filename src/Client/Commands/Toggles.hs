@@ -9,11 +9,11 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Toggles (togglesCommands) where
 
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
-import           Client.Configuration
-import           Client.State
-import           Control.Lens
+import Client.Commands.TabCompletion (noClientTab)
+import Client.Commands.Types
+import Client.Configuration (EditMode(SingleLineEditor, MultiLineEditor), LayoutMode(OneColumn, TwoColumn))
+import Client.State
+import Control.Lens (over, set)
 
 togglesCommands :: CommandSection
 togglesCommands = CommandSection "View toggles"

@@ -57,6 +57,9 @@ library
   default-language:    Haskell2010
   build-tool-depends:  hsc2hs:hsc2hs
 
+  default-extensions:
+    ImportQualifiedPost
+
   exposed-modules:
     Client.Authentication.Ecdsa
     Client.Authentication.Ecdh

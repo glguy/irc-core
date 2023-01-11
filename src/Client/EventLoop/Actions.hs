@@ -23,20 +23,20 @@ module Client.EventLoop.Actions
   , actionName
   ) where
 
-import           Graphics.Vty.Input.Events
-import           Config.Schema.Spec
-import           Control.Applicative
-import           Control.Lens
-import           Data.Char (showLitChar)
-import           Data.Functor.Compose
-import           Data.List
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as HashMap
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Text.Read
+import Config.Schema.Spec (anyAtomSpec, customSpec, HasSpec(..))
+import Control.Applicative (Alternative(empty))
+import Control.Lens (Lens', (^.), non', (?~), set, At(at), AsEmpty(_Empty))
+import Data.Char (showLitChar)
+import Data.Functor.Compose (Compose(Compose, getCompose))
+import Data.HashMap.Lazy (HashMap)
+import Data.HashMap.Lazy qualified as HashMap
+import Data.List (nub, sort)
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Graphics.Vty.Input.Events
+import Text.Read (readMaybe)
 
 -- | Actions that can be invoked using the keyboard.
 data Action

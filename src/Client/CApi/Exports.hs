@@ -89,43 +89,43 @@ module Client.CApi.Exports
  , glirc_thread
  ) where
 
-import           Client.CApi (cancelTimer, pushTimer, ThreadEntry(..), ActiveExtension(aeThreads))
-import           Client.CApi.Types
-import           Client.Configuration
-import           Client.Message
-import           Client.State
-import           Client.State.Channel
-import           Client.State.Focus
-import           Client.State.Network
-import           Client.State.Window (windowClear, windowSeen, winMessages, wlText)
-import           Client.UserHost
-import           Control.Concurrent (forkOS)
-import           Control.Concurrent.MVar
-import           Control.Concurrent.STM (atomically, writeTQueue)
-import           Control.Exception
-import           Control.Lens
-import           Control.Monad (unless)
-import           Data.Char (chr)
-import           Data.Foldable (traverse_)
-import           Data.Functor.Compose
-import qualified Data.Map as Map
-import           Data.Monoid (First(..))
-import qualified Data.HashMap.Strict as HashMap
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Foreign as Text
-import           Data.Time
-import           Foreign.C
-import           Foreign.Marshal
-import           Foreign.Ptr
-import           Foreign.StablePtr
-import           Foreign.Storable
-import           Irc.Identifier
-import           Irc.RawIrcMsg
-import           Irc.UserInfo
-import           Irc.Message
-import           LensUtils
+import Client.CApi (cancelTimer, pushTimer, ThreadEntry(..), ActiveExtension(aeThreads))
+import Client.CApi.Types
+import Client.Configuration ( newFilePathContext, resolveFilePath )
+import Client.Message
+import Client.State
+import Client.State.Channel ( chanLists, chanModes, chanUsers )
+import Client.State.Focus (Focus(ChannelFocus, Unfocused, NetworkFocus))
+import Client.State.Network (csChannels, csNick, csUsers, isChannelIdentifier, sendMsg)
+import Client.State.Window (windowClear, windowSeen, winMessages, wlText)
+import Client.UserHost (uhAccount)
+import Control.Concurrent (forkOS)
+import Control.Concurrent.MVar (MVar, modifyMVar, modifyMVar_, readMVar)
+import Control.Concurrent.STM (atomically, writeTQueue)
+import Control.Exception (SomeException(SomeException), catch)
+import Control.Lens
+import Control.Monad (unless)
+import Data.Char (chr)
+import Data.Foldable (traverse_)
+import Data.Functor.Compose ( Compose(Compose) )
+import Data.HashMap.Strict qualified as HashMap
+import Data.Map qualified as Map
+import Data.Monoid (First(..))
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Foreign qualified as Text
+import Data.Text.Lazy qualified as LText
+import Data.Time (addUTCTime, getCurrentTime, getZonedTime)
+import Foreign.C (CString, CInt, CChar, CSize, newCString, CULong)
+import Foreign.Marshal (newArray0, peekArray, peekArray0, free)
+import Foreign.Ptr (Ptr, FunPtr, nullPtr)
+import Foreign.StablePtr (castPtrToStablePtr, deRefStablePtr)
+import Foreign.Storable (Storable(peek))
+import Irc.Identifier (idText, mkId)
+import Irc.Message (IrcMsg(Privmsg), Source(Source))
+import Irc.RawIrcMsg (RawIrcMsg(..), TagEntry(TagEntry))
+import Irc.UserInfo (UserInfo(UserInfo), parseUserInfo)
+import LensUtils (overStrict)
 
 ------------------------------------------------------------------------
 

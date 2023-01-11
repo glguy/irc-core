@@ -44,17 +44,17 @@ module Client.State.Channel
   , nickChange
   ) where
 
-import           Control.Lens
-import           Data.HashMap.Strict
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map.Strict as Map
-import           Data.Map.Strict (Map)
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Time
-import           Irc.Identifier
-import           Irc.RawIrcMsg (RawIrcMsg)
-import           Irc.UserInfo
+import Control.Lens ((&), sans, (<<.~), over, set, makeLenses, At(at))
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (UTCTime)
+import Irc.Identifier (Identifier)
+import Irc.RawIrcMsg (RawIrcMsg)
+import Irc.UserInfo (UserInfo)
 
 -- | Dynamic information about the state of an IRC channel
 data ChannelState = ChannelState

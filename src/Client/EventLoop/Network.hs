@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, PatternSynonyms #-}
 {-|
 Module      : Client.EventLoop.Network
 Description : Event handlers for network messages affecting the client state
@@ -13,27 +13,27 @@ module Client.EventLoop.Network
   ( clientResponse
   ) where
 
-import           Client.Commands
-import           Client.Commands.Interpolation
-import           Client.Configuration.ServerSettings
-import           Client.Configuration.Sts
-import           Client.Network.Async
-import           Client.Network.Connect
-import           Client.State
-import           Client.State.Focus
-import           Client.State.Network
-import           Control.Lens
-import           Control.Monad
-import           Data.Text (Text)
-import           Data.Time
-import           Irc.Codes
-import           Irc.Commands
-import           Irc.Identifier
-import           Irc.Message
-import qualified Client.Authentication.Ecdsa as Ecdsa
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text
-import           Text.Regex.TDFA.Text as Regex
+import Client.Authentication.Ecdsa qualified as Ecdsa
+import Client.Commands (CommandResult(CommandQuit, CommandFailure, CommandSuccess), commandExpansion, executeUserCommand)
+import Client.Commands.Interpolation (resolveMacroExpansions, ExpansionChunk)
+import Client.Configuration.ServerSettings
+import Client.Configuration.Sts (savePolicyFile, StsPolicy(StsPolicy, _stsPort, _stsExpiration))
+import Client.Network.Async (abortConnection, TerminationReason(StsUpgrade))
+import Client.Network.Connect (ircPort)
+import Client.State
+import Client.State.Focus (Focus(ChannelFocus, NetworkFocus))
+import Client.State.Network
+import Control.Lens (view, (&), folded, previews, views, (?~), set, At(at))
+import Control.Monad (join, foldM, forM)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Read qualified as Text
+import Data.Time (ZonedTime, addUTCTime, getCurrentTime, formatTime, defaultTimeLocale, utcToLocalZonedTime)
+import Irc.Codes (pattern ERR_LINKCHANNEL, pattern RPL_WELCOME)
+import Irc.Commands (ircAuthenticate, ircCapEnd)
+import Irc.Identifier (mkId)
+import Irc.Message (IrcMsg(Error, Reply, Authenticate, Cap), CapCmd(CapNew, CapLs))
+import Text.Regex.TDFA.Text qualified as Regex
 
 -- | Client-level responses to specific IRC messages.
 -- This is in contrast to the connection state tracking logic in

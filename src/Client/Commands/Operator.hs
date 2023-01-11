@@ -9,15 +9,15 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Operator (operatorCommands) where
 
-import           Control.Applicative
-import           Client.Commands.Arguments.Spec
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
-import           Client.State.Network (sendMsg)
-import           Data.Maybe (fromMaybe, maybeToList)
-import qualified Data.Text as Text
-import           Irc.Commands
-import           Irc.RawIrcMsg
+import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken)
+import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
+import Client.Commands.Types
+import Client.State.Network (sendMsg)
+import Control.Applicative (liftA2, liftA3)
+import Data.Maybe (fromMaybe, maybeToList)
+import Data.Text qualified as Text
+import Irc.Commands
+import Irc.RawIrcMsg (rawIrcMsg)
 
 operatorCommands :: CommandSection
 operatorCommands = CommandSection "Network operator commands"

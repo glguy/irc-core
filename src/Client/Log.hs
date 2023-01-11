@@ -11,20 +11,20 @@ This module provides provides logging functionality for IRC traffic.
 -}
 module Client.Log where
 
-import           Client.Image.Message (cleanText)
-import           Client.Message
-import           Control.Exception
-import           Control.Lens hiding ((<.>))
-import           Data.Time
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as L
-import qualified Data.Text.Lazy.IO as L
-import           Irc.Identifier
-import           Irc.Message
-import           Irc.UserInfo
-import           System.Directory
-import           System.FilePath
+import Client.Image.Message (cleanText)
+import Client.Message
+import Control.Exception (try)
+import Control.Lens (view)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as L
+import Data.Text.Lazy.IO qualified as L
+import Data.Time
+import Irc.Identifier (Identifier, idText, idTextNorm )
+import Irc.Message (IrcMsg(Ctcp, Privmsg, Notice), Source(srcUser))
+import Irc.UserInfo (UserInfo(userNick))
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((<.>), (</>))
 
 
 -- | Log entry queued in client to be written by the event loop

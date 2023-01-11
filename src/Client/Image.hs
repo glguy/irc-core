@@ -11,12 +11,11 @@ This module provides the renderer for the client's UI.
 -}
 module Client.Image (clientPicture) where
 
-import           Client.Image.Layout
-import           Client.State
-import           Control.Lens
-import           Graphics.Vty            (Background (..), Cursor (..),
-                                          Picture (..))
-import           Graphics.Vty.Image
+import Client.Image.Layout (drawLayout)
+import Client.State (clientHeight, clientScroll, clientTextBoxOffset, ClientState)
+import Control.Lens (view, over, set)
+import Graphics.Vty (Background (..), Cursor (..),  Picture (..))
+import Graphics.Vty.Image (Image)
 
 -- | Generate a 'Picture' for the current client state. The resulting
 -- client state is updated for render specific information like scrolling.

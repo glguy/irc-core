@@ -8,18 +8,18 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.TabCompletion where
 
-import           Client.Commands.Types
-import           Client.Commands.WordCompletion
-import           Client.Message
-import           Client.State
-import           Client.State.Focus
-import           Client.State.Network
-import           Client.State.Window
-import           Client.State.Channel
-import           Control.Lens
+import Client.Commands.Types
+import Client.Commands.WordCompletion (wordComplete, Prefix, WordCompletionMode)
+import Client.Message (IrcSummary(ChatSummary))
+import Client.State
+import Client.State.Channel (chanUsers)
+import Client.State.Focus (Focus(ChannelFocus))
+import Client.State.Network (csChannels, csNick)
+import Client.State.Window (winMessages, wlSummary)
+import Control.Lens (view, filtered, folding, preview, toListOf, traverseOf, Ixed(ix), Each(each))
+import Irc.Identifier (Identifier)
+import Irc.UserInfo (UserInfo(userNick))
 import qualified Data.HashMap.Strict as HashMap
-import           Irc.Identifier
-import           Irc.UserInfo
 
 -- | Provides no tab completion for client commands
 noClientTab :: Bool -> ClientCommand String

@@ -21,14 +21,12 @@ module Client.Commands.Recognizer
   , keys
   ) where
 
-import Control.Monad
 import Control.Applicative hiding (empty)
-
-import           Data.HashMap.Strict (lookup,insertWith,HashMap,empty,unionWith,fromList,toList)
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Maybe
-
+import Control.Monad (guard)
+import Data.HashMap.Strict (lookup,insertWith,HashMap,empty,unionWith,fromList,toList)
+import Data.Maybe (fromMaybe, maybeToList)
+import Data.Text (Text)
+import Data.Text qualified as Text
 import Prelude hiding (all,lookup)
 
 -- | A map from 'Text' values to 'a' values that is capable of yielding more

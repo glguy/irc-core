@@ -87,36 +87,36 @@ module Client.Configuration.ServerSettings
   , getRegex
   ) where
 
-import           Client.Authentication.Scram (ScramDigest(..))
-import           Client.Commands.Interpolation
-import           Client.Commands.WordCompletion
-import           Client.Configuration.Macros (macroCommandSpec)
-import           Client.State.Focus ( Focus (NetworkFocus, ChannelFocus) )
-import           Config.Schema.Spec
-import           Control.Exception (Exception, displayException, throwIO, try)
-import           Control.Lens
-import           Control.Monad ((>=>))
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as L
-import           Data.ByteString (ByteString)
-import           Data.List.NonEmpty (NonEmpty((:|)))
-import qualified Data.List.NonEmpty as NonEmpty
-import           Data.List.Split (chunksOf, splitOn)
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.Maybe (fromMaybe)
-import           Data.Monoid
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import           Irc.Identifier (Identifier, mkId)
-import           Network.Socket (HostName, PortNumber)
-import           Numeric (readHex)
-import qualified System.Exit as Exit
-import qualified System.Process.Typed as Process
-import           Text.Regex.TDFA
-import           Text.Regex.TDFA.Text (compile)
-import           Hookup (TlsVerify(..))
+import Client.Authentication.Scram (ScramDigest(..))
+import Client.Commands.Interpolation (ExpansionChunk)
+import Client.Commands.WordCompletion
+import Client.Configuration.Macros (macroCommandSpec)
+import Client.State.Focus ( Focus (NetworkFocus, ChannelFocus) )
+import Config.Schema.Spec
+import Control.Exception (Exception, displayException, throwIO, try)
+import Control.Lens
+import Control.Monad ((>=>))
+import Data.ByteString (ByteString)
+import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as L
+import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.Split (chunksOf, splitOn)
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
+import Data.Monoid (Endo(Endo))
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Hookup (TlsVerify(..))
+import Irc.Identifier (Identifier, mkId)
+import Network.Socket (HostName, PortNumber)
+import Numeric (readHex)
+import System.Exit qualified as Exit
+import System.Process.Typed qualified as Process
+import Text.Regex.TDFA (Regex, RegexOptions(defaultCompOpt), ExecOption(ExecOption, captureGroups))
+import Text.Regex.TDFA.Text (compile)
 
 -- | Static server-level settings
 data ServerSettings = ServerSettings

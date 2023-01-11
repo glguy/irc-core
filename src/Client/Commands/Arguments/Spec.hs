@@ -24,8 +24,9 @@ module Client.Commands.Arguments.Spec
   , Arg(..)
   ) where
 
-import Control.Applicative
-import Control.Applicative.Free
+import Control.Applicative (liftA2)
+import Control.Applicative.Free (Ap, liftAp)
+import Data.Kind (Type)
 import Data.Maybe (fromMaybe)
 import Text.Read (readMaybe)
 
@@ -33,7 +34,7 @@ type Args r = Ap (Arg r)
 
 data ArgumentShape = TokenArgument | RemainingArgument
 
-data Arg :: * -> * -> * where
+data Arg :: Type -> Type -> Type where
   Argument  :: ArgumentShape -> String -> (r -> String -> Maybe a) -> Arg r a
   Optional  :: Args r a -> Arg r (Maybe a)
   Extension :: String -> (r -> String -> Maybe (Args r a)) -> Arg r a

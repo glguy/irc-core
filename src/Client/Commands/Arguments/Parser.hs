@@ -11,12 +11,12 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Arguments.Parser (parse) where
 
-import Client.Commands.Arguments.Spec
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans.State
-import Control.Monad.Trans.Class
-import Control.Applicative.Free
+import Client.Commands.Arguments.Spec (Arg(..), Args, ArgumentShape(..))
+import Control.Applicative (optional)
+import Control.Applicative.Free (runAp)
+import Control.Monad (guard)
+import Control.Monad.Trans.Class (MonadTrans(lift))
+import Control.Monad.Trans.State (StateT(runStateT), get, put)
 
 ------------------------------------------------------------------------
 -- Parser
@@ -30,7 +30,7 @@ parse env spec str =
 type Parser = StateT String Maybe
 
 parseArgs :: r -> Args r a -> Parser a
-parseArgs env spec = runAp (parseArg env) spec
+parseArgs env = runAp (parseArg env)
 
 parseArg :: r -> Arg r a -> Parser a
 parseArg env spec =

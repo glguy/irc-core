@@ -9,28 +9,28 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Chat (chatCommands, chatCommand', executeChat, cmdCtcp) where
 
-import           Client.Commands.Arguments.Spec
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
-import           Client.Commands.Window (parseFocus)
-import           Client.Message
-import           Client.State
-import           Client.State.Extensions (clientChatExtension)
-import           Client.State.Focus
-import           Client.State.Network
-import           Control.Applicative
-import           Control.Lens
-import           Control.Monad (when)
-import           Data.Char (toUpper)
-import           Data.Foldable
-import           Data.List.NonEmpty (NonEmpty((:|)))
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Time
-import           Irc.Commands
-import           Irc.Identifier
-import           Irc.Message
-import           Irc.RawIrcMsg
+import Client.Commands.Arguments.Spec
+import Client.Commands.TabCompletion
+import Client.Commands.Types
+import Client.Commands.Window (parseFocus)
+import Client.Message
+import Client.State
+import Client.State.Extensions (clientChatExtension)
+import Client.State.Focus (focusNetwork, Focus(ChannelFocus), Subfocus(FocusInfo, FocusUsers))
+import Client.State.Network (csNetwork, csUserInfo, sendMsg, NetworkState)
+import Control.Applicative (liftA2, liftA3)
+import Control.Lens (view, preview, views)
+import Control.Monad (when)
+import Data.Char (toUpper)
+import Data.Foldable (foldl')
+import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (getZonedTime)
+import Irc.Commands
+import Irc.Identifier (Identifier, idText, mkId)
+import Irc.Message (IrcMsg(Privmsg, Notice, Ctcp), Source(Source))
+import Irc.RawIrcMsg (RawIrcMsg, parseRawIrcMsg)
 
 chatCommands :: CommandSection
 chatCommands = CommandSection "IRC commands"

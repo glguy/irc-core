@@ -35,30 +35,30 @@ module Client.Network.Async
   , TerminationReason(..)
   ) where
 
-import           Client.Configuration.ServerSettings
-import           Client.Network.Connect
-import           Control.Concurrent
-import           Control.Concurrent.Async
-import           Control.Concurrent.STM
-import           Control.Exception
-import           Control.Lens
-import           Control.Monad
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as B
-import           Data.Foldable
-import           Data.List
-import           Data.List.Split (chunksOf)
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Time
-import           Data.Traversable
-import           Data.Word (Word8)
-import           Hookup
-import           Hookup.OpenSSL (getPubKeyDer)
-import           Irc.RateLimit
-import           Numeric (showHex)
-import qualified OpenSSL.EVP.Digest as Digest
-import           OpenSSL.X509 (X509, printX509, writeDerX509)
+import Client.Configuration.ServerSettings
+import Client.Network.Connect (withConnection, tlsParams)
+import Control.Concurrent (MVar, swapMVar, threadDelay, forkIO, newEmptyMVar, putMVar)
+import Control.Concurrent.Async (Async, async, cancel, cancelWith, race_, waitCatch, withAsync, AsyncCancelled(AsyncCancelled))
+import Control.Concurrent.STM
+import Control.Exception (SomeException, Exception(fromException, displayException), throwIO)
+import Control.Lens (view)
+import Control.Monad (join, when, forever, unless)
+import Data.ByteString (ByteString)
+import Data.ByteString qualified as B
+import Data.Foldable (for_)
+import Data.List (intercalate)
+import Data.List.Split (chunksOf)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (ZonedTime, getZonedTime)
+import Data.Traversable (for)
+import Data.Word (Word8)
+import Hookup
+import Hookup.OpenSSL (getPubKeyDer)
+import Irc.RateLimit (RateLimit, newRateLimit, tickRateLimit)
+import Numeric (showHex)
+import OpenSSL.EVP.Digest qualified as Digest
+import OpenSSL.X509 (X509, printX509, writeDerX509)
 
 
 -- | Handle for a network connection

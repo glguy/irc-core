@@ -22,10 +22,9 @@ module Client.Hook
   , applyMessageHooks
   ) where
 
-import Control.Lens
-import Data.Text
-
-import Irc.Message
+import Control.Lens (view, makeLenses)
+import Data.Text (Text)
+import Irc.Message (IrcMsg)
 
 -- | The possible results of a 'MessageHook' action. A hook can decline to
 -- handle a message ('PassMessage'), filter out a message ('OmitMessage'),

@@ -20,13 +20,13 @@ module Client.Network.Connect
   , tlsParams
   ) where
 
-import           Client.Configuration.ServerSettings
-import           Control.Applicative
-import           Control.Exception  (bracket)
-import           Control.Lens
-import qualified Data.Text.Encoding as Text
-import           Network.Socket (PortNumber)
-import           Hookup
+import Client.Configuration.ServerSettings
+import Control.Applicative ((<|>))
+import Control.Exception  (bracket)
+import Control.Lens (view, (<&>))
+import Data.Text.Encoding qualified as Text
+import Hookup
+import Network.Socket (PortNumber)
 
 tlsParams :: ServerSettings -> TlsParams
 tlsParams ss = TlsParams
@@ -80,5 +80,5 @@ ircPort args =
 -- | Create a new 'Connection' which will be closed when the continuation
 -- finishes.
 withConnection :: ServerSettings -> (Connection -> IO a) -> IO a
-withConnection settings k =
-  bracket (connect (buildConnectionParams settings)) close k
+withConnection settings =
+  bracket (connect (buildConnectionParams settings)) close

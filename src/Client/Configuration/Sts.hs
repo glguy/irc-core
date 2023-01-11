@@ -19,22 +19,22 @@ module Client.Configuration.Sts
   , savePolicyFile
   ) where
 
-import           Config (Value(..), Section(..), parse, pretty)
-import           Config.Number (integerToNumber)
-import           Config.Schema.Spec
-import           Config.Schema.Load (loadValue)
-import           Control.Exception (try)
-import           Control.Lens (makeLenses)
-import           Data.Maybe (fromMaybe)
-import           Data.Time (UTCTime)
-import           Data.Time.Format.ISO8601
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import           System.Directory (getXdgDirectory, XdgDirectory(XdgConfig), createDirectoryIfMissing)
-import           System.FilePath ((</>), takeDirectory)
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import Config (Value(..), Section(..), parse, pretty)
+import Config.Number (integerToNumber)
+import Config.Schema.Load (loadValue)
+import Config.Schema.Spec
+import Control.Exception (try)
+import Control.Lens (makeLenses)
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
+import Data.Time (UTCTime)
+import Data.Time.Format.ISO8601 (formatParseM, formatShow, ISO8601(iso8601Format))
+import System.Directory (getXdgDirectory, XdgDirectory(XdgConfig), createDirectoryIfMissing)
+import System.FilePath ((</>), takeDirectory)
 
 data StsPolicy = StsPolicy
   { _stsExpiration :: !UTCTime

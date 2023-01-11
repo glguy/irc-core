@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings, TemplateHaskell #-}
+{-# Language OverloadedStrings, TemplateHaskell, PatternSynonyms #-}
 {-|
 Module      : Client.Message
 Description : Messages to be added to buffers
@@ -36,14 +36,14 @@ module Client.Message
   , msgText
   ) where
 
-import           Control.Lens
-import           Data.Maybe (isJust)
-import           Data.Text (Text)
-import           Data.Time (ZonedTime)
-import           Irc.Message
-import           Irc.Identifier
-import           Irc.UserInfo
-import           Irc.Codes
+import Control.Lens
+import Data.Maybe (isJust)
+import Data.Text (Text)
+import Data.Time (ZonedTime)
+import Irc.Codes (ReplyCode, pattern RPL_NOWAWAY, pattern RPL_UNAWAY )
+import Irc.Identifier (Identifier, mkId)
+import Irc.Message (IrcMsg(..), ircMsgText, Source(srcUser))
+import Irc.UserInfo ( UserInfo(userNick) )
 
 data MessageBody
   = IrcBody    !IrcMsg

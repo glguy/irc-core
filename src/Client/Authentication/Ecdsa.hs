@@ -19,13 +19,13 @@ module Client.Authentication.Ecdsa
   , computeResponse
   ) where
 
-import           Control.Exception (displayException, try)
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import           System.Process.Typed (readProcessStdout_, proc)
-import           Irc.Commands (AuthenticatePayload(..))
-import qualified Data.ByteString.Lazy as L
+import Control.Exception (displayException, try)
+import Data.ByteString.Lazy qualified as L
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Irc.Commands (AuthenticatePayload(..))
+import System.Process.Typed (readProcessStdout_, proc)
 
 
 -- | Identifier for SASL ECDSA challenge response authentication

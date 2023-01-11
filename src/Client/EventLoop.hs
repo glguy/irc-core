@@ -1,4 +1,4 @@
-{-# Language BangPatterns, OverloadedStrings, NondecreasingIndentation #-}
+{-# Language BangPatterns, OverloadedStrings, NondecreasingIndentation, PatternSynonyms #-}
 
 {-|
 Module      : Client.EventLoop
@@ -17,52 +17,52 @@ module Client.EventLoop
   , ClientEvent(..)
   ) where
 
-import           Client.CApi (ThreadEntry, popTimer)
-import           Client.Commands
-import           Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs)
-import           Client.Configuration.ServerSettings
-import           Client.EventLoop.Actions
-import           Client.EventLoop.Errors (exceptionToLines)
-import           Client.EventLoop.Network (clientResponse)
-import           Client.Hook
-import           Client.Image
-import           Client.Image.Layout (scrollAmount)
-import           Client.Image.StatusLine (clientTitle)
-import           Client.Log
-import           Client.Message
-import           Client.Network.Async
-import           Client.State
-import qualified Client.State.EditBox as Edit
-import           Client.State.Extensions
-import           Client.State.Focus
-import           Client.State.Network
-import           Control.Concurrent.STM
-import           Control.Exception
-import           Control.Lens
-import           Control.Monad
-import           Data.ByteString (ByteString)
-import           Data.Char (isSpace)
-import           Data.Foldable
-import           Data.Traversable
-import           Data.List
-import           Data.List.NonEmpty (NonEmpty, nonEmpty)
-import           Data.Maybe
-import           Data.Ord
-import           Data.Text (Text)
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
-import           Data.Time
-import           Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
-import           GHC.IO.Exception (IOErrorType(..), ioe_type)
-import           Graphics.Vty
-import           Graphics.Vty.Input.Events
-import           Irc.Message
-import           Irc.Codes
-import           Irc.RawIrcMsg
-import           LensUtils
-import           Hookup (ConnectionFailure(..))
+import Client.CApi (ThreadEntry, popTimer)
+import Client.Commands (CommandResult(..), execute, executeUserCommand, tabCompletion)
+import Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs)
+import Client.Configuration.ServerSettings ( ssReconnectAttempts )
+import Client.EventLoop.Actions (keyToAction, Action(..))
+import Client.EventLoop.Errors (exceptionToLines)
+import Client.EventLoop.Network (clientResponse)
+import Client.Hook (applyMessageHooks, messageHookStateful)
+import Client.Image (clientPicture)
+import Client.Image.Layout (scrollAmount)
+import Client.Image.StatusLine (clientTitle)
+import Client.Log ( writeLogLine )
+import Client.Message
+import Client.Network.Async
+import Client.State
+import Client.State.EditBox qualified as Edit
+import Client.State.Extensions
+import Client.State.Focus (Subfocus(FocusMessages))
+import Client.State.Network
+import Control.Concurrent.STM
+import Control.Exception (SomeException, Exception(fromException))
+import Control.Lens
+import Control.Monad (when, MonadPlus(mplus), foldM, unless)
+import Data.ByteString (ByteString)
+import Data.Char (isSpace)
+import Data.Foldable (Foldable(foldl'), find, asum, traverse_)
+import Data.HashMap.Strict qualified as HashMap
+import Data.List (partition)
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import Data.Maybe (fromMaybe)
+import Data.Ord (comparing)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
+import Data.Time
+import Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
+import Data.Traversable (for)
+import GHC.IO.Exception (IOErrorType(..), ioe_type)
+import Graphics.Vty
+import Graphics.Vty.Input.Events ( InternalEvent(..) )
+import Hookup (ConnectionFailure(..))
+import Irc.Codes (pattern RPL_STARTTLS)
+import Irc.Message (IrcMsg(Reply, Notice), cookIrcMsg, msgTarget)
+import Irc.RawIrcMsg (RawIrcMsg, TagEntry(..), asUtf8, msgTags, parseRawIrcMsg)
+import LensUtils (setStrict)
 
 
 -- | Sum of the five possible event types the event loop handles

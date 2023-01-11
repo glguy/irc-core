@@ -5,13 +5,13 @@ module Client.Mask
   , buildMask
   ) where
 
-import Irc.UserInfo
-import Irc.Identifier
+import Data.List (intercalate)
 import Data.Text (Text)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
+import Irc.Identifier (Identifier, idTextNorm, mkId)
+import Irc.UserInfo (UserInfo, renderUserInfo)
 import Text.Regex.TDFA
 import Text.Regex.TDFA.String (compile)
-import Data.List
 
 newtype Mask = Mask Regex
 

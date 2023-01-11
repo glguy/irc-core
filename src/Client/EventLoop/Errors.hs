@@ -14,10 +14,10 @@ module Client.EventLoop.Errors
   ( exceptionToLines
   ) where
 
-import           Control.Exception
-import           Data.List.NonEmpty (NonEmpty(..))
-import           OpenSSL.Session
-import           Hookup (ConnectionFailure(..))
+import Control.Exception (SomeException, Exception(displayException, fromException))
+import Data.List.NonEmpty (NonEmpty(..))
+import OpenSSL.Session (ConnectionAbruptlyTerminated, ProtocolError(ProtocolError))
+import Hookup (ConnectionFailure(..))
 
 -- | Compute the message message text to be used for a connection error
 exceptionToLines ::

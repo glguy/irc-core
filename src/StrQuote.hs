@@ -8,8 +8,8 @@ Maintainer  : emertens@gmail.com
 -}
 module StrQuote (str) where
 
-import Language.Haskell.TH
-import Language.Haskell.TH.Quote
+import Language.Haskell.TH (Pat(LitP), Type(LitT), stringE, Lit(StringL), TyLit(StrTyLit))
+import Language.Haskell.TH.Quote (QuasiQuoter(..))
 
 str :: QuasiQuoter
 str = QuasiQuoter

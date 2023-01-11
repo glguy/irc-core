@@ -13,17 +13,16 @@ module Client.Hook.Snotice
   ( snoticeHook
   ) where
 
-import qualified Data.Text as Text
-import           Data.Text (Text)
-import           Data.List (find)
-import           Text.Regex.TDFA
-import           Text.Regex.TDFA.String
-
-import           Client.Hook
-import           Irc.Message
-import           Irc.Identifier (mkId, Identifier)
-import           Irc.UserInfo
-import           StrQuote (str)
+import Client.Hook (MessageHook(MessageHook), MessageResult(..))
+import Data.List (find)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Irc.Identifier (mkId, Identifier)
+import Irc.Message (IrcMsg(Notice), Source(Source))
+import Irc.UserInfo (UserInfo(UserInfo))
+import StrQuote (str)
+import Text.Regex.TDFA
+import Text.Regex.TDFA.String (compile)
 
 snoticeHook :: MessageHook
 snoticeHook = MessageHook "snotice" True remap

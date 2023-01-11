@@ -15,14 +15,14 @@ module Client.Hooks
   ( messageHooks
   ) where
 
-import Data.Text
-import Data.HashMap.Strict
-import Client.Hook
+import Client.Hook (MessageHook)
+import Data.HashMap.Strict (HashMap, fromList)
+import Data.Text (Text)
 
-import Client.Hook.DroneBLRelay
-import Client.Hook.Matterbridge
-import Client.Hook.Snotice
-import Client.Hook.Znc.Buffextras
+import Client.Hook.DroneBLRelay (droneblRelayHook)
+import Client.Hook.Matterbridge (matterbridgeHook)
+import Client.Hook.Snotice (snoticeHook)
+import Client.Hook.Znc.Buffextras (buffextrasHook)
 
 -- | All the available message hooks.
 messageHooks :: HashMap Text ([Text] -> Maybe MessageHook)

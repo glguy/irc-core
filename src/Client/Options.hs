@@ -32,23 +32,22 @@ module Client.Options
   , getOptions
   ) where
 
-import           Config.Schema.Docs
-import           Control.Lens
-import           Data.Foldable
-import           Data.List
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Version
-import           GitHash (giHash, giDirty, tGitInfoCwdTry)
-import           System.Console.GetOpt
-import           System.Environment
-import           System.Exit
-import           System.IO
-import           System.Info
-import           Paths_glirc (version)
-import           Build_glirc (deps)
-
-import           Client.Configuration
+import Build_glirc (deps)
+import Client.Configuration (configurationSpec, getConfigPath)
+import Config.Schema.Docs (generateDocs)
+import Control.Lens (view, (<>~), set, makeLenses)
+import Data.Foldable (Foldable(foldl'), traverse_)
+import Data.List (intercalate, sort)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Version (showVersion)
+import GitHash (giHash, giDirty, tGitInfoCwdTry)
+import Paths_glirc (version)
+import System.Console.GetOpt
+import System.Environment (getArgs)
+import System.Exit (exitFailure, exitSuccess)
+import System.Info (arch, compilerName, compilerVersion, os)
+import System.IO (hPutStr, hPutStrLn, stderr)
 
 -- | Command-line options
 data Options = Options

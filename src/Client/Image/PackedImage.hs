@@ -23,13 +23,13 @@ module Client.Image.PackedImage
   , resizeImage
   ) where
 
-import           Data.List (findIndex)
-import qualified Data.Text as S
-import qualified Data.Text.Lazy as L
-import           Data.String
-import           Graphics.Vty.Attributes
-import           Graphics.Vty.Image ((<|>), wcswidth, wcwidth)
-import           Graphics.Vty.Image.Internal (Image(..))
+import Data.List (findIndex)
+import Data.String (IsString(..))
+import Data.Text qualified as S
+import Data.Text.Lazy qualified as L
+import Graphics.Vty.Attributes (Attr, defAttr)
+import Graphics.Vty.Image ((<|>), wcswidth, wcwidth)
+import Graphics.Vty.Image.Internal (Image(..))
 
 
 unpackImage :: Image' -> Image

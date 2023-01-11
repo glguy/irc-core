@@ -8,10 +8,10 @@ Maintainer  : emertens@gmail.com
 -}
 module DigraphQuote (digraphTable) where
 
-import Data.Char
-import Control.Monad
-import Language.Haskell.TH
-import Language.Haskell.TH.Quote
+import Control.Monad ((<=<))
+import Data.Char (chr)
+import Language.Haskell.TH (Q, ExpQ, stringE)
+import Language.Haskell.TH.Quote (QuasiQuoter(..))
 import Numeric (readHex)
 
 digraphTable :: QuasiQuoter

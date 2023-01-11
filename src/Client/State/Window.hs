@@ -54,14 +54,14 @@ module Client.State.Window
   , unpackTimeOfDay
   ) where
 
-import           Client.Image.PackedImage
-import           Client.Message
-import           Control.Lens
-import           Control.Monad ((<$!>))
-import           Data.Text.Lazy (Text)
-import           Data.Time
-import           Data.Word
-import           Data.Bits
+import Client.Image.PackedImage (Image', imageText)
+import Client.Message (IrcSummary)
+import Control.Lens (Lens', view, to, from, non, set, makeLenses, Each(..), Getter)
+import Control.Monad ((<$!>))
+import Data.Bits ((.|.), (.&.), shiftL, shiftR)
+import Data.Text.Lazy (Text)
+import Data.Time
+import Data.Word (Word64)
 
 -- | A single message to be displayed in a window.
 -- The normal message line consists of the image prefix

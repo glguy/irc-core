@@ -48,17 +48,17 @@ module Client.State.EditBox.Content
   , digraph
   ) where
 
-import           Control.Applicative ((<|>))
-import           Control.Lens hiding ((<|), below)
-import           Control.Monad (guard)
-import           Data.Char (isAlphaNum)
-import           Data.List (find)
-import           Data.List.NonEmpty (NonEmpty(..), (<|))
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Digraphs (Digraph(..), lookupDigraph)
+import Control.Applicative ((<|>))
+import Control.Lens (view, views, (+~), (-~), over, set, makeClassy, makeLenses)
+import Control.Monad (guard)
+import Data.Char (isAlphaNum)
+import Data.List (find)
+import Data.List.NonEmpty (NonEmpty(..), (<|))
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Digraphs (Digraph(..), lookupDigraph)
 
 data Line = Line
   { _pos  :: !Int

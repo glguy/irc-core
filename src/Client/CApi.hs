@@ -36,27 +36,25 @@ module Client.CApi
   , withRawIrcMsg
   ) where
 
-import           Client.Configuration
-                   (ExtensionConfiguration,
-                    extensionPath, extensionRtldFlags, extensionArgs)
-import           Client.CApi.Types
-import           Control.Lens (view)
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Control.Monad.Codensity
-import           Data.IntPSQ (IntPSQ)
-import qualified Data.IntPSQ as IntPSQ
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Time
-import           Foreign.C
-import           Foreign.Marshal
-import           Foreign.Ptr
-import           Foreign.Storable
-import           Irc.Identifier
-import           Irc.RawIrcMsg
-import           Irc.UserInfo
-import           System.Posix.DynamicLinker
+import Client.CApi.Types
+import Client.Configuration (ExtensionConfiguration, extensionPath, extensionRtldFlags, extensionArgs)
+import Control.Lens (view)
+import Control.Monad (guard, unless)
+import Control.Monad.Codensity (Codensity(Codensity), lowerCodensity)
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.IntPSQ (IntPSQ)
+import Data.IntPSQ qualified as IntPSQ
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (UTCTime)
+import Foreign.C (peekCString, withCString)
+import Foreign.Marshal (withArray, withArrayLen, with)
+import Foreign.Ptr (Ptr, FunPtr, castFunPtrToPtr, nullFunPtr, nullPtr)
+import Foreign.Storable (Storable(peek))
+import Irc.Identifier (idText)
+import Irc.RawIrcMsg (RawIrcMsg(..), TagEntry(..))
+import Irc.UserInfo (UserInfo(userHost, userNick, userName))
+import System.Posix.DynamicLinker (dlopen, dlclose, dlsym, DL)
 
 ------------------------------------------------------------------------
 

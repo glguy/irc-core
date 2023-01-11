@@ -25,14 +25,14 @@ module Client.Commands.Exec
   , runExecCmd
   ) where
 
-import           Control.Exception
-import           Control.Lens
-import           Data.List
-import           System.Console.GetOpt
-import           System.Process.Typed
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.ByteString.Lazy as L
+import Control.Exception (Exception(displayException), try)
+import Control.Lens (view, (??), set, makeLenses)
+import Data.ByteString.Lazy qualified as L
+import Data.List (unfoldr)
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import System.Console.GetOpt (getOpt, ArgDescr(ReqArg, OptArg), ArgOrder(RequireOrder), OptDescr(..))
+import System.Process.Typed (byteStringInput, proc, readProcessStdout_, setStdin)
 
 -- | Settings for @/exec@ command.
 --

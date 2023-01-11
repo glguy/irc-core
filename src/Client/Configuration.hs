@@ -70,37 +70,37 @@ module Client.Configuration
   , UrlArgument(..)
   ) where
 
-import           Client.Commands.Interpolation
-import           Client.Commands.Recognizer
-import           Client.Configuration.Colors
-import           Client.Configuration.Macros (macroMapSpec)
-import           Client.Configuration.ServerSettings
-import           Client.EventLoop.Actions
-import           Client.Image.Palette
-import           Config
-import           Config.Macro
-import           Config.Schema
-import           Control.Exception
-import           Control.Lens                        hiding (List)
-import           Data.Foldable                       (foldl', toList)
-import           Data.HashMap.Strict                 (HashMap)
-import qualified Data.HashMap.Strict                 as HashMap
-import qualified Data.List.NonEmpty                  as NonEmpty
-import           Data.Map                            (Map)
-import qualified Data.Map                            as Map
-import           Data.Maybe
-import           Data.Monoid                         (Endo(..))
-import           Data.Text                           (Text)
-import qualified Data.Text                           as Text
-import qualified Data.Vector                         as Vector
-import           Digraphs (Digraph(..))
-import           Graphics.Vty.Input.Events (Modifier(..), Key(..))
-import           Graphics.Vty.Attributes             (Attr)
-import           Irc.Identifier                      (Identifier)
-import           System.Directory
-import           System.FilePath
-import           System.Posix.DynamicLinker          (RTLDFlags(..))
-import           System.IO.Error
+import Client.Commands.Interpolation (Macro)
+import Client.Commands.Recognizer (Recognizer)
+import Client.Configuration.Colors (attrSpec)
+import Client.Configuration.Macros (macroMapSpec)
+import Client.Configuration.ServerSettings
+import Client.EventLoop.Actions
+import Client.Image.Palette
+import Config
+import Config.Macro
+import Config.Schema
+import Control.Exception
+import Control.Lens hiding (List)
+import Data.Foldable (foldl', toList)
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map  (Map)
+import Data.Map qualified as Map
+import Data.Maybe (fromMaybe, isNothing)
+import Data.Monoid (Endo(..))
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Vector qualified as Vector
+import Digraphs (Digraph(..))
+import Graphics.Vty.Attributes (Attr)
+import Graphics.Vty.Input.Events (Modifier(..), Key(..))
+import Irc.Identifier (Identifier)
+import System.Directory ( getHomeDirectory, getXdgDirectory, XdgDirectory(XdgConfig))
+import System.FilePath ((</>), isAbsolute, joinPath, splitDirectories, takeDirectory)
+import System.IO.Error (ioeGetFileName, isDoesNotExistError)
+import System.Posix.DynamicLinker (RTLDFlags(..))
 
 -- | Top-level client configuration information. When connecting to a
 -- server configuration from '_configServers' is used where possible,

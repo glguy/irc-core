@@ -25,16 +25,13 @@ This hook assumes the Matterbridge RemoteNickFormat is simply
 -}
 module Client.Hook.Matterbridge (matterbridgeHook) where
 
-import Data.Text (Text)
-
-import Control.Lens (set, view)
-
-import Text.Regex.TDFA ((=~))
-
 import Client.Hook (MessageHook(..), MessageResult(..))
-import Irc.Message
+import Control.Lens (set, view)
+import Data.Text (Text)
 import Irc.Identifier (mkId, Identifier)
+import Irc.Message (IrcMsg(Ctcp, Privmsg), Source(Source))
 import Irc.UserInfo (UserInfo(..), uiNick)
+import Text.Regex.TDFA ((=~))
 
 data MbMsg = Msg | Act
 

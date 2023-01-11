@@ -17,26 +17,26 @@ module Client.Image.StatusLine
   , clientTitle
   ) where
 
-import           Client.Image.Message (cleanChar, cleanText)
-import           Client.Image.PackedImage
-import           Client.Image.Palette
-import           Client.State
-import           Client.State.Channel
-import           Client.State.Focus
-import           Client.State.Network
-import           Client.State.Window
-import           Control.Lens
-import           Data.Foldable (for_)
-import qualified Data.Map.Strict as Map
-import           Data.Maybe
-import           Data.HashMap.Strict (HashMap)
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LText
-import           Graphics.Vty.Attributes
-import qualified Graphics.Vty.Image as Vty
-import           Irc.Identifier (idText)
-import           Numeric
+import Client.Image.Message (cleanChar, cleanText)
+import Client.Image.PackedImage
+import Client.Image.Palette
+import Client.State
+import Client.State.Channel (chanModes, chanUsers)
+import Client.State.Focus (focusNetwork, Focus(..), Subfocus(..), WindowsFilter(..))
+import Client.State.Network
+import Client.State.Window
+import Control.Lens (view, orOf, preview, views, _Just, At(at), Ixed(ix))
+import Data.Foldable (for_)
+import Data.HashMap.Strict (HashMap)
+import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe, mapMaybe, maybeToList)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LText
+import Graphics.Vty.Attributes (Attr, defAttr, bold, withForeColor, withStyle, red)
+import Graphics.Vty.Image qualified as Vty
+import Irc.Identifier (idText)
+import Numeric (showFFloat)
 
 clientTitle :: ClientState -> String
 clientTitle st

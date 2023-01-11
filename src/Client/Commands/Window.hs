@@ -9,30 +9,30 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Window (windowCommands, parseFocus) where
 
-import           Client.Commands.Arguments.Spec
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
-import           Client.Commands.WordCompletion
-import           Client.Mask (buildMask)
-import           Client.State
-import           Client.State.Focus
-import           Client.State.Network
-import           Client.State.Window (windowClear, wlText, winMessages, winHidden, winSilent, winName)
-import           Control.Applicative
-import           Control.Exception
-import           Control.Lens
-import           Data.Foldable
-import           Data.List ((\\), nub)
-import qualified Client.State.EditBox as Edit
-import           Data.HashSet (HashSet)
-import           Data.List.NonEmpty (NonEmpty((:|)))
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map as Map
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Lazy.IO as LText
-import           Irc.Identifier
+import Client.Commands.Arguments.Spec
+import Client.Commands.TabCompletion
+import Client.Commands.Types
+import Client.Commands.WordCompletion (plainWordCompleteMode)
+import Client.Mask (buildMask)
+import Client.State
+import Client.State.EditBox qualified as Edit
+import Client.State.Focus
+import Client.State.Network (csChannels)
+import Client.State.Window (windowClear, wlText, winMessages, winHidden, winSilent, winName)
+import Control.Applicative (liftA2)
+import Control.Exception (SomeException, Exception(displayException), try)
+import Control.Lens
+import Data.Foldable (Foldable(foldl', toList))
+import Data.HashMap.Strict qualified as HashMap
+import Data.HashSet (HashSet)
+import Data.List ((\\), nub)
+import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.Map qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LText
+import Data.Text.Lazy.IO qualified as LText
+import Irc.Identifier (Identifier, idText, mkId)
 
 windowCommands :: CommandSection
 windowCommands = CommandSection "Window management"

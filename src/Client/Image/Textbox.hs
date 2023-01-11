@@ -15,26 +15,26 @@ module Client.Image.Textbox
   ( textboxImage
   ) where
 
-import           Client.Configuration
-import           Client.Commands
-import           Client.Commands.Arguments.Renderer
-import           Client.Commands.Arguments.Parser
-import           Client.Commands.Interpolation
-import           Client.Commands.Recognizer
-import           Client.Image.LineWrap (fullLineWrap, terminate)
-import           Client.Image.Message
-import           Client.Image.MircFormatting
-import           Client.Image.PackedImage
-import           Client.Image.Palette
-import           Client.State
-import qualified Client.State.EditBox as Edit
-import           Control.Lens
-import           Data.HashMap.Strict (HashMap)
-import           Data.List
-import qualified Data.Text as Text
-import           Graphics.Vty.Attributes
-import qualified Graphics.Vty.Image as Vty
-import           Irc.Identifier
+import Client.Configuration
+import Client.Commands (Command(Command, cmdArgumentSpec), commands)
+import Client.Commands.Arguments.Renderer (render)
+import Client.Commands.Arguments.Parser (parse)
+import Client.Commands.Interpolation (Macro(macroSpec), MacroSpec(..))
+import Client.Commands.Recognizer
+import Client.Image.LineWrap (fullLineWrap, terminate)
+import Client.Image.Message (cleanChar, parseIrcTextWithNicks, Highlight)
+import Client.Image.MircFormatting (parseIrcText', plainText)
+import Client.Image.PackedImage (char, imageWidth, string, unpackImage, Image')
+import Client.Image.Palette
+import Client.State
+import Client.State.EditBox qualified as Edit
+import Control.Lens (view, views)
+import Data.HashMap.Strict (HashMap)
+import Data.List (intersperse)
+import Data.Text qualified as Text
+import Graphics.Vty.Attributes (defAttr)
+import Graphics.Vty.Image qualified as Vty
+import Irc.Identifier (Identifier)
 
 textboxImage :: Int -> Int -> ClientState -> (Int, Int, Int, Vty.Image) -- ^ cursor column, new offset, image
 textboxImage maxHeight width st =

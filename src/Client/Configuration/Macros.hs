@@ -14,11 +14,11 @@ module Client.Configuration.Macros
   , macroCommandSpec
   ) where
 
-import           Config.Schema.Spec
-import           Client.Commands.Interpolation
-import           Client.Commands.Recognizer
-import           Data.Maybe (fromMaybe)
-import           Data.Text (Text)
+import Client.Commands.Interpolation
+import Client.Commands.Recognizer (fromCommands, Recognizer)
+import Config.Schema.Spec
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
 
 macroMapSpec :: ValueSpec (Recognizer Macro)
 macroMapSpec = fromCommands <$> listSpec macroValueSpec

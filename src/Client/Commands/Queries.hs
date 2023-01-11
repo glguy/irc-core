@@ -9,12 +9,12 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Queries (queryCommands) where
 
-import           Client.Commands.Arguments.Spec
-import           Client.Commands.TabCompletion
-import           Client.Commands.Types
-import           Client.State.Network (sendMsg)
-import qualified Data.Text as Text
-import           Irc.Commands
+import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken)
+import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
+import Client.Commands.Types (commandSuccess, Command(Command), CommandImpl(NetworkCommand), CommandSection(CommandSection), NetworkCommand)
+import Client.State.Network (sendMsg)
+import Data.Text qualified as Text
+import Irc.Commands
 
 queryCommands :: CommandSection
 queryCommands = CommandSection "Queries"

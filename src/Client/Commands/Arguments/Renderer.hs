@@ -11,17 +11,17 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Arguments.Renderer (render) where
 
-import           Client.Commands.Arguments.Spec
-import           Client.Image.MircFormatting
-import           Client.Image.PackedImage
-import           Client.Image.Palette
-import           Control.Applicative.Free
-import           Control.Lens
-import           Control.Monad.Trans.State
-import           Data.Functor.Compose
-import qualified Data.Text as Text
-import           Graphics.Vty (wcswidth)
-import           Graphics.Vty.Attributes
+import Client.Commands.Arguments.Spec (Arg(..), Args, ArgumentShape(RemainingArgument, TokenArgument))
+import Client.Image.MircFormatting (parseIrcText')
+import Client.Image.PackedImage (imageWidth, resizeImage, string, Image')
+import Client.Image.Palette (palCommandPlaceholder, Palette)
+import Control.Applicative.Free (runAp)
+import Control.Lens (Const(..), view)
+import Control.Monad.Trans.State (State, runState, state)
+import Data.Functor.Compose (Compose(..))
+import Data.Text qualified as Text
+import Graphics.Vty (wcswidth)
+import Graphics.Vty.Attributes (defAttr)
 
 render ::
   Palette  {- ^ palette             -} ->

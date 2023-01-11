@@ -21,16 +21,16 @@ module Client.Commands.WordCompletion
   , CaseText, caseText
   ) where
 
-import qualified Client.State.EditBox as Edit
-import           Control.Applicative
-import           Control.Lens
-import           Control.Monad
-import           Data.List
-import qualified Data.Set as Set
-import           Data.String (IsString(..))
-import qualified Data.Text as Text
-import           Data.Text (Text)
-import           Irc.Identifier
+import Client.State.EditBox qualified as Edit
+import Control.Applicative ((<|>))
+import Control.Lens (view, over, set)
+import Control.Monad (guard)
+import Data.List (find)
+import Data.Set qualified as Set
+import Data.String (IsString(..))
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Irc.Identifier (Identifier, idPrefix, idText)
 
 -- | Word completion prefix and suffix
 data WordCompletionMode = WordCompletionMode

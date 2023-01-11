@@ -80,42 +80,42 @@ module Client.State.Network
   , sendTopic
   ) where
 
-import qualified Client.Authentication.Ecdsa as Ecdsa
-import qualified Client.Authentication.Ecdh as Ecdh
-import qualified Client.Authentication.Scram as Scram
-import           Client.Configuration.ServerSettings
-import           Client.Network.Async
-import           Client.State.Channel
-import           Client.UserHost
-import           Client.Hook (MessageHook)
-import           Client.Hooks (messageHooks)
-import           Control.Lens
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
-import qualified Data.ByteString as B
-import qualified Data.Map.Strict as Map
-import           Data.Bits
-import           Data.Foldable
-import           Data.List
-import qualified Data.List.NonEmpty as NonEmpty
-import           Data.Maybe
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Read as Text
-import           Data.Time
-import           Data.Time.Clock.POSIX
-import           Irc.Codes
-import           Irc.Commands
-import           Irc.Identifier
-import           Irc.Message
-import           Irc.Modes
-import           Irc.RawIrcMsg
-import           Irc.UserInfo
-import           LensUtils
-import qualified System.Random as Random
-import qualified Data.ByteString.Base64 as B64
+import Client.Authentication.Ecdh qualified as Ecdh
+import Client.Authentication.Ecdsa qualified as Ecdsa
+import Client.Authentication.Scram qualified as Scram
+import Client.Configuration.ServerSettings
+import Client.Hook (MessageHook)
+import Client.Hooks (messageHooks)
+import Client.Network.Async (abortConnection, send, NetworkConnection, TerminationReason(PingTimeout))
+import Client.State.Channel
+import Client.UserHost (UserAndHost(UserAndHost, _uhAccount))
+import Control.Lens
+import Data.Bits (Bits((.&.)))
+import Data.ByteString qualified as B
+import Data.ByteString.Base64 qualified as B64
+import Data.Foldable (for_, traverse_ )
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.HashSet qualified as HashSet
+import Data.List (foldl', delete, intersect, sort, union)
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Read qualified as Text
+import Data.Time
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Irc.Codes
+import Irc.Commands
+import Irc.Identifier (Identifier, idText, mkId)
+import Irc.Message
+import Irc.Modes
+import Irc.RawIrcMsg
+import Irc.UserInfo
+import LensUtils (overStrict, setStrict)
+import System.Random qualified as Random
 
 -- | State tracked for each IRC connection
 data NetworkState = NetworkState

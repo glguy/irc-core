@@ -30,32 +30,32 @@ module Client.Image.Message
   , Highlight(..)
   ) where
 
-import           Client.Configuration (PaddingMode(..))
-import           Client.Image.LineWrap
-import           Client.Image.MircFormatting
-import           Client.Image.PackedImage
-import           Client.Image.Palette
-import           Client.Message
-import           Client.State.Window
-import           Client.UserHost
-import           Control.Applicative ((<|>))
-import           Control.Lens
-import           Data.Char
-import           Data.Hashable (hash)
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-import           Data.List
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Time
-import qualified Data.Vector as Vector
-import           Graphics.Vty.Attributes
-import           Irc.Codes
-import           Irc.Identifier
-import           Irc.Message
-import           Irc.RawIrcMsg
-import           Irc.UserInfo
-import           Text.Read
+import Client.Configuration (PaddingMode(..))
+import Client.Image.LineWrap (lineWrapPrefix)
+import Client.Image.MircFormatting (parseIrcText, parseIrcText')
+import Client.Image.PackedImage (char, imageWidth, string, text', Image')
+import Client.Image.Palette
+import Client.Message
+import Client.State.Window (unpackTimeOfDay, wlImage, wlPrefix, wlTimestamp, WindowLine)
+import Client.UserHost ( uhAccount, UserAndHost )
+import Control.Applicative ((<|>))
+import Control.Lens (view, (^?), filtered, folded, views, Ixed(ix))
+import Data.Char (ord, chr, isControl)
+import Data.Hashable (hash)
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.List (intercalate, intersperse)
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Time (UTCTime, ZonedTime, TimeOfDay, formatTime, defaultTimeLocale, parseTimeM)
+import Data.Vector qualified as Vector
+import Graphics.Vty.Attributes
+import Irc.Codes
+import Irc.Identifier (Identifier, idText, mkId)
+import Irc.Message
+import Irc.RawIrcMsg (msgCommand, msgParams, msgPrefix)
+import Irc.UserInfo (UserInfo(userHost, userNick, userName))
+import Text.Read (readMaybe)
 
 -- | Parameters used when rendering messages
 data MessageRendererParams = MessageRendererParams

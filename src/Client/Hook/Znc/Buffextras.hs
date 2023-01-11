@@ -17,14 +17,13 @@ module Client.Hook.Znc.Buffextras
   ( buffextrasHook
   ) where
 
-import           Data.Attoparsec.Text as P
-import           Data.Text as Text hiding (head)
-
-import           Client.Hook
-import           Irc.Identifier
-import           Irc.Message
-import           Irc.RawIrcMsg
-import           Irc.UserInfo
+import Client.Hook (MessageHook(MessageHook), MessageResult(..))
+import Data.Attoparsec.Text as P
+import Data.Text as Text (Text, null, words)
+import Irc.Identifier (Identifier, mkId)
+import Irc.Message (IrcMsg(Topic, Privmsg, Join, Quit, Part, Nick, Mode, Kick), Source(Source, srcUser))
+import Irc.RawIrcMsg (prefixParser, simpleTokenParser)
+import Irc.UserInfo (UserInfo(userNick))
 
 -- | Map ZNC's buffextras messages to native client messages.
 -- Set debugging to pass through buffextras messages that
