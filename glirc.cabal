@@ -23,7 +23,7 @@ bug-reports:         https://github.com/glguy/irc-core/issues
 tested-with:         GHC==8.6.5
 
 custom-setup
-  setup-depends: base     >=4.12 && <4.18,
+  setup-depends: base     >=4.12 && <4.19,
                  filepath >=1.4  && <1.5,
                  Cabal    >=2.2  && <4
 
@@ -157,7 +157,7 @@ library
     Build_glirc
 
   build-depends:
-    base                 >=4.11   && <4.18,
+    base                 >=4.11   && <4.19,
     HsOpenSSL            >=0.11   && <0.12,
     async                >=2.2    && <2.3,
     attoparsec           ^>=0.14,
@@ -169,7 +169,7 @@ library
     curve25519           ^>=0.2.5,
     directory            >=1.2.6  && <1.4,
     filepath             >=1.4.1  && <1.5,
-    free                 >=4.12   && <5.2,
+    free                 >=4.12   && <5.3,
     githash              ^>=0.1.6,
     hashable             >=1.2.4  && <1.5,
     hookup               ^>=0.8,
@@ -183,7 +183,7 @@ library
     regex-tdfa           >=1.3.1  && <1.4,
     split                >=0.2    && <0.3,
     stm                  >=2.4    && <2.6,
-    template-haskell     >=2.11   && <2.20,
+    template-haskell     >=2.11   && <2.21,
     text                 >=1.2.2  && <2.1,
     time                 >=1.10   && <1.14,
     transformers         >=0.5.2  && <0.7,
