@@ -79,4 +79,11 @@ addInitialNetworks (n:ns) st =
 -- | Initialize a 'Vty' value and run a continuation. Shutdown the 'Vty'
 -- once the continuation finishes.
 withVty :: (Vty -> IO a) -> IO a
-withVty = bracket (mkVty mempty{bracketedPasteMode = Just True}) shutdown
+withVty = bracket buildVty shutdown
+
+-- | Generate the initial 'Vty' value and enable the features glirc uses.
+buildVty :: IO Vty
+buildVty =
+ do vty <- mkVty defaultConfig
+    setMode (outputIface vty) BracketedPaste True
+    pure vty
