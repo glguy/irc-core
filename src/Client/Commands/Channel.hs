@@ -32,7 +32,6 @@ import Irc.Commands (ircInvite, ircKick, ircMode, ircRemove)
 import Irc.Identifier (Identifier, mkId)
 import Irc.Modes
 import Irc.UserInfo (UserInfo(UserInfo), renderUserInfo)
-import LensUtils (setStrict)
 
 channelCommands :: CommandSection
 channelCommands = CommandSection "IRC channel management"
@@ -150,12 +149,6 @@ cmdInvite channelId cs st nick =
               then cs <$ sendMsg cs cmd
               else sendModeration channelId [cmd] cs
      commandSuccessUpdateCS cs' st
-
-commandSuccessUpdateCS :: NetworkState -> ClientState -> IO CommandResult
-commandSuccessUpdateCS cs st =
-  do let network = view csNetwork cs
-     commandSuccess
-       $ setStrict (clientConnection network) cs st
 
 cmdMasks :: ChannelCommand String
 cmdMasks channel cs st rest =

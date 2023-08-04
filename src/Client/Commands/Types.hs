@@ -10,12 +10,13 @@ Maintainer  : emertens@gmail.com
 module Client.Commands.Types where
 
 import Client.Commands.Arguments.Spec (Args)
-import Client.State (ClientState, clientErrorMsg)
-import Client.State.Network (NetworkState)
-import Control.Lens (set)
+import Client.State (ClientState, clientErrorMsg, clientConnection)
+import Client.State.Network (NetworkState, csNetwork)
+import Control.Lens (set, view)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
 import Irc.Identifier (Identifier)
+import LensUtils (setStrict)
 
 -- | Possible results of running a command
 data CommandResult
@@ -75,6 +76,14 @@ data CommandSection = CommandSection
 -- | Consider the text entry successful and resume the client
 commandSuccess :: Monad m => ClientState -> m CommandResult
 commandSuccess = return . CommandSuccess
+
+-- | Consider the text entry successful, and resume the client with
+-- a particular network updated.
+commandSuccessUpdateCS :: NetworkState -> ClientState -> IO CommandResult
+commandSuccessUpdateCS cs st =
+  do let network = view csNetwork cs
+     commandSuccess
+       $ setStrict (clientConnection network) cs st
 
 -- | Consider the text entry a failure and resume the client
 commandFailure :: Monad m => ClientState -> m CommandResult

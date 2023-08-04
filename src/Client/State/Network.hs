@@ -27,6 +27,7 @@ module Client.State.Network
   -- * Lenses
   , csNick
   , csChannels
+  , csChannelList
   , csSocket
   , csModeTypes
   , csChannelTypes
@@ -49,6 +50,9 @@ module Client.State.Network
   , csAuthenticationState
   , csSeed
   , csAway
+  , clsElist
+  , clsDone
+  , clsItems
 
   -- * Cross-message state
   , Transaction(..)
@@ -93,14 +97,15 @@ import Control.Lens
 import Data.Bits (Bits((.&.)))
 import Data.ByteString qualified as B
 import Data.ByteString.Base64 qualified as B64
+import Data.Either qualified as Either
 import Data.Foldable (for_, traverse_ )
 import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict qualified as HashMap
 import Data.HashSet qualified as HashSet
-import Data.List (foldl', delete, intersect, sort, union)
+import Data.List (foldl', delete, intersect, sort, sortBy, union)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, isJust, mapMaybe)
+import Data.Maybe (fromMaybe, isJust, mapMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -120,6 +125,7 @@ import System.Random qualified as Random
 -- | State tracked for each IRC connection
 data NetworkState = NetworkState
   { _csChannels     :: !(HashMap Identifier ChannelState) -- ^ joined channels
+  , _csChannelList  :: !ChannelList -- ^ cached ELIST parameter and /list output
   , _csSocket       :: !NetworkConnection -- ^ network socket
   , _csModeTypes    :: !ModeTypes -- ^ channel mode meanings
   , _csUmodeTypes   :: !ModeTypes -- ^ user mode meanings
@@ -168,6 +174,13 @@ data PingStatus
   | PingConnecting !Int !(Maybe UTCTime) !ConnectRestriction -- ^ number of attempts, last known connection time
   deriving Show
 
+-- | Cached channel information from /list and elsewhere.
+data ChannelList = ChannelList
+  { _clsElist :: !(Maybe Text) -- ^ The last ELIST parameter used. Nothing is also used to trigger cache purges
+  , _clsDone  :: !Bool -- ^ Whether to purge the hash map on receiving a new RPL_LIST
+  , _clsItems :: ![(Identifier, Int, Text)] -- ^ The list of channel infos.
+  }
+
 data ConnectRestriction
   = NoRestriction       -- ^ no message restriction
   | StartTLSRestriction -- ^ STARTTLS hasn't finished
@@ -190,9 +203,22 @@ data Transaction
   deriving Show
 
 makeLenses ''NetworkState
+makeLenses ''ChannelList
 makePrisms ''Transaction
 makePrisms ''PingStatus
 makePrisms ''TimedAction
+
+newChannelList :: Maybe Text -> Maybe (Identifier, Int, Text) -> ChannelList
+newChannelList elist Nothing = ChannelList
+  { _clsElist = elist
+  , _clsDone = False
+  , _clsItems = []
+  }
+newChannelList elist (Just v) = ChannelList
+  { _clsElist = elist
+  , _clsDone = False
+  , _clsItems = [v]
+  }
 
 defaultChannelTypes :: String
 defaultChannelTypes = "#&"
@@ -271,6 +297,7 @@ newNetworkState ::
 newNetworkState network settings sock ping seed = NetworkState
   { _csUserInfo     = UserInfo "*" "" ""
   , _csChannels     = HashMap.empty
+  , _csChannelList  = newChannelList Nothing Nothing
   , _csSocket       = sock
   , _csChannelTypes = defaultChannelTypes
   , _csModeTypes    = defaultModeTypes
@@ -449,6 +476,26 @@ doRandomNick cs = reply [ircNick candidate] cs'
 
     (n, cs')    = cs & csSeed %%~ Random.randomR range
 
+doList :: [Text] -> NetworkState -> NetworkState
+doList (_:chan:users:topic) cs
+  | purge = set csChannelList (newChannelList elist (Just $! value)) cs
+  | otherwise = set (csChannelList . clsItems) items' cs
+  where
+    items' = value:(_clsItems . _csChannelList $ cs)
+    value = (mkId chan, usercount, fromMaybe "" (listToMaybe topic))
+    usercount = fst . Either.fromRight (0, "") . Text.decimal $ users
+    elist = _clsElist . _csChannelList $ cs
+    purge = _clsDone . _csChannelList $ cs
+doList _ cs = cs
+
+doListEnd :: NetworkState -> NetworkState
+doListEnd cs = set csChannelList ncl cs
+  where
+    ncl = ChannelList { _clsElist = elist, _clsDone = True, _clsItems = sorted }
+    elist = _clsElist . _csChannelList $ cs
+    sorted = sortBy sorter . _clsItems . _csChannelList $ cs
+    sorter (_, aU, _) (_, bU, _) = compare bU aU
+
 doTopic :: ZonedTime -> UserInfo -> Identifier -> Text -> NetworkState -> NetworkState
 doTopic when user chan topic =
   overChannel chan (setTopic topic . set chanTopicProvenance (Just $! prov))
@@ -604,6 +651,10 @@ doRpl cmd msgWhen args cs =
     -- Away flag tracking
     RPL_NOWAWAY -> noReply (set csAway True cs)
     RPL_UNAWAY  -> noReply (set csAway False cs)
+
+    -- /list
+    RPL_LIST    -> noReply (doList args cs)
+    RPL_LISTEND -> noReply (doListEnd cs)
 
     _ -> noReply cs
 

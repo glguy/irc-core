@@ -17,6 +17,7 @@ import Client.Image.PackedImage (Image')
 import Client.State
 import Client.State.Focus
 import Client.View.Cert (certViewLines)
+import Client.View.ChannelList (channelListLines)
 import Client.View.ChannelInfo (channelInfoImages)
 import Client.View.Digraphs (digraphLines)
 import Client.View.Help (helpImageLines)
@@ -53,6 +54,8 @@ viewLines focus subfocus w !st =
     (_, FocusRtsStats)     -> rtsStatsLines (view clientRtsStats st) pal
     (_, FocusIgnoreList)   -> ignoreListLines (view clientIgnores st) pal
     (_, FocusCert)         -> certViewLines st
+    (ChannelFocus network _, FocusChanList) -> channelListLines network w st
+    (NetworkFocus network  , FocusChanList) -> channelListLines network w st
     _ -> chatMessageImages focus w st
   where
     pal = clientPalette st

@@ -434,6 +434,11 @@ msgImportance msg st =
         -- away notices
         Reply _ RPL_AWAY _     -> WLBoring
 
+        -- list output
+        Reply _ RPL_LISTSTART _ -> WLBoring
+        Reply _ RPL_LIST      _ -> WLBoring
+        Reply _ RPL_LISTEND   _ -> WLBoring
+
         -- channel information
         Reply _ RPL_TOPIC _    -> WLBoring
         Reply _ RPL_INVITING _ -> WLBoring

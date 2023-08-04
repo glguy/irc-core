@@ -127,6 +127,7 @@ library
     Client.UserHost
     Client.View
     Client.View.Cert
+    Client.View.ChannelList
     Client.View.ChannelInfo
     Client.View.Digraphs
     Client.View.Help

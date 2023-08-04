@@ -11,10 +11,15 @@ module Client.Commands.Queries (queryCommands) where
 
 import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken)
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
-import Client.Commands.Types (commandSuccess, Command(Command), CommandImpl(NetworkCommand), CommandSection(CommandSection), NetworkCommand)
-import Client.State.Network (sendMsg)
+import Client.Commands.Types (commandSuccess, commandSuccessUpdateCS, Command(Command), CommandImpl(NetworkCommand), CommandSection(CommandSection), NetworkCommand)
+import Client.State (changeSubfocus)
+import Client.State.Focus (Subfocus(FocusChanList))
+import Client.State.Network (sendMsg, csChannelList, clsElist, csPingStatus, _PingConnecting)
+import Control.Monad (unless)
 import Data.Text qualified as Text
 import Irc.Commands
+import Control.Applicative (liftA2)
+import Control.Lens (has, set, view)
 
 queryCommands :: CommandSection
 queryCommands = CommandSection "Queries"
@@ -94,7 +99,9 @@ queryCommands = CommandSection "Queries"
     $ NetworkCommand cmdInfo noNetworkTab
 
   , Command
-      (pure "list") (remainingArg "arguments")
+      (pure "list")
+      -- TODO: Shouldn't be a simpleToken.
+      (liftA2 (,) (optionalArg (simpleToken "[options]")) (remainingArg "argument"))
       "Send LIST query to server.\n"
     $ NetworkCommand cmdList simpleNetworkTab
 
@@ -123,10 +130,16 @@ cmdVersion cs st mbservername =
                                 Nothing -> ""
      commandSuccess st
 
-cmdList :: NetworkCommand String
+cmdList :: NetworkCommand (Maybe String, String)
 cmdList cs st rest =
-  do sendMsg cs (ircList (Text.pack <$> words rest))
-     commandSuccess st
+    do
+      let connecting = has (csPingStatus . _PingConnecting) cs
+      let elist = Just (Text.pack . snd $ rest)
+      let cached = elist == view (csChannelList . clsElist) cs
+      let sendM = sendMsg cs (ircList (Text.pack <$> words (snd rest)))
+      unless (connecting || cached) sendM
+      let cs' = set (csChannelList . clsElist) elist cs 
+      commandSuccessUpdateCS cs' (changeSubfocus FocusChanList st)
 
 cmdLusers :: NetworkCommand (Maybe String)
 cmdLusers cs st arg =
