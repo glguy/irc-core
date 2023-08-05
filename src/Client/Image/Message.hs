@@ -627,7 +627,6 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
         RPL_ETRACEFULL   -> etraceFullParamsImage
         RPL_ENDOFTRACE   -> params_2_3_Image
         RPL_ENDOFHELP    -> params_2_3_Image
-        RPL_LIST         -> listParamsImage
         RPL_LINKS        -> linksParamsImage
         RPL_ENDOFLINKS   -> params_2_3_Image
         RPL_PRIVS        -> privsImage
@@ -890,12 +889,6 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
     awayParamsImage =
       case params of
         [_, nick, txt] -> ctxt nick <> label " msg" <> parseIrcText pal txt
-        _ -> rawParamsImage
-
-    listParamsImage =
-      case params of
-        [_, chan, users, topic] ->
-          ctxt chan <> label " users" <> ctxt users <> label " topic" <> ctxt topic
         _ -> rawParamsImage
 
     linksParamsImage =

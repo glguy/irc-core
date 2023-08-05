@@ -719,6 +719,9 @@ squelchReply rpl =
     RPL_CREATIONTIME    -> True
     RPL_CHANNEL_URL     -> True
     RPL_NOTOPIC         -> True
+    RPL_LISTSTART       -> True
+    RPL_LIST            -> True
+    RPL_LISTEND         -> True
     _                   -> False
 
 -- | Return 'True' for messages that should be hidden outside of
