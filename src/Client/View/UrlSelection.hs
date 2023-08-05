@@ -40,12 +40,8 @@ urlSelectionView ::
   [Image']    {- ^ image lines         -}
 urlSelectionView w focus arg st
   = concat
-  $ zipWith (draw w hilites pal padding selected) [1..] (toListOf urled st)
+  $ zipWith (draw w hilites pal padding selected) [1..] (urlList st)
   where
-    urled = clientWindows . ix focus
-          . winMessages   . each
-          . folding matches
-
     focused = focus == view clientFocus st
 
     selected
@@ -59,11 +55,6 @@ urlSelectionView w focus arg st
     pal     = view configPalette cfg
 
     hilites = clientHighlightsFocus focus st
-
-
-matches :: WindowLine -> [(Maybe Identifier, Text)]
-matches wl = [ (views wlSummary summaryActor wl, url) | url <- views wlText urlMatches wl ]
-
 
 -- | Render one line of the url list
 draw ::

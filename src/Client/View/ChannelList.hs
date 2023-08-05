@@ -22,6 +22,7 @@ import qualified Data.Text.Lazy as LText
 import           Graphics.Vty.Attributes (defAttr)
 import           Irc.Identifier
 
+-- |
 -- | Render the lines used by the @/list@ command in normal mode.
 channelListLines ::
   Text        {- ^ network              -} ->
@@ -50,8 +51,7 @@ channelListLines' cs width st
                  string defAttr (show (length entries))
 
     entries = chanList^.clsItems
-    entries' = clientFilter st filterOn entries
-    filterOn (chan, _, topic) = LText.fromChunks [idText chan, " ", topic]
+    entries' = clientFilterChannels st entries
 
     images = concatMap listItemImage entries'
 

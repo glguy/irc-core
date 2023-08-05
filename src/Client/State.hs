@@ -54,6 +54,7 @@ module Client.State
   , withClientState
   , clientIsFiltered
   , clientFilter
+  , clientFilterChannels
   , buildMatcher
   , clientToggleHideMeta
   , channelUserList
@@ -109,6 +110,7 @@ module Client.State
   -- * URL view
   , urlPattern
   , urlMatches
+  , urlList
 
   ) where
 
@@ -742,6 +744,10 @@ clientFilter st f xs =
      where
        limit = maybe id take (matcherMax m)
 
+clientFilterChannels :: ClientState -> [(Identifier, Int, Text)] -> [(Identifier, Int, Text)]
+clientFilterChannels st = clientFilter st filterOn
+  where filterOn (chan, _, topic) = LText.fromChunks [idText chan, " ", topic]
+
 data MatcherArgs = MatcherArgs
   { argAfter     :: !Int
   , argBefore    :: !Int
@@ -828,6 +834,26 @@ urlMatches txt = removeBrackets . extractText . (^?! ix 0)
        Just ('<',t') | not (Text.null t') -> Text.init t'
        Just ('(',t') | not (Text.null t') -> Text.init t'
        _                                  -> t
+
+-- | Generate a list of URLs from the current focus and subfocus.
+urlList :: ClientState -> [(Maybe Identifier, Text)]
+urlList st = urlFn (view clientFocus st, view clientSubfocus st) st
+  where
+    urlFn pair = case pair of
+      (NetworkFocus net  , FocusChanList) -> matchesTopic . view (clientConnections . at net)
+      (ChannelFocus net _, FocusChanList) -> matchesTopic . view (clientConnections . at net)
+      (focus, _) ->
+        toListOf (clientWindows . ix focus . winMessages . each . folding matchesMsg)
+    matchesMsg wl =
+      [ (views wlSummary summaryActor wl, url)
+      | url <- concatMap urlMatches $ clientFilter st id [views wlText id wl]
+      ]
+    matchesTopic Nothing = []
+    matchesTopic (Just ct) =
+        [ (Just $! chan, url)
+        | (chan, _, topic) <- clientFilterChannels st $ view (csChannelList . clsItems) ct
+        , url <- urlMatches $ LText.fromStrict topic
+        ]
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the network connection exists and should
