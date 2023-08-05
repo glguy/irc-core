@@ -18,6 +18,7 @@ import           Client.State.Network
 import           Control.Lens
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
 import           Graphics.Vty.Attributes (defAttr)
 import           Irc.Identifier
 
@@ -43,12 +44,16 @@ channelListLines' cs width st
     pal = clientPalette st
 
     countImagePending = countImage <> text' (view palLabel pal) "..."
-    countImage = text' (view palLabel pal) "Channels: " <>
+    countImage = text' (view palLabel pal) "Channels (visible/total): " <>
+                 string defAttr (show (length entries')) <>
+                 char (view palLabel pal) '/' <>
                  string defAttr (show (length entries))
 
     entries = chanList^.clsItems
+    entries' = clientFilter st filterOn entries
+    filterOn (chan, _, topic) = LText.fromChunks [idText chan, " ", topic]
 
-    images = concatMap listItemImage entries
+    images = concatMap listItemImage entries'
 
     listItemImage :: (Identifier, Int, Text) -> [Image']
     listItemImage (chan, users, topic)
