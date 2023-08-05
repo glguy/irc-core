@@ -11,6 +11,7 @@ This module renders the lines used in the channel user list.
 module Client.View.ChannelList ( channelListLines ) where
 
 import           Client.Image.LineWrap (lineWrapPrefix)
+import           Client.Image.Message (IdentifierColorMode(NormalIdentifier), coloredIdentifier)
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
@@ -18,26 +19,29 @@ import           Client.State.Network
 import           Control.Lens
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LText
 import           Graphics.Vty.Attributes (defAttr)
 import           Irc.Identifier
+import qualified Data.HashMap.Strict as HashMap
 
 -- |
 -- | Render the lines used by the @/list@ command in normal mode.
 channelListLines ::
-  Text        {- ^ network              -} ->
-  Int         {- ^ window width         -} ->
-  ClientState {- ^ client state         -} ->
+  Text        {- ^ network           -} ->
+  Int         {- ^ window width      -} ->
+  ClientState {- ^ client state      -} ->
+  (Maybe Int, Maybe Int) {- ^ bounds -} ->
   [Image']
-channelListLines network width st =
+channelListLines network width st bounds =
   case preview (clientConnection network) st of
-    Just cs -> channelListLines' cs width st
+    Just cs -> channelListLines' cs width st bounds
     Nothing -> [text' (view palError pal) "No connection"]
   where
     pal = clientPalette st
 
-channelListLines' :: NetworkState -> Int -> ClientState -> [Image']
-channelListLines' cs width st
+channelListLines' ::
+  NetworkState ->
+  Int -> ClientState -> (Maybe Int, Maybe Int) -> [Image']
+channelListLines' cs width st (min', max')
   | (chanList^.clsDone) = countImage : images
   | otherwise = countImagePending : images
   where
@@ -51,7 +55,7 @@ channelListLines' cs width st
                  string defAttr (show (length entries))
 
     entries = chanList^.clsItems
-    entries' = clientFilterChannels st entries
+    entries' = clientFilterChannels st min' max' entries
 
     images = concatMap listItemImage entries'
 
@@ -60,5 +64,6 @@ channelListLines' cs width st
       | Text.null topic = [baseImage]
       | otherwise = reverse $ lineWrapPrefix width (baseImage <> label " topic:") (text' defAttr topic)
       where
-        baseImage = text' defAttr (idText chan) <> label " users: " <> text' defAttr (Text.pack . show $ users)
+        chanImage = coloredIdentifier pal NormalIdentifier HashMap.empty chan
+        baseImage = chanImage <> label " users: " <> text' defAttr (Text.pack . show $ users)
         label = text' (view palLabel pal)

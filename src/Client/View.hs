@@ -54,8 +54,10 @@ viewLines focus subfocus w !st =
     (_, FocusRtsStats)     -> rtsStatsLines (view clientRtsStats st) pal
     (_, FocusIgnoreList)   -> ignoreListLines (view clientIgnores st) pal
     (_, FocusCert)         -> certViewLines st
-    (ChannelFocus network _, FocusChanList) -> channelListLines network w st
-    (NetworkFocus network  , FocusChanList) -> channelListLines network w st
+    (ChannelFocus network _, FocusChanList min' max') ->
+      channelListLines network w st (min', max')
+    (NetworkFocus network  , FocusChanList min' max') ->
+      channelListLines network w st (min', max')
     _ -> chatMessageImages focus w st
   where
     pal = clientPalette st

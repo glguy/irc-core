@@ -36,7 +36,6 @@ import Client.State
 import Client.State.Extensions (clientCommandExtension, clientStartExtensions)
 import Client.State.Focus
 import Client.State.Network (csNick, isChannelIdentifier, sendMsg)
-import Client.State.Window (winMessages, wlText)
 import Control.Applicative (liftA2, (<|>))
 import Control.Exception (displayException, try)
 import Control.Lens

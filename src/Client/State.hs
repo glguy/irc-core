@@ -744,8 +744,17 @@ clientFilter st f xs =
      where
        limit = maybe id take (matcherMax m)
 
-clientFilterChannels :: ClientState -> [(Identifier, Int, Text)] -> [(Identifier, Int, Text)]
-clientFilterChannels st = clientFilter st filterOn
+clientFilterChannels ::
+  ClientState ->
+  Maybe Int ->
+  Maybe Int ->
+  [(Identifier, Int, Text)] ->
+  [(Identifier, Int, Text)]
+clientFilterChannels st min' (Just max') =
+  filter (\(_, users, _) -> users < max') . clientFilterChannels st min' Nothing
+clientFilterChannels st (Just min') Nothing =
+  filter (\(_, users, _) -> users > min') . clientFilterChannels st Nothing Nothing
+clientFilterChannels st Nothing Nothing = clientFilter st filterOn
   where filterOn (chan, _, topic) = LText.fromChunks [idText chan, " ", topic]
 
 data MatcherArgs = MatcherArgs
@@ -837,21 +846,24 @@ urlMatches txt = removeBrackets . extractText . (^?! ix 0)
 
 -- | Generate a list of URLs from the current focus and subfocus.
 urlList :: ClientState -> [(Maybe Identifier, Text)]
-urlList st = urlFn (view clientFocus st, view clientSubfocus st) st
+urlList st = urlFn st
   where
-    urlFn pair = case pair of
-      (NetworkFocus net  , FocusChanList) -> matchesTopic . view (clientConnections . at net)
-      (ChannelFocus net _, FocusChanList) -> matchesTopic . view (clientConnections . at net)
-      (focus, _) ->
+    urlFn = case (network, subfocus) of
+      (Just net, FocusChanList min' max') ->
+        matchesTopic min' max' . view (clientConnections . at net)
+      (_, _) ->
         toListOf (clientWindows . ix focus . winMessages . each . folding matchesMsg)
+    focus = view clientFocus st
+    subfocus = view clientSubfocus st
+    network = focusNetwork focus
     matchesMsg wl =
       [ (views wlSummary summaryActor wl, url)
       | url <- concatMap urlMatches $ clientFilter st id [views wlText id wl]
       ]
-    matchesTopic Nothing = []
-    matchesTopic (Just ct) =
+    matchesTopic _ _ Nothing = []
+    matchesTopic min' max' (Just ct) =
         [ (Just $! chan, url)
-        | (chan, _, topic) <- clientFilterChannels st $ view (csChannelList . clsItems) ct
+        | (chan, _, topic) <- clientFilterChannels st min' max' $ view (csChannelList . clsItems) ct
         , url <- urlMatches $ LText.fromStrict topic
         ]
 
