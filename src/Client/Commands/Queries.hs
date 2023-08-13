@@ -1,5 +1,6 @@
 {-# Language OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ViewPatterns #-}
 {-|
 Module      : Client.Commands.Queries
 Description : Query command implementations
@@ -18,11 +19,9 @@ import Client.State.Focus (Subfocus(FocusChanList))
 import Client.State.Network (sendMsg, csChannelList, clsElist, csPingStatus, _PingConnecting)
 import Control.Lens (has, set, view)
 import Control.Monad (unless)
-import Data.Char (isDigit)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.Text qualified as Text
 import Irc.Commands
-import Text.ParserCombinators.ReadP (munch1, readP_to_S)
 
 queryCommands :: CommandSection
 queryCommands = CommandSection "Queries"
@@ -160,44 +159,45 @@ cmdList cs st rest =
     do
       let lsa = fromMaybe lsaDefault rest
       let connecting = has (csPingStatus . _PingConnecting) cs
-      let elist = Just (Text.pack $ _lsaElist lsa)
+      let elist = Just (Text.pack (fromMaybe "" (_lsaElist lsa)))
       let cached = elist == view (csChannelList . clsElist) cs
-      let sendM = sendMsg cs (ircList (Text.pack <$> words (_lsaElist lsa)))
+      let sendM = sendMsg cs (ircList (Text.pack <$> maybeToList (_lsaElist lsa)))
       unless (connecting || (cached && not (_lsaRefresh lsa))) sendM
       let cs' = set (csChannelList . clsElist) elist cs 
       let subfocus = FocusChanList (_lsaMin lsa) (_lsaMax lsa)
       commandSuccessUpdateCS cs' (changeSubfocus subfocus st)
 
 listArgs :: ClientState -> String -> Maybe (Args ClientState ListArgs)
-listArgs cs = fmap (withElist (remainingArg "[serverarg]")) . lsaParse cs
+listArgs _ = fmap (withElist (optionalArg (simpleToken "[serverarg]"))) . lsaParse
     where withElist arg a = fmap (\s -> a { _lsaElist = s }) arg
 
-data ListArgs = List
-  { _lsaElist   :: String
+data ListArgs = ListArgs
+  { _lsaElist   :: Maybe String
   , _lsaRefresh :: Bool
   , _lsaMin     :: Maybe Int
   , _lsaMax     :: Maybe Int
   }
 
 lsaDefault :: ListArgs
-lsaDefault = List { _lsaElist = "", _lsaRefresh = False, _lsaMin = Nothing, _lsaMax = Nothing }
+lsaDefault = ListArgs
+  { _lsaElist = Nothing
+  , _lsaRefresh = False
+  , _lsaMin = Nothing
+  , _lsaMax = Nothing
+  }
 
-lsaParse :: a -> String -> Maybe ListArgs
-lsaParse _ = lsaParse' lsaDefault
+lsaParse :: String -> Maybe ListArgs
+lsaParse = lsaParse' lsaDefault
   where
     lsaParse' lsa str = case str of
-      ('~':rest) -> lsaParse' (lsa { _lsaRefresh = True }) rest
-      (',':rest) -> lsaParse' lsa rest
-      ('>':rest) ->
-        readInt rest >>= \(min', rest') -> lsaParse' (lsa { _lsaMin = Just min'}) rest'
-      ('<':rest) ->
-        readInt rest >>= \(max', rest') -> lsaParse' (lsa { _lsaMax = Just max'}) rest'
-      (_:_) -> Nothing
-      [] -> Just lsa
-    readInt :: String -> Maybe (Int, String)
-    readInt = listToMaybe . readP_to_S do
-      digits <- munch1 isDigit
-      return $ read digits
+      '~':rest -> lsaParse' lsa{ _lsaRefresh = True } rest
+      ',':rest -> lsaParse' lsa rest
+      '>':(reads -> [(min', rest)]) | min' >= 0 ->
+        lsaParse' lsa{ _lsaMin = Just min'} rest
+      '<':(reads -> [(max', rest)]) | max' >= 0 ->
+        lsaParse' lsa{ _lsaMax = Just max'} rest
+      "" -> Just lsa
+      _ -> Nothing
 
 cmdLusers :: NetworkCommand (Maybe String)
 cmdLusers cs st arg =
