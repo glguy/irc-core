@@ -55,6 +55,7 @@ data Subfocus
   | FocusRtsStats    -- ^ Show GHC RTS statistics
   | FocusIgnoreList  -- ^ Show ignored masks
   | FocusCert        -- ^ Show rendered certificate
+  | FocusChanList (Maybe Int) (Maybe Int) -- ^ Show channel list
   deriving (Eq,Show)
 
 -- | Unfocused first, followed by focuses sorted by network.

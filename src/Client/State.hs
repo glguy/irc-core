@@ -54,6 +54,7 @@ module Client.State
   , withClientState
   , clientIsFiltered
   , clientFilter
+  , clientFilterChannels
   , buildMatcher
   , clientToggleHideMeta
   , channelUserList
@@ -109,6 +110,7 @@ module Client.State
   -- * URL view
   , urlPattern
   , urlMatches
+  , urlList
 
   ) where
 
@@ -434,6 +436,11 @@ msgImportance msg st =
         -- away notices
         Reply _ RPL_AWAY _     -> WLBoring
 
+        -- list output
+        Reply _ RPL_LISTSTART _ -> WLBoring
+        Reply _ RPL_LIST      _ -> WLBoring
+        Reply _ RPL_LISTEND   _ -> WLBoring
+
         -- channel information
         Reply _ RPL_TOPIC _    -> WLBoring
         Reply _ RPL_INVITING _ -> WLBoring
@@ -737,6 +744,19 @@ clientFilter st f xs =
      where
        limit = maybe id take (matcherMax m)
 
+clientFilterChannels ::
+  ClientState ->
+  Maybe Int ->
+  Maybe Int ->
+  [(Identifier, Int, Text)] ->
+  [(Identifier, Int, Text)]
+clientFilterChannels st min' (Just max') =
+  filter (\(_, users, _) -> users < max') . clientFilterChannels st min' Nothing
+clientFilterChannels st (Just min') Nothing =
+  filter (\(_, users, _) -> users > min') . clientFilterChannels st Nothing Nothing
+clientFilterChannels st Nothing Nothing = clientFilter st filterOn
+  where filterOn (chan, _, topic) = LText.fromChunks [idText chan, " ", topic]
+
 data MatcherArgs = MatcherArgs
   { argAfter     :: !Int
   , argBefore    :: !Int
@@ -823,6 +843,29 @@ urlMatches txt = removeBrackets . extractText . (^?! ix 0)
        Just ('<',t') | not (Text.null t') -> Text.init t'
        Just ('(',t') | not (Text.null t') -> Text.init t'
        _                                  -> t
+
+-- | Generate a list of URLs from the current focus and subfocus.
+urlList :: ClientState -> [(Maybe Identifier, Text)]
+urlList st = urlFn st
+  where
+    urlFn = case (network, subfocus) of
+      (Just net, FocusChanList min' max') ->
+        matchesTopic min' max' . view (clientConnections . at net)
+      (_, _) ->
+        toListOf (clientWindows . ix focus . winMessages . each . folding matchesMsg)
+    focus = view clientFocus st
+    subfocus = view clientSubfocus st
+    network = focusNetwork focus
+    matchesMsg wl =
+      [ (views wlSummary summaryActor wl, url)
+      | url <- concatMap urlMatches $ clientFilter st id [views wlText id wl]
+      ]
+    matchesTopic _ _ Nothing = []
+    matchesTopic min' max' (Just ct) =
+        [ (Just $! chan, url)
+        | (chan, _, topic) <- clientFilterChannels st min' max' $ view (csChannelList . clsItems) ct
+        , url <- urlMatches $ LText.fromStrict topic
+        ]
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the network connection exists and should

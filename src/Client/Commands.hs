@@ -36,7 +36,6 @@ import Client.State
 import Client.State.Extensions (clientCommandExtension, clientStartExtensions)
 import Client.State.Focus
 import Client.State.Network (csNick, isChannelIdentifier, sendMsg)
-import Client.State.Window (winMessages, wlText)
 import Control.Applicative (liftA2, (<|>))
 import Control.Exception (displayException, try)
 import Control.Lens
@@ -507,13 +506,8 @@ cmdUrl st arg =
     Nothing     -> commandFailureMsg "url-opener not configured" st
     Just opener -> doUrlOpen opener (maybe 0 (subtract 1) arg)
   where
-    focus = view clientFocus st
-
-    urls = toListOf ( clientWindows . ix focus . winMessages . each . wlText
-                    . folding urlMatches) st
-
     doUrlOpen opener n =
-      case preview (ix n) urls of
+      case preview (ix n) (map snd (urlList st)) of
         Just url -> openUrl opener (Text.unpack url) st
         Nothing  -> commandFailureMsg "bad url number" st
 
