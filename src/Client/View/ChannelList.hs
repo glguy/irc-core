@@ -22,6 +22,7 @@ import qualified Data.Text as Text
 import           Graphics.Vty.Attributes (defAttr)
 import           Irc.Identifier
 import qualified Data.HashMap.Strict as HashMap
+import Client.State.Focus (Subfocus(FocusChanList))
 
 -- |
 -- | Render the lines used by the @/list@ command in normal mode.
@@ -42,17 +43,24 @@ channelListLines' ::
   NetworkState ->
   Int -> ClientState -> (Maybe Int, Maybe Int) -> [Image']
 channelListLines' cs width st (min', max')
-  | (chanList^.clsDone) = countImage : images
+  | chanList^.clsDone = countImage : images
   | otherwise = countImagePending : images
   where
     chanList = cs^.csChannelList
+    els = chanList^.clsElist
     pal = clientPalette st
 
     countImagePending = countImage <> text' (view palLabel pal) "..."
     countImage = text' (view palLabel pal) "Channels (visible/total): " <>
                  string defAttr (show (length entries')) <>
                  char (view palLabel pal) '/' <>
-                 string defAttr (show (length entries))
+                 string defAttr (show (length entries)) <>
+                 queryPart
+
+    queryPart = mconcat $
+      [text' (view palLabel pal) " More-than: " <> string defAttr (show lo) | FocusChanList (Just lo) _ <- [st^.clientSubfocus]] ++
+      [text' (view palLabel pal) " Less-than: " <> string defAttr (show hi) | FocusChanList _ (Just hi) <- [st^.clientSubfocus]] ++
+      [text' (view palLabel pal) " Elist: " <> text' defAttr txt | Just txt <- [els], not (Text.null txt)]
 
     entries = chanList^.clsItems
     entries' = clientFilterChannels st min' max' entries
