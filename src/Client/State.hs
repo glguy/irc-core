@@ -617,12 +617,15 @@ recordWindowLine' ::
 recordWindowLine' create focus wl st = st2
   where
     hints = clientWindowHint focus st
+    winActivity
+      | fromMaybe False (windowHintSilent =<< hints) = AFSilent
+      | otherwise = fromMaybe AFLoud (windowHintActivity =<< hints)
 
     freshWindow = emptyWindow
       { _winName'    = clientNextWindowName hints st
       , _winHideMeta = fromMaybe (view (clientConfig . configHideMeta) st) (windowHintHideMeta =<< hints)
       , _winHidden   = fromMaybe False (windowHintHidden =<< hints)
-      , _winSilent   = fromMaybe False (windowHintSilent =<< hints)
+      , _winActivityFilter   = winActivity
       }
 
     add True  w = Just $! addToWindow wl (fromMaybe freshWindow w)
@@ -1009,8 +1012,7 @@ jumpToActivity st =
         Just focus -> changeFocus focus st
         Nothing    -> st
   where
-    windowList   = filter (not . view winSilent . snd)
-                 $ views clientWindows Map.toAscList st
+    windowList   = views clientWindows Map.toAscList st
     highPriority = find (\x -> WLImportant == view winMention (snd x)) windowList
     lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
 

@@ -117,6 +117,7 @@ import System.Exit qualified as Exit
 import System.Process.Typed qualified as Process
 import Text.Regex.TDFA (Regex, RegexOptions(defaultCompOpt), ExecOption(ExecOption, captureGroups))
 import Text.Regex.TDFA.Text (compile)
+import Client.State.Window (ActivityFilter (..))
 
 -- | Static server-level settings
 data ServerSettings = ServerSettings
@@ -177,12 +178,13 @@ data SaslMechanism
   | SaslEcdh     (Maybe Text) Text Secret -- ^ SASL ECDH-X25519-CHALLENGE - authzid authcid private-key
   deriving Show
 
-data WindowHint = WindowHint {
-  windowHintName     :: Maybe Char,
-  windowHintHideMeta :: Maybe Bool,
-  windowHintSilent   :: Maybe Bool,
-  windowHintHidden   :: Maybe Bool
-} deriving Show
+data WindowHint = WindowHint
+  { windowHintName     :: Maybe Char
+  , windowHintHideMeta :: Maybe Bool
+  , windowHintSilent   :: Maybe Bool
+  , windowHintHidden   :: Maybe Bool
+  , windowHintActivity :: Maybe ActivityFilter
+  } deriving Show
 
 -- | Regular expression matched with original source to help with debugging.
 data KnownRegex = KnownRegex Text Regex
@@ -398,7 +400,8 @@ windowHintsSpec = Map.fromList <$> listSpec entrySpec
            windowHintName     <- optSection' "hotkey"    hotkeySpec  "reserved hotkey"
            windowHintHidden   <- optSection' "hidden"    yesOrNoSpec "hide from statusbar"
            windowHintHideMeta <- optSection' "hide-meta" yesOrNoSpec "hide metadata by default"
-           windowHintSilent   <- optSection' "silent"    yesOrNoSpec "hide activity counters"
+           windowHintActivity <- optSection' "activity"  activitySpec "activity indicators"
+           windowHintSilent   <- optSection' "silent"    yesOrNoSpec "[deprecated] hide activity counters"
            pure (focus, WindowHint{..})
 
     focusSpec =
@@ -416,6 +419,12 @@ tlsModeSpec =
   TlsYes   <$ atomSpec "yes"      <!>
   TlsNo    <$ atomSpec "no"       <!>
   TlsStart <$ atomSpec "starttls"
+
+-- TODO: May be nice to be able to do this for all Show Enums.
+activitySpec :: ValueSpec ActivityFilter
+activitySpec = foldl1 (<!>) $ map mkSpec [(toEnum 0)..]
+  where
+    mkSpec a = a <$ atomSpec (Text.pack $ show a)
 
 tlsVerifySpec :: ValueSpec TlsVerify
 tlsVerifySpec =

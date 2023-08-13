@@ -224,7 +224,6 @@ activitySummary st
       let name = case view winName w of
                    Nothing -> '?'
                    Just i -> i in
-      if view winSilent w then rest else
       case view winMention w of
         WLImportant -> Vty.char (view palMention  pal) name : rest
         WLNormal    -> Vty.char (view palActivity pal) name : rest
@@ -241,7 +240,7 @@ activityBarImages st
 
   where
     baraux (focus,w)
-      | view winSilent w = Nothing
+      | view winActivityFilter w == AFSilent = Nothing
       | n == 0 = Nothing -- todo: make configurable
       | otherwise = Just
                   $ unpackImage bar Vty.<|>
