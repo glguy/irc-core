@@ -17,7 +17,7 @@ module Client.Image.StatusLine
   , clientTitle
   ) where
 
-import Client.Image.Message (cleanChar, cleanText)
+import Client.Image.Message (cleanChar, cleanText, IdentifierColorMode (NormalIdentifier), coloredIdentifier)
 import Client.Image.PackedImage
 import Client.Image.Palette
 import Client.State
@@ -29,6 +29,7 @@ import Control.Lens (view, orOf, preview, views, _Just, At(at), Ixed(ix))
 import Data.Foldable (for_)
 import Data.HashMap.Strict (HashMap)
 import Data.Map.Strict qualified as Map
+import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (fromMaybe, mapMaybe, maybeToList)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -246,7 +247,7 @@ activityBarImages st
                   $ unpackImage bar Vty.<|>
                     Vty.char defAttr '[' Vty.<|>
                     jumpLabel Vty.<|>
-                    Vty.text' (view palLabel pal) (cleanText focusText) Vty.<|>
+                    focusLabel Vty.<|>
                     Vty.char defAttr ':' Vty.<|>
                     Vty.string attr (show n) Vty.<|>
                     Vty.char defAttr ']'
@@ -261,11 +262,11 @@ activityBarImages st
         attr = case view winMention w of
                  WLImportant -> view palMention pal
                  _           -> view palActivity pal
-        focusText =
-          case focus of
-            Unfocused           -> Text.pack "*"
-            NetworkFocus net    -> net
-            ChannelFocus _ chan -> idText chan
+        focusLabel =
+          unpackImage $ case focus of
+            Unfocused           -> text' (view palLabel pal) (Text.pack "*")
+            NetworkFocus net    -> text' (view palLabel pal) (cleanText net)
+            ChannelFocus _ chan -> coloredIdentifier pal NormalIdentifier HashMap.empty chan
 
 
 -- | Pack a list of images into a single image spanning possibly many lines.
@@ -355,7 +356,7 @@ viewFocusLabel st focus =
       text' (view palLabel pal) (cleanText network) <>
       char defAttr ':' <>
       string (view palSigil pal) (cleanChar <$> sigils) <>
-      text' (view palLabel pal) (cleanText (idText channel)) <>
+      coloredIdentifier pal NormalIdentifier HashMap.empty channel <>
       channelModes
 
       where
