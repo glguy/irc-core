@@ -134,6 +134,7 @@ import qualified Client.State.EditBox as Edit
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
+import           Client.WhoReply (WhoReplyItem, whoFilterText, whoUserInfo, whoItems, whoRealname)
 import           ContextFilter
 import           Control.Applicative
 import           Control.Concurrent.MVar
@@ -881,6 +882,8 @@ urlList st = urlFn st
     urlFn = case (network, subfocus) of
       (Just net, FocusChanList min' max') ->
         matchesTopic min' max' . view (clientConnections . at net)
+      (Just net, FocusWho) ->
+        matchesWhoReply . view (clientConnections . at net)
       (_, _) ->
         toListOf (clientWindows . ix focus . winMessages . each . folding matchesMsg)
     focus = view clientFocus st
@@ -891,11 +894,17 @@ urlList st = urlFn st
       | url <- concatMap urlMatches $ clientFilter st id [views wlText id wl]
       ]
     matchesTopic _ _ Nothing = []
-    matchesTopic min' max' (Just ct) =
-        [ (Just $! chan, url)
-        | (chan, _, topic) <- clientFilterChannels st min' max' $ view (csChannelList . clsItems) ct
-        , url <- urlMatches $ LText.fromStrict topic
-        ]
+    matchesTopic min' max' (Just cs) =
+      [ (Just $! chan, url)
+      | (chan, _, topic) <- clientFilterChannels st min' max' $ view (csChannelList . clsItems) cs
+      , url <- urlMatches $ LText.fromStrict topic
+      ]
+    matchesWhoReply Nothing = []
+    matchesWhoReply (Just cs) =
+      [ (Just $! userNick $ view whoUserInfo wri, url)
+      | wri <- clientFilter st whoFilterText $ view (csWhoReply . whoItems) cs
+      , url <- urlMatches $ LText.fromStrict $ view whoRealname wri
+      ]
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the network connection exists and should
