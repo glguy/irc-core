@@ -43,8 +43,8 @@ channelListLines' ::
   NetworkState ->
   Int -> ClientState -> (Maybe Int, Maybe Int) -> [Image']
 channelListLines' cs width st (min', max')
-  | chanList^.clsDone = countImage : images
-  | otherwise = countImagePending : images
+  | chanList^.clsDone = countImage <> queryPart : images
+  | otherwise = countImagePending <> queryPart : images
   where
     chanList = cs^.csChannelList
     els = chanList^.clsElist
@@ -54,8 +54,7 @@ channelListLines' cs width st (min', max')
     countImage = text' (view palLabel pal) "Channels (visible/total): " <>
                  string defAttr (show (length entries')) <>
                  char (view palLabel pal) '/' <>
-                 string defAttr (show (length entries)) <>
-                 queryPart
+                 string defAttr (show (length entries))
 
     queryPart = mconcat $
       [text' (view palLabel pal) " More-than: " <> string defAttr (show lo) | FocusChanList (Just lo) _ <- [st^.clientSubfocus]] ++

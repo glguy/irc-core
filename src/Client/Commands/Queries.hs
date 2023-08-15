@@ -15,8 +15,10 @@ import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken, e
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
 import Client.Commands.Types (commandSuccess, commandSuccessUpdateCS, Command(Command), CommandImpl(NetworkCommand), CommandSection(CommandSection), NetworkCommand)
 import Client.State (changeSubfocus, ClientState)
-import Client.State.Focus (Subfocus(FocusChanList))
-import Client.State.Network (sendMsg, csChannelList, clsElist, csPingStatus, _PingConnecting)
+import Client.State.Focus (Subfocus(FocusChanList, FocusWho))
+import Client.State.Network (sendMsg, csChannelList, clsElist, csPingStatus, _PingConnecting, csWhoReply)
+import Client.WhoReply (newWhoReply)
+import Control.Applicative (liftA2)
 import Control.Lens (has, set, view)
 import Control.Monad (unless)
 import Data.Maybe (fromMaybe, maybeToList)
@@ -28,8 +30,8 @@ queryCommands = CommandSection "Queries"
 
   [ Command
       (pure "who")
-      (remainingArg "arguments")
-      "Send WHO query to server with given arguments.\n"
+      (optionalArg (liftA2 (,) (simpleToken "[channel|nick|mask]") (optionalArg (simpleToken "[options]"))))
+      "Send WHO query to server with given arguments, or just show the who view.\n"
     $ NetworkCommand cmdWho simpleNetworkTab
 
   , Command
@@ -254,10 +256,15 @@ cmdWhois cs st rest =
   do sendMsg cs (ircWhois (Text.pack <$> words rest))
      commandSuccess st
 
-cmdWho :: NetworkCommand String
-cmdWho cs st rest =
-  do sendMsg cs (ircWho (Text.pack <$> words rest))
-     commandSuccess st
+cmdWho :: NetworkCommand (Maybe (String, Maybe String))
+cmdWho _  st Nothing = commandSuccess (changeSubfocus FocusWho st)
+cmdWho cs st (Just (query, arg)) =
+  do
+    let query' = Text.pack query
+    let arg' = fromMaybe "" arg
+    let cs' = set csWhoReply (newWhoReply query' arg') cs
+    sendMsg cs (ircWho (query' : (maybeToList $ Text.pack <$> arg)))
+    commandSuccessUpdateCS cs' (changeSubfocus FocusWho st)
 
 cmdWhowas :: NetworkCommand String
 cmdWhowas cs st rest =

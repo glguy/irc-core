@@ -28,6 +28,7 @@ module Client.State.Network
   , csNick
   , csChannels
   , csChannelList
+  , csWhoReply
   , csSocket
   , csModeTypes
   , csChannelTypes
@@ -93,6 +94,7 @@ import Client.Hooks (messageHooks)
 import Client.Network.Async (abortConnection, send, NetworkConnection, TerminationReason(PingTimeout))
 import Client.State.Channel
 import Client.UserHost (UserAndHost(UserAndHost, _uhAccount))
+import Client.WhoReply
 import Control.Lens
 import Data.Bits (Bits((.&.)))
 import Data.ByteString qualified as B
@@ -126,6 +128,7 @@ import System.Random qualified as Random
 data NetworkState = NetworkState
   { _csChannels     :: !(HashMap Identifier ChannelState) -- ^ joined channels
   , _csChannelList  :: !ChannelList -- ^ cached ELIST parameter and /list output
+  , _csWhoReply     :: !WhoReply -- ^ cached reply from the last WHO query
   , _csSocket       :: !NetworkConnection -- ^ network socket
   , _csModeTypes    :: !ModeTypes -- ^ channel mode meanings
   , _csUmodeTypes   :: !ModeTypes -- ^ user mode meanings
@@ -201,6 +204,7 @@ data Transaction
   | WhoTransaction [UserInfo]
   | CapLsTransaction [(Text, Maybe Text)]
   deriving Show
+
 
 makeLenses ''NetworkState
 makeLenses ''ChannelList
@@ -298,6 +302,7 @@ newNetworkState network settings sock ping seed = NetworkState
   { _csUserInfo     = UserInfo "*" "" ""
   , _csChannels     = HashMap.empty
   , _csChannelList  = newChannelList Nothing Nothing
+  , _csWhoReply     = finishWhoReply $ newWhoReply "" ""
   , _csSocket       = sock
   , _csChannelTypes = defaultChannelTypes
   , _csModeTypes    = defaultModeTypes
@@ -414,6 +419,7 @@ applyMessage' msgWhen msg cs =
         noReply (set (csUserInfo . uiHost) host cs)
 
     -- /who <#channel> %tuhna,616
+    -- TODO: Use a different magic token here?
     Reply _ RPL_WHOSPCRPL [_me,"616",user,host,nick,acct] ->
        let acct' = if acct == "0" then "*" else acct
        in noReply (recordUser (UserInfo (mkId nick) user host) acct' cs)
@@ -630,14 +636,15 @@ doRpl cmd msgWhen args cs =
       case args of
         _me:_tgt:uname:host:_server:nick:_ ->
           noReply $
+          over csWhoReply (recordWhoReply args) $
           over csTransaction (\t ->
             let !x  = UserInfo (mkId nick) uname host
                 !xs = view _WhoTransaction t
             in WhoTransaction (x : xs))
             cs
         _ -> noReply cs
-
-    RPL_ENDOFWHO -> noReply (massRegistration cs)
+    RPL_WHOSPCRPL -> noReply (over csWhoReply (recordWhoXReply args) cs)
+    RPL_ENDOFWHO -> noReply (over csWhoReply finishWhoReply $ massRegistration cs)
 
     RPL_CHANNELMODEIS ->
       case args of
