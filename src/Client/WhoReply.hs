@@ -125,7 +125,7 @@ newWhoReplyItem = WhoReplyItem
   }
 
 finishWhoReply :: WhoReply -> WhoReply
-finishWhoReply wr = wr { _whoDone = True, _whoItems = sort (_whoItems wr) }
+finishWhoReply wr = wr { _whoDone = True, _whoItems = reverse $ sort (_whoItems wr) }
 
 recordWhoReply :: [Text] -> WhoReply -> WhoReply
 recordWhoReply [_, chan, uname, host, server, nick, flags, hcrn] reply

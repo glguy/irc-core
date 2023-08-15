@@ -11,7 +11,7 @@ This module renders the lines used in /who replies.
 module Client.View.Who ( whoLines ) where
 
 import           Client.Image.LineWrap (lineWrapPrefix)
-import           Client.Image.Message (IdentifierColorMode(NormalIdentifier), coloredIdentifier, coloredUserInfo, RenderMode (DetailedRender), prettyTime)
+import           Client.Image.Message (IdentifierColorMode(NormalIdentifier), coloredIdentifier, coloredUserInfo, RenderMode (DetailedRender), prettyTime, cleanText)
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
@@ -20,8 +20,10 @@ import           Client.WhoReply
 import           Control.Lens
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
 import           Graphics.Vty.Attributes (defAttr)
 import           Irc.Identifier
+import           Irc.UserInfo (renderUserInfo)
 import qualified Data.HashMap.Strict as HashMap
 import Client.Image.MircFormatting (parseIrcText')
 
@@ -50,35 +52,37 @@ whoLines' cs width st
     whorpl = view csWhoReply cs
     (query, arg) = view whoQuery whorpl
     entries = view whoItems whorpl
-    entries' = entries
-    images = concatMap renderEntry entries'
+    entries' = clientFilter st filterOn entries
 
-    label txt image = text' (view palLabel pal) txt <> image <> text' defAttr " "
-    identifier = coloredIdentifier pal NormalIdentifier HashMap.empty
+    filterOn entry = LText.fromChunks $ concat $ reverse $ addFields entry
+      (\x -> [" gecos: ", cleanText x])
+      (\x -> [" oplvl: ", x])
+      (\x -> [" idle: ", Text.pack x])
+      (\x -> [" hops: ", Text.pack $ show x])
+      (\x -> [" flags: ", x])
+      (const [" away"])
+      (\x -> [" server: ", idText x])
+      (\x -> [" ip: ", x])
+      (\x -> [" $a:", idText x])
+      [[ renderUserInfo $ view whoUserInfo entry ]]
+
+    images = concatMap renderEntry entries'
     renderEntry :: WhoReplyItem -> [Image']
     renderEntry entry = reverse $ lineWrapPrefix width (renderPrefix entry) (renderSuffix entry)
     -- Skipping rendering the channel because it doesn't add anything most of the time.
     renderPrefix entry = coloredUserInfo pal DetailedRender HashMap.empty (view whoUserInfo entry)
     renderSuffix :: WhoReplyItem -> Image'
-    renderSuffix entry = mconcat $
-      [label "acct: " $ identifier acct |
-        acct <- [view whoAcct entry], idText acct /= "0"] ++
-      [label "ip: " $ text' defAttr ip |
-        ip <- [view whoIp entry], ip /= "255.255.255.255"] ++
-      [label "server: " $ identifier sid |
-        sid <- [view whoServer entry], not (Text.null $ idText sid)] ++
-      [label "away" $ text' defAttr "" |
-        (view whoAway entry) == Just True] ++
-      [label "flags: " $ text' defAttr flags |
-        flags <- [view whoMiscFlags entry], not (Text.null flags)] ++
-      [label "hops: " $ string defAttr (show hops) |
-        Just hops <- [view whoHops entry]] ++
-      [label "idle: " $ string defAttr (prettyTime 1 idle) |
-        idle <- [view whoIdleSecs entry], not (null idle)] ++
-      [label "oplvl: " $ text' defAttr lvl |
-        lvl <- [view whoOpLvl entry], lvl /= "n/a"] ++
-      [label "gecos: " $ parseIrcText' False pal real |
-        real <- [view whoRealname entry], not (Text.null real)]
+    renderSuffix entry = mconcat $ reverse $ addFields entry
+      (label "gecos: " . parseIrcText' False pal)
+      (label "oplvl: " . text' defAttr)
+      (label "idle: " . string defAttr . prettyTime 1)
+      (label "hops: " . string defAttr . show)
+      (label "flags: " . text' (view palSigil pal))
+      (const $ label "away" $ text' defAttr "" )
+      (label "server: " . identifier)
+      (label "ip: " . text' defAttr)
+      (label "$a:" . identifier)
+      []
 
     countImagePending = countImage <> text' (view palLabel pal) "..."
     countImage = text' (view palLabel pal) "Users in " <>
@@ -87,7 +91,32 @@ whoLines' cs width st
                  string defAttr (show (length entries')) <>
                  char (view palLabel pal) '/' <>
                  string defAttr (show (length entries))
-
     queryPart = case arg of
       Just txt | not (Text.null txt) -> label " Options: " $ text' defAttr txt
       _ -> text' defAttr ""
+
+    label txt image = text' (view palLabel pal) txt <> image <> text' defAttr " "
+    identifier = coloredIdentifier pal NormalIdentifier HashMap.empty
+
+    addFields wri gecos oplvl idle hops flags away server ip acct initList =
+      addFieldIf (require notNull . view whoRealname) gecos $
+      addFieldIf (require (/= "n/a") . view whoOpLvl) oplvl $
+      addFieldIf (require notNullOrZero . view whoIdleSecs) idle $
+      addFieldIf (\n -> view whoHops n >>= require (> 0)) hops $
+      addFieldIf (require notNull . view whoMiscFlags) flags $
+      addFieldIf (\n -> view whoAway n >>= require id) away $
+      addFieldIf (require (notNull . idText) . view whoServer) server $
+      addFieldIf (require (/= "255.255.255.255") . view whoIp) ip $
+      addFieldIf (require (/= "0") . view whoAcct) acct initList
+      where
+        addFieldIf :: (WhoReplyItem -> Maybe a) -> (a -> b) -> [b] -> [b]
+        addFieldIf getF mapF list = case getF wri of
+          Just v -> mapF v:list
+          Nothing -> list
+        notNull = not . Text.null
+        notNullOrZero ""  = False
+        notNullOrZero "0" = False
+        notNullOrZero _   = True
+        require f v
+          | f v = Just v
+          | otherwise = Nothing
