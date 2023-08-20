@@ -617,9 +617,7 @@ recordWindowLine' ::
 recordWindowLine' create focus wl st = st2
   where
     hints = clientWindowHint focus st
-    winActivity
-      | fromMaybe False (windowHintSilent =<< hints) = AFSilent
-      | otherwise = fromMaybe AFLoud (windowHintActivity =<< hints)
+    winActivity = fromMaybe AFLoud (windowHintActivity =<< hints)
 
     freshWindow = emptyWindow
       { _winName'    = clientNextWindowName hints st

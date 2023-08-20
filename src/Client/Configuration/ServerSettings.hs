@@ -181,7 +181,6 @@ data SaslMechanism
 data WindowHint = WindowHint
   { windowHintName     :: Maybe Char
   , windowHintHideMeta :: Maybe Bool
-  , windowHintSilent   :: Maybe Bool
   , windowHintHidden   :: Maybe Bool
   , windowHintActivity :: Maybe ActivityFilter
   } deriving Show
@@ -401,7 +400,6 @@ windowHintsSpec = Map.fromList <$> listSpec entrySpec
            windowHintHidden   <- optSection' "hidden"    yesOrNoSpec "hide from statusbar"
            windowHintHideMeta <- optSection' "hide-meta" yesOrNoSpec "hide metadata by default"
            windowHintActivity <- optSection' "activity"  activitySpec "activity indicators"
-           windowHintSilent   <- optSection' "silent"    yesOrNoSpec "[deprecated] hide activity counters"
            pure (focus, WindowHint{..})
 
     focusSpec =
