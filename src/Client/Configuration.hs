@@ -75,7 +75,7 @@ import Client.Commands.Interpolation (Macro)
 import Client.Commands.Recognizer (Recognizer)
 import Client.Configuration.Colors (attrSpec)
 import Client.Configuration.Macros (macroMapSpec)
-import Client.Configuration.Notifications (NotifyWith(..), notifyWithDefault)
+import Client.Configuration.Notifications (NotifyWith, notifySpec, notifyWithDefault)
 import Client.Configuration.ServerSettings
 import Client.EventLoop.Actions
 import Client.Image.Palette
@@ -486,15 +486,6 @@ urlOpenerSpec = simpleCase <!> complexCase
 
     argSpec = UrlArgUrl     <$  atomSpec "url"
           <!> UrlArgLiteral <$> stringSpec
-
-notifySpec :: ValueSpec NotifyWith
-notifySpec =
-  NotifyWithCustom []        <$ atomSpec "no"  <!>
-  notifyWithDefault          <$ atomSpec "yes" <!>
-  NotifyWithNotifySend       <$ atomSpec "notify-send" <!>
-  NotifyWithOsaScript        <$ atomSpec "osascript" <!>
-  NotifyWithTerminalNotifier <$ atomSpec "terminal-notifier" <!>
-  NotifyWithCustom . NonEmpty.toList <$> nonemptySpec stringSpec
 
 digraphSpec :: ValueSpec (Digraph, Text)
 digraphSpec =
