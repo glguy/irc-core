@@ -89,6 +89,7 @@ library
     Client.Configuration
     Client.Configuration.Colors
     Client.Configuration.Macros
+    Client.Configuration.Notifications
     Client.Configuration.ServerSettings
     Client.Configuration.Sts
     Client.EventLoop

@@ -19,7 +19,8 @@ module Client.EventLoop
 
 import Client.CApi (ThreadEntry, popTimer)
 import Client.Commands (CommandResult(..), execute, executeUserCommand, tabCompletion)
-import Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs)
+import Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs, configNotifications)
+import Client.Configuration.Notifications (notifyCmd)
 import Client.Configuration.ServerSettings ( ssReconnectAttempts )
 import Client.EventLoop.Actions (keyToAction, Action(..))
 import Client.EventLoop.Errors (exceptionToLines)
@@ -52,7 +53,6 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
-import qualified Data.Text.Lazy as LText
 import Data.Time
 import Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
 import Data.Traversable (for)
@@ -64,7 +64,7 @@ import Irc.Codes (pattern RPL_STARTTLS)
 import Irc.Message (IrcMsg(Reply, Notice), cookIrcMsg, msgTarget)
 import Irc.RawIrcMsg (RawIrcMsg, TagEntry(..), asUtf8, msgTags, parseRawIrcMsg)
 import LensUtils (setStrict)
-import System.Process.Typed (proc, startProcess, setStdin, setStdout, setStderr, nullStream)
+import System.Process.Typed (startProcess, setStdin, setStdout, setStderr, nullStream)
 
 
 -- | Sum of the five possible event types the event loop handles
@@ -180,18 +180,15 @@ processLogEntries =
   traverse_ writeLogLine . reverse . view clientLogQueue
 
 processNotifications :: ClientState -> IO ()
-processNotifications st
-  | view clientUiFocused st = return () -- We're focused; do nothing.
-  | otherwise = foldr (>>) (return ()) $ map spawn $ view clientNotifications st
+processNotifications st = case notifyCmd (view (clientConfig . configNotifications) st) of
+  Just cmd | not $ view clientUiFocused st -> foldr (>>) (return ()) $ map (spawn cmd) $ view clientNotifications st
+  _ -> return ()
   where
-    baseProcCfg (focus, body) =
-      proc "notify-send" ["-a", "glirc", LText.unpack focus, LText.unpack body] -- FIXME: Hardcoded!
     -- TODO: May be a nicer way to handle notification failure than just silently squashing the exception
     handleException :: SomeException -> IO ()
     handleException _ = return ()
-    spawn :: (LText.Text, LText.Text) -> IO ()
-    spawn pair = do
-      let procCfg = setStdin nullStream . setStdout nullStream . setStderr nullStream $ baseProcCfg pair
+    spawn cmd pair = do
+      let procCfg = setStdin nullStream . setStdout nullStream . setStderr nullStream $ cmd pair
       -- Maybe find a nicer way to get an error out of here.
       catch (startProcess procCfg >> return ()) handleException
 

@@ -46,6 +46,7 @@ module Client.Configuration
   , configShowPing
   , configJumpModifier
   , configDigraphs
+  , configNotifications
 
   , extensionPath
   , extensionRtldFlags
@@ -74,6 +75,7 @@ import Client.Commands.Interpolation (Macro)
 import Client.Commands.Recognizer (Recognizer)
 import Client.Configuration.Colors (attrSpec)
 import Client.Configuration.Macros (macroMapSpec)
+import Client.Configuration.Notifications (NotifyWith(..), notifyWithDefault)
 import Client.Configuration.ServerSettings
 import Client.EventLoop.Actions
 import Client.Image.Palette
@@ -125,6 +127,7 @@ data Configuration = Configuration
   , _configShowPing        :: Bool -- ^ visibility of ping time
   , _configJumpModifier    :: [Modifier] -- ^ Modifier used for jumping windows
   , _configDigraphs        :: Map Digraph Text -- ^ Extra digraphs
+  , _configNotifications   :: NotifyWith
   }
   deriving Show
 
@@ -294,6 +297,8 @@ configurationSpec = sectionsSpec "config-file" $
                                "Initial setting for visibility of ping times"
      _configDigraphs        <- sec' mempty "extra-digraphs" (Map.fromList <$> listSpec digraphSpec)
                                "Extra digraphs"
+     _configNotifications   <- sec' notifyWithDefault "notifications" notifySpec
+                               "Whether and how to show desktop notifications"
      return (\def ->
              let _configDefaults = snd ssDefUpdate def
                  _configServers  = buildServerMap _configDefaults ssUpdates
@@ -481,6 +486,15 @@ urlOpenerSpec = simpleCase <!> complexCase
 
     argSpec = UrlArgUrl     <$  atomSpec "url"
           <!> UrlArgLiteral <$> stringSpec
+
+notifySpec :: ValueSpec NotifyWith
+notifySpec =
+  NotifyWithCustom []        <$ atomSpec "no"  <!>
+  notifyWithDefault          <$ atomSpec "yes" <!>
+  NotifyWithNotifySend       <$ atomSpec "notify-send" <!>
+  NotifyWithOsaScript        <$ atomSpec "osascript" <!>
+  NotifyWithTerminalNotifier <$ atomSpec "terminal-notifier" <!>
+  NotifyWithCustom . NonEmpty.toList <$> nonemptySpec stringSpec
 
 digraphSpec :: ValueSpec (Digraph, Text)
 digraphSpec =

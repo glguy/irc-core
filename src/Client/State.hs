@@ -232,6 +232,16 @@ data ExtensionState = ExtensionState
   , _esStablePtr :: StablePtr (MVar ParkState) -- ^ 'StablePtr' used with 'clientPark'
   }
 
+data NotifCfg = NotifCfgOff
+  | NotifCfgNotifySend
+  | NotifCfgOsaScript
+  | NotifCfgTerminalNotifier
+  | NotifCfgCustom [String] 
+  deriving Show
+
+notificationsCmd :: NotifCfg -> (LText.Text, LText.Text) -> [String]
+notificationsCmd NotifCfgOff _ = []
+
 -- | ID of active extension and stored client state
 type ParkState = (Int,ClientState)
 
