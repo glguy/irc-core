@@ -173,18 +173,22 @@ windowClear w = w
 
 -- | Adds a given line to a window as the newest message. Window's
 -- unread count will be updated according to the given importance.
-addToWindow :: WindowLine -> Window -> Window
-addToWindow !msg !win = win
-    { _winMessages = msg :- view winMessages win
-    , _winTotal    = view winTotal win + 1
-    , _winMarker   = (+1) <$!> view winMarker win
-    , _winUnread   = if msgImportance == WLBoring
-                     then view winUnread win
-                     else view winUnread win + 1
-    , _winMention  = max (view winMention win) msgImportance
-    , _winHideMeta = view winHideMeta win
-    }
+-- Additionally returns True if this window becomes important as a result of this line.
+addToWindow :: WindowLine -> Window -> (Window, Bool)
+addToWindow !msg !win = (win', nowImportant)
     where
+      win' = win
+        { _winMessages = msg :- view winMessages win
+        , _winTotal    = view winTotal win + 1
+        , _winMarker   = (+1) <$!> view winMarker win
+        , _winUnread   = if msgImportance == WLBoring
+                         then view winUnread win
+                         else view winUnread win + 1
+        , _winMention  = max oldMention msgImportance
+        , _winHideMeta = view winHideMeta win
+        }
+      oldMention = view winMention win
+      nowImportant = oldMention < WLImportant && msgImportance >= WLImportant
       msgImportance = applyActivityFilter (view winActivityFilter win) (view wlImportance msg)
 
 -- | Update the window clearing the unread count and important flag.

@@ -37,7 +37,7 @@ import Client.State.Extensions
 import Client.State.Focus (Subfocus(FocusMessages))
 import Client.State.Network
 import Control.Concurrent.STM
-import Control.Exception (SomeException, Exception(fromException))
+import Control.Exception (SomeException, Exception(fromException), catch)
 import Control.Lens
 import Control.Monad (when, MonadPlus(mplus), foldM, unless)
 import Data.ByteString (ByteString)
@@ -52,6 +52,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
+import qualified Data.Text.Lazy as LText
 import Data.Time
 import Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
 import Data.Traversable (for)
@@ -63,6 +64,7 @@ import Irc.Codes (pattern RPL_STARTTLS)
 import Irc.Message (IrcMsg(Reply, Notice), cookIrcMsg, msgTarget)
 import Irc.RawIrcMsg (RawIrcMsg, TagEntry(..), asUtf8, msgTags, parseRawIrcMsg)
 import LensUtils (setStrict)
+import System.Process.Typed (proc, startProcess, setStdin, setStdout, setStderr, nullStream)
 
 
 -- | Sum of the five possible event types the event loop handles
@@ -136,6 +138,7 @@ earliestEvent st = earliest2 networkEvent extensionEvent
 eventLoop :: Vty -> ClientState -> IO ()
 eventLoop vty st =
   do when (view clientBell st) (beep vty)
+     processNotifications st
      processLogEntries st
 
      let (pic, st') = clientPicture (clientTick st)
@@ -175,6 +178,22 @@ beep = ringTerminalBell . outputIface
 processLogEntries :: ClientState -> IO ()
 processLogEntries =
   traverse_ writeLogLine . reverse . view clientLogQueue
+
+processNotifications :: ClientState -> IO ()
+processNotifications st
+  | view clientUiFocused st = return () -- We're focused; do nothing.
+  | otherwise = foldr (>>) (return ()) $ map spawn $ view clientNotifications st
+  where
+    baseProcCfg (focus, body) =
+      proc "notify-send" ["-a", "glirc", LText.unpack focus, LText.unpack body] -- FIXME: Hardcoded!
+    -- TODO: May be a nicer way to handle notification failure than just silently squashing the exception
+    handleException :: SomeException -> IO ()
+    handleException _ = return ()
+    spawn :: (LText.Text, LText.Text) -> IO ()
+    spawn pair = do
+      let procCfg = setStdin nullStream . setStdout nullStream . setStderr nullStream $ baseProcCfg pair
+      -- Maybe find a nicer way to get an error out of here.
+      catch (startProcess procCfg >> return ()) handleException
 
 -- | Respond to a network connection successfully connecting.
 doNetworkOpen ::
@@ -401,6 +420,10 @@ doVtyEvent vty vtyEvent st =
     EvPaste utf8 ->
        do let str = Text.unpack (Text.decodeUtf8With Text.lenientDecode utf8)
           return $! Just $! over clientTextBox (Edit.insertPaste str) st
+    EvLostFocus ->
+      return (Just $! set clientUiFocused False st)
+    EvGainedFocus ->
+      return (Just $! set clientUiFocused True st)
     _ -> return (Just st)
 
 

@@ -36,7 +36,9 @@ module Client.State
   , clientIgnores
   , clientIgnoreMask
   , clientConnection
+  , clientNotifications
   , clientBell
+  , clientUiFocused
   , clientExtensions
   , clientRegex
   , clientLogQueue
@@ -120,6 +122,7 @@ import           Client.Configuration
 import           Client.Configuration.ServerSettings
 import           Client.Configuration.Sts
 import           Client.Image.Message
+import           Client.Image.PackedImage (imageText)
 import           Client.Image.Palette
 import           Client.Log
 import           Client.Mask
@@ -195,7 +198,9 @@ data ClientState = ClientState
   , _clientEditMode          :: EditMode                  -- ^ editor rendering mode
   , _clientEditLock          :: Bool                      -- ^ editor locked and won't send
 
-  , _clientBell              :: !Bool                     -- ^ sound a bell next draw
+  , _clientNotifications     :: [(LText.Text, LText.Text)] -- ^ notifications to send next draw
+  , _clientBell              :: !Bool                     -- ^ terminal bell on next redraw
+  , _clientUiFocused         :: !Bool                     -- ^ whether the UI is focused; used by notifications
 
   , _clientIgnores           :: !(HashSet Identifier)     -- ^ ignored masks
   , _clientIgnoreMask        :: Mask                      -- ^ precomputed ignore regular expression (lazy)
@@ -285,7 +290,9 @@ withClientState cfgPath cfg k =
         , _clientEditLock          = False
         , _clientActivityBar       = view configActivityBar cfg
         , _clientShowPing          = view configShowPing cfg
+        , _clientNotifications            = []
         , _clientBell              = False
+        , _clientUiFocused         = True
         , _clientExtensions        = exts
         , _clientLogQueue          = []
         , _clientErrorMsg          = Nothing
@@ -492,18 +499,7 @@ recordIrcMessage network target msg st =
     TargetNetwork      -> recordNetworkMessage msg st
     TargetExisting win -> recordChannelMessage' False network win  msg st
     TargetWindow chan  -> recordChannelMessage' True  network chan msg st
-    TargetUser user    ->
-      foldl' (\st' chan -> overStrict
-                             (clientWindows . ix (ChannelFocus network chan))
-                             (addToWindow wl) st')
-           st chans
-      where
-        wl    = toWindowLine' network st WLBoring msg
-        chans = user
-              : case preview (clientConnection network . csChannels) st of
-                  Nothing -> []
-                  Just m  -> [chan | (chan, cs) <- HashMap.toList m
-                                   , HashMap.member user (view chanUsers cs) ]
+    TargetUser user    -> recordUserMessage network user msg st
 
 -- | Compute the sigils of the user who sent a message.
 computeMsgLineSigils ::
@@ -562,6 +558,27 @@ recordNetworkMessage msg st = updateTransientError focus msg
     importance = msgImportance msg st
     wl         = toWindowLine' network st importance msg
 
+-- | Record a message on every window where a user is present.
+recordUserMessage ::
+  Text       {- ^ network -} ->
+  Identifier {- ^ user -} ->
+  ClientMessage ->
+  ClientState ->
+  ClientState
+recordUserMessage network user msg st = foldl' foldFn st chans
+  where
+    -- FIXME: We discard the the boolean from addToWindow here,
+    -- which means notifications for important cross-channel activity never happen.
+    -- This currently affects nothing AFAIK, but who knows what the future holds?
+    windowsLens chan = clientWindows . ix (ChannelFocus network chan)
+    foldFn st' chan = overStrict (windowsLens chan) (fst . addToWindow wl) st'
+    wl    = toWindowLine' network st WLBoring msg
+    chans = user
+          : case preview (clientConnection network . csChannels) st of
+              Nothing -> []
+              Just m  -> [chan | (chan, cs) <- HashMap.toList m
+                               , HashMap.member user (view chanUsers cs) ]
+
 recordError ::
   ZonedTime       {- ^ now             -} ->
   Text            {- ^ network         -} ->
@@ -614,7 +631,7 @@ recordWindowLine' ::
   WindowLine ->
   ClientState ->
   ClientState
-recordWindowLine' create focus wl st = st2
+recordWindowLine' create focus wl st = st1
   where
     hints = clientWindowHint focus st
     winActivity = fromMaybe AFLoud (windowHintActivity =<< hints)
@@ -629,17 +646,21 @@ recordWindowLine' create focus wl st = st2
     add True  w = Just $! addToWindow wl (fromMaybe freshWindow w)
     add False w = addToWindow wl <$> w
 
-    st1 = over (clientWindows . at focus) (add create) st
+    addedMaybe = add create $ view (clientWindows . at focus) st
+    st1 = case addedMaybe of
+      Just (w', notify) -> addNotify notify focus wl $ set (clientWindows . at focus) (Just w') st
+      Nothing -> st
 
-    st2
-      | not (view clientBell st)
-      , view (clientConfig . configBellOnMention) st
-      , view wlImportance wl == WLImportant
-      , not (hasMention st) = set clientBell True st1
-
-      | otherwise = st1
-
-    hasMention = elemOf (clientWindows . folded . winMention) WLImportant
+addNotify :: Bool -> Focus -> WindowLine -> ClientState -> ClientState
+addNotify False _     _  st = st
+addNotify True  focus wl st
+  | focus == view clientFocus st && view clientUiFocused st = st
+  | otherwise = over clientNotifications (cons (focusText focus, body)) st
+  where
+    body = LText.intercalate " " [imageText $ view wlPrefix wl, imageText $ view wlImage wl]
+    focusText Unfocused = "Application Notice"
+    focusText (NetworkFocus net) = LText.fromChunks ["Notice from ", net]
+    focusText (ChannelFocus net chan) = LText.fromChunks ["Activity on ", net, ":", idText chan]
 
 toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine params importance msg = WindowLine
@@ -664,9 +685,11 @@ toWindowLine' network st =
 
 -- | Function applied to the client state every redraw.
 clientTick :: ClientState -> ClientState
-clientTick = set clientBell False
-           . markSeen
+clientTick st = (if view clientUiFocused st then markSeen else id)
+           . set clientBell False
+           . set clientNotifications []
            . set clientLogQueue []
+           $ st
 
 
 -- | Mark the messages on the current window (and any splits) as seen.
