@@ -30,7 +30,7 @@ notifyCmd NotifyWithOsaScript = Just $ \(header, body) ->
   setEnv [("_GLIRC_NOTIF_HEADER", LText.unpack header), ("_GLIRC_NOTIF_BODY", LText.unpack body)] $
   proc "osascript" ["-e", script]
   where
-    script = "display notification system attribute \"_GLIRC_NOTIF_BODY\" with title \"glirc\" with subtitle system attribute \"_GLIRC_NOTIF_HEADER\""
+    script = "display notification (system attribute \"_GLIRC_NOTIF_BODY\") with title \"glirc\" subtitle (system attribute \"_GLIRC_NOTIF_HEADER\")"
 notifyCmd NotifyWithTerminalNotifier = Just $ \(header, body) ->
   proc "terminal-notifier" ["-title", "glirc", "-subtitle", LText.unpack header, "-message", LText.unpack body]
 notifyCmd _ = Nothing
