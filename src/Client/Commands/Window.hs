@@ -233,6 +233,11 @@ windowCommands = CommandSection "Window management"
       \\n\
       \\^Bsilent\^B / \^Bquieter\^B / \^Bquiet\^B / \^Bimponly\^B / \^Bloud\^B / \^Blouder\^B\n\
       \    Changes the importance of normal and important messages:\n\
+      \      \^Blouder\^B: Upgrades normal to important.\n\
+      \      \^Bloud\^B: Uses default values.\n\
+      \      \^Bimponly\^B: Downgrades normal to boring.\n\
+      \      \^Bquiet\^B: Downgrades important to normal.\n\
+      \      \^Bquieter\^B: Downgrades both one step.\n\
       \      \^Bsilent\^B: Downgrades both to boring.\n\
       \\n\
       \\^Bshow\^B / \^Bhide\^B\n\
