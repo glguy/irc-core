@@ -231,7 +231,7 @@ windowCommands = CommandSection "Window management"
       (simpleToken ("hide|show" ++ concatMap ('|':) activityFilterStrings))
       "Set window property.\n\
       \\n\
-      \\^Bsilent\^B / \^Bquieter\^B / \^Bquiet\^B / \^Bmute\^B / \^Bloud\^B / \^Blouder\^B\n\
+      \\^Bsilent\^B / \^Bquieter\^B / \^Bquiet\^B / \^Bimponly\^B / \^Bloud\^B / \^Blouder\^B\n\
       \    Changes the importance of normal and important messages:\n\
       \      \^Bsilent\^B: Downgrades both to boring.\n\
       \\n\
