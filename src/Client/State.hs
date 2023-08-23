@@ -665,9 +665,13 @@ addNotify :: Bool -> Focus -> WindowLine -> ClientState -> ClientState
 addNotify False _     _  st = st
 addNotify True  focus wl st
   | focus == view clientFocus st && view clientUiFocused st = st
-  | otherwise = over clientNotifications (cons (focusText focus, body)) st
+  | otherwise = addBell $ over clientNotifications (cons (focusText focus, bodyText)) st
   where
-    body = imageText (view wlPrefix wl) <> " " <> imageText (view wlImage wl)
+    addBell st'
+      | not (view clientBell st')
+      , view (clientConfig . configBellOnMention) st' = set clientBell True st'
+      | otherwise = st'
+    bodyText = imageText (view wlPrefix wl) <> " " <> imageText (view wlImage wl)
     focusText Unfocused = "Application Notice"
     focusText (NetworkFocus net) = LText.fromChunks ["Notice from ", net]
     focusText (ChannelFocus net chan) = LText.fromChunks ["Activity on ", net, ":", idText chan]
