@@ -300,7 +300,7 @@ withClientState cfgPath cfg k =
         , _clientEditLock          = False
         , _clientActivityBar       = view configActivityBar cfg
         , _clientShowPing          = view configShowPing cfg
-        , _clientNotifications            = []
+        , _clientNotifications     = []
         , _clientBell              = False
         , _clientUiFocused         = True
         , _clientExtensions        = exts
@@ -667,7 +667,7 @@ addNotify True  focus wl st
   | focus == view clientFocus st && view clientUiFocused st = st
   | otherwise = over clientNotifications (cons (focusText focus, body)) st
   where
-    body = LText.intercalate " " [imageText $ view wlPrefix wl, imageText $ view wlImage wl]
+    body = imageText (view wlPrefix wl) <> " " <> imageText (view wlImage wl)
     focusText Unfocused = "Application Notice"
     focusText (NetworkFocus net) = LText.fromChunks ["Notice from ", net]
     focusText (ChannelFocus net chan) = LText.fromChunks ["Activity on ", net, ":", idText chan]

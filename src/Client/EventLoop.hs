@@ -40,7 +40,7 @@ import Client.State.Network
 import Control.Concurrent.STM
 import Control.Exception (SomeException, Exception(fromException), catch)
 import Control.Lens
-import Control.Monad (when, MonadPlus(mplus), foldM, unless)
+import Control.Monad (when, MonadPlus(mplus), foldM, unless, void)
 import Data.ByteString (ByteString)
 import Data.Char (isSpace)
 import Data.Foldable (Foldable(foldl'), find, asum, traverse_)
@@ -180,9 +180,10 @@ processLogEntries =
   traverse_ writeLogLine . reverse . view clientLogQueue
 
 processNotifications :: ClientState -> IO ()
-processNotifications st = case notifyCmd (view (clientConfig . configNotifications) st) of
-  Just cmd | not $ view clientUiFocused st -> foldr (>>) (return ()) $ map (spawn cmd) $ view clientNotifications st
-  _ -> return ()
+processNotifications st =
+  case notifyCmd (view (clientConfig . configNotifications) st) of
+    Just cmd | not (view clientUiFocused st) -> traverse_ (spawn cmd) (view clientNotifications st)
+    _ -> return ()
   where
     -- TODO: May be a nicer way to handle notification failure than just silently squashing the exception
     handleException :: SomeException -> IO ()
@@ -190,7 +191,7 @@ processNotifications st = case notifyCmd (view (clientConfig . configNotificatio
     spawn cmd pair = do
       let procCfg = setStdin nullStream . setStdout nullStream . setStderr nullStream $ cmd pair
       -- Maybe find a nicer way to get an error out of here.
-      catch (startProcess procCfg >> return ()) handleException
+      catch (void (startProcess procCfg)) handleException
 
 -- | Respond to a network connection successfully connecting.
 doNetworkOpen ::

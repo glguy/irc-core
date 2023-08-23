@@ -6,7 +6,7 @@ Copyright   : (c) TheDaemoness, 2023
 License     : ISC
 Maintainer  : emertens@gmail.com
 -}
-module Client.Configuration.Notifications ( NotifyWith, notifyCmd, notifySpec, notifyWithDefault ) where
+module Client.Configuration.Notifications ( NotifyWith(..), notifyCmd, notifySpec, notifyWithDefault ) where
 
 import           Config.Schema (ValueSpec, atomSpec, nonemptySpec, stringSpec, (<!>))
 import qualified Data.Text.Lazy as LText

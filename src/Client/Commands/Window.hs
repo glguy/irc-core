@@ -228,7 +228,7 @@ windowCommands = CommandSection "Window management"
 
   , Command
       (pure "setwindow")
-      (simpleToken ("hide|show" ++ (concat $ map ('|':) activityFilterStrings)))
+      (simpleToken ("hide|show" ++ concatMap ('|':) activityFilterStrings))
       "Set window property.\n\
       \\n\
       \\^Bsilent\^B / \^Bquieter\^B / \^Bquiet\^B / \^Bmute\^B / \^Bloud\^B / \^Blouder\^B\n\
@@ -293,7 +293,7 @@ tabSetWindow :: Bool {- ^ reversed -} -> ClientCommand String
 tabSetWindow isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
-    completions = "hide":"show":(Text.pack <$> activityFilterStrings)
+    completions = "hide":"show": map Text.pack activityFilterStrings
 
 -- | Implementation of @/grep@
 cmdGrep :: ClientCommand String

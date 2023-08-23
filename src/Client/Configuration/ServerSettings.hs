@@ -92,6 +92,7 @@ import Client.Commands.Interpolation (ExpansionChunk)
 import Client.Commands.WordCompletion
 import Client.Configuration.Macros (macroCommandSpec)
 import Client.State.Focus ( Focus (NetworkFocus, ChannelFocus) )
+import Client.State.Window (ActivityFilter (..))
 import Config.Schema.Spec
 import Control.Exception (Exception, displayException, throwIO, try)
 import Control.Lens
@@ -106,6 +107,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Endo(Endo))
+import Data.Semigroup.Foldable (asum1)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -117,7 +119,6 @@ import System.Exit qualified as Exit
 import System.Process.Typed qualified as Process
 import Text.Regex.TDFA (Regex, RegexOptions(defaultCompOpt), ExecOption(ExecOption, captureGroups))
 import Text.Regex.TDFA.Text (compile)
-import Client.State.Window (ActivityFilter (..))
 
 -- | Static server-level settings
 data ServerSettings = ServerSettings
@@ -420,9 +421,9 @@ tlsModeSpec =
 
 -- TODO: May be nice to be able to do this for all Show Enums.
 activitySpec :: ValueSpec ActivityFilter
-activitySpec = foldl1 (<!>) $ map mkSpec [(toEnum 0)..]
+activitySpec = asum1 (NonEmpty.fromList (map mkSpec [(toEnum 0)..]))
   where
-    mkSpec a = a <$ atomSpec (Text.pack $ show a)
+    mkSpec a = a <$ atomSpec (Text.pack (show a))
 
 tlsVerifySpec :: ValueSpec TlsVerify
 tlsVerifySpec =
