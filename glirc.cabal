@@ -89,6 +89,7 @@ library
     Client.Configuration
     Client.Configuration.Colors
     Client.Configuration.Macros
+    Client.Configuration.Notifications
     Client.Configuration.ServerSettings
     Client.Configuration.Sts
     Client.EventLoop
@@ -182,6 +183,7 @@ library
     typed-process        ^>=0.2.10,
     psqueues             >=0.2.7  && <0.3,
     regex-tdfa           >=1.3.1  && <1.4,
+    semigroupoids        >=5.1    && <6.1,
     split                >=0.2    && <0.3,
     stm                  >=2.4    && <2.6,
     template-haskell     >=2.11   && <2.21,

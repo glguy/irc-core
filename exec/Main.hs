@@ -86,4 +86,5 @@ buildVty :: IO Vty
 buildVty =
  do vty <- mkVty defaultConfig
     setMode (outputIface vty) BracketedPaste True
+    setMode (outputIface vty) Focus True
     pure vty

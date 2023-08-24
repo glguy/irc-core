@@ -98,7 +98,9 @@ renderedWindowInfo :: Palette -> Window -> Image'
 renderedWindowInfo pal win =
   string (view newMsgAttrLens pal) (views winUnread show win) <> "/" <>
   string (view palActivity    pal) (views winTotal  show win) <>
-  (if view winSilent win then text' (view palMeta pal) " silent" else mempty)
+  case view winActivityFilter win of
+    AFLoud -> mempty
+    other -> string (view palMeta pal) (' ':show other)
   where
     newMsgAttrLens =
       case view winMention win of

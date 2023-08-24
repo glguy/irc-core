@@ -23,7 +23,7 @@ module Client.State.Window
   , winMarker
   , winHideMeta
   , winHidden
-  , winSilent
+  , winActivityFilter
 
   -- * Window lines
   , WindowLines(..)
@@ -37,7 +37,11 @@ module Client.State.Window
   , wlTimestamp
 
   -- * Window line importance
+  , ActivityFilter(..)
   , WindowLineImportance(..)
+  , activityFilterStrings
+  , applyActivityFilter
+  , readActivityFilter
 
   -- * Window operations
   , emptyWindow
@@ -62,6 +66,7 @@ import Data.Bits ((.|.), (.&.), shiftL, shiftR)
 import Data.Text.Lazy (Text)
 import Data.Time
 import Data.Word (Word64)
+import Data.List (elemIndex)
 
 -- | A single message to be displayed in a window.
 -- The normal message line consists of the image prefix
@@ -94,7 +99,7 @@ data Window = Window
   , _winMention  :: !WindowLineImportance -- ^ Indicates an important event is unread
   , _winHideMeta :: !Bool          -- ^ Hide metadata messages
   , _winHidden   :: !Bool          -- ^ Remove from jump rotation
-  , _winSilent   :: !Bool          -- ^ Ignore activity
+  , _winActivityFilter :: !ActivityFilter -- ^ Filters for activity
   }
 
 data ActivityLevel = NoActivity | NormalActivity | HighActivity
@@ -106,6 +111,33 @@ data WindowLineImportance
   | WLNormal -- ^ Increment unread count
   | WLImportant -- ^ Increment unread count and set important flag
   deriving (Eq, Ord, Show, Read)
+
+data ActivityFilter
+  = AFSilent
+  | AFQuieter
+  | AFQuiet
+  | AFImpOnly
+  | AFLoud
+  | AFLouder
+  deriving (Eq, Ord, Enum)
+
+activityFilterStrings :: [String]
+activityFilterStrings = ["silent", "quieter", "quiet", "imponly", "loud", "louder"]
+
+applyActivityFilter :: ActivityFilter -> WindowLineImportance -> WindowLineImportance
+applyActivityFilter AFSilent  _           = WLBoring
+applyActivityFilter AFQuieter WLNormal    = WLBoring
+applyActivityFilter AFQuieter WLImportant = WLNormal
+applyActivityFilter AFImpOnly WLNormal    = WLBoring
+applyActivityFilter AFQuiet   WLImportant = WLNormal
+applyActivityFilter AFLouder  WLNormal    = WLImportant
+applyActivityFilter _ etc = etc
+
+instance Show ActivityFilter where
+  show af = activityFilterStrings !! fromEnum af
+
+readActivityFilter :: String -> Maybe ActivityFilter
+readActivityFilter s = toEnum <$> elemIndex s activityFilterStrings
 
 makeLenses ''Window
 makeLenses ''WindowLine
@@ -127,7 +159,7 @@ emptyWindow = Window
   , _winMention  = WLBoring
   , _winHideMeta = False
   , _winHidden   = False
-  , _winSilent   = False
+  , _winActivityFilter   = AFLoud
   }
 
 windowClear :: Window -> Window
@@ -141,17 +173,23 @@ windowClear w = w
 
 -- | Adds a given line to a window as the newest message. Window's
 -- unread count will be updated according to the given importance.
-addToWindow :: WindowLine -> Window -> Window
-addToWindow !msg !win = win
-    { _winMessages = msg :- view winMessages win
-    , _winTotal    = view winTotal win + 1
-    , _winMarker   = (+1) <$!> view winMarker win
-    , _winUnread   = if view wlImportance msg == WLBoring
-                     then view winUnread win
-                     else view winUnread win + 1
-    , _winMention  = max (view winMention win) (view wlImportance msg)
-    , _winHideMeta = view winHideMeta win
-    }
+-- Additionally returns True if this window becomes important as a result of this line.
+addToWindow :: WindowLine -> Window -> (Window, Bool)
+addToWindow !msg !win = (win', nowImportant)
+    where
+      win' = win
+        { _winMessages = msg :- view winMessages win
+        , _winTotal    = view winTotal win + 1
+        , _winMarker   = (+1) <$!> view winMarker win
+        , _winUnread   = if msgImportance == WLBoring
+                         then view winUnread win
+                         else view winUnread win + 1
+        , _winMention  = max oldMention msgImportance
+        , _winHideMeta = view winHideMeta win
+        }
+      oldMention = view winMention win
+      nowImportant = oldMention < WLImportant && msgImportance >= WLImportant
+      msgImportance = applyActivityFilter (view winActivityFilter win) (view wlImportance msg)
 
 -- | Update the window clearing the unread count and important flag.
 windowSeen :: Window -> Window

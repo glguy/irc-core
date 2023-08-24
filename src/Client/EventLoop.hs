@@ -19,7 +19,8 @@ module Client.EventLoop
 
 import Client.CApi (ThreadEntry, popTimer)
 import Client.Commands (CommandResult(..), execute, executeUserCommand, tabCompletion)
-import Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs)
+import Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs, configNotifications)
+import Client.Configuration.Notifications (notifyCmd)
 import Client.Configuration.ServerSettings ( ssReconnectAttempts )
 import Client.EventLoop.Actions (keyToAction, Action(..))
 import Client.EventLoop.Errors (exceptionToLines)
@@ -37,9 +38,9 @@ import Client.State.Extensions
 import Client.State.Focus (Subfocus(FocusMessages))
 import Client.State.Network
 import Control.Concurrent.STM
-import Control.Exception (SomeException, Exception(fromException))
+import Control.Exception (SomeException, Exception(fromException), catch)
 import Control.Lens
-import Control.Monad (when, MonadPlus(mplus), foldM, unless)
+import Control.Monad (when, MonadPlus(mplus), foldM, unless, void)
 import Data.ByteString (ByteString)
 import Data.Char (isSpace)
 import Data.Foldable (Foldable(foldl'), find, asum, traverse_)
@@ -63,6 +64,7 @@ import Irc.Codes (pattern RPL_STARTTLS)
 import Irc.Message (IrcMsg(Reply, Notice), cookIrcMsg, msgTarget)
 import Irc.RawIrcMsg (RawIrcMsg, TagEntry(..), asUtf8, msgTags, parseRawIrcMsg)
 import LensUtils (setStrict)
+import System.Process.Typed (startProcess, setStdin, setStdout, setStderr, nullStream)
 
 
 -- | Sum of the five possible event types the event loop handles
@@ -136,6 +138,7 @@ earliestEvent st = earliest2 networkEvent extensionEvent
 eventLoop :: Vty -> ClientState -> IO ()
 eventLoop vty st =
   do when (view clientBell st) (beep vty)
+     processNotifications st
      processLogEntries st
 
      let (pic, st') = clientPicture (clientTick st)
@@ -175,6 +178,20 @@ beep = ringTerminalBell . outputIface
 processLogEntries :: ClientState -> IO ()
 processLogEntries =
   traverse_ writeLogLine . reverse . view clientLogQueue
+
+processNotifications :: ClientState -> IO ()
+processNotifications st =
+  case notifyCmd (view (clientConfig . configNotifications) st) of
+    Just cmd | not (view clientUiFocused st) -> traverse_ (spawn cmd) (view clientNotifications st)
+    _ -> return ()
+  where
+    -- TODO: May be a nicer way to handle notification failure than just silently squashing the exception
+    handleException :: SomeException -> IO ()
+    handleException _ = return ()
+    spawn cmd pair = do
+      let procCfg = setStdin nullStream . setStdout nullStream . setStderr nullStream $ cmd pair
+      -- Maybe find a nicer way to get an error out of here.
+      catch (void (startProcess procCfg)) handleException
 
 -- | Respond to a network connection successfully connecting.
 doNetworkOpen ::
@@ -401,6 +418,10 @@ doVtyEvent vty vtyEvent st =
     EvPaste utf8 ->
        do let str = Text.unpack (Text.decodeUtf8With Text.lenientDecode utf8)
           return $! Just $! over clientTextBox (Edit.insertPaste str) st
+    EvLostFocus ->
+      return (Just $! set clientUiFocused False st)
+    EvGainedFocus ->
+      return (Just $! set clientUiFocused True st)
     _ -> return (Just st)
 
 

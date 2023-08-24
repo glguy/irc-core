@@ -18,7 +18,7 @@ import Client.State
 import Client.State.EditBox qualified as Edit
 import Client.State.Focus
 import Client.State.Network (csChannels)
-import Client.State.Window (windowClear, wlText, winMessages, winHidden, winSilent, winName)
+import Client.State.Window (windowClear, wlText, winMessages, winHidden, winActivityFilter, winName, ActivityFilter (..), activityFilterStrings, readActivityFilter)
 import Control.Applicative (liftA2)
 import Control.Exception (SomeException, Exception(displayException), try)
 import Control.Lens
@@ -228,11 +228,17 @@ windowCommands = CommandSection "Window management"
 
   , Command
       (pure "setwindow")
-      (simpleToken "hide|show|loud|silent")
+      (simpleToken ("hide|show" ++ concatMap ('|':) activityFilterStrings))
       "Set window property.\n\
       \\n\
-      \\^Bloud\^B / \^Bsilent\^B\n\
-      \    Toggles if window activity appears in the status bar.\n\
+      \\^Bsilent\^B / \^Bquieter\^B / \^Bquiet\^B / \^Bimponly\^B / \^Bloud\^B / \^Blouder\^B\n\
+      \    Changes the importance of normal and important messages:\n\
+      \      \^Blouder\^B: Upgrades normal to important.\n\
+      \      \^Bloud\^B: Uses default values.\n\
+      \      \^Bimponly\^B: Downgrades normal to boring.\n\
+      \      \^Bquiet\^B: Downgrades important to normal.\n\
+      \      \^Bquieter\^B: Downgrades both one step.\n\
+      \      \^Bsilent\^B: Downgrades both to boring.\n\
       \\n\
       \\^Bshow\^B / \^Bhide\^B\n\
       \    Toggles if window appears in window command shortcuts.\n"
@@ -284,17 +290,15 @@ cmdSetWindow st cmd =
   where
     mbFun =
       case cmd of
-        "show"   -> Just (set winHidden False)
-        "hide"   -> Just (set winName Nothing . set winHidden True)
-        "loud"   -> Just (set winSilent False)
-        "silent" -> Just (set winSilent True)
-        _        -> Nothing
+        "show"    -> Just (set winHidden False)
+        "hide"    -> Just (set winName Nothing . set winHidden True)
+        other     -> set winActivityFilter <$> readActivityFilter other
 
 tabSetWindow :: Bool {- ^ reversed -} -> ClientCommand String
 tabSetWindow isReversed st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
-    completions = ["hide", "show", "loud", "silent"] :: [Text]
+    completions = "hide":"show": map Text.pack activityFilterStrings
 
 -- | Implementation of @/grep@
 cmdGrep :: ClientCommand String
