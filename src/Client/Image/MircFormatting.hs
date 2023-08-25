@@ -166,7 +166,7 @@ mircColors =
       235, 237, 239, 241, 244, 247, 250, 254, 231 ]
 
 rgbColor' :: Int -> Int -> Int -> Color
-rgbColor' = rgbColor -- fix the type to Int
+rgbColor' = srgbColor -- fix the type to Int
 
 applyControlEffect :: Char -> Attr -> Maybe Attr
 applyControlEffect '\^B' attr = Just $! toggleStyle bold attr
