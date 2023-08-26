@@ -18,7 +18,7 @@ import Client.State
 import Client.State.EditBox qualified as Edit
 import Client.State.Focus
 import Client.State.Network (csChannels)
-import Client.State.Window (windowClear, wlText, winMessages, winHidden, winActivityFilter, winName, ActivityFilter (..), activityFilterStrings, readActivityFilter)
+import Client.State.Window (windowClear, wlText, winMessages, winHidden, winActivityFilter, winName, activityFilterStrings, readActivityFilter)
 import Control.Applicative (liftA2)
 import Control.Exception (SomeException, Exception(displayException), try)
 import Control.Lens

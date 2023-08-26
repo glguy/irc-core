@@ -19,10 +19,8 @@ import           Client.Image.Message
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.Image.LineWrap
-import           Client.Message
 import           Client.State
 import           Client.State.Focus
-import           Client.State.Window
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import           Data.Text (Text)
