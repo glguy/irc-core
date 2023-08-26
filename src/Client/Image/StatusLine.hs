@@ -300,13 +300,14 @@ myNickImage st =
     Unfocused                 -> Vty.emptyImage
   where
     pal = clientPalette st
+    netpal = clientNetworkPalette st
     nickPart network =
       case preview (clientConnection network) st of
         Nothing -> Vty.emptyImage
         Just cs -> Vty.text' attr (cleanText (idText nick))
            Vty.<|> parens defAttr
                      (unpackImage $
-                      modesImage (view palModes pal) (view palUModes pal) ('+':view csModes cs) <>
+                      modesImage (view palModes pal) (view palUModes netpal) ('+':view csModes cs) <>
                       snomaskImage)
           where
             attr
@@ -318,7 +319,7 @@ myNickImage st =
             snomaskImage
               | null (view csSnomask cs) = ""
               | otherwise                = " " <>
-                modesImage (view palModes pal) (view palSnomask pal) ('+':view csSnomask cs)
+                modesImage (view palModes pal) (view palSnomask netpal) ('+':view csSnomask cs)
 
 subfocusImage :: Subfocus -> ClientState -> Image'
 subfocusImage subfocus st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
@@ -340,8 +341,10 @@ parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'
 
 viewFocusLabel :: ClientState -> Focus -> Image'
 viewFocusLabel st focus =
-  let !pal = clientPalette st in
-  case focus of
+  let
+    !pal = clientPalette st
+    netpal = clientNetworkPalette st
+  in case focus of
     Unfocused ->
       char (view palError pal) '*'
     NetworkFocus network ->
@@ -363,7 +366,7 @@ viewFocusLabel st focus =
 
                , case preview (csChannels . ix channel . chanModes) cs of
                     Just modeMap | not (null modeMap) ->
-                        " " <> modesImage (view palModes pal) (view palCModes pal) ('+':Map.keys modeMap)
+                        " " <> modesImage (view palModes pal) (view palCModes netpal) ('+':Map.keys modeMap)
                     _ -> mempty
                )
 

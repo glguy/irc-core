@@ -58,6 +58,7 @@ module Client.Configuration.ServerSettings
   , ssShowAccounts
   , ssCapabilities
   , ssWindowHints
+  , ssPalette
 
   -- * SASL Mechanisms
   , SaslMechanism(..)
@@ -90,7 +91,9 @@ module Client.Configuration.ServerSettings
 import Client.Authentication.Scram (ScramDigest(..))
 import Client.Commands.Interpolation (ExpansionChunk)
 import Client.Commands.WordCompletion
+import Client.Configuration.Colors (attrSpec)
 import Client.Configuration.Macros (macroCommandSpec)
+import Client.Image.Palette (NetworkPalette (..), defaultNetworkPalette)
 import Client.State.Focus ( Focus (NetworkFocus, ChannelFocus) )
 import Client.State.Window (ActivityFilter (..))
 import Config.Schema.Spec
@@ -100,6 +103,8 @@ import Control.Monad ((>=>))
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as L
+import Data.Char (isLetter)
+import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List.Split (chunksOf, splitOn)
@@ -159,6 +164,7 @@ data ServerSettings = ServerSettings
   , _ssShowAccounts     :: !Bool -- ^ Render account names
   , _ssCapabilities     :: ![Text] -- ^ Extra capabilities to unconditionally request
   , _ssWindowHints      :: Map Focus WindowHint
+  , _ssPalette          :: NetworkPalette
   }
   deriving Show
 
@@ -256,6 +262,7 @@ defaultServerSettings =
        , _ssShowAccounts     = False
        , _ssCapabilities     = []
        , _ssWindowHints      = Map.empty
+       , _ssPalette          = defaultNetworkPalette
        }
 
 serverSpec :: ValueSpec (Maybe Text, ServerSettings -> ServerSettings)
@@ -389,6 +396,9 @@ serverSpec = sectionsSpec "server-settings" $
 
       , req "window-hints" ssWindowHints windowHintsSpec
         "Persistent settings for windows"
+      
+      , req "palette" ssPalette netPaletteSpec
+        "Network-specific palette overrides"
       ]
 
 windowHintsSpec :: ValueSpec (Map Focus WindowHint)
@@ -472,8 +482,6 @@ saslMechanismSpec = plain <!> external <!> ecdsa <!> scram <!> ecdh
       sectionsSpec "sasl-ecdh-x25519-challenge" $
       SaslEcdh <$ mech "ecdh-x25519-challenge" <*>
       authzid <*> username <*> reqSection "private-key" "Private Key"
-
-
 
 
 filepathSpec :: ValueSpec FilePath
@@ -591,3 +599,18 @@ loadSecret label (SecretCommand (cmd NonEmpty.:| args)) =
              Right str -> throwIO (SecretException label (Text.unpack str))
              Left e -> throwIO (SecretException label (displayException e))
        Left ioe -> throwIO (SecretException label (displayException (ioe::IOError)))
+
+
+netPaletteSpec :: ValueSpec NetworkPalette
+netPaletteSpec = 
+  sectionsSpec "palette-net" $
+  do _palCModes <- fromMaybe HashMap.empty <$> optSection' "cmodes" colorMapSpec
+                   "Overrides for the styles used for specific channel mode letters."
+     _palUModes <- fromMaybe HashMap.empty <$> optSection' "umodes" colorMapSpec
+                   "Overrides for the styles used for specific user mode letters."
+     _palSnomask <- fromMaybe HashMap.empty <$> optSection' "snomask" colorMapSpec
+                    "Overrides for the styles used for specific snomask letters."
+     pure NetworkPalette{..}
+  where
+    colorMapSpec = HashMap.fromList . concatMap transpose <$> assocSpec attrSpec
+      where transpose (modes, style) = [(mode, style) | mode <- Text.unpack modes, isLetter mode]

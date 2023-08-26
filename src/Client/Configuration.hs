@@ -48,6 +48,7 @@ module Client.Configuration
   , configDigraphs
   , configNotifications
 
+  , configNetworkPalette
   , extensionPath
   , extensionRtldFlags
   , extensionArgs
@@ -96,9 +97,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Vector qualified as Vector
 import Digraphs (Digraph(..))
-import Graphics.Vty.Attributes (Attr)
 import Graphics.Vty.Input.Events (Modifier(..), Key(..))
-import Irc.Identifier (Identifier)
+import Irc.Identifier (Identifier, mkId)
 import System.Directory ( getHomeDirectory, getXdgDirectory, XdgDirectory(XdgConfig))
 import System.FilePath ((</>), isAbsolute, joinPath, splitDirectories, takeDirectory)
 import System.IO.Error (ioeGetFileName, isDoesNotExistError)
@@ -408,29 +408,18 @@ paletteSpec = sectionsSpec "palette" $
     nickColorsSpec = set palNicks . Vector.fromList . NonEmpty.toList
                  <$> nonemptySpec attrSpec
 
-    modeColorsSpec :: Lens' Palette (HashMap Char Attr) -> ValueSpec (Palette -> Palette)
-    modeColorsSpec l
-      = fmap (set l)
-      $ customSpec "modes" (assocSpec attrSpec)
-      $ fmap HashMap.fromList
-      . traverse (\(mode, attr) ->
-          case Text.unpack mode of
-            [m] -> Right (m, attr)
-            _   -> Left "expected single letter")
+    idOverridesSpec = set palIdOverride . HashMap.fromList . concat <$> listSpec idOverrideSpec
+    idOverrideSpec =
+      sectionsSpec "ids-to-attr" $
+      do ids <- reqSection' "ids" (oneOrList stringSpec) "One or more identifiers that this override applies to."
+         attr <- reqSection' "color" attrSpec "The style to use."
+         pure [(mkId $ Text.pack id', attr) | id' <- ids]
 
     fields :: [SectionsSpec (Maybe (Palette -> Palette))]
-    fields = optSection' "nick-colors" nickColorsSpec
-             "Colors used to highlight nicknames"
-
-           : optSection' "cmodes" (modeColorsSpec palCModes)
-             "Colors used to highlight channel modes"
-
-           : optSection' "umodes" (modeColorsSpec palUModes)
-             "Colors used to highlight user modes"
-
-           : optSection' "snomask" (modeColorsSpec palSnomask)
-             "Colors used to highlight server notice mask"
-
+    fields = optSection' "identifier-colors" nickColorsSpec
+             "Colors used to highlight identifiers (nicks, channel names)."
+           : optSection' "identifier-overrides" idOverridesSpec
+             "Colors used to highlight specific identifiers (nicks, channel names)."
            : [ optSection' lbl (set l <$> attrSpec) "" | (lbl, Lens l) <- paletteMap ]
 
 extensionSpec :: ValueSpec ExtensionConfiguration
@@ -534,3 +523,10 @@ resolveFilePath fpc path
   | isAbsolute path                   = path
   | "~":rest <- splitDirectories path = joinPath (fpHome fpc : rest)
   | otherwise                         = fpBase fpc </> path
+
+-- | Returns a NetworkPalette for the given network name.
+configNetworkPalette :: Text -> Configuration -> NetworkPalette
+configNetworkPalette net cfg = unifyNetworkPalette palDefault $ fromMaybe defaultNetworkPalette palNet
+  where
+    palNet = view ssPalette <$> view (configServers . at net) cfg
+    palDefault = view (configDefaults. ssPalette) cfg

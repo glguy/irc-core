@@ -66,6 +66,7 @@ data MessageRendererParams = MessageRendererParams
   , rendHighlights :: HashMap Identifier Highlight -- ^ words to highlight
   , rendPalette    :: Palette -- ^ nick color palette
   , rendAccounts   :: Maybe (HashMap Identifier UserAndHost)
+  , rendNetPalette :: NetworkPalette
   }
 
 -- | Default 'MessageRendererParams' with no sigils or nicknames specified
@@ -76,8 +77,8 @@ defaultRenderParams = MessageRendererParams
   , rendHighlights  = HashMap.empty
   , rendPalette     = defaultPalette
   , rendAccounts    = Nothing
+  , rendNetPalette  = defaultNetworkPalette
   }
-
 
 -- | Construct a message given the time the message was received and its
 -- render parameters.
@@ -293,6 +294,7 @@ ircLineImage ::
 ircLineImage !rp body =
   let pal     = rendPalette rp
       hilites = rendHighlights rp
+      netpal  = rendNetPalette rp
   in
   case body of
     Join        {} -> mempty
@@ -340,7 +342,7 @@ ircLineImage !rp body =
 
     Mode _ chan (modes:params) ->
       "set mode: " <>
-      modesImage (view palModes pal) (modesPaletteFor chan pal) (Text.unpack modes) <>
+      modesImage (view palModes pal) (modesPaletteFor chan netpal) (Text.unpack modes) <>
       " " <>
       ircWords pal params
 
@@ -363,6 +365,7 @@ fullIrcLineImage ::
 fullIrcLineImage !rp body =
   let quietAttr = view palMeta pal
       pal     = rendPalette rp
+      netpal  = rendNetPalette rp
       sigils  = rendUserSigils rp
       hilites = rendHighlights rp
       rm      = DetailedRender
@@ -510,7 +513,7 @@ fullIrcLineImage !rp body =
     Mode nick chan (modes:params) ->
       string (view palModes pal) "mode " <>
       who nick <> " set mode: " <>
-      modesImage (view palModes pal) (modesPaletteFor chan pal) (Text.unpack modes) <>
+      modesImage (view palModes pal) (modesPaletteFor chan netpal) (Text.unpack modes) <>
       " " <>
       ircWords pal params
 
@@ -1125,7 +1128,7 @@ coloredIdentifier palette icm hilites ident =
             PrivmsgIdentifier -> view palSelfHighlight palette
             NormalIdentifier  -> view palSelf palette
 
-      | otherwise = v Vector.! i
+      | otherwise = fromMaybe (v Vector.! i) (HashMap.lookup ident (view palIdOverride palette))
 
     v = view palNicks palette
     i = hash ident `mod` Vector.length v
@@ -1237,3 +1240,11 @@ drawWindowLine palette w padAmt wl = wrap (drawPrefix wl) (view wlImage wl)
     wrap pfx body = reverse (lineWrapPrefix w pfx body)
     drawPrefix = views wlTimestamp drawTime <>
                  views wlPrefix    padNick
+
+modesPaletteFor :: Identifier -> NetworkPalette -> HashMap Char Attr
+modesPaletteFor name
+  | isChanPrefix $ Text.head $ idText name = view palCModes
+  | otherwise = view palUModes 
+  where
+    -- TODO: Don't hardcode this, query ISUPPORT.
+    isChanPrefix c = c `elem` ("#&!+" :: String)
