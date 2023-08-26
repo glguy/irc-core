@@ -126,7 +126,7 @@ patterns = map toPattern
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the X-Line for:|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} is removing the X-Line for|]),
     (2, "k", [str|^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} has removed the temporary D-Line for:|]),
-    (2, "k", [str|^User [^ ]+ \([^ ]+@[^ ]+\) is attempting to join locally juped channel [^ ]+ \(.*\)$)|]),
+    (2, "k", [str|^User [^ ]+ \([^ ]+@[^ ]+\) is attempting to join locally juped channel [^ ]+ \(.*\)$|]),
 
     (0, "m", [str|^Received SAVE message for|]),
     (0, "m", [str|^Ignored noop SAVE message for|]),
