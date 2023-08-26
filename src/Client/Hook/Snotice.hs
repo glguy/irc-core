@@ -97,6 +97,7 @@ patterns = map toPattern
     (2, "k", [str|^[^ ]+ added temporary [0-9]+ min. K-Line for |]),
     -- Nick collision
     (1, "m", [str|^Nick collision on|]),
+    (1, "m", [str|^Nick collision due to services forced nick change on|]),
     -- KILLs
     (0, "k", [str|^Received KILL message for [^ ]+\. From NickServ |]),
     (0, "k", [str|^Received KILL message for [^ ]+\. From syn Path: [^ ]+ \(Facility Blocked\)|]),
