@@ -84,7 +84,7 @@ windowEntries filt palette w padAmt detailed focus win =
   [ MentionLine
       { mlTimestamp  = views wlTimestamp unpackUTCTime l
       , mlFocus      = focus
-      , mlImage      = case metadataImg (view wlSummary l) of
+      , mlImage      = case metadataImg palette (view wlSummary l) of
                          _ | detailed     -> [view wlFullImage l]
                          Just (img, _, _) -> [img]
                          Nothing          -> drawWindowLine palette w padAmt l

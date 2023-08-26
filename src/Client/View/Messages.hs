@@ -28,7 +28,6 @@ import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
 import           Data.List
-import           Graphics.Vty.Attributes
 import           Irc.Identifier
 import           Irc.Message
 import           Irc.UserInfo
@@ -176,8 +175,10 @@ metadataWindowLine ::
         {- ^ Image, incoming identifier, outgoing identifier if changed -}
 metadataWindowLine st wl =
   case view wlSummary wl of
-    ChatSummary who -> (ignoreImage, userNick who, Nothing) <$ guard (identIgnored who st)
-    summary         -> metadataImg summary
+    ChatSummary who -> (ignoreImage pal, userNick who, Nothing) <$ guard (identIgnored who st)
+    summary         -> metadataImg (clientPalette st) summary
+  where
+    pal = clientPalette st
 
 bulkMetadata ::
   ClientState ->
@@ -187,8 +188,7 @@ bulkMetadata st wls
   | (quits, wls') <- span isMassQuit wls
   , let n = length quits
   , n > 10
-  = Just (string (view palMeta pal) ("(split:" <> show n <> ")") <>
-          char (withForeColor defAttr red) 'X', wls')
+  = Just (string (view palPart pal) ("(split:" <> show n <> ")x"), wls')
   where
     pal = clientPalette st
 

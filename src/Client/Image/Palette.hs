@@ -40,8 +40,14 @@ module Client.Image.Palette
   , palSnomask
   , palAway
   , palMonospace
+  , palJoin
+  , palPart
+  , palModes
+  , palUsrChg
+  , palIgnore
 
   , paletteMap
+  , modesPaletteFor
 
   -- * Defaults
   , defaultPalette
@@ -51,8 +57,10 @@ import Control.Lens (makeLenses, ReifiedLens(Lens), ReifiedLens')
 import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict qualified as HashMap
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Vector (Vector)
 import Graphics.Vty.Attributes
+import Irc.Identifier
 
 -- | Color palette used for rendering the client UI
 data Palette = Palette
@@ -79,52 +87,86 @@ data Palette = Palette
   , _palLineMarker    :: Attr -- ^ Divider between new and old messages
   , _palAway          :: Attr -- ^ color of nickname when away
   , _palMonospace     :: Attr -- ^ rendering of monospace formatting text
+  , _palModes         :: Attr -- ^ mode lines
   , _palCModes        :: HashMap Char Attr -- ^ channel mode attributes
   , _palUModes        :: HashMap Char Attr -- ^ user mode attributes
   , _palSnomask       :: HashMap Char Attr -- ^ snotice mask attributes
+  , _palJoin          :: Attr
+  , _palPart          :: Attr
+  , _palUsrChg       :: Attr
+  , _palIgnore        :: Attr
   }
   deriving Show
 
 makeLenses ''Palette
 
--- | Default UI colors that look nice in my dark solarized color scheme
+-- | Default UI colors
 defaultPalette :: Palette
 defaultPalette = Palette
   { _palNicks                   = defaultNickColorPalette
-  , _palSelf                    = withForeColor defAttr red
-  , _palSelfHighlight           = withForeColor defAttr red
+  , _palSelf                    = withForeColor defAttr brightWhite
+  , _palSelfHighlight           = defAttr `withBackColor` brightYellow `withForeColor` black
   , _palTime                    = withForeColor defAttr brightBlack
-  , _palMeta                    = withForeColor defAttr brightBlack
-  , _palSigil                   = withForeColor defAttr cyan
-  , _palLabel                   = withForeColor defAttr green
-  , _palLatency                 = withForeColor defAttr yellow
+  , _palMeta                    = metaNo
+  , _palSigil                   = withForeColor defAttr brightYellow
+  , _palLabel                   = withForeColor defAttr cyan
+  , _palLatency                 = withForeColor defAttr green
   , _palWindowName              = withForeColor defAttr cyan
-  , _palError                   = withForeColor defAttr red
+  , _palError                   = withForeColor (defAttr `withStyle` bold) red
   , _palTextBox                 = withForeColor defAttr brightBlack
-  , _palActivity                = withForeColor defAttr green
-  , _palMention                 = withForeColor defAttr red
+  , _palActivity                = metaLo
+  , _palMention                 = metaHi
   , _palCommand                 = withForeColor defAttr yellow
-  , _palCommandReady            = withForeColor defAttr green
-  , _palCommandPrefix           = withForeColor defAttr blue
+  , _palCommandReady            = withForeColor defAttr brightGreen
+  , _palCommandPrefix           = withForeColor defAttr yellow
   , _palCommandError            = withForeColor defAttr red
-  , _palCommandPlaceholder      = withStyle defAttr reverseVideo
+  , _palCommandPlaceholder      = withForeColor defAttr brightBlack
   , _palCommandPrompt           = defAttr `withStyle` bold `withBackColor` green `withForeColor` white
   , _palWindowDivider           = withStyle defAttr reverseVideo
-  , _palLineMarker              = defAttr
-  , _palAway                    = withForeColor defAttr brightBlack
+  , _palLineMarker              = withForeColor defAttr cyan
+  , _palAway                    = withForeColor defAttr blue
   , _palMonospace               = defAttr
-  , _palCModes                  = HashMap.empty
-  , _palUModes                  = HashMap.empty
+  , _palCModes                  = HashMap.fromList
+    [ ('b', metaHi)
+    , ('m', metaHi)
+    , ('n', metaNo)
+    , ('o', metaHi)
+    , ('t', metaNo)
+    , ('q', metaHi)  -- q is important whether it's quiet or owner.
+    ]
+  , _palUModes                  = HashMap.fromList
+    [ ('i', metaNo)
+    , ('w', metaNo)
+    ]
   , _palSnomask                 = HashMap.empty
+  , _palJoin                    = withForeColor defAttr brightGreen
+  , _palPart                    = withForeColor defAttr brightRed
+  , _palModes                   = metaLo
+  , _palUsrChg                  = metaLo
+  , _palIgnore                  = withForeColor defAttr white
   }
-
+  where
+    metaNo = withForeColor defAttr brightBlack
+    metaLo = withForeColor defAttr brightBlue
+    metaHi = defAttr `withStyle` bold `withBackColor` brightMagenta `withForeColor` black
 -- | Default nick highlighting colors that look nice in my dark solarized
 -- color scheme.
 defaultNickColorPalette :: Vector Attr
 defaultNickColorPalette =
   withForeColor defAttr <$>
-    [cyan, magenta, green, yellow, blue,
-     brightCyan, brightMagenta, brightGreen, brightBlue]
+    [ Color240  18, Color240  19, Color240  20, Color240  21, Color240  22, Color240  23
+    , Color240  24, Color240  25, Color240  26, Color240  27, Color240  28, Color240  29
+    , Color240 192, Color240 193, Color240 194, Color240 195, Color240 196, Color240 197
+    , Color240 198, Color240 199, Color240 200, Color240 201, Color240 202, Color240 203
+    ]
+
+modesPaletteFor :: Identifier -> Palette -> HashMap Char Attr
+modesPaletteFor name
+  | isChanPrefix $ Text.head $ idText name = _palCModes
+  | otherwise = _palUModes
+  where
+    -- TODO: Don't hardcode this, query ISUPPORT.
+    isChanPrefix c = c `elem` ("#&!+" :: String)
 
 -- | List of palette entry names and lenses for accessing that component
 -- of the palette.
@@ -134,6 +176,7 @@ paletteMap =
   , ("self-highlight"   , Lens palSelfHighlight)
   , ("time"             , Lens palTime)
   , ("meta"             , Lens palMeta)
+  , ("modes"            , Lens palModes)
   , ("sigil"            , Lens palSigil)
   , ("label"            , Lens palLabel)
   , ("latency"          , Lens palLatency)
@@ -152,4 +195,8 @@ paletteMap =
   , ("line-marker"      , Lens palLineMarker)
   , ("away"             , Lens palAway)
   , ("monospace"        , Lens palMonospace)
+  , ("join"             , Lens palJoin)
+  , ("part"             , Lens palPart)
+  , ("user-change"      , Lens palUsrChg)
+  , ("ignore"           , Lens palIgnore)
   ]

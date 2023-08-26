@@ -17,7 +17,7 @@ module Client.Image.StatusLine
   , clientTitle
   ) where
 
-import Client.Image.Message (cleanChar, cleanText, IdentifierColorMode (NormalIdentifier), coloredIdentifier)
+import Client.Image.Message (cleanChar, cleanText, IdentifierColorMode (NormalIdentifier), coloredIdentifier, modesImage)
 import Client.Image.PackedImage
 import Client.Image.Palette
 import Client.State
@@ -25,12 +25,11 @@ import Client.State.Channel (chanModes, chanUsers)
 import Client.State.Focus (focusNetwork, Focus(..), Subfocus(..), WindowsFilter(..))
 import Client.State.Network
 import Client.State.Window
-import Control.Lens (view, orOf, preview, views, _Just, At(at), Ixed(ix))
+import Control.Lens (view, orOf, preview, views, _Just, Ixed(ix))
 import Data.Foldable (for_)
-import Data.HashMap.Strict (HashMap)
 import Data.Map.Strict qualified as Map
 import qualified Data.HashMap.Strict as HashMap
-import Data.Maybe (fromMaybe, mapMaybe, maybeToList)
+import Data.Maybe (mapMaybe, maybeToList)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LText
@@ -307,7 +306,7 @@ myNickImage st =
         Just cs -> Vty.text' attr (cleanText (idText nick))
            Vty.<|> parens defAttr
                      (unpackImage $
-                      modesImage (view palUModes pal) (view csModes cs) <>
+                      modesImage (view palModes pal) (view palUModes pal) ('+':view csModes cs) <>
                       snomaskImage)
           where
             attr
@@ -318,13 +317,8 @@ myNickImage st =
 
             snomaskImage
               | null (view csSnomask cs) = ""
-              | otherwise                = " " <> modesImage (view palSnomask pal) (view csSnomask cs)
-
-modesImage :: HashMap Char Attr -> String -> Image'
-modesImage pal modes = "+" <> foldMap modeImage modes
-  where
-    modeImage m =
-      char (fromMaybe defAttr (view (at m) pal)) m
+              | otherwise                = " " <>
+                modesImage (view palModes pal) (view palSnomask pal) ('+':view csSnomask cs)
 
 subfocusImage :: Subfocus -> ClientState -> Image'
 subfocusImage subfocus st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
@@ -369,7 +363,7 @@ viewFocusLabel st focus =
 
                , case preview (csChannels . ix channel . chanModes) cs of
                     Just modeMap | not (null modeMap) ->
-                        " " <> modesImage (view palCModes pal) (Map.keys modeMap)
+                        " " <> modesImage (view palModes pal) (view palCModes pal) ('+':Map.keys modeMap)
                     _ -> mempty
                )
 
