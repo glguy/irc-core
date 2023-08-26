@@ -612,5 +612,6 @@ netPaletteSpec =
                     "Overrides for the styles used for specific snomask letters."
      pure NetworkPalette{..}
   where
-    colorMapSpec = HashMap.fromList . concatMap transpose <$> assocSpec attrSpec
-      where transpose (modes, style) = [(mode, style) | mode <- Text.unpack modes, isLetter mode]
+    colorMapSpec = HashMap.fromList . concatMap expand <$> assocSpec attrSpec
+      where
+        expand (modes, style) = [(mode, style) | mode <- Text.unpack modes, isLetter mode]
