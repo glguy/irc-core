@@ -363,6 +363,7 @@ recordChannelMessage' create network channel msg st
       , rendPalette     = clientPalette st
       , rendAccounts    = accounts
       , rendNetPalette  = clientNetworkPalette st
+      , rendChanTypes   = "#&!+" -- TODO: Don't hardcode this, use CHANTYPES ISUPPORT.
       }
 
     -- on failure returns mempty/""

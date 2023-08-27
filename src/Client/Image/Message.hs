@@ -67,6 +67,7 @@ data MessageRendererParams = MessageRendererParams
   , rendPalette    :: Palette -- ^ nick color palette
   , rendAccounts   :: Maybe (HashMap Identifier UserAndHost)
   , rendNetPalette :: NetworkPalette
+  , rendChanTypes  :: [Char] -- ^ A list of valid channel name prefixes.
   }
 
 -- | Default 'MessageRendererParams' with no sigils or nicknames specified
@@ -78,6 +79,7 @@ defaultRenderParams = MessageRendererParams
   , rendPalette     = defaultPalette
   , rendAccounts    = Nothing
   , rendNetPalette  = defaultNetworkPalette
+  , rendChanTypes   = "#&!+" -- Default for if we aren't told otherwise by ISUPPORT.
   }
 
 -- | Construct a message given the time the message was received and its
@@ -294,7 +296,6 @@ ircLineImage ::
 ircLineImage !rp body =
   let pal     = rendPalette rp
       hilites = rendHighlights rp
-      netpal  = rendNetPalette rp
   in
   case body of
     Join        {} -> mempty
@@ -342,7 +343,7 @@ ircLineImage !rp body =
 
     Mode _ chan (modes:params) ->
       "set mode: " <>
-      modesImage (view palModes pal) (modesPaletteFor chan netpal) (Text.unpack modes) <>
+      modesImage (view palModes pal) (modesPaletteFor chan rp) (Text.unpack modes) <>
       " " <>
       ircWords pal params
 
@@ -365,7 +366,6 @@ fullIrcLineImage ::
 fullIrcLineImage !rp body =
   let quietAttr = view palMeta pal
       pal     = rendPalette rp
-      netpal  = rendNetPalette rp
       sigils  = rendUserSigils rp
       hilites = rendHighlights rp
       rm      = DetailedRender
@@ -513,7 +513,7 @@ fullIrcLineImage !rp body =
     Mode nick chan (modes:params) ->
       string (view palModes pal) "mode " <>
       who nick <> " set mode: " <>
-      modesImage (view palModes pal) (modesPaletteFor chan netpal) (Text.unpack modes) <>
+      modesImage (view palModes pal) (modesPaletteFor chan rp) (Text.unpack modes) <>
       " " <>
       ircWords pal params
 
@@ -1241,10 +1241,9 @@ drawWindowLine palette w padAmt wl = wrap (drawPrefix wl) (view wlImage wl)
     drawPrefix = views wlTimestamp drawTime <>
                  views wlPrefix    padNick
 
-modesPaletteFor :: Identifier -> NetworkPalette -> HashMap Char Attr
-modesPaletteFor name
-  | isChanPrefix $ Text.head $ idText name = view palCModes
-  | otherwise = view palUModes 
+modesPaletteFor :: Identifier -> MessageRendererParams -> HashMap Char Attr
+modesPaletteFor name rp
+  | isChanPrefix $ Text.head $ idText name = view palCModes (rendNetPalette rp)
+  | otherwise = view palUModes (rendNetPalette rp)
   where
-    -- TODO: Don't hardcode this, query ISUPPORT.
-    isChanPrefix c = c `elem` ("#&!+" :: String)
+    isChanPrefix c = c `elem` (rendChanTypes rp)
