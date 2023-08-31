@@ -1,4 +1,4 @@
-{-# Language RecordWildCards #-}
+{-# Language RecordWildCards, ImportQualifiedPost #-}
 
 {-|
 Module      : Client.CApi.Types

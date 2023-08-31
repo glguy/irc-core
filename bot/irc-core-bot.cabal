@@ -2,7 +2,11 @@ cabal-version:       2.2
 name:                irc-core-bot
 version:             0.1.0.0
 synopsis:            Example bot using irc-core
-description:         Example bot using irc-core
+description:
+  This package is intended to show what it might look like to use
+  irc-core for your own IRC automation or client development.
+  It is certainly not a useful bot on its own.
+
 homepage:            https://github.com/glguy/irc-core
 license:             ISC
 license-file:        LICENSE
@@ -11,7 +15,8 @@ maintainer:          emertens@gmail.com
 copyright:           2016,2020 Eric Mertens
 category:            Network
 build-type:          Simple
-extra-source-files:  ChangeLog.md
+extra-doc-files:     ChangeLog.md
+tested-with:         GHC==9.4.7
 
 executable irc-core-bot
   main-is:             Main.hs

@@ -12,9 +12,10 @@ maintainer:          emertens@gmail.com
 copyright:           2016 Eric Mertens
 category:            Network
 build-type:          Simple
-extra-source-files:  ChangeLog.md
+extra-doc-files:     ChangeLog.md
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
+tested-with:         GHC==9.4.7
 
 source-repository head
   type: git
@@ -39,7 +40,7 @@ library
                        hashable   >=1.2  && <1.5,
                        primitive  >=0.6  && <0.8,
                        text       >=1.2  && <2.1,
-                       time       >=1.6  && <1.12,
+                       time       >=1.6  && <1.13,
                        vector     >=0.11 && <0.14
 
   hs-source-dirs:      src

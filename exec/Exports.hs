@@ -12,6 +12,8 @@ module Exports () where
 
 import Client.CApi.Exports
 import Client.CApi.Types
+import Data.Int
+import Data.Word
 import Foreign.C
 
 foreign export ccall glirc_send_message       :: Glirc_send_message
