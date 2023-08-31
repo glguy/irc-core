@@ -25,6 +25,7 @@ module Client.Image.Message
   , nickPad
   , timeImage
   , drawWindowLine
+  , modesImage
 
   , parseIrcTextWithNicks
   , Highlight(..)
@@ -39,12 +40,13 @@ import Client.Message
 import Client.State.Window (unpackTimeOfDay, wlImage, wlPrefix, wlTimestamp, WindowLine)
 import Client.UserHost ( uhAccount, UserAndHost )
 import Control.Applicative ((<|>))
-import Control.Lens (view, (^?), filtered, folded, views, Ixed(ix))
+import Control.Lens (view, (^?), filtered, folded, views, Ixed(ix), At (at))
 import Data.Char (ord, chr, isControl)
 import Data.Hashable (hash)
 import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict qualified as HashMap
 import Data.List (intercalate, intersperse)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, ZonedTime, TimeOfDay, formatTime, defaultTimeLocale, parseTimeM)
@@ -64,6 +66,8 @@ data MessageRendererParams = MessageRendererParams
   , rendHighlights :: HashMap Identifier Highlight -- ^ words to highlight
   , rendPalette    :: Palette -- ^ nick color palette
   , rendAccounts   :: Maybe (HashMap Identifier UserAndHost)
+  , rendNetPalette :: NetworkPalette
+  , rendChanTypes  :: [Char] -- ^ A list of valid channel name prefixes.
   }
 
 -- | Default 'MessageRendererParams' with no sigils or nicknames specified
@@ -74,8 +78,9 @@ defaultRenderParams = MessageRendererParams
   , rendHighlights  = HashMap.empty
   , rendPalette     = defaultPalette
   , rendAccounts    = Nothing
+  , rendNetPalette  = defaultNetworkPalette
+  , rendChanTypes   = "#&!+" -- Default for if we aren't told otherwise by ISUPPORT.
   }
-
 
 -- | Construct a message given the time the message was received and its
 -- render parameters.
@@ -336,9 +341,14 @@ ircLineImage !rp body =
       separatedParams pal (view msgParams irc)
     Cap cmd           -> ctxt (capCmdText cmd)
 
-    Mode _ _ params ->
+    Mode _ chan (modes:params) ->
       "set mode: " <>
+      modesImage (view palModes pal) (modesPaletteFor chan rp) (Text.unpack modes) <>
+      " " <>
       ircWords pal params
+
+    Mode _ _ [] ->
+      "changed no modes"
 
     Invite _ tgt chan ->
       "invited " <>
@@ -377,13 +387,13 @@ fullIrcLineImage !rp body =
   in
   case body of
     Nick old new ->
-      string quietAttr "nick " <>
+      string (view palUsrChg pal) "nick " <>
       who old <>
       " is now known as " <>
       coloredIdentifier pal NormalIdentifier hilites new
 
     Join nick _chan acct gecos ->
-      string quietAttr "join " <>
+      string (view palJoin pal) "join " <>
       plainWho (srcUser nick) <>
       accountPart <> gecosPart
       where
@@ -396,21 +406,21 @@ fullIrcLineImage !rp body =
           | otherwise       = text' quietAttr (" [" <> cleanText gecos <> "]")
 
     Part nick _chan mbreason ->
-      string quietAttr "part " <>
+      string (view palPart pal) "part " <>
       who nick <>
       foldMap (\reason -> string quietAttr " (" <>
                           parseIrcText pal reason <>
                           string quietAttr ")") mbreason
 
     Quit nick mbreason ->
-      string quietAttr "quit "   <>
+      string (view palPart pal) "quit "   <>
       who nick <>
       foldMap (\reason -> string quietAttr " (" <>
                           parseIrcText pal reason <>
                           string quietAttr ")") mbreason
 
     Kick kicker _channel kickee reason ->
-      string quietAttr "kick " <>
+      string (view palPart pal) "kick " <>
       who kicker <>
       " kicked " <>
       coloredIdentifier pal NormalIdentifier hilites kickee <>
@@ -418,7 +428,7 @@ fullIrcLineImage !rp body =
       parseIrcText pal reason
 
     Kill killer killee reason ->
-      string quietAttr "kill " <>
+      string (view palPart pal) "kill " <>
       who killer <>
       " killed " <>
       coloredIdentifier pal NormalIdentifier hilites killee <>
@@ -500,32 +510,38 @@ fullIrcLineImage !rp body =
       ": " <>
       ctxt (capCmdText cmd)
 
-    Mode nick _chan params ->
-      string quietAttr "mode " <>
+    Mode nick chan (modes:params) ->
+      string (view palModes pal) "mode " <>
       who nick <> " set mode: " <>
+      modesImage (view palModes pal) (modesPaletteFor chan rp) (Text.unpack modes) <>
+      " " <>
       ircWords pal params
+
+    Mode nick _ [] ->
+      string (view palModes pal) "mode " <>
+      who nick <> " changed no modes"
 
     Authenticate{} -> "AUTHENTICATE ***"
     BatchStart{}   -> "BATCH +"
     BatchEnd{}     -> "BATCH -"
 
     Account src acct ->
-      string quietAttr "acct " <>
+      string (view palUsrChg pal) "acct " <>
       who src <> ": " <>
       if Text.null acct then "*" else ctxt acct
 
     Chghost user newuser newhost ->
-      string quietAttr "chng " <>
+      string (view palUsrChg pal) "chng " <>
       who user <> ": " <>
       ctxt newuser <> " " <> ctxt newhost
 
     Away user (Just txt) ->
-      string quietAttr "away " <>
+      string (view palAway pal) "away " <>
       who user <> ": " <>
       parseIrcTextWithNicks pal hilites False txt
 
     Away user Nothing ->
-      string quietAttr "back " <>
+      string (view palUsrChg pal) "back " <>
       who user
 
 
@@ -1112,7 +1128,7 @@ coloredIdentifier palette icm hilites ident =
             PrivmsgIdentifier -> view palSelfHighlight palette
             NormalIdentifier  -> view palSelf palette
 
-      | otherwise = v Vector.! i
+      | otherwise = fromMaybe (v Vector.! i) (HashMap.lookup ident (view palIdOverride palette))
 
     v = view palNicks palette
     i = hash ident `mod` Vector.length v
@@ -1186,26 +1202,29 @@ highlightNicks palette hilites txt = foldMap highlight1 txtParts
 
 -- | Returns image and identifier to be used when collapsing metadata
 -- messages.
-metadataImg :: IrcSummary -> Maybe (Image', Identifier, Maybe Identifier)
-metadataImg msg =
+metadataImg :: Palette -> IrcSummary -> Maybe (Image', Identifier, Maybe Identifier)
+metadataImg pal msg =
   case msg of
-    QuitSummary who _     -> Just (char (withForeColor defAttr red   ) 'x', who, Nothing)
-    PartSummary who       -> Just (char (withForeColor defAttr red   ) '-', who, Nothing)
-    JoinSummary who       -> Just (char (withForeColor defAttr green ) '+', who, Nothing)
-    CtcpSummary who       -> Just (char (withForeColor defAttr white ) 'C', who, Nothing)
-    NickSummary old new   -> Just (char (withForeColor defAttr yellow) '>', old, Just new)
-    ChngSummary who       -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
-    AcctSummary who       -> Just (char (withForeColor defAttr blue  ) '*', who, Nothing)
-    AwaySummary who True  -> Just (char (withForeColor defAttr yellow) 'a', who, Nothing)
-    AwaySummary who False -> Just (char (withForeColor defAttr green ) 'b', who, Nothing)
+    QuitSummary who _     -> Just (char (view palPart pal)   'x', who, Nothing)
+    PartSummary who       -> Just (char (view palPart pal)   '-', who, Nothing)
+    JoinSummary who       -> Just (char (view palJoin pal)   '+', who, Nothing)
+    CtcpSummary who       -> Just (char (view palIgnore pal) 'C', who, Nothing)
+    NickSummary old new   -> Just (char (view palUsrChg pal) '>', old, Just new)
+    ChngSummary who       -> Just (char (view palUsrChg pal) '@', who, Nothing)
+    AcctSummary who       -> Just (char (view palUsrChg pal) '*', who, Nothing)
+    AwaySummary who True  -> Just (char (view palAway pal)   'a', who, Nothing)
+    AwaySummary who False -> Just (char (view palUsrChg pal) 'b', who, Nothing)
     _                     -> Nothing
 
-
-
 -- | Image used when treating ignored chat messages as metadata
-ignoreImage :: Image'
-ignoreImage = char (withForeColor defAttr yellow) 'I'
+ignoreImage :: Palette -> Image'
+ignoreImage pal = char (view palIgnore pal) 'I'
 
+modesImage :: Attr -> HashMap Char Attr -> String -> Image'
+modesImage def pal modes = foldMap modeImage modes
+  where
+    modeImage m =
+      char (fromMaybe def (view (at m) pal)) m
 
 -- | Render the normal view of a chat message line padded and wrapped.
 drawWindowLine ::
@@ -1221,3 +1240,10 @@ drawWindowLine palette w padAmt wl = wrap (drawPrefix wl) (view wlImage wl)
     wrap pfx body = reverse (lineWrapPrefix w pfx body)
     drawPrefix = views wlTimestamp drawTime <>
                  views wlPrefix    padNick
+
+modesPaletteFor :: Identifier -> MessageRendererParams -> HashMap Char Attr
+modesPaletteFor name rp
+  | isChanPrefix $ Text.head $ idText name = view palCModes (rendNetPalette rp)
+  | otherwise = view palUModes (rendNetPalette rp)
+  where
+    isChanPrefix c = c `elem` (rendChanTypes rp)

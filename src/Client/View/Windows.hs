@@ -13,6 +13,7 @@ module Client.View.Windows
   ( windowsImages
   ) where
 
+import           Client.Image.Message (coloredIdentifier, IdentifierColorMode (NormalIdentifier))
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
@@ -20,11 +21,11 @@ import           Client.State.Focus
 import           Client.State.Window
 import           Client.State.Network
 import           Control.Lens
+import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import           Graphics.Vty.Attributes
-import           Irc.Identifier
 
 -- | Draw the image lines associated with the @/windows@ command.
 windowsImages :: WindowsFilter -> ClientState -> [Image']
@@ -92,7 +93,7 @@ renderedFocus pal focus =
     ChannelFocus network channel ->
       text' (view palLabel pal) network <>
       char defAttr ':' <>
-      text' (view palLabel pal) (idText channel)
+      coloredIdentifier pal NormalIdentifier HashMap.empty channel
 
 renderedWindowInfo :: Palette -> Window -> Image'
 renderedWindowInfo pal win =

@@ -17,7 +17,7 @@ module Client.Image.StatusLine
   , clientTitle
   ) where
 
-import Client.Image.Message (cleanChar, cleanText)
+import Client.Image.Message (cleanChar, cleanText, IdentifierColorMode (NormalIdentifier), coloredIdentifier, modesImage)
 import Client.Image.PackedImage
 import Client.Image.Palette
 import Client.State
@@ -25,11 +25,11 @@ import Client.State.Channel (chanModes, chanUsers)
 import Client.State.Focus (focusNetwork, Focus(..), Subfocus(..), WindowsFilter(..))
 import Client.State.Network
 import Client.State.Window
-import Control.Lens (view, orOf, preview, views, _Just, At(at), Ixed(ix))
+import Control.Lens (view, orOf, preview, views, _Just, Ixed(ix))
 import Data.Foldable (for_)
-import Data.HashMap.Strict (HashMap)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, mapMaybe, maybeToList)
+import qualified Data.HashMap.Strict as HashMap
+import Data.Maybe (mapMaybe, maybeToList)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LText
@@ -246,7 +246,7 @@ activityBarImages st
                   $ unpackImage bar Vty.<|>
                     Vty.char defAttr '[' Vty.<|>
                     jumpLabel Vty.<|>
-                    Vty.text' (view palLabel pal) (cleanText focusText) Vty.<|>
+                    focusLabel Vty.<|>
                     Vty.char defAttr ':' Vty.<|>
                     Vty.string attr (show n) Vty.<|>
                     Vty.char defAttr ']'
@@ -261,11 +261,11 @@ activityBarImages st
         attr = case view winMention w of
                  WLImportant -> view palMention pal
                  _           -> view palActivity pal
-        focusText =
-          case focus of
-            Unfocused           -> Text.pack "*"
-            NetworkFocus net    -> net
-            ChannelFocus _ chan -> idText chan
+        focusLabel =
+          unpackImage $ case focus of
+            Unfocused           -> text' (view palLabel pal) (Text.pack "*")
+            NetworkFocus net    -> text' (view palLabel pal) (cleanText net)
+            ChannelFocus _ chan -> coloredIdentifier pal NormalIdentifier HashMap.empty chan
 
 
 -- | Pack a list of images into a single image spanning possibly many lines.
@@ -300,13 +300,14 @@ myNickImage st =
     Unfocused                 -> Vty.emptyImage
   where
     pal = clientPalette st
+    netpal = clientNetworkPalette st
     nickPart network =
       case preview (clientConnection network) st of
         Nothing -> Vty.emptyImage
         Just cs -> Vty.text' attr (cleanText (idText nick))
            Vty.<|> parens defAttr
                      (unpackImage $
-                      modesImage (view palUModes pal) (view csModes cs) <>
+                      modesImage (view palModes pal) (view palUModes netpal) ('+':view csModes cs) <>
                       snomaskImage)
           where
             attr
@@ -317,13 +318,8 @@ myNickImage st =
 
             snomaskImage
               | null (view csSnomask cs) = ""
-              | otherwise                = " " <> modesImage (view palSnomask pal) (view csSnomask cs)
-
-modesImage :: HashMap Char Attr -> String -> Image'
-modesImage pal modes = "+" <> foldMap modeImage modes
-  where
-    modeImage m =
-      char (fromMaybe defAttr (view (at m) pal)) m
+              | otherwise                = " " <>
+                modesImage (view palModes pal) (view palSnomask netpal) ('+':view csSnomask cs)
 
 subfocusImage :: Subfocus -> ClientState -> Image'
 subfocusImage subfocus st = foldMap infoBubble (viewSubfocusLabel pal subfocus)
@@ -345,8 +341,10 @@ parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'
 
 viewFocusLabel :: ClientState -> Focus -> Image'
 viewFocusLabel st focus =
-  let !pal = clientPalette st in
-  case focus of
+  let
+    !pal = clientPalette st
+    netpal = clientNetworkPalette st
+  in case focus of
     Unfocused ->
       char (view palError pal) '*'
     NetworkFocus network ->
@@ -355,7 +353,7 @@ viewFocusLabel st focus =
       text' (view palLabel pal) (cleanText network) <>
       char defAttr ':' <>
       string (view palSigil pal) (cleanChar <$> sigils) <>
-      text' (view palLabel pal) (cleanText (idText channel)) <>
+      coloredIdentifier pal NormalIdentifier HashMap.empty channel <>
       channelModes
 
       where
@@ -368,7 +366,7 @@ viewFocusLabel st focus =
 
                , case preview (csChannels . ix channel . chanModes) cs of
                     Just modeMap | not (null modeMap) ->
-                        " " <> modesImage (view palCModes pal) (Map.keys modeMap)
+                        " " <> modesImage (view palModes pal) (view palCModes netpal) ('+':Map.keys modeMap)
                     _ -> mempty
                )
 

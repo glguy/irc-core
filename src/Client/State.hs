@@ -57,6 +57,7 @@ module Client.State
   , clientIsFiltered
   , clientFilter
   , clientFilterChannels
+  , clientNetworkPalette
   , buildMatcher
   , clientToggleHideMeta
   , channelUserList
@@ -166,7 +167,6 @@ import           RtsStats (Stats)
 import qualified System.Random as Random
 import           Text.Regex.TDFA
 import           Text.Regex.TDFA.String (compile)
-
 
 -- | All state information for the IRC client
 data ClientState = ClientState
@@ -362,6 +362,8 @@ recordChannelMessage' create network channel msg st
       , rendHighlights  = highlights
       , rendPalette     = clientPalette st
       , rendAccounts    = accounts
+      , rendNetPalette  = clientNetworkPalette st
+      , rendChanTypes   = "#&!+" -- TODO: Don't hardcode this, use CHANTYPES ISUPPORT.
       }
 
     -- on failure returns mempty/""
@@ -1218,3 +1220,9 @@ clientAutoconnects st =
 clientToggleHideMeta :: ClientState -> ClientState
 clientToggleHideMeta st =
   overStrict (clientWindows . ix (view clientFocus st) . winHideMeta) not st
+
+-- | Generates the NetworkPalette for the current focus.
+clientNetworkPalette :: ClientState -> NetworkPalette
+clientNetworkPalette st = case focusNetwork (view clientFocus st) of
+  Just net -> configNetworkPalette net (view clientConfig st)
+  Nothing  -> defaultNetworkPalette
