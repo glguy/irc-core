@@ -387,6 +387,7 @@ viewSubfocusLabel pal subfocus =
     FocusRtsStats     -> Just $ string (view palLabel pal) "rtsstats"
     FocusCert{}       -> Just $ string (view palLabel pal) "cert"
     FocusChanList _ _ -> Just $ string (view palLabel pal) "channels"
+    FocusWho          -> Just $ string (view palLabel pal) "who"
     FocusMasks m      -> Just $ mconcat
       [ string (view palLabel pal) "masks"
       , char defAttr ':'

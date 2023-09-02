@@ -32,14 +32,14 @@ import qualified Data.Text as Text
 
 import           Irc.Identifier
 
--- | 'UserInfo' packages a nickname along with the username and hsotname
+-- | 'UserInfo' packages a nickname along with the username and hostname
 -- if they are known in the current context.
 data UserInfo = UserInfo
   { userNick :: {-# UNPACK #-} !Identifier   -- ^ nickname
   , userName :: {-# UNPACK #-} !Text -- ^ username, empty when missing
   , userHost :: {-# UNPACK #-} !Text -- ^ hostname, empty when missing
   }
-  deriving (Eq, Read, Show)
+  deriving (Eq, Ord, Read, Show)
 
 -- | Lens into 'userNick' field.
 uiNick :: Functor f => (Identifier -> f Identifier) -> UserInfo -> f UserInfo

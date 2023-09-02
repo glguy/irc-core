@@ -26,7 +26,7 @@ module Client.Image.Message
   , timeImage
   , drawWindowLine
   , modesImage
-
+  , prettyTime
   , parseIrcTextWithNicks
   , Highlight(..)
   ) where

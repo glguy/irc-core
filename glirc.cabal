@@ -125,6 +125,7 @@ library
     Client.State.Network
     Client.State.Window
     Client.UserHost
+    Client.WhoReply
     Client.View
     Client.View.Cert
     Client.View.ChannelList
@@ -140,6 +141,7 @@ library
     Client.View.RtsStats
     Client.View.UrlSelection
     Client.View.UserList
+    Client.View.Who
     Client.View.Windows
 
   other-modules:

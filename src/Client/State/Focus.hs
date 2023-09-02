@@ -56,6 +56,7 @@ data Subfocus
   | FocusIgnoreList  -- ^ Show ignored masks
   | FocusCert        -- ^ Show rendered certificate
   | FocusChanList (Maybe Int) (Maybe Int) -- ^ Show channel list
+  | FocusWho -- ^ Show last reply to a WHO query
   deriving (Eq,Show)
 
 -- | Unfocused first, followed by focuses sorted by network.
