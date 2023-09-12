@@ -86,14 +86,15 @@ newWhoReply query "" = WhoReply
   }
 newWhoReply query ('%':arg) = WhoReply
   { _whoQuery = (query, Just $ Text.pack ('%':arg))
-  , _whoToken = token
+  , _whoToken = if Set.member 't' fieldSet then token' else ""
   , _whoFields = fieldSet
   , _whoDone = False
   , _whoItems = []
   }
   where
     fieldSet = Set.fromList fields
-    (fields, token) = break (== ',') arg
+    (fields, token) = over _2 (drop 1) $ break (== ',') arg
+    token' = if null token then "0" else token
 newWhoReply query arg = WhoReply
   { _whoQuery = (query, Just $ Text.pack arg)
   , _whoToken = ""
