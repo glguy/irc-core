@@ -175,6 +175,7 @@ pattern RPL_TOPICWHOTIME            = ReplyCode 333
 pattern RPL_LISTUSAGE               = ReplyCode 334
 pattern RPL_COMMANDSYNTAX           = ReplyCode 334
 pattern RPL_LISTSYNTAX              = ReplyCode 334
+pattern RPL_WHOISTEXT               = ReplyCode 337
 pattern RPL_WHOISACTUALLY           = ReplyCode 338
 pattern RPL_BADCHANPASS             = ReplyCode 339
 pattern RPL_INVITING                = ReplyCode 341
@@ -605,6 +606,7 @@ replyCodeInfoTable
   , (RPL_LISTUSAGE             , ReplyCodeInfo CommandReply "list-usage")
   , (RPL_COMMANDSYNTAX         , ReplyCodeInfo CommandReply "command-syntax")
   , (RPL_LISTSYNTAX            , ReplyCodeInfo CommandReply "list-syntax")
+  , (RPL_WHOISTEXT             , ReplyCodeInfo CommandReply "whois-text")
   , (RPL_WHOISACTUALLY         , ReplyCodeInfo CommandReply "whois-actually")
   , (RPL_BADCHANPASS           , ReplyCodeInfo CommandReply "bad-chanpass")
   , (RPL_INVITING              , ReplyCodeInfo CommandReply "inviting")
