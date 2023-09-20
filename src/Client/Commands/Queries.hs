@@ -263,7 +263,7 @@ cmdWho cs st (Just (query, arg)) =
     let query' = Text.pack query
     let arg' = fromMaybe "" arg
     let cs' = set csWhoReply (newWhoReply query' arg') cs
-    sendMsg cs (ircWho (query' : (maybeToList $ Text.pack <$> arg)))
+    sendMsg cs (ircWho (query' : maybeToList (Text.pack <$> arg)))
     commandSuccessUpdateCS cs' (changeSubfocus FocusWho st)
 
 cmdWhowas :: NetworkCommand String

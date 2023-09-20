@@ -9,7 +9,7 @@ This is a default setup script except that it checks that all
 transitive dependencies of this package use free licenses and
 generates a Build module detailing the versions of build tools
 and transitive library dependencies.
- 
+
 -}
 
 module Main (main) where
@@ -98,10 +98,12 @@ validateLicenses ::
 validateLicenses pkgs =
   do let toLicense = either licenseFromSPDX id
          isBad pkg = toLicense (license pkg) `notElem` freeLicenses
+                  && pkgName (sourcePackageId pkg) `notElem` exemptions
          badPkgs   = filter isBad pkgs
+         exemptions = [mkPackageName "system-cxx-std-lib"]
 
      unless (null badPkgs) $
-       do mapM_ print [ toLicense (license pkg) | pkg <- badPkgs ]
+       do mapM_ print [ (sourcePackageId pkg, toLicense (license pkg)) | pkg <- badPkgs ]
           fail "BAD LICENSE"
 
 
