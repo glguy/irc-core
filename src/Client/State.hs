@@ -109,12 +109,6 @@ module Client.State
   , esActive
   , esMVar
   , esStablePtr
-
-  -- * URL view
-  , urlPattern
-  , urlMatches
-  , urlList
-
   ) where
 
 import           Client.CApi
@@ -134,7 +128,6 @@ import qualified Client.State.EditBox as Edit
 import           Client.State.Focus
 import           Client.State.Network
 import           Client.State.Window
-import           Client.WhoReply (WhoReplyItem, whoFilterText, whoUserInfo, whoItems, whoRealname)
 import           ContextFilter
 import           Control.Applicative
 import           Control.Concurrent.MVar
@@ -847,64 +840,6 @@ clientActiveCommand st =
     ('/':cmd,_:args) -> Just (cmd,args)
     _                -> Nothing
 
-
--- | Regular expression for matching HTTP/HTTPS URLs in chat text.
-urlPattern :: Regex
-Right urlPattern =
-  compile
-    defaultCompOpt
-    defaultExecOpt{captureGroups=False}
-    "https?://([[:alnum:]-]+\\.)*([[:alnum:]-]+)(:[[:digit:]]+)?(/[-0-9a-zA-Z$_.+!*'(),%?&=:@/;~#]*)?|\
-    \<https?://[^>]*>|\
-    \\\(https?://[^\\)]*\\)"
-
-
--- | Find all the URL matches using 'urlPattern' in a given 'Text' suitable
--- for being opened. Surrounding @<@ and @>@ are removed.
-urlMatches :: LText.Text -> [Text]
-urlMatches txt = removeBrackets . extractText . (^?! ix 0)
-             <$> matchAll urlPattern (LText.unpack txt)
-  where
-    extractText (off,len) = LText.toStrict
-                          $ LText.take (fromIntegral len)
-                          $ LText.drop (fromIntegral off) txt
-
-    removeBrackets t =
-      case Text.uncons t of
-       Just ('<',t') | not (Text.null t') -> Text.init t'
-       Just ('(',t') | not (Text.null t') -> Text.init t'
-       _                                  -> t
-
--- | Generate a list of URLs from the current focus and subfocus.
-urlList :: ClientState -> [(Maybe Identifier, Text)]
-urlList st = urlFn st
-  where
-    urlFn = case (network, subfocus) of
-      (Just net, FocusChanList min' max') ->
-        matchesTopic min' max' . view (clientConnections . at net)
-      (Just net, FocusWho) ->
-        matchesWhoReply . view (clientConnections . at net)
-      (_, _) ->
-        toListOf (clientWindows . ix focus . winMessages . each . folding matchesMsg)
-    focus = view clientFocus st
-    subfocus = view clientSubfocus st
-    network = focusNetwork focus
-    matchesMsg wl =
-      [ (views wlSummary summaryActor wl, url)
-      | url <- concatMap urlMatches $ clientFilter st id [views wlText id wl]
-      ]
-    matchesTopic _ _ Nothing = []
-    matchesTopic min' max' (Just cs) =
-      [ (Just $! chan, url)
-      | (chan, _, topic) <- clientFilterChannels st min' max' $ view (csChannelList . clsItems) cs
-      , url <- urlMatches $ LText.fromStrict topic
-      ]
-    matchesWhoReply Nothing = []
-    matchesWhoReply (Just cs) =
-      [ (Just $! userNick $ view whoUserInfo wri, url)
-      | wri <- clientFilter st whoFilterText $ view (csWhoReply . whoItems) cs
-      , url <- urlMatches $ LText.fromStrict $ view whoRealname wri
-      ]
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the network connection exists and should

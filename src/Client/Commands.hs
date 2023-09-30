@@ -36,6 +36,7 @@ import Client.State
 import Client.State.Extensions (clientCommandExtension, clientStartExtensions)
 import Client.State.Focus
 import Client.State.Network (csNick, isChannelIdentifier, sendMsg)
+import Client.State.Url
 import Control.Applicative (liftA2, (<|>))
 import Control.Exception (displayException, try)
 import Control.Lens
@@ -507,7 +508,7 @@ cmdUrl st arg =
     Just opener -> doUrlOpen opener (maybe 0 (subtract 1) arg)
   where
     doUrlOpen opener n =
-      case preview (ix n) (map snd (urlList st)) of
+      case preview (ix n) (map fst (urlList st)) of
         Just url -> openUrl opener (Text.unpack url) st
         Nothing  -> commandFailureMsg "bad url number" st
 
