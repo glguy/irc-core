@@ -23,6 +23,7 @@ import           Client.State
 import           Client.State.Focus
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
+import           Data.List (intersperse, foldl1')
 import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
@@ -38,7 +39,7 @@ urlSelectionView ::
   [Image']    {- ^ image lines         -}
 urlSelectionView w focus arg st
   = concat
-  $ zipWith (draw w hilites pal padding selected) [1..] (urlList st)
+  $ zipWith (draw w hilites pal selected) [1..] (urlList st)
   where
     focused = focus == view clientFocus st
 
@@ -49,7 +50,6 @@ urlSelectionView w focus arg st
       | otherwise               = 0 -- won't match
 
     cfg     = view clientConfig st
-    padding = view configNickPadding cfg
     pal     = view configPalette cfg
 
     hilites = clientHighlightsFocus focus st
@@ -59,18 +59,20 @@ draw ::
   Int                       {- ^ rendered width            -} ->
   HashMap Identifier Highlight {- ^ highlights             -} ->
   Palette                   {- ^ palette                   -} ->
-  PaddingMode               {- ^ nick render padding       -} ->
   Int                       {- ^ selected index            -} ->
   Int                       {- ^ url index                 -} ->
-  (Maybe Identifier, Text)  {- ^ sender and url text       -} ->
+  (Text, [Identifier])      {- ^ sender and url text       -} ->
   [Image']                  {- ^ rendered lines            -}
-draw w hilites pal padding selected i (who,url)
+draw w hilites pal selected i (url, who)
   = reverse
   $ lineWrapPrefix w
-      (string defAttr (shows i ". ") <>
-       nickPad padding
-         (foldMap (coloredIdentifier pal NormalIdentifier hilites) who) <> ": ")
-      (text' attr (cleanText url))
+      (string defAttr (shows i "."))
+      (text' attr (cleanText url) <> who')
   where
+    who'
+      | null who = mempty
+      | otherwise = " (" <> imgIds <> ")"
+    imgIds = foldl1' (<>) $ intersperse ", " $ map idImg who
+    idImg id' = coloredIdentifier pal NormalIdentifier hilites id'
     attr | selected == i = withStyle defAttr reverseVideo
          | otherwise     = defAttr

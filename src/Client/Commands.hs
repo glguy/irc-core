@@ -507,7 +507,7 @@ cmdUrl st arg =
     Just opener -> doUrlOpen opener (maybe 0 (subtract 1) arg)
   where
     doUrlOpen opener n =
-      case preview (ix n) (map snd (urlList st)) of
+      case preview (ix n) (map fst (urlList st)) of
         Just url -> openUrl opener (Text.unpack url) st
         Nothing  -> commandFailureMsg "bad url number" st
 

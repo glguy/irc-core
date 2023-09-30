@@ -876,8 +876,8 @@ urlMatches txt = removeBrackets . extractText . (^?! ix 0)
        _                                  -> t
 
 -- | Generate a list of URLs from the current focus and subfocus.
-urlList :: ClientState -> [(Maybe Identifier, Text)]
-urlList st = urlFn st
+urlList :: ClientState -> [(Text, [Identifier])]
+urlList st = urlDedup $ urlFn st
   where
     urlFn = case (network, subfocus) of
       (Just net, FocusChanList min' max') ->
@@ -890,21 +890,33 @@ urlList st = urlFn st
     subfocus = view clientSubfocus st
     network = focusNetwork focus
     matchesMsg wl =
-      [ (views wlSummary summaryActor wl, url)
+      [ (url, maybeToList $ views wlSummary summaryActor wl)
       | url <- concatMap urlMatches $ clientFilter st id [views wlText id wl]
       ]
     matchesTopic _ _ Nothing = []
     matchesTopic min' max' (Just cs) =
-      [ (Just $! chan, url)
+      [ (url, [chan])
       | (chan, _, topic) <- clientFilterChannels st min' max' $ view (csChannelList . clsItems) cs
       , url <- urlMatches $ LText.fromStrict topic
       ]
     matchesWhoReply Nothing = []
     matchesWhoReply (Just cs) =
-      [ (Just $! userNick $ view whoUserInfo wri, url)
+      [ (url, [userNick $ view whoUserInfo wri])
       | wri <- clientFilter st whoFilterText $ view (csWhoReply . whoItems) cs
       , url <- urlMatches $ LText.fromStrict $ view whoRealname wri
       ]
+    urlDedup :: [(Text, [Identifier])] -> [(Text, [Identifier])]
+    urlDedup pairs = rebuildList hmap [] pairs
+      where
+        rebuildList _     pairs' [] = reverse pairs'
+        rebuildList hmap' pairs' ((url, _):rest)
+          | HashMap.null hmap = reverse pairs'
+          | otherwise = case ids of
+            Just keys -> rebuildList hmapU ((url, reverse keys):pairs') rest
+            Nothing -> rebuildList hmapU pairs' rest
+          where
+            (ids, hmapU) = HashMap.alterF (\v -> (v, Nothing)) url hmap'
+        hmap = HashMap.fromListWith union pairs
 
 -- | Remove a network connection and unlink it from the network map.
 -- This operation assumes that the network connection exists and should
