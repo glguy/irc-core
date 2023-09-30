@@ -21,14 +21,13 @@ import           Client.Image.Palette
 import           Client.Image.LineWrap
 import           Client.State
 import           Client.State.Focus
+import           Client.State.Url
 import           Control.Lens
 import           Data.HashMap.Strict (HashMap)
 import           Data.List (intersperse, foldl1')
-import           Data.Text (Text)
 import           Graphics.Vty.Attributes
 import           Irc.Identifier
 import           Text.Read (readMaybe)
-
 
 -- | Generate the lines used for the view when typing @/url@
 urlSelectionView ::
@@ -61,7 +60,7 @@ draw ::
   Palette                   {- ^ palette                   -} ->
   Int                       {- ^ selected index            -} ->
   Int                       {- ^ url index                 -} ->
-  (Text, [Identifier])      {- ^ sender and url text       -} ->
+  UrlPair                   {- ^ sender and url text       -} ->
   [Image']                  {- ^ rendered lines            -}
 draw w hilites pal selected i (url, who)
   = reverse

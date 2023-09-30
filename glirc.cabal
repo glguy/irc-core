@@ -123,6 +123,7 @@ library
     Client.State.Extensions
     Client.State.Focus
     Client.State.Network
+    Client.State.Url
     Client.State.Window
     Client.UserHost
     Client.WhoReply
