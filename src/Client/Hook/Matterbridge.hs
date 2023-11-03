@@ -54,9 +54,9 @@ remap nick chanfilter ircmsg =
 
 remap' :: MbMsg -> UserInfo -> Identifier -> Text -> MessageResult
 remap' mbmsg ui chan msg =
-  case msg =~ ("^<([^>]+)> (.*)$"::Text) of
-    [_,nick,msg']:_ -> RemapMessage (newmsg mbmsg (fakeUser nick ui) chan msg')
-    _               -> PassMessage
+  case msg =~ ("^(\x03\&[0-9]{2})?<([^>]+)> \x0f?(.*)$"::Text) of
+    [_,_,nick,msg']:_ -> RemapMessage (newmsg mbmsg (fakeUser nick ui) chan msg')
+    _                 -> PassMessage
 
 newmsg :: MbMsg -> Source -> Identifier -> Text -> IrcMsg
 newmsg Msg src chan msg = Privmsg src chan msg

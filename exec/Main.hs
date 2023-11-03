@@ -17,6 +17,7 @@ import Data.Text (Text)
 import System.Exit
 import System.IO
 import Graphics.Vty
+import Graphics.Vty.Platform.Unix (mkVty)
 
 import Client.Configuration
 import Client.EventLoop

@@ -40,7 +40,9 @@ executable glirc
   default-language:    Haskell2010
 
   -- Constraints can be found on the library itself
-  build-depends:       base, glirc, lens, text, vty
+  build-depends:
+    base, glirc, lens, text, vty,
+    vty-unix             ^>=0.1.0.0,
 
   if os(Linux)
     ld-options: -Wl,--dynamic-list=exec/linux_exported_symbols.txt
@@ -195,7 +197,7 @@ library
     unix                 >=2.7    && <2.9,
     unordered-containers >=0.2.11 && <0.3,
     vector               >=0.11   && <0.14,
-    vty                  >=5.35   && <5.39,
+    vty                  ^>=6.0,
 
 test-suite test
   type:                exitcode-stdio-1.0

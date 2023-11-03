@@ -58,7 +58,6 @@ import Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
 import Data.Traversable (for)
 import GHC.IO.Exception (IOErrorType(..), ioe_type)
 import Graphics.Vty
-import Graphics.Vty.Input.Events ( InternalEvent(..) )
 import Hookup (ConnectionFailure(..))
 import Irc.Codes (pattern RPL_STARTTLS)
 import Irc.Message (IrcMsg(Reply, Notice), cookIrcMsg, msgTarget)
@@ -86,7 +85,7 @@ getEvent vty st =
   do timer <- prepareTimer
      atomically (asum [timer, vtyEvent, networkEvents, threadJoin])
   where
-    vtyEvent = VtyEvent <$> readTChan (_eventChannel (inputIface vty))
+    vtyEvent = VtyEvent <$> readTChan (eventChannel (inputIface vty))
 
     networkEvents =
       do xs <- for (HashMap.toList (view clientConnections st)) $ \(network, conn) ->
@@ -155,7 +154,7 @@ eventLoop vty st =
          eventLoop vty =<< doTimerEvent networkId action st'
        VtyEvent (InputEvent vtyEvent) ->
          traverse_ (eventLoop vty) =<< doVtyEvent vty vtyEvent st'
-       VtyEvent ResumeAfterSignal ->
+       VtyEvent ResumeAfterInterrupt ->
          eventLoop vty =<< updateTerminalSize vty st
        NetworkEvents networkEvents ->
          eventLoop vty =<< foldM doNetworkEvent st' networkEvents
