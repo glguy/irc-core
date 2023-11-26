@@ -1,5 +1,17 @@
 # Revision history for glirc
 
+* vty-6 support
+* deduplicated /url
+* locally processed /who
+* locally processed /list
+* colorized channel identifiers
+* better channel and user-mode highlighting. highlights are now per-server so configuration files will need to be updated
+* support for 24-bit color output
+* OS notification support
+* More notification levels for each window
+* Better away status handling
+* Config file level window hint configuration
+
 ## 2.39
 
 * Extra oper commands and reply parsing
