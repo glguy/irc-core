@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.12
+
+* Added constructors for AWAY
+
 ## 2.11
 
 * Added extra reply code patterns. Sasl errors renamed to ERR_ prefix
