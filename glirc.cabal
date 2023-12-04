@@ -22,7 +22,7 @@ bug-reports:         https://github.com/glguy/irc-core/issues
 tested-with:         GHC == 9.0.2, GHC == 9.2.2, GHC == 9.4.7
 
 custom-setup
-  setup-depends: base     >=4.15 && <4.20,
+  setup-depends: base     >=4.12 && <4.20,
                  filepath >=1.4  && <1.6,
                  Cabal    >=2.2  && <4
 
@@ -163,7 +163,7 @@ library
     Build_glirc
 
   build-depends:
-    base                 >=4.16   && <4.20,
+    base                 >=4.15   && <4.20,
     HsOpenSSL            >=0.11   && <0.12,
     async                >=2.2    && <2.3,
     attoparsec           ^>=0.14,
