@@ -9,7 +9,7 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.ZNC (zncCommands) where
 
-import Control.Applicative (asum, liftA2)
+import Control.Applicative ((<|>), empty, liftA2)
 import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken)
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
 import Client.Commands.Types
@@ -91,7 +91,8 @@ cmdZncPlayback cs st args =
     timeFormats = ["%k:%M:%S","%k:%M"]
     dateFormats = ["%F"]
     parseFormats formats str =
-      asum (map (parseTimeM False defaultTimeLocale ?? str) formats)
+      -- asum requires base >= 4.16
+      foldr (<|>) empty (map (parseTimeM False defaultTimeLocale ?? str) formats)
 
     successZoned = success . formatTime defaultTimeLocale "%s"
 
