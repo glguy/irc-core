@@ -1,5 +1,11 @@
 # Revision history for glirc
 
+## 2.40.0.1
+
+* Build on GHC 9.0
+
+## 2.40
+
 * vty-6 support
 * deduplicated /url
 * locally processed /who
