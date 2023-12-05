@@ -192,7 +192,7 @@ library
     stm                  >=2.4    && <2.6,
     template-haskell     >=2.11   && <2.22,
     text                 >=1.2.2  && <2.2,
-    time                 >=1.10   && <1.14,
+    time                 >=1.9    && <1.14,
     transformers         >=0.5.2  && <0.7,
     unix                 >=2.7    && <2.9,
     unordered-containers >=0.2.11 && <0.3,
