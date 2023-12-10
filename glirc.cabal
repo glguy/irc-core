@@ -19,7 +19,7 @@ extra-source-files:  exec/linux_exported_symbols.txt
 extra-doc-files:     glirc.1 ChangeLog.md README.md
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
-tested-with:         GHC == 9.0.2, GHC == 9.2.2, GHC == 9.4.7
+tested-with:         GHC == 9.0.2, GHC == 9.4.7, GHC == 9.8.1
 
 custom-setup
   setup-depends: base     >=4.12 && <4.20,

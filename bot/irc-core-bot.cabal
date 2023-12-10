@@ -16,7 +16,7 @@ copyright:           2016,2020 Eric Mertens
 category:            Network
 build-type:          Simple
 extra-doc-files:     ChangeLog.md
-tested-with:         GHC==9.4.7
+tested-with:         GHC == 9.0.2, GHC == 9.4.7, GHC == 9.8.1
 
 executable irc-core-bot
   main-is:             Main.hs
