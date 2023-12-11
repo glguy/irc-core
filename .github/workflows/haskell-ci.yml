@@ -246,9 +246,6 @@ jobs:
           if [ $((HCNUMVER < 90000)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
           if [ $((HCNUMVER < 90002)) -ne 0 ] ; then cd ${PKGDIR_config_value} || false ; fi
           if [ $((HCNUMVER < 90002)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
-      - name: haddock
-        run: |
-          $CABAL v2-haddock --disable-documentation --haddock-all $ARG_COMPILER --with-haddock $HADDOCK $ARG_TESTS $ARG_BENCH all
       - name: unconstrained build
         run: |
           rm -f cabal.project.local
