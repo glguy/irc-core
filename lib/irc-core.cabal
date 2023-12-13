@@ -15,7 +15,7 @@ build-type:          Simple
 extra-doc-files:     ChangeLog.md
 homepage:            https://github.com/glguy/irc-core
 bug-reports:         https://github.com/glguy/irc-core/issues
-tested-with:         GHC==9.4.7
+tested-with:         GHC == 9.0.2, GHC == 9.4.7, GHC == 9.8.1
 
 source-repository head
   type: git

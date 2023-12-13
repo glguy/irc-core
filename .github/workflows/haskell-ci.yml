@@ -8,9 +8,9 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.17.20230826
+# version: 0.17.20231203
 #
-# REGENDATA ("0.17.20230826",["github","--distribution","jammy","--jobs-selection","any","--submodules","cabal.project"])
+# REGENDATA ("0.17.20231203",["github","--distribution","jammy","--jobs-selection","any","--submodules","cabal.project"])
 #
 name: Haskell-CI
 on:
@@ -28,6 +28,16 @@ jobs:
     strategy:
       matrix:
         include:
+          - compiler: ghc-9.8.1
+            compilerKind: ghc
+            compilerVersion: 9.8.1
+            setup-method: ghcup
+            allow-failure: false
+          - compiler: ghc-9.4.7
+            compilerKind: ghc
+            compilerVersion: 9.4.7
+            setup-method: ghcup
+            allow-failure: false
           - compiler: ghc-9.0.2
             compilerKind: ghc
             compilerVersion: 9.0.2
@@ -41,18 +51,18 @@ jobs:
           apt-get install -y --no-install-recommends gnupg ca-certificates dirmngr curl git software-properties-common libtinfo5
           if [ "${{ matrix.setup-method }}" = ghcup ]; then
             mkdir -p "$HOME/.ghcup/bin"
-            curl -sL https://downloads.haskell.org/ghcup/0.1.19.5/x86_64-linux-ghcup-0.1.19.5 > "$HOME/.ghcup/bin/ghcup"
+            curl -sL https://downloads.haskell.org/ghcup/0.1.20.0/x86_64-linux-ghcup-0.1.20.0 > "$HOME/.ghcup/bin/ghcup"
             chmod a+x "$HOME/.ghcup/bin/ghcup"
             "$HOME/.ghcup/bin/ghcup" install ghc "$HCVER" || (cat "$HOME"/.ghcup/logs/*.* && false)
-            "$HOME/.ghcup/bin/ghcup" install cabal 3.10.1.0 || (cat "$HOME"/.ghcup/logs/*.* && false)
+            "$HOME/.ghcup/bin/ghcup" install cabal 3.10.2.0 || (cat "$HOME"/.ghcup/logs/*.* && false)
           else
             apt-add-repository -y 'ppa:hvr/ghc'
             apt-get update
             apt-get install -y "$HCNAME"
             mkdir -p "$HOME/.ghcup/bin"
-            curl -sL https://downloads.haskell.org/ghcup/0.1.19.5/x86_64-linux-ghcup-0.1.19.5 > "$HOME/.ghcup/bin/ghcup"
+            curl -sL https://downloads.haskell.org/ghcup/0.1.20.0/x86_64-linux-ghcup-0.1.20.0 > "$HOME/.ghcup/bin/ghcup"
             chmod a+x "$HOME/.ghcup/bin/ghcup"
-            "$HOME/.ghcup/bin/ghcup" install cabal 3.10.1.0 || (cat "$HOME"/.ghcup/logs/*.* && false)
+            "$HOME/.ghcup/bin/ghcup" install cabal 3.10.2.0 || (cat "$HOME"/.ghcup/logs/*.* && false)
           fi
         env:
           HCKIND: ${{ matrix.compilerKind }}
@@ -72,15 +82,17 @@ jobs:
             echo "HC=$HC" >> "$GITHUB_ENV"
             echo "HCPKG=$HCPKG" >> "$GITHUB_ENV"
             echo "HADDOCK=$HADDOCK" >> "$GITHUB_ENV"
-            echo "CABAL=$HOME/.ghcup/bin/cabal-3.10.1.0 -vnormal+nowrap" >> "$GITHUB_ENV"
+            echo "CABAL=$HOME/.ghcup/bin/cabal-3.10.2.0 -vnormal+nowrap" >> "$GITHUB_ENV"
           else
             HC=$HCDIR/bin/$HCKIND
             echo "HC=$HC" >> "$GITHUB_ENV"
             echo "HCPKG=$HCDIR/bin/$HCKIND-pkg" >> "$GITHUB_ENV"
             echo "HADDOCK=$HCDIR/bin/haddock" >> "$GITHUB_ENV"
-            echo "CABAL=$HOME/.ghcup/bin/cabal-3.10.1.0 -vnormal+nowrap" >> "$GITHUB_ENV"
+            echo "CABAL=$HOME/.ghcup/bin/cabal-3.10.2.0 -vnormal+nowrap" >> "$GITHUB_ENV"
           fi
 
+          HCNUMVER=$(${HC} --numeric-version|perl -ne '/^(\d+)\.(\d+)\.(\d+)(\.(\d+))?$/; print(10000 * $1 + 100 * $2 + ($3 == 0 ? $5 != 1 : $3))')
+          echo "HCNUMVER=$HCNUMVER" >> "$GITHUB_ENV"
           echo "ARG_TESTS=--enable-tests" >> "$GITHUB_ENV"
           echo "ARG_BENCH=--enable-benchmarks" >> "$GITHUB_ENV"
           echo "HEADHACKAGE=false" >> "$GITHUB_ENV"
@@ -142,12 +154,12 @@ jobs:
       - name: initial cabal.project for sdist
         run: |
           touch cabal.project
-          echo "packages: $GITHUB_WORKSPACE/source/lib" >> cabal.project
-          echo "packages: $GITHUB_WORKSPACE/source/hookup" >> cabal.project
-          echo "packages: $GITHUB_WORKSPACE/source/bot" >> cabal.project
-          echo "packages: $GITHUB_WORKSPACE/source/." >> cabal.project
-          echo "packages: $GITHUB_WORKSPACE/source/config-schema" >> cabal.project
-          echo "packages: $GITHUB_WORKSPACE/source/config-value" >> cabal.project
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "packages: $GITHUB_WORKSPACE/source/lib" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "packages: $GITHUB_WORKSPACE/source/hookup" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "packages: $GITHUB_WORKSPACE/source/bot" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "packages: $GITHUB_WORKSPACE/source/." >> cabal.project ; fi
+          if [ $((HCNUMVER < 90000)) -ne 0 ] ; then echo "packages: $GITHUB_WORKSPACE/source/config-schema" >> cabal.project ; fi
+          if [ $((HCNUMVER < 90002)) -ne 0 ] ; then echo "packages: $GITHUB_WORKSPACE/source/config-value" >> cabal.project ; fi
           cat cabal.project
       - name: sdist
         run: |
@@ -174,24 +186,24 @@ jobs:
           rm -f cabal.project cabal.project.local
           touch cabal.project
           touch cabal.project.local
-          echo "packages: ${PKGDIR_irc_core}" >> cabal.project
-          echo "packages: ${PKGDIR_hookup}" >> cabal.project
-          echo "packages: ${PKGDIR_irc_core_bot}" >> cabal.project
-          echo "packages: ${PKGDIR_glirc}" >> cabal.project
-          echo "packages: ${PKGDIR_config_schema}" >> cabal.project
-          echo "packages: ${PKGDIR_config_value}" >> cabal.project
-          echo "package irc-core" >> cabal.project
-          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
-          echo "package hookup" >> cabal.project
-          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
-          echo "package irc-core-bot" >> cabal.project
-          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
-          echo "package glirc" >> cabal.project
-          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
-          echo "package config-schema" >> cabal.project
-          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
-          echo "package config-value" >> cabal.project
-          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "packages: ${PKGDIR_irc_core}" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "packages: ${PKGDIR_hookup}" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "packages: ${PKGDIR_irc_core_bot}" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "packages: ${PKGDIR_glirc}" >> cabal.project ; fi
+          if [ $((HCNUMVER < 90000)) -ne 0 ] ; then echo "packages: ${PKGDIR_config_schema}" >> cabal.project ; fi
+          if [ $((HCNUMVER < 90002)) -ne 0 ] ; then echo "packages: ${PKGDIR_config_value}" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "package irc-core" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "package hookup" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "package irc-core-bot" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "package glirc" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 80200 && HCNUMVER < 90000)) -ne 0 ] ; then echo "package config-schema" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 80200 && HCNUMVER < 90000)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 80200 && HCNUMVER < 90002)) -ne 0 ] ; then echo "package config-value" >> cabal.project ; fi
+          if [ $((HCNUMVER >= 80200 && HCNUMVER < 90002)) -ne 0 ] ; then echo "    ghc-options: -Werror=missing-methods" >> cabal.project ; fi
           cat >> cabal.project <<EOF
           EOF
           $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: $_ installed\n" unless /^(config-schema|config-value|glirc|hookup|irc-core|irc-core-bot)$/; }' >> cabal.project.local
@@ -222,18 +234,22 @@ jobs:
           $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
       - name: cabal check
         run: |
-          cd ${PKGDIR_irc_core} || false
-          ${CABAL} -vnormal check
-          cd ${PKGDIR_hookup} || false
-          ${CABAL} -vnormal check
-          cd ${PKGDIR_irc_core_bot} || false
-          ${CABAL} -vnormal check
-          cd ${PKGDIR_glirc} || false
-          ${CABAL} -vnormal check
-          cd ${PKGDIR_config_schema} || false
-          ${CABAL} -vnormal check
-          cd ${PKGDIR_config_value} || false
-          ${CABAL} -vnormal check
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then cd ${PKGDIR_irc_core} || false ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then cd ${PKGDIR_hookup} || false ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then cd ${PKGDIR_irc_core_bot} || false ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then cd ${PKGDIR_glirc} || false ; fi
+          if [ $((HCNUMVER >= 90002)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
+          if [ $((HCNUMVER < 90000)) -ne 0 ] ; then cd ${PKGDIR_config_schema} || false ; fi
+          if [ $((HCNUMVER < 90000)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
+          if [ $((HCNUMVER < 90002)) -ne 0 ] ; then cd ${PKGDIR_config_value} || false ; fi
+          if [ $((HCNUMVER < 90002)) -ne 0 ] ; then ${CABAL} -vnormal check ; fi
+      - name: unconstrained build
+        run: |
+          rm -f cabal.project.local
+          $CABAL v2-build $ARG_COMPILER --disable-tests --disable-benchmarks all
       - name: save cache
         uses: actions/cache/save@v3
         if: always()
