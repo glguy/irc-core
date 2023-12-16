@@ -1,0 +1,145 @@
+= Window Commands
+:toc:
+
+== /channel
+
+Set the current focused window.
+
+See also: focus
+
+=== Examples
+
+`/c libera:#haskell` +
+`/c #haskell` +
+`/c libera:`
+
+== /focus
+
+Set the current focused window.
+
+When only `network` is specified this switches to the network status window.
+When `network` and `target` are specified this switches to that chat window.
+
+Nickname and channels can be specified in the `target` parameter.
+
+See also: query, channel
+
+== /clear
+
+Clear a window.
+
+If no arguments are provided the current window is cleared.
+If `network` is provided the that network window is cleared.
+If `network` and `channel` are provided that chat window is cleared.
+If `network` is provided and `channel` is `*` all windows for that network are cleared.
+
+If a window is cleared and no longer active that window will be removed from the client.
+
+== /windows
+
+Show a list of all windows.
+
+`kind`, if specified, is one of `networks`, `channels` or `users`,
+and limits the list to the type of window specified.
+
+== /splits
+
+This command defines the set of focuses that will
+always be visible, even when unfocused.
+If no focuses are listed, the set will be cleared.
+
+=== Examples
+
+`+/splits #haskell #haskell-lens nickserv+` +
+`+/splits * libera:#haskell libera:chanserv+` +
+`+/splits+`
+
+See also: splits+, splits-
+
+== /splits+
+
+Add focuses to the splits set.
+Omit the list of focuses to add the current window.
+
+=== Examples
+
+`+/splits+ #haskell #haskell-lens+` +
+`+/splits+ libera:#libera+` +
+`+/splits++`
+
+== /splits-
+
+Remove focuses from the splits set.
+Omit the list of focuses to remove the current window.
+
+== /ignore
+
+Toggle the soft-ignore on each of the space-delimited given
+nicknames. Ignores can use `*` (many) and `?` (one) wildcards.
+Masks can be of the form `nick[[!user]@host]`
+and use a case-insensitive comparison.
+
+If no masks are specified the current ignore list is displayed.
+
+=== Examples
+
+`+/ignore+` +
+`+/ignore nick1 nick2 nick3+` +
+`+/ignore nick@host+` +
+`+/ignore nick!user@host+` +
+`+/ignore *@host+` +
+`+/ignore *!baduser@*+`
+
+== /grep
+
+Filter view contents using a regular expression.
+
+Clear the regular expression by calling this without an argument.
+
+`/grep` is case-sensitive by default.
+
+=== Flags
+
+`-A n` - Show n messages after match
+`-B n` - Show n messages before match
+`-C n` - Show n messages before and after match
+`-F`   - Use plain-text match instead of regular expression
+`-i`   - Case insensitive match
+`-v`   - Invert pattern match
+`-m n` - Limit results to n matches
+`--`   - Stop processing flags
+
+== /dump
+
+Dump the current window's contents to a file.
+
+This command always outputs as if detailed mode is active.
+
+== /mentions
+
+Show a list of all messages that were highlighted as important.
+
+When using `/grep` the important messages are those matching
+the regular expression instead.
+
+== /setwindow
+
+Set window property.
+
+=== Properties
+
+`louder`: Upgrades normal messages to important. +
+`loud`: Uses default message importance. +
+`imponly`: Downgrades normal messages to boring. +
+`quiet`: Downgrades important messages to normal. +
+`quieter`: Downgrades message importance one step. +
+`silent`: Downgrades message importance to boring.
+
+`show` / `hide`: Toggles if window appears in window command shortcuts.
+
+== /setname
+
+Set window shortcut letter. If no letter is provided the next available
+letter will automatically be assigned.
+
+Available letters are configured in the `window-names` configuration setting.

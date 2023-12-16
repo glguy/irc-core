@@ -1,0 +1,203 @@
+= Chat Commands
+:toc:
+
+== /join
+
+Join the given channels.
+
+Multiple channels and keys may be provided as comma-separated lists.
+
+When keys are provided, they should occur in the same order as the channels.
+
+=== Examples
+
+`+/join #friends+` +
+`+/join #secret thekey+` +
+`+/join #secret1,#secret2,#public key1,key2+`
+
+See also: channel, clear, part
+
+== /me
+
+Sends an action message to the currently focused channel.
+Most clients will render these messages prefixed with
+only your nickname as though describing an action.
+
+=== Examples
+
+`+/me shrugs+`
+
+See also: notice, msg, say
+
+== /msg
+
+Send a chat message to a user or a channel.
+
+Multiple targets may be provided as a comma-separated list.
+
+On servers with STATUSMSG support,
+the channel name can be prefixed with a sigil to
+restrict the recipients to those with the given mode.
+
+=== Examples
+
+`+/msg buddy I'm sending you a message.+` +
+`+/msg #friends This message is for the whole channel.+` +
+`+/msg him,her I'm chatting with two people.+` +
+`+/msg @#users This message is only for ops!+`
+
+See also: notice, me, say
+
+== /part
+
+Leave the currently-focused channel,
+optionally with the provided message.
+
+=== Examples
+
+`+/part+` +
+`+/part It's not me, it's you+`
+
+See also: clear, join, quit
+
+== /query
+
+Switch the client focus to the given
+target and optionally send a message to that target.
+
+=== Examples
+
+`+/q libera:#haskell+` +
+`+/q #haskell+` +
+`+/q lambdabot @messages+` +
+`+/q irc_friend How are you?+`
+
+See also: msg channel focus
+
+== /say
+
+Send a message to the current chat window.
+
+This can be useful for sending a chat message with
+a leading '/' to the current chat window.
+
+=== Examples
+
+`+/say /help is the right place to start!+`
+
+See also: notice, me, msg
+
+== /away
+
+Mark yourself as away.
+The away message is used by the server to update
+status in /whois and to provide automated responses.
+
+Omit the `message` parameter to clear your away status.
+
+=== Examples
+
+`+/away Out getting some sun+` +
+`+/away+`
+
+== /channelinfo
+
+Show information about the current channel.
+Information includes topic, creation time, URL, and modes.
+
+See also: masks, mode, topic, users
+
+== /ctcp
+
+Client-to-client protocol (CTCP) commands can be used
+to query information from another user's client application
+directly. Common CTCP commands include: ACTION, PING, VERSION,
+USERINFO, CLIENTINFO, and TIME.
+
+glirc does not automatically respond to CTCP commands.
+
+=== Parameters
+
+`target`    - Comma-separated list of nicknames and channels +
+`command`   - CTCP command name +
+`arguments` - CTCP command arguments
+
+=== Examples
+
+`+/ctcp myfriend VERSION+` +
+`+/ctcp myfriend TIME+`
+
+== /knock
+
+Request entry to an invite-only channel.
+
+== /monitor
+
+Monitor is a protocol for getting server-side notifications
+when users become online/offline.
+
+=== Subcommands
+
+`+/monitor + target[,target2]*+` - Add nicknames to monitor list +
+`+/monitor - target[,target2]*+` - Remove nicknames to monitor list +
+`+/monitor C+`                   - Clear monitor list +
+`+/monitor L+`                   - Show monitor list +
+`+/monitor S+`                   - Show status of nicknames on monitor list
+
+== /names
+
+Show the user list for the current channel.
+Detailed view (default key F2) shows full hostmask.
+
+See also: channelinfo, masks
+
+== /nick
+
+Change your nickname.
+
+=== Examples
+
+`+/nick guest123+` +
+`+/nick better_nick+`
+
+== /notice
+
+Send a chat notice to a user or a channel.
+
+Notice messages were originally intended to be used by bots.
+Different clients will render these in different ways.
+
+Multiple targets may be provided as a comma-separated list.
+
+On servers with STATUSMSG support,
+the channel name can be prefixed with a sigil to
+restrict the recipients to those with the given mode.
+
+=== Examples
+
+`+/notice buddy I'm sending you a notice.+` +
+`+/notice #friends This notice is for the whole channel.+` +
+`+/notice him,her I'm informing two people.+` +
+`+/notice @#users This notice is only for ops!+`
+
+See also: me, msg, say
+
+== /operwall
+
+Send a network-wide WALLOPS message to opers only.
+
+See also: me, msg, say
+
+== /wallops
+
+Send a network-wide WALLOPS message.
+These messages go out to users who have the 'w' usermode set.
+
+See also: me, msg, say
+
+== /quote
+
+Send a raw IRC command.
+
+The argument to this command is sent as-is.
+No additional word-splitting is done.

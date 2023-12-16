@@ -1,0 +1,34 @@
+= Connection Commands
+:toc:
+
+== /connect
+
+Connect to `network` by name.
+
+If `network` does not correspond to the name of a server in the config,
+it is treated as a hostname.
+
+== /reconnect
+
+(Re)connect to the currently-focused server.
+
+== /quit
+
+Gracefully disconnect the current network connection,
+optionally sending the provided reason.
+
+See also: disconnect, exit
+
+== /disconnect
+
+Immediately terminate the current network connection.
+
+See also: quit, exit
+
+== /cert
+
+Show the TLS certificate for the current connection.
+
+== /umode
+
+Apply a user-mode change.
