@@ -5,15 +5,18 @@
 
 Send command directly to ZNC.
 
-The advantage of this over `+/msg+` is that responses are not broadcast to call clients.
+The advantage of this over `+/msg+` is that
+responses are not broadcast to call clients.
 
 == /znc-playback
 
 Request playback from the ZNC `playback` module.
 Note that the playback module is not installed in ZNC by default!
 
-When `date` is omitted, uses the most recent date in the past that makes sense.
-When both `time` and `date` are omitted, all playback is requested.
+When `date` is omitted,
+uses the most recent date in the past that makes sense.
+When both `time` and `date` are omitted,
+all playback is requested.
 
 Time format: `HOURS:MINUTES` (example: 7:00)
 

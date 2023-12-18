@@ -28,12 +28,13 @@ See also: query, channel
 
 Clear a window.
 
-If no arguments are provided the current window is cleared.
-If `network` is provided the that network window is cleared.
-If `network` and `channel` are provided that chat window is cleared.
-If `network` is provided and `channel` is `*` all windows for that network are cleared.
+If no arguments are provided, the current window is cleared.
+If `channel` is not provided, the `network` window is cleared.
+If `channel` is `*`, all windows for `network` are cleared.
+If `channel` is provided, that chat window is cleared.
 
-If a window is cleared and no longer active that window will be removed from the client.
+If a window is cleared and no longer active (e.g. due to leaving a channel),
+that window will be removed entirely.
 
 == /windows
 
@@ -142,4 +143,6 @@ Set window property.
 Set window shortcut letter. If no letter is provided the next available
 letter will automatically be assigned.
 
-Available letters are configured in the `window-names` configuration setting.
+Available letters are configured in the `window-names` config setting,
+which defaults to the characters available from
+the top letter and number rows on a QWERTY keyboard.

@@ -1,0 +1,14 @@
+root = true
+
+[doc/*.adoc]
+end_of_line = lf
+max_line_length = 76
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+[*.hs]
+indent_size = 2
+indent_style = space
+tab_width = 8
+

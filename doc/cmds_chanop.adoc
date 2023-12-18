@@ -64,4 +64,4 @@ See also: kick, kickban
 
 View or set the topic of the current channel.
 
-Tab-completion with no `message` specified will load the current topic for editing.
+Tab-completion with no `message` specified will load the current topic.
