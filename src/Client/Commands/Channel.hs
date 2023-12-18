@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Channel
 Description : Channel management command implementations
@@ -10,6 +10,7 @@ Maintainer  : emertens@gmail.com
 module Client.Commands.Channel (channelCommands) where
 
 import Client.Commands.Arguments.Spec
+import Client.Commands.Docs (chanopDocs, cmdDoc)
 import Client.Commands.TabCompletion (activeNicks, noChannelTab, simpleChannelTab, simpleTabCompletion)
 import Client.Commands.Types
 import Client.Commands.WordCompletion (plainWordCompleteMode)
@@ -39,76 +40,43 @@ channelCommands = CommandSection "IRC channel management"
   [ Command
       (pure "mode")
       (fromMaybe [] <$> optionalArg (extensionArg "[modes]" modeParamArgs))
-      "Sets IRC modes.\n\
-      \\n\
-      \Examples:\n\
-      \Setting a ban:           /mode +b *!*@hostname\n\
-      \Removing a quiet:        /mode -q *!*@hostname\n\
-      \Voicing two users:       /mode +vv user1 user2\n\
-      \Demoting an op to voice: /mode +v-o user1 user1\n\
-      \\n\
-      \When executed in a network window, mode changes are applied to your user.\n\
-      \When executed in a channel window, mode changes are applied to the channel.\n\
-      \\n\
-      \This command has parameter sensitive tab-completion.\n\
-      \\n\
-      \See also: /masks /channelinfo\n"
+      $(chanopDocs >>= cmdDoc "mode")
     $ NetworkCommand cmdMode tabMode
 
   , Command
       (pure "masks")
       (simpleToken "mode")
-      "Show mask lists for current channel.\n\
-      \\n\
-      \Common \^Bmode\^B values:\n\
-      \\^Bb\^B: bans\n\
-      \\^Bq\^B: quiets\n\
-      \\^BI\^B: invite exemptions (op view only)\n\
-      \\^Be\^B: ban exemption (op view only)s\n\
-      \\n\
-      \To populate the mask lists for the first time use: /mode \^Bmode\^B\n\
-      \\n\
-      \See also: /mode\n"
+      $(chanopDocs >>= cmdDoc "masks")
     $ ChannelCommand cmdMasks noChannelTab
 
   , Command
       (pure "invite")
       (simpleToken "nick")
-      "Invite a user to the current channel.\n"
+      $(chanopDocs >>= cmdDoc "invite")
     $ ChannelCommand cmdInvite simpleChannelTab
 
   , Command
       (pure "topic")
       (remainingArg "message")
-      "Set the topic on the current channel.\n\
-      \\n\
-      \Tab-completion with no \^Bmessage\^B specified will load the current topic for editing.\n"
+      $(chanopDocs >>= cmdDoc "topic")
     $ ChannelCommand cmdTopic tabTopic
 
   , Command
       (pure "kick")
       (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
-      "Kick a user from the current channel.\n\
-      \\n\
-      \See also: /kickban /remove\n"
+      $(chanopDocs >>= cmdDoc "kick")
     $ ChannelCommand cmdKick simpleChannelTab
 
   , Command
       (pure "kickban")
       (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
-      "Ban and kick a user from the current channel.\n\
-      \\n\
-      \Users are banned by hostname match.\n\
-      \See also: /kick /remove\n"
+      $(chanopDocs >>= cmdDoc "kickban")
     $ ChannelCommand cmdKickBan simpleChannelTab
 
   , Command
       (pure "remove")
       (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
-      "Remove a user from the current channel.\n\
-      \\n\
-      \Remove works like /kick except it results in a PART.\n\
-      \See also: /kick /kickban\n"
+      $(chanopDocs >>= cmdDoc "remove")
     $ ChannelCommand cmdRemove simpleChannelTab
 
   ]

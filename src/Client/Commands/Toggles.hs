@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Toggles
 Description : View modality command implementations
@@ -9,6 +9,7 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Toggles (togglesCommands) where
 
+import Client.Commands.Docs (togglesDocs, cmdDoc)
 import Client.Commands.TabCompletion (noClientTab)
 import Client.Commands.Types
 import Client.Configuration (EditMode(SingleLineEditor, MultiLineEditor), LayoutMode(OneColumn, TwoColumn))
@@ -21,43 +22,43 @@ togglesCommands = CommandSection "View toggles"
   [ Command
       (pure "toggle-detail")
       (pure ())
-      "Toggle detailed message view.\n"
+      $(togglesDocs >>= cmdDoc "toggle-detail")
     $ ClientCommand cmdToggleDetail noClientTab
 
   , Command
       (pure "toggle-activity-bar")
       (pure ())
-      "Toggle detailed detailed activity information in status bar.\n"
+      $(togglesDocs >>= cmdDoc "toggle-activity-bar")
     $ ClientCommand cmdToggleActivityBar noClientTab
 
   , Command
       (pure "toggle-show-ping")
       (pure ())
-      "Toggle visibility of ping round-trip time.\n"
+      $(togglesDocs >>= cmdDoc "toggle-show-ping")
     $ ClientCommand cmdToggleShowPing noClientTab
 
   , Command
       (pure "toggle-metadata")
       (pure ())
-      "Toggle visibility of metadata in chat windows.\n"
+      $(togglesDocs >>= cmdDoc "toggle-metadata")
     $ ClientCommand cmdToggleMetadata noClientTab
 
   , Command
       (pure "toggle-layout")
       (pure ())
-      "Toggle multi-window layout mode.\n"
+      $(togglesDocs >>= cmdDoc "toggle-layout")
     $ ClientCommand cmdToggleLayout noClientTab
 
   , Command
       (pure "toggle-editor")
       (pure ())
-      "Toggle between single-line and multi-line editor mode.\n"
+      $(togglesDocs >>= cmdDoc "toggle-editor")
     $ ClientCommand cmdToggleEditor noClientTab
 
   , Command
       (pure "toggle-edit-lock")
       (pure ())
-      "Toggle editor lock mode. When editor is locked pressing Enter is disabled.\n"
+      $(togglesDocs >>= cmdDoc "toggle-edit-lock")
     $ ClientCommand cmdToggleEditLock noClientTab
   ]
 

@@ -76,6 +76,7 @@ library
     Client.Commands.Chat
     Client.Commands.Certificate
     Client.Commands.Connection
+    Client.Commands.Docs
     Client.Commands.Exec
     Client.Commands.Interpolation
     Client.Commands.Operator
@@ -93,6 +94,7 @@ library
     Client.Configuration.Notifications
     Client.Configuration.ServerSettings
     Client.Configuration.Sts
+    Client.Docs
     Client.EventLoop
     Client.EventLoop.Actions
     Client.EventLoop.Errors

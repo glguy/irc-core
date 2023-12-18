@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language TemplateHaskell, OverloadedStrings #-}
 {-|
 Module      : Client.Commands.ZNC
 Description : ZNC command implementations
@@ -11,6 +11,7 @@ module Client.Commands.ZNC (zncCommands) where
 
 import Control.Applicative ((<|>), empty, liftA2)
 import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken)
+import Client.Commands.Docs (integrationDocs, cmdDoc)
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
 import Client.Commands.Types
 import Client.State.Network (sendMsg)
@@ -26,26 +27,13 @@ zncCommands = CommandSection "ZNC Support"
   [ Command
       (pure "znc")
       (remainingArg "arguments")
-      "Send command directly to ZNC.\n\
-      \\n\
-      \The advantage of this over /msg is that responses are not broadcast to call clients.\n"
+      $(integrationDocs >>= cmdDoc "znc")
     $ NetworkCommand cmdZnc simpleNetworkTab
 
   , Command
       (pure "znc-playback")
       (optionalArg (liftA2 (,) (simpleToken "[time]") (optionalArg (simpleToken "[date]"))))
-      "Request playback from the ZNC 'playback' module.\n\
-      \\n\
-      \\^Btime\^B determines the time to playback since.\n\
-      \\^Bdate\^B determines the date to playback since.\n\
-      \\n\
-      \When both \^Btime\^B and \^Bdate\^B are omitted, all playback is requested.\n\
-      \When both \^Bdate\^B is omitted it is defaulted the most recent date in the past that makes sense.\n\
-      \\n\
-      \Time format: HOURS:MINUTES (example: 7:00)\n\
-      \Date format: YEAR-MONTH-DAY (example: 2016-06-16)\n\
-      \\n\
-      \Note that the playback module is not installed in ZNC by default!\n"
+      $(integrationDocs >>= cmdDoc "znc-playback")
     $ NetworkCommand cmdZncPlayback noNetworkTab
 
   ]

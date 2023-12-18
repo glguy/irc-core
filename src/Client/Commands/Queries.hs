@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ViewPatterns #-}
 {-|
@@ -12,6 +12,7 @@ Maintainer  : emertens@gmail.com
 module Client.Commands.Queries (queryCommands) where
 
 import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken, extensionArg, Args)
+import Client.Commands.Docs (queriesDocs, cmdDoc)
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
 import Client.Commands.Types (commandSuccess, commandSuccessUpdateCS, Command(Command), CommandImpl(NetworkCommand), CommandSection(CommandSection), NetworkCommand)
 import Client.State (changeSubfocus, ClientState)
@@ -31,115 +32,97 @@ queryCommands = CommandSection "Queries"
   [ Command
       (pure "who")
       (optionalArg (liftA2 (,) (simpleToken "[channel|nick|mask]") (optionalArg (simpleToken "[options]"))))
-      "Send WHO query to server with given arguments, or just show the who view.\n"
+      $(queriesDocs >>= cmdDoc "who")
     $ NetworkCommand cmdWho simpleNetworkTab
 
   , Command
       (pure "whois")
       (remainingArg "arguments")
-      "Send WHOIS query to server with given arguments.\n"
+      $(queriesDocs >>= cmdDoc "whois")
     $ NetworkCommand cmdWhois simpleNetworkTab
 
   , Command
       (pure "whowas")
       (remainingArg "arguments")
-      "Send WHOWAS query to server with given arguments.\n"
+      $(queriesDocs >>= cmdDoc "whowas")
     $ NetworkCommand cmdWhowas simpleNetworkTab
 
   , Command
       (pure "ison")
       (remainingArg "arguments")
-      "Send ISON query to server with given arguments.\n"
+      $(queriesDocs >>= cmdDoc "ison")
     $ NetworkCommand cmdIson   simpleNetworkTab
 
   , Command
       (pure "userhost")
       (remainingArg "arguments")
-      "Send USERHOST query to server with given arguments.\n"
+      $(queriesDocs >>= cmdDoc "userhost")
     $ NetworkCommand cmdUserhost simpleNetworkTab
 
   , Command
       (pure "time")
       (optionalArg (simpleToken "[servername]"))
-      "Send TIME query to server with given arguments.\n"
+      $(queriesDocs >>= cmdDoc "time")
     $ NetworkCommand cmdTime simpleNetworkTab
 
   , Command
       (pure "stats")
       (remainingArg "arguments")
-      "Send STATS query to server with given arguments.\n"
+      $(queriesDocs >>= cmdDoc "stats")
     $ NetworkCommand cmdStats simpleNetworkTab
 
   , Command
       (pure "lusers")
       (optionalArg (simpleToken "[servername]"))
-      "Send LUSERS query to a given server.\n"
+      $(queriesDocs >>= cmdDoc "lusers")
     $ NetworkCommand cmdLusers simpleNetworkTab
 
   , Command
       (pure "users")
       (optionalArg (simpleToken "[servername]"))
-      "Send USERS query to a given server.\n"
+      $(queriesDocs >>= cmdDoc "users")
     $ NetworkCommand cmdUsers simpleNetworkTab
 
   , Command
-      (pure "motd") (optionalArg (simpleToken "[servername]"))
-      "Send MOTD query to server.\n"
+      (pure "motd")
+      (optionalArg (simpleToken "[servername]"))
+      $(queriesDocs >>= cmdDoc "motd")
     $ NetworkCommand cmdMotd simpleNetworkTab
 
   , Command
-      (pure "admin") (optionalArg (simpleToken "[servername]"))
-      "Send ADMIN query to server.\n"
+      (pure "admin")
+      (optionalArg (simpleToken "[servername]"))
+      $(queriesDocs >>= cmdDoc "admin")
     $ NetworkCommand cmdAdmin simpleNetworkTab
 
   , Command
-      (pure "rules") (optionalArg (simpleToken "[servername]"))
-      "Send RULES query to server.\n"
+      (pure "rules")
+      (optionalArg (simpleToken "[servername]"))
+      $(queriesDocs >>= cmdDoc "rules")
     $ NetworkCommand cmdRules simpleNetworkTab
 
   , Command
-      (pure "info") (pure ())
-      "Send INFO query to server.\n"
+      (pure "info")
+      (pure ())
+      $(queriesDocs >>= cmdDoc "info")
     $ NetworkCommand cmdInfo noNetworkTab
 
   , Command
       (pure "list")
       (optionalArg (extensionArg "[clientarg]" listArgs))
-      "\^BParameters:\^B\n\
-      \\n\
-      \    clientarg: An optionally-comma-separated list of\n\
-      \               flags for controlling the list.\n\
-      \        ~: Always refresh the list.\n\
-      \        >n: Show only channels with more than \^Bn\^B users.\n\
-      \        <n: Show only channels with less than \^Bn\^B users.\n\
-      \\n\
-      \    serverarg: The ELIST argument to send to the server.\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    View the list of public channels on the server.\n\
-      \\n\
-      \    Sends a LIST query and caches the result;\n\
-      \    on larger networks on slower connections,\n\
-      \    this may take a while to complete.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /list\n\
-      \    /list >100\n\
-      \    /list ~ <20\n\
-      \    /list , *-ops"
+      $(queriesDocs >>= cmdDoc "list")
     $ NetworkCommand cmdList simpleNetworkTab
 
   , Command
       (pure "links")
       (remainingArg "arguments")
-      "Send LINKS query to server with given arguments.\n"
+      $(queriesDocs >>= cmdDoc "links")
     $ NetworkCommand cmdLinks simpleNetworkTab
 
   , Command
-      (pure "version") (optionalArg (simpleToken "[servername]"))
-      "Send VERSION query to server.\n"
+      (pure "version")
+      (optionalArg (simpleToken "[servername]"))
+      $(queriesDocs >>= cmdDoc "version")
     $ NetworkCommand cmdVersion simpleNetworkTab
 
   ]
