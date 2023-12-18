@@ -43,11 +43,11 @@ See also: masks, channelinfo
 
 === Examples
 
-Removing the topic lock: `+/mode -t+` +
-Setting a ban:           `+/mode +b *!*@hostname+` +
-Removing a quiet:        `+/mode -q *!*@hostname+` +
-Voicing two users:       `+/mode +vv user1 user2+` +
-Demoting an op to voice: `+/mode +v-o user1 user1+`
+`+/mode -t+`               - Remove the topic lock +
+`+/mode +b *!*@hostname+`  - Set a ban +
+`+/mode -q *!*@hostname+`  - Remove a quiet +
+`+/mode +vv user1 user2+`  - Voice two users +
+`+/mode +v-o user1 user1+` - Demote an op to voice
 
 == /remove
 

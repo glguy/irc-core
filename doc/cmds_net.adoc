@@ -25,10 +25,28 @@ Immediately terminate the current network connection.
 
 See also: quit, exit
 
+== /umode
+
+Apply a user-mode change. 
+
 == /cert
 
 Show the TLS certificate for the current connection.
 
-== /umode
+== /new-self-signed-cert
 
-Apply a user-mode change.
+Generate a new self-signed client certificate for
+network service identification using CertFP.
+
+The generated certificate can be used via the per-server
+`tls-client-cert` and `tls-client-key-password` (if applicable) keys
+in your config file. 
+
+This command generates an RSA key pair by default.
+This may change in the future.
+
+=== Parameters
+
+`filename`:   Certificate and private key PEM output +
+`keysize`:    Public-key size (default 2048, range 1024-8192) +
+`passphrase`: Optional AES-128 private key passphrase

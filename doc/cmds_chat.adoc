@@ -65,14 +65,14 @@ See also: clear, join, quit
 Switch the client focus to the given
 target and optionally send a message to that target.
 
+See also: msg, channel, focus
+
 === Examples
 
 `+/q libera:#haskell+` +
 `+/q #haskell+` +
 `+/q lambdabot @messages+` +
 `+/q irc_friend How are you?+`
-
-See also: msg channel focus
 
 == /say
 
