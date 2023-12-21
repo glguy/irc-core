@@ -31,6 +31,7 @@ import qualified Data.Text.Lazy as LText
 import           Data.Text.Encoding (decodeUtf8)
 import           Language.Haskell.TH (Exp, Q, runIO)
 import           Language.Haskell.TH.Syntax (lift)
+import qualified Data.Text.Lazy.Builder as Builder
 
 type Docs = HashMap String LText.Text
 
@@ -65,6 +66,25 @@ buildDocs keymod parsedLines = docs
     folded = foldl (addLine keymod) (HashMap.empty, "", LText.empty) parsedLines
     (docs, _, _) = addLine keymod folded (Section "")
 
+data RenderContentsState
+  = Normal
+  | CodeBlockStart
+  | CodeBlockEnd
+  | CodeBlock
+  deriving Eq
+
+renderContents :: LText.Text -> LText.Text
+renderContents = Builder.toLazyText . snd . foldl renderContents' (Normal, mempty) . LText.unpack
+  where
+    renderContents' (state, builder) char
+      | state == CodeBlockStart && char == '+' = (CodeBlock, builder <> Builder.fromText "\^_")
+      | state == CodeBlockStart                = (Normal, builder <> Builder.fromText "\^B" <> Builder.singleton char)
+      | state == CodeBlockEnd   && char == '`' = (Normal, builder <> Builder.fromText "\^_")
+      | state == CodeBlockEnd                  = (CodeBlock, builder <> Builder.singleton '+' <> Builder.singleton char)
+      | state == Normal         && char == '`' = (CodeBlockStart, builder)
+      | state == CodeBlock      && char == '+' = (CodeBlockEnd, builder)
+      | otherwise = (state, builder <> Builder.singleton char)
+
 addLine :: (String -> String) -> (Docs, Text, LText.Text) -> Line -> (Docs, Text, LText.Text)
 addLine _      (docs, section, text)      Discarded    = (docs, section, text)
 addLine _      (docs, "", _)              (Section s') = (docs, s', LText.empty)
@@ -74,7 +94,7 @@ addLine keymod (docs, section, text) line              = case line of
   -- Do it here rather than in the contents parser
   -- so that we can handle state for things like source code blocks.
   -- Also replace the 3-tuple with a proper record type when doing stateful parsing.
-  Contents text'   -> (docs, section, append' text')
+  Contents text'   -> (docs, section, append' $ renderContents text')
   Subsection text' -> (docs, section, append' (makeHeader (LText.fromStrict text')))
   Section s'       -> (HashMap.insert (keymod $ Text.unpack section) text docs, s', LText.empty)
   where
