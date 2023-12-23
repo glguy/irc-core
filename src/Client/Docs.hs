@@ -67,34 +67,31 @@ buildDocs keymod parsedLines = docs
     (docs, _, _) = addLine keymod folded (Section "")
 
 data RenderContentsState
-  = Normal
-  | CodeBlockStart
-  | CodeBlockEnd
-  | CodeBlock
-  deriving Eq
+  = NormalState
+  | CodeStartState
+  | CodeEndState
+  | CodeBlockState
 
-renderContents :: LText.Text -> LText.Text
-renderContents = Builder.toLazyText . snd . foldl renderContents' (Normal, mempty) . LText.unpack
+renderContents :: RenderContentsState -> LText.Text -> LText.Text
+renderContents state = Builder.toLazyText . snd . foldl renderContents' (state, mempty) . LText.unpack
   where
-    renderContents' (state, builder) char
-      | state == CodeBlockStart && char == '+' = (CodeBlock, builder <> Builder.fromText "\^_")
-      | state == CodeBlockStart                = (Normal, builder <> Builder.fromText "\^B" <> Builder.singleton char)
-      | state == CodeBlockEnd   && char == '`' = (Normal, builder <> Builder.fromText "\^_")
-      | state == CodeBlockEnd                  = (CodeBlock, builder <> Builder.singleton '+' <> Builder.singleton char)
-      | state == Normal         && char == '`' = (CodeBlockStart, builder)
-      | state == CodeBlock      && char == '+' = (CodeBlockEnd, builder)
-      | otherwise = (state, builder <> Builder.singleton char)
+    renderContents' (st, text) char = case (st, char) of
+       (CodeStartState, '+') -> (CodeBlockState, text <> Builder.fromText "\^_")
+       (CodeStartState, _  ) -> (NormalState,    text <> Builder.fromText "\^B" <> Builder.singleton char)
+       (CodeEndState,   '`') -> (NormalState,    text <> Builder.fromText "\^_")
+       (CodeEndState,   _  ) -> (CodeBlockState, text <> Builder.singleton '+' <> Builder.singleton char)
+       (NormalState,    '`') -> (CodeStartState, text)
+       (CodeBlockState, '+') -> (CodeEndState,   text)
+       (_,              _  ) -> (st,             text <> Builder.singleton char)
 
 addLine :: (String -> String) -> (Docs, Text, LText.Text) -> Line -> (Docs, Text, LText.Text)
 addLine _      (docs, section, text)      Discarded    = (docs, section, text)
 addLine _      (docs, "", _)              (Section s') = (docs, s', LText.empty)
 addLine _      (docs, "", text)           _            = (docs, "", text)
 addLine keymod (docs, section, text) line              = case line of
-  -- TODO: Actually parse formatting.
-  -- Do it here rather than in the contents parser
-  -- so that we can handle state for things like source code blocks.
-  -- Also replace the 3-tuple with a proper record type when doing stateful parsing.
-  Contents text'   -> (docs, section, append' $ renderContents text')
+  -- TODO: Keep renderContents state across lines.
+  -- Otherwise start in NormalState after each newline.
+  Contents text'   -> (docs, section, append' $ renderContents NormalState text')
   Subsection text' -> (docs, section, append' (makeHeader (LText.fromStrict text')))
   Section s'       -> (HashMap.insert (keymod $ Text.unpack section) text docs, s', LText.empty)
   where
