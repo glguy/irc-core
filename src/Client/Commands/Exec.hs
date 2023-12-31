@@ -31,8 +31,8 @@ import Data.ByteString.Lazy qualified as L
 import Data.List (unfoldr)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import System.Console.GetOpt (getOpt, ArgDescr(ReqArg, OptArg), ArgOrder(RequireOrder), OptDescr(..))
-import System.Process.Typed (byteStringInput, proc, readProcessStdout_, setStdin)
+import System.Console.GetOpt (getOpt, ArgDescr(ReqArg, OptArg, NoArg), ArgOrder(RequireOrder), OptDescr(..))
+import System.Process.Typed (byteStringInput, proc, readProcessStdout, setStdin, ExitCode (ExitFailure))
 
 -- | Settings for @/exec@ command.
 --
@@ -53,6 +53,7 @@ data ExecCmd = ExecCmd
   , _execCommand       :: String        -- ^ command filename
   , _execStdIn         :: String        -- ^ stdin source
   , _execArguments     :: [String]      -- ^ command arguments
+  , _execIgnoreError   :: Bool          -- ^ ignore the process exit code
   }
   deriving (Read,Show)
 
@@ -69,6 +70,7 @@ emptyExecCmd = ExecCmd
   , _execCommand       = error "no default command"
   , _execStdIn         = ""
   , _execArguments     = []
+  , _execIgnoreError   = False
   }
 
 options :: [OptDescr (ExecCmd -> ExecCmd)]
@@ -83,6 +85,9 @@ options =
   , Option "i" ["input"]
         (ReqArg (set execStdIn) "INPUT")
         "Use string as stdin"
+  , Option "e" ["error"]
+        (NoArg (set execIgnoreError True))
+        "Ignore process error codes"
   ]
 
 -- | Parse the arguments to @/exec@ looking for various flags
@@ -106,15 +111,17 @@ runExecCmd ::
   ExecCmd                       {- ^ exec configuration          -} ->
   IO (Either [String] [String]) {- ^ error lines or output lines -}
 runExecCmd cmd =
-  do res <- try (readProcessStdout_
-                   (setStdin (byteStringInput (L.fromStrict (Text.encodeUtf8 (Text.pack (view execStdIn cmd)))))
-                   (proc (view execCommand   cmd) (view execArguments cmd))))
-     return $! case res of
-       Left er   -> Left [displayException (er :: IOError)]
-       Right out ->
-          case Text.decodeUtf8' (L.toStrict out) of
-             Right str -> Right (lines (Text.unpack str))
-             Left e -> Left [displayException e]
+ do res <-
+      readProcessStdout
+        (setStdin (byteStringInput (L.fromStrict (Text.encodeUtf8 (Text.pack (view execStdIn cmd)))))
+        (proc (view execCommand   cmd) (view execArguments cmd)))
+    return $! case res of
+      (ExitFailure code, _) | not (view execIgnoreError cmd) ->
+        Left ["Process failed with exit code " ++ show code]
+      (_, out) ->
+        case Text.decodeUtf8' (L.toStrict out) of
+          Right str -> Right (lines (Text.unpack str))
+          Left e -> Left [displayException e]
 
 -- | Power words is similar to 'words' except that when it encounters
 -- a word formatted as a Haskell 'String' literal it parses it as
