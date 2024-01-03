@@ -9,9 +9,9 @@ See also: focus
 
 === Examples
 
-`/c libera:#haskell` +
-`/c #haskell` +
-`/c libera:`
+`+/c libera:#haskell+` +
+`+/c #haskell+` +
+`+/c libera:+`
 
 == /focus
 
