@@ -40,103 +40,103 @@ chatCommands = CommandSection "IRC commands"
   [ Command
       ("join" :| ["j"])
       (liftA2 (,) (simpleToken "channels") (optionalArg (simpleToken "[keys]")))
-      $(chatDocs >>= cmdDoc "join")
+      $(chatDocs `cmdDoc` "join")
     $ NetworkCommand cmdJoin simpleNetworkTab
 
   , Command
       (pure "part")
       (remainingArg "reason")
-      $(chatDocs >>= cmdDoc "part")
+      $(chatDocs `cmdDoc` "part")
     $ ChannelCommand cmdPart simpleChannelTab
 
   , Command
       (pure "msg")
       (liftA2 (,) (simpleToken "target") (remainingArg "message"))
-      $(chatDocs >>= cmdDoc "msg")
+      $(chatDocs `cmdDoc` "msg")
     $ NetworkCommand cmdMsg simpleNetworkTab
 
   , Command
       (pure "me")
       (remainingArg "message")
-      $(chatDocs >>= cmdDoc "me")
+      $(chatDocs `cmdDoc` "me")
     $ ChatCommand cmdMe simpleChannelTab
 
   , Command
       (pure "say")
       (remainingArg "message")
-      $(chatDocs >>= cmdDoc "say")
+      $(chatDocs `cmdDoc` "say")
     $ ChatCommand cmdSay simpleChannelTab
 
   , Command
       ("query" :| ["q"])
       (liftA2 (,) (simpleToken "target") (remainingArg "message"))
-      $(chatDocs >>= cmdDoc "query")
+      $(chatDocs `cmdDoc` "query")
     $ ClientCommand cmdQuery simpleClientTab
 
   , Command
       (pure "notice")
       (liftA2 (,) (simpleToken "target") (remainingArg "message"))
-      $(chatDocs >>= cmdDoc "notice")
+      $(chatDocs `cmdDoc` "notice")
     $ NetworkCommand cmdNotice simpleNetworkTab
 
   , Command
       (pure "wallops")
       (remainingArg "message to +w users")
-      $(chatDocs >>= cmdDoc "wallops")
+      $(chatDocs `cmdDoc` "wallops")
     $ NetworkCommand cmdWallops simpleNetworkTab
 
   , Command
       (pure "operwall")
       (remainingArg "message to +z opers")
-      $(chatDocs >>= cmdDoc "operwall")
+      $(chatDocs `cmdDoc` "operwall")
     $ NetworkCommand cmdOperwall simpleNetworkTab
 
   , Command
       (pure "ctcp")
       (liftA3 (,,) (simpleToken "target") (simpleToken "command") (remainingArg "arguments"))
-      $(chatDocs >>= cmdDoc "ctcp")
+      $(chatDocs `cmdDoc` "ctcp")
     $ NetworkCommand cmdCtcp simpleNetworkTab
 
   , Command
       (pure "nick")
       (simpleToken "nick")
-      $(chatDocs >>= cmdDoc "nick")
+      $(chatDocs `cmdDoc` "nick")
     $ NetworkCommand cmdNick simpleNetworkTab
 
   , Command
       (pure "away")
       (remainingArg "message")
-      $(chatDocs >>= cmdDoc "away")
+      $(chatDocs `cmdDoc` "away")
     $ NetworkCommand cmdAway simpleNetworkTab
 
   , Command
       (pure "names")
       (pure ())
-      $(chatDocs >>= cmdDoc "names")
+      $(chatDocs `cmdDoc` "names")
     $ ChannelCommand cmdChanNames noChannelTab
 
   , Command
       (pure "channelinfo")
       (pure ())
-      $(chatDocs >>= cmdDoc "channelinfo")
+      $(chatDocs `cmdDoc` "channelinfo")
     $ ChannelCommand cmdChannelInfo noChannelTab
 
   , Command
       (pure "knock")
       (liftA2 (,) (simpleToken "channel") (remainingArg "message"))
-      $(chatDocs >>= cmdDoc "knock")
+      $(chatDocs `cmdDoc` "knock")
     $ NetworkCommand cmdKnock simpleNetworkTab
 
   , Command
       (pure "quote")
       (remainingArg "raw IRC command")
-      $(chatDocs >>= cmdDoc "quote")
+      $(chatDocs `cmdDoc` "quote")
     $ NetworkCommand cmdQuote simpleNetworkTab
 
   , Command
       (pure "monitor")
       (extensionArg "[+-CLS]" monitorArgs)
-      $(chatDocs >>= cmdDoc "monitor")
+      $(chatDocs `cmdDoc` "monitor")
     $ NetworkCommand cmdMonitor simpleNetworkTab
 
   ]

@@ -32,97 +32,97 @@ queryCommands = CommandSection "Queries"
   [ Command
       (pure "who")
       (optionalArg (liftA2 (,) (simpleToken "[channel|nick|mask]") (optionalArg (simpleToken "[options]"))))
-      $(queriesDocs >>= cmdDoc "who")
+      $(queriesDocs `cmdDoc` "who")
     $ NetworkCommand cmdWho simpleNetworkTab
 
   , Command
       (pure "whois")
       (remainingArg "arguments")
-      $(queriesDocs >>= cmdDoc "whois")
+      $(queriesDocs `cmdDoc` "whois")
     $ NetworkCommand cmdWhois simpleNetworkTab
 
   , Command
       (pure "whowas")
       (remainingArg "arguments")
-      $(queriesDocs >>= cmdDoc "whowas")
+      $(queriesDocs `cmdDoc` "whowas")
     $ NetworkCommand cmdWhowas simpleNetworkTab
 
   , Command
       (pure "ison")
       (remainingArg "arguments")
-      $(queriesDocs >>= cmdDoc "ison")
+      $(queriesDocs `cmdDoc` "ison")
     $ NetworkCommand cmdIson   simpleNetworkTab
 
   , Command
       (pure "userhost")
       (remainingArg "arguments")
-      $(queriesDocs >>= cmdDoc "userhost")
+      $(queriesDocs `cmdDoc` "userhost")
     $ NetworkCommand cmdUserhost simpleNetworkTab
 
   , Command
       (pure "time")
       (optionalArg (simpleToken "[servername]"))
-      $(queriesDocs >>= cmdDoc "time")
+      $(queriesDocs `cmdDoc` "time")
     $ NetworkCommand cmdTime simpleNetworkTab
 
   , Command
       (pure "stats")
       (remainingArg "arguments")
-      $(queriesDocs >>= cmdDoc "stats")
+      $(queriesDocs `cmdDoc` "stats")
     $ NetworkCommand cmdStats simpleNetworkTab
 
   , Command
       (pure "lusers")
       (optionalArg (simpleToken "[servername]"))
-      $(queriesDocs >>= cmdDoc "lusers")
+      $(queriesDocs `cmdDoc` "lusers")
     $ NetworkCommand cmdLusers simpleNetworkTab
 
   , Command
       (pure "users")
       (optionalArg (simpleToken "[servername]"))
-      $(queriesDocs >>= cmdDoc "users")
+      $(queriesDocs `cmdDoc` "users")
     $ NetworkCommand cmdUsers simpleNetworkTab
 
   , Command
       (pure "motd")
       (optionalArg (simpleToken "[servername]"))
-      $(queriesDocs >>= cmdDoc "motd")
+      $(queriesDocs `cmdDoc` "motd")
     $ NetworkCommand cmdMotd simpleNetworkTab
 
   , Command
       (pure "admin")
       (optionalArg (simpleToken "[servername]"))
-      $(queriesDocs >>= cmdDoc "admin")
+      $(queriesDocs `cmdDoc` "admin")
     $ NetworkCommand cmdAdmin simpleNetworkTab
 
   , Command
       (pure "rules")
       (optionalArg (simpleToken "[servername]"))
-      $(queriesDocs >>= cmdDoc "rules")
+      $(queriesDocs `cmdDoc` "rules")
     $ NetworkCommand cmdRules simpleNetworkTab
 
   , Command
       (pure "info")
       (pure ())
-      $(queriesDocs >>= cmdDoc "info")
+      $(queriesDocs `cmdDoc` "info")
     $ NetworkCommand cmdInfo noNetworkTab
 
   , Command
       (pure "list")
       (optionalArg (extensionArg "[clientarg]" listArgs))
-      $(queriesDocs >>= cmdDoc "list")
+      $(queriesDocs `cmdDoc` "list")
     $ NetworkCommand cmdList simpleNetworkTab
 
   , Command
       (pure "links")
       (remainingArg "arguments")
-      $(queriesDocs >>= cmdDoc "links")
+      $(queriesDocs `cmdDoc` "links")
     $ NetworkCommand cmdLinks simpleNetworkTab
 
   , Command
       (pure "version")
       (optionalArg (simpleToken "[servername]"))
-      $(queriesDocs >>= cmdDoc "version")
+      $(queriesDocs `cmdDoc` "version")
     $ NetworkCommand cmdVersion simpleNetworkTab
 
   ]

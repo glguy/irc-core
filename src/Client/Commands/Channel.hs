@@ -40,43 +40,43 @@ channelCommands = CommandSection "IRC channel management"
   [ Command
       (pure "mode")
       (fromMaybe [] <$> optionalArg (extensionArg "[modes]" modeParamArgs))
-      $(chanopDocs >>= cmdDoc "mode")
+      $(chanopDocs `cmdDoc` "mode")
     $ NetworkCommand cmdMode tabMode
 
   , Command
       (pure "masks")
       (simpleToken "mode")
-      $(chanopDocs >>= cmdDoc "masks")
+      $(chanopDocs `cmdDoc` "masks")
     $ ChannelCommand cmdMasks noChannelTab
 
   , Command
       (pure "invite")
       (simpleToken "nick")
-      $(chanopDocs >>= cmdDoc "invite")
+      $(chanopDocs `cmdDoc` "invite")
     $ ChannelCommand cmdInvite simpleChannelTab
 
   , Command
       (pure "topic")
       (remainingArg "message")
-      $(chanopDocs >>= cmdDoc "topic")
+      $(chanopDocs `cmdDoc` "topic")
     $ ChannelCommand cmdTopic tabTopic
 
   , Command
       (pure "kick")
       (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
-      $(chanopDocs >>= cmdDoc "kick")
+      $(chanopDocs `cmdDoc` "kick")
     $ ChannelCommand cmdKick simpleChannelTab
 
   , Command
       (pure "kickban")
       (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
-      $(chanopDocs >>= cmdDoc "kickban")
+      $(chanopDocs `cmdDoc` "kickban")
     $ ChannelCommand cmdKickBan simpleChannelTab
 
   , Command
       (pure "remove")
       (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
-      $(chanopDocs >>= cmdDoc "remove")
+      $(chanopDocs `cmdDoc` "remove")
     $ ChannelCommand cmdRemove simpleChannelTab
 
   ]

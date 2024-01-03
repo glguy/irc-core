@@ -42,79 +42,79 @@ windowCommands = CommandSection "Window management"
   [ Command
       (pure "focus")
       (liftA2 (,) (simpleToken "network") (optionalArg (simpleToken "[target]")))
-      $(windowDocs >>= cmdDoc "focus")
+      $(windowDocs `cmdDoc` "focus")
     $ ClientCommand cmdFocus tabFocus
 
   , Command
       ("c" :| ["channel"])
       (simpleToken "focus")
-      $(windowDocs >>= cmdDoc "channel")
+      $(windowDocs `cmdDoc` "channel")
     $ ClientCommand cmdChannel tabChannel
 
   , Command
       (pure "clear")
       (optionalArg (liftA2 (,) (simpleToken "[network]") (optionalArg (simpleToken "[channel]"))))
-      $(windowDocs >>= cmdDoc "clear")
+      $(windowDocs `cmdDoc` "clear")
     $ ClientCommand cmdClear tabFocus
 
   , Command
       (pure "windows")
       (optionalArg (simpleToken "[kind]"))
-      $(windowDocs >>= cmdDoc "windows")
+      $(windowDocs `cmdDoc` "windows")
     $ ClientCommand cmdWindows tabWindows
 
   , Command
       (pure "splits")
       (remainingArg "focuses")
-      $(windowDocs >>= cmdDoc "splits")
+      $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplits tabSplits
 
   , Command
       (pure "splits+")
       (remainingArg "focuses")
-      $(windowDocs >>= cmdDoc "splits")
+      $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplitsAdd tabSplits
 
   , Command
       (pure "splits-")
       (remainingArg "focuses")
-      $(windowDocs >>= cmdDoc "splits")
+      $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplitsDel tabActiveSplits
 
   , Command
       (pure "ignore")
       (remainingArg "masks")
-      $(windowDocs >>= cmdDoc "ignore")
+      $(windowDocs `cmdDoc` "ignore")
     $ ClientCommand cmdIgnore tabIgnore
 
   , Command
       (pure "grep")
       (remainingArg "regular-expression")
-      $(windowDocs >>= cmdDoc "grep")
+      $(windowDocs `cmdDoc` "grep")
     $ ClientCommand cmdGrep simpleClientTab
 
   , Command
       (pure "dump")
       (simpleToken "filename")
-      $(windowDocs >>= cmdDoc "dump")
+      $(windowDocs `cmdDoc` "dump")
     $ ClientCommand cmdDump simpleClientTab
 
   , Command
       (pure "mentions")
       (pure ())
-      $(windowDocs >>= cmdDoc "mentions")
+      $(windowDocs `cmdDoc` "mentions")
     $ ClientCommand cmdMentions noClientTab
 
   , Command
       (pure "setwindow")
       (simpleToken ("hide|show" ++ concatMap ('|':) activityFilterStrings))
-      $(windowDocs >>= cmdDoc "setwindow")
+      $(windowDocs `cmdDoc` "setwindow")
     $ ClientCommand cmdSetWindow tabSetWindow
 
   , Command
       (pure "setname")
       (optionalArg (simpleToken "[letter]"))
-      $(windowDocs >>= cmdDoc "setname")
+      $(windowDocs `cmdDoc` "setname")
     $ ClientCommand cmdSetWindowName noClientTab
 
   ]

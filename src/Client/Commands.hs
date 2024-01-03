@@ -228,55 +228,55 @@ commandsList =
   [ Command
       (pure "exit")
       (pure ())
-      $(clientDocs >>= cmdDoc "exit")
+      $(clientDocs `cmdDoc` "exit")
     $ ClientCommand cmdExit noClientTab
 
   , Command
       (pure "reload")
       (optionalArg (simpleToken "[filename]"))
-      $(clientDocs >>= cmdDoc "reload")
+      $(clientDocs `cmdDoc` "reload")
     $ ClientCommand cmdReload tabReload
 
   , Command
       (pure "extension")
       (liftA2 (,) (simpleToken "extension") (remainingArg "arguments"))
-      $(clientDocs >>= cmdDoc "extension")
+      $(clientDocs `cmdDoc` "extension")
     $ ClientCommand cmdExtension simpleClientTab
 
   , Command
       (pure "palette")
       (pure ())
-      $(clientDocs >>= cmdDoc "palette")
+      $(clientDocs `cmdDoc` "palette")
     $ ClientCommand cmdPalette noClientTab
 
   , Command
       (pure "digraphs")
       (pure ())
-      $(clientDocs >>= cmdDoc "digraphs")
+      $(clientDocs `cmdDoc` "digraphs")
     $ ClientCommand cmdDigraphs noClientTab
 
   , Command
       (pure "keymap")
       (pure ())
-      $(clientDocs >>= cmdDoc "keymap")
+      $(clientDocs `cmdDoc` "keymap")
     $ ClientCommand cmdKeyMap noClientTab
 
   , Command
       (pure "rtsstats")
       (pure ())
-      $(clientDocs >>= cmdDoc "rtsstats")
+      $(clientDocs `cmdDoc` "rtsstats")
     $ ClientCommand cmdRtsStats noClientTab
 
   , Command
       (pure "exec")
       (remainingArg "arguments")
-      $(clientDocs >>= cmdDoc "exec")
+      $(clientDocs `cmdDoc` "exec")
     $ ClientCommand cmdExec simpleClientTab
 
   , Command
       (pure "url")
       optionalNumberArg
-      $(clientDocs >>= cmdDoc "url")
+      $(clientDocs `cmdDoc` "url")
     $ ClientCommand cmdUrl noClientTab
 
   , newCertificateCommand
@@ -284,7 +284,7 @@ commandsList =
   , Command
       (pure "help")
       (optionalArg (simpleToken "[command]"))
-      $(clientDocs >>= cmdDoc "help")
+      $(clientDocs `cmdDoc` "help")
     $ ClientCommand cmdHelp tabHelp
 
   ------------------------------------------------------------------------

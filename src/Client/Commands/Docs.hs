@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 
 {-|
 Module      : Client.Commands.Docs
@@ -22,37 +22,38 @@ module Client.Commands.Docs
   , windowDocs
   ) where
 
-import Language.Haskell.TH (Q, Exp)
 import Client.Docs (Docs, loadDoc, lookupDoc, makeHeader)
+import Language.Haskell.TH (Q, Exp)
+import Language.Haskell.TH.Syntax (lift)
 
-cmdDoc :: String -> Docs -> Q Exp
-cmdDoc key = lookupDoc (makeHeader "Description") ('/':key)
+cmdDoc :: Docs -> String -> Q Exp
+cmdDoc docs key = lookupDoc (makeHeader "Description") ('/':key) docs
 
 -- TODO: Replace each id with something that splits off the command name.
 
-chanopDocs :: Q Docs
-chanopDocs = loadDoc id "cmds_chanop"
+chanopDocs :: Docs
+chanopDocs = $(loadDoc id "cmds_chanop" >>= lift)
 
-chatDocs :: Q Docs
-chatDocs = loadDoc id "cmds_chat"
+chatDocs :: Docs
+chatDocs = $(loadDoc id "cmds_chat" >>= lift)
 
-clientDocs :: Q Docs
-clientDocs = loadDoc id "cmds_client"
+clientDocs :: Docs
+clientDocs = $(loadDoc id "cmds_client" >>= lift)
 
-integrationDocs :: Q Docs
-integrationDocs = loadDoc id "cmds_integration"
+integrationDocs :: Docs
+integrationDocs = $(loadDoc id "cmds_integration" >>= lift)
 
-netDocs :: Q Docs
-netDocs = loadDoc id "cmds_net"
+netDocs :: Docs
+netDocs = $(loadDoc id "cmds_net" >>= lift)
 
-operDocs :: Q Docs
-operDocs = loadDoc id "cmds_oper"
+operDocs :: Docs
+operDocs = $(loadDoc id "cmds_oper" >>= lift)
 
-queriesDocs :: Q Docs
-queriesDocs = loadDoc id "cmds_queries"
+queriesDocs :: Docs
+queriesDocs = $(loadDoc id "cmds_queries" >>= lift)
 
-togglesDocs :: Q Docs
-togglesDocs = loadDoc id "cmds_toggles"
+togglesDocs :: Docs
+togglesDocs = $(loadDoc id "cmds_toggles" >>= lift)
 
-windowDocs :: Q Docs
-windowDocs = loadDoc id "cmds_window"
+windowDocs :: Docs
+windowDocs = $(loadDoc id "cmds_window" >>= lift)

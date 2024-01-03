@@ -29,37 +29,37 @@ connectionCommands = CommandSection "Connection commands"
   [ Command
       (pure "connect")
       (simpleToken "network")
-      $(netDocs >>= cmdDoc "connect")
+      $(netDocs `cmdDoc` "connect")
     $ ClientCommand cmdConnect tabConnect
 
   , Command
       (pure "reconnect")
       (pure ())
-      $(netDocs >>= cmdDoc "reconnect")
+      $(netDocs `cmdDoc` "reconnect")
     $ ClientCommand cmdReconnect noClientTab
 
   , Command
       (pure "disconnect")
       (pure ())
-      $(netDocs >>= cmdDoc "disconnect")
+      $(netDocs `cmdDoc` "disconnect")
     $ NetworkCommand cmdDisconnect noNetworkTab
 
   , Command
       (pure "quit")
       (remainingArg "reason")
-      $(netDocs >>= cmdDoc "quit")
+      $(netDocs `cmdDoc` "quit")
     $ NetworkCommand cmdQuit simpleNetworkTab
 
   , Command
       (pure "cert")
       (pure ())
-      $(netDocs >>= cmdDoc "cert")
+      $(netDocs `cmdDoc` "cert")
     $ NetworkCommand cmdCert noNetworkTab
 
   , Command
       (pure "umode")
       (remainingArg "modes")
-      $(netDocs >>= cmdDoc "umode")
+      $(netDocs `cmdDoc` "umode")
     $ NetworkCommand cmdUmode noNetworkTab
   ]
 

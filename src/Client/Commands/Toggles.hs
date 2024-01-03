@@ -22,43 +22,43 @@ togglesCommands = CommandSection "View toggles"
   [ Command
       (pure "toggle-detail")
       (pure ())
-      $(togglesDocs >>= cmdDoc "toggle-detail")
+      $(togglesDocs `cmdDoc` "toggle-detail")
     $ ClientCommand cmdToggleDetail noClientTab
 
   , Command
       (pure "toggle-activity-bar")
       (pure ())
-      $(togglesDocs >>= cmdDoc "toggle-activity-bar")
+      $(togglesDocs `cmdDoc` "toggle-activity-bar")
     $ ClientCommand cmdToggleActivityBar noClientTab
 
   , Command
       (pure "toggle-show-ping")
       (pure ())
-      $(togglesDocs >>= cmdDoc "toggle-show-ping")
+      $(togglesDocs `cmdDoc` "toggle-show-ping")
     $ ClientCommand cmdToggleShowPing noClientTab
 
   , Command
       (pure "toggle-metadata")
       (pure ())
-      $(togglesDocs >>= cmdDoc "toggle-metadata")
+      $(togglesDocs `cmdDoc` "toggle-metadata")
     $ ClientCommand cmdToggleMetadata noClientTab
 
   , Command
       (pure "toggle-layout")
       (pure ())
-      $(togglesDocs >>= cmdDoc "toggle-layout")
+      $(togglesDocs `cmdDoc` "toggle-layout")
     $ ClientCommand cmdToggleLayout noClientTab
 
   , Command
       (pure "toggle-editor")
       (pure ())
-      $(togglesDocs >>= cmdDoc "toggle-editor")
+      $(togglesDocs `cmdDoc` "toggle-editor")
     $ ClientCommand cmdToggleEditor noClientTab
 
   , Command
       (pure "toggle-edit-lock")
       (pure ())
-      $(togglesDocs >>= cmdDoc "toggle-edit-lock")
+      $(togglesDocs `cmdDoc` "toggle-edit-lock")
     $ ClientCommand cmdToggleEditLock noClientTab
   ]
 

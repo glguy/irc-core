@@ -26,151 +26,151 @@ operatorCommands = CommandSection "Network operator commands"
   [ Command
       (pure "oper")
       (liftA2 (,) (simpleToken "user") (simpleToken "password"))
-      $(operDocs >>= cmdDoc "oper")
+      $(operDocs `cmdDoc` "oper")
     $ NetworkCommand cmdOper noNetworkTab
 
   , Command
       (pure "kill")
       (liftA2 (,) (simpleToken "client") (remainingArg "reason"))
-      $(operDocs >>= cmdDoc "kill")
+      $(operDocs `cmdDoc` "kill")
     $ NetworkCommand cmdKill simpleNetworkTab
 
   , Command
       (pure "kline")
       (liftA3 (,,) (simpleToken "minutes") (simpleToken "user@host") (remainingArg "reason"))
-      $(operDocs >>= cmdDoc "kline")
+      $(operDocs `cmdDoc` "kline")
     $ NetworkCommand cmdKline simpleNetworkTab
 
   , Command
       (pure "unkline")
       (liftA2 (,) (simpleToken "[user@]host") (optionalArg (simpleToken "[servername]")))
-      $(operDocs >>= cmdDoc "unkline")
+      $(operDocs `cmdDoc` "unkline")
     $ NetworkCommand cmdUnkline simpleNetworkTab
 
   , Command
       (pure "undline")
       (liftA2 (,) (simpleToken "host") (optionalArg (simpleToken "[servername]")))
-      $(operDocs >>= cmdDoc "undline")
+      $(operDocs `cmdDoc` "undline")
     $ NetworkCommand cmdUndline simpleNetworkTab
 
   , Command
       (pure "unxline")
       (liftA2 (,) (simpleToken "gecos") (optionalArg (simpleToken "[servername]")))
-      $(operDocs >>= cmdDoc "unxline")
+      $(operDocs `cmdDoc` "unxline")
     $ NetworkCommand cmdUnxline simpleNetworkTab
 
   , Command
       (pure "unresv")
       (liftA2 (,) (simpleToken "channel|nick") (optionalArg (simpleToken "[servername]")))
-      $(operDocs >>= cmdDoc "unresv")
+      $(operDocs `cmdDoc` "unresv")
     $ NetworkCommand cmdUnresv simpleNetworkTab
 
   , Command
       (pure "testline")
       (simpleToken "[[nick!]user@]host")
-      $(operDocs >>= cmdDoc "testline")
+      $(operDocs `cmdDoc` "testline")
     $ NetworkCommand cmdTestline simpleNetworkTab
 
   , Command
       (pure "testkline")
       (simpleToken "[user@]host")
-      $(operDocs >>= cmdDoc "testkline")
+      $(operDocs `cmdDoc` "testkline")
     $ NetworkCommand cmdTestkline simpleNetworkTab
 
   , Command
       (pure "testgecos")
       (simpleToken "gecos")
-      $(operDocs >>= cmdDoc "testgecos")
+      $(operDocs `cmdDoc` "testgecos")
     $ NetworkCommand cmdTestGecos simpleNetworkTab
 
   , Command
       (pure "testmask")
       (liftA2 (,) (simpleToken "[nick!]user@host") (remainingArg "[gecos]"))
-      $(operDocs >>= cmdDoc "testmask")
+      $(operDocs `cmdDoc` "testmask")
     $ NetworkCommand cmdTestmask simpleNetworkTab
 
   , Command
       (pure "masktrace")
       (liftA2 (,) (simpleToken "[nick!]user@host") (remainingArg "[gecos]"))
-      $(operDocs >>= cmdDoc "masktrace")
+      $(operDocs `cmdDoc` "masktrace")
     $ NetworkCommand cmdMasktrace simpleNetworkTab
 
   , Command
       (pure "chantrace")
       (simpleToken "channel")
-      $(operDocs >>= cmdDoc "chantrace")
+      $(operDocs `cmdDoc` "chantrace")
     $ NetworkCommand cmdChantrace simpleNetworkTab
 
   , Command
       (pure "trace")
       (optionalArg (liftA2 (,) (simpleToken "[server|nick]") (optionalArg (simpleToken "[location]"))))
-      $(operDocs >>= cmdDoc "trace")
+      $(operDocs `cmdDoc` "trace")
     $ NetworkCommand cmdTrace simpleNetworkTab
 
   , Command
       (pure "etrace")
       (optionalArg (simpleToken "[-full|-v4|-v6|nick]"))
-      $(operDocs >>= cmdDoc "etrace")
+      $(operDocs `cmdDoc` "etrace")
     $ NetworkCommand cmdEtrace simpleNetworkTab
 
   , Command
       (pure "map")
       (pure ())
-      $(operDocs >>= cmdDoc "map")
+      $(operDocs `cmdDoc` "map")
     $ NetworkCommand cmdMap simpleNetworkTab
 
   , Command
       (pure "sconnect")
       (liftA2 (,) (simpleToken "connect_to") (optionalArg (liftA2 (,) (simpleToken "[port]") (optionalArg (simpleToken "[remote]")))))
-      $(operDocs >>= cmdDoc "sconnect")
+      $(operDocs `cmdDoc` "sconnect")
     $ NetworkCommand cmdSconnect simpleNetworkTab
 
   , Command
       (pure "squit")
       (liftA2 (,) (simpleToken "server") (remainingArg "[reason]"))
-      $(operDocs >>= cmdDoc "squit")
+      $(operDocs `cmdDoc` "squit")
     $ NetworkCommand cmdSquit simpleNetworkTab
 
   , Command
       (pure "modload")
       (liftA2 (,) (simpleToken "[path/]module") (optionalArg (simpleToken "[remote]")))
-      $(operDocs >>= cmdDoc "modload")
+      $(operDocs `cmdDoc` "modload")
     $ NetworkCommand cmdModload simpleNetworkTab
 
   , Command
       (pure "modunload")
       (liftA2 (,) (simpleToken "module") (optionalArg (simpleToken "[remote]")))
-      $(operDocs >>= cmdDoc "modunload")
+      $(operDocs `cmdDoc` "modunload")
     $ NetworkCommand cmdModunload simpleNetworkTab
 
   , Command
       (pure "modlist")
       (optionalArg (liftA2 (,) (simpleToken "pattern") (optionalArg (simpleToken "[remote]"))))
-      $(operDocs >>= cmdDoc "modlist")
+      $(operDocs `cmdDoc` "modlist")
     $ NetworkCommand cmdModlist simpleNetworkTab
 
   , Command
       (pure "modrestart")
       (optionalArg (simpleToken "[server]"))
-      $(operDocs >>= cmdDoc "modrestart")
+      $(operDocs `cmdDoc` "modrestart")
     $ NetworkCommand cmdModrestart simpleNetworkTab
 
   , Command
       (pure "modreload")
       (liftA2 (,) (simpleToken "module") (optionalArg (simpleToken "[remote]")))
-      $(operDocs >>= cmdDoc "modreload")
+      $(operDocs `cmdDoc` "modreload")
     $ NetworkCommand cmdModreload simpleNetworkTab
 
   , Command
       (pure "grant")
       (liftA2 (,) (simpleToken "target") (simpleToken "privset"))
-      $(operDocs >>= cmdDoc "grant")
+      $(operDocs `cmdDoc` "grant")
     $ NetworkCommand cmdGrant simpleNetworkTab
 
   , Command
       (pure "privs")
       (optionalArg (simpleToken "[target]"))
-      $(operDocs >>= cmdDoc "privs")
+      $(operDocs `cmdDoc` "privs")
     $ NetworkCommand cmdPrivs simpleNetworkTab
 
   ]

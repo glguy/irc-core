@@ -46,7 +46,7 @@ newCertificateCommand =
   Command
     (pure "new-self-signed-cert")
     (liftA2 (,) (simpleToken "filename") keysizeArg)
-    $(netDocs >>= cmdDoc "new-self-signed-cert")
+    $(netDocs `cmdDoc` "new-self-signed-cert")
     (ClientCommand cmdNewCert noClientTab)
 
 cmdNewCert :: ClientCommand (String, Maybe (Int, String))

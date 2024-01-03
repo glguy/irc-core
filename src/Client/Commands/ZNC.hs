@@ -27,13 +27,13 @@ zncCommands = CommandSection "ZNC Support"
   [ Command
       (pure "znc")
       (remainingArg "arguments")
-      $(integrationDocs >>= cmdDoc "znc")
+      $(integrationDocs `cmdDoc` "znc")
     $ NetworkCommand cmdZnc simpleNetworkTab
 
   , Command
       (pure "znc-playback")
       (optionalArg (liftA2 (,) (simpleToken "[time]") (optionalArg (simpleToken "[date]"))))
-      $(integrationDocs >>= cmdDoc "znc-playback")
+      $(integrationDocs `cmdDoc` "znc-playback")
     $ NetworkCommand cmdZncPlayback noNetworkTab
 
   ]
