@@ -1,0 +1,102 @@
+= Operator Commands
+:toc:
+
+== /oper
+
+Authenticate as a server operator.
+
+== /kill
+
+Kill a client connection to the server.
+
+== /kline
+
+Ban a client from the server.
+
+== /unkline
+
+Unban a client from the server.
+
+== /undline
+
+Unban a client from the server.
+
+== /unxline
+
+Unban a gecos from the server.
+
+== /unresv
+
+Unban a channel or nickname from the server.
+
+== /testline
+
+Check matching I/K/D lines for a `[[nick!]user@]host`.
+
+== /testkline
+
+Check matching K/D lines for a `[user@]host`.
+
+== /testgecos
+
+Check matching X lines for a `gecos`.
+
+== /testmask
+
+Test how many local and global clients match a mask.
+
+== /masktrace
+
+Outputs a list of local users matching the given masks.
+
+== /chantrace
+
+Outputs a list of channel members in etrace format.
+
+== /trace
+
+Outputs a list users on a server.
+
+== /etrace
+
+Outputs a list users on a server.
+
+== /map
+
+Display network map.
+
+== /sconnect
+
+Connect two servers together.
+
+== /squit
+
+Split a server away from your side of the network.
+
+== /modload
+
+Load an IRCd module.
+
+== /modunload
+
+Unload an IRCd module.
+
+== /modlist
+
+List loaded IRCd modules.
+
+== /modrestart
+
+Reload all IRCd modules.
+
+== /modreload
+
+Reload an IRCd module.
+
+== /grant
+
+Manually assign a privset to a user.
+
+== /privs
+
+Check operator privileges of the target.

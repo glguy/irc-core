@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Window
 Description : Window command implementations
@@ -10,6 +10,7 @@ Maintainer  : emertens@gmail.com
 module Client.Commands.Window (windowCommands, parseFocus) where
 
 import Client.Commands.Arguments.Spec
+import Client.Commands.Docs (windowDocs, cmdDoc)
 import Client.Commands.TabCompletion
 import Client.Commands.Types
 import Client.Commands.WordCompletion (plainWordCompleteMode)
@@ -41,216 +42,79 @@ windowCommands = CommandSection "Window management"
   [ Command
       (pure "focus")
       (liftA2 (,) (simpleToken "network") (optionalArg (simpleToken "[target]")))
-      "Change the focused window.\n\
-      \\n\
-      \When only \^Bnetwork\^B is specified this switches to the network status window.\n\
-      \When \^Bnetwork\^B and \^Btarget\^B are specified this switches to that chat window.\n\
-      \\n\
-      \Nickname and channels can be specified in the \^Btarget\^B parameter.\n\
-      \See also: /query (aliased /c /channel) to switch to a target on the current network.\n"
+      $(windowDocs `cmdDoc` "focus")
     $ ClientCommand cmdFocus tabFocus
 
   , Command
       ("c" :| ["channel"])
       (simpleToken "focus")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    focuses: Focus name\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    This command sets the current window focus. When\n\
-      \    no network is specified, the current network will\n\
-      \    be used.\n\
-      \\n\
-      \    Client:  *\n\
-      \    Network: \^_network\^_:\n\
-      \    Channel: \^_#channel\^_\n\
-      \    Channel: \^_network\^_:\^_#channel\^_\n\
-      \    User:    \^_nick\^_\n\
-      \    User:    \^_network\^_:\^_nick\^_\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /c fn:#haskell\n\
-      \    /c #haskell\n\
-      \    /c fn:\n\
-      \    /c *:\n\
-      \\n\
-      \\^BSee also:\^B focus\n"
+      $(windowDocs `cmdDoc` "channel")
     $ ClientCommand cmdChannel tabChannel
 
   , Command
       (pure "clear")
       (optionalArg (liftA2 (,) (simpleToken "[network]") (optionalArg (simpleToken "[channel]"))))
-      "Clear a window.\n\
-      \\n\
-      \If no arguments are provided the current window is cleared.\n\
-      \If \^Bnetwork\^B is provided the that network window is cleared.\n\
-      \If \^Bnetwork\^B and \^Bchannel\^B are provided that chat window is cleared.\n\
-      \If \^Bnetwork\^B is provided and \^Bchannel\^B is \^B*\^O all windows for that network are cleared.\n\
-      \\n\
-      \If a window is cleared and no longer active that window will be removed from the client.\n"
+      $(windowDocs `cmdDoc` "clear")
     $ ClientCommand cmdClear tabFocus
 
   , Command
       (pure "windows")
       (optionalArg (simpleToken "[kind]"))
-      "Show a list of all windows with an optional argument to limit the kinds of windows listed.\n\
-      \\n\
-      \\^Bkind\^O: one of \^Bnetworks\^O, \^Bchannels\^O, \^Busers\^O\n\
-      \\n"
+      $(windowDocs `cmdDoc` "windows")
     $ ClientCommand cmdWindows tabWindows
 
   , Command
       (pure "splits")
       (remainingArg "focuses")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    focuses: List of focus names\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    This command sents the set of focuses that will always\n\
-      \    be visible, even when unfocused. When the client is focused\n\
-      \    to an active network, the network can be omitted when\n\
-      \    specifying a focus. If no focuses are listed, they will\n\
-      \    all be cleared.\n\
-      \\n\
-      \    Client:  *\n\
-      \    Network: \^_network\^_:\n\
-      \    Channel: \^_#channel\^_\n\
-      \    Channel: \^_network\^_:\^_#channel\^_\n\
-      \    User:    \^_nick\^_\n\
-      \    User:    \^_network\^_:\^_nick\^_\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /splits * fn:#haskell fn:chanserv\n\
-      \    /splits #haskell #haskell-lens nickserv\n\
-      \    /splits\n\
-      \\n\
-      \\^BSee also:\^B splits+, splits-\n"
+      $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplits tabSplits
 
   , Command
       (pure "splits+")
       (remainingArg "focuses")
-      "Add windows to the splits list. Omit the list of focuses to add the\
-      \ current window.\n\
-      \\n\
-      \\^Bfocuses\^B: space delimited list of focus names.\n\
-      \\n\
-      \Client:  *\n\
-      \Network: \^BNETWORK\^B\n\
-      \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
-      \User:    \^BNETWORK\^B:\^BNICK\^B\n\
-      \\n\
-      \If the network part is omitted, the current network will be used.\n"
+      $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplitsAdd tabSplits
 
   , Command
       (pure "splits-")
       (remainingArg "focuses")
-      "Remove windows from the splits list. Omit the list of focuses to\
-      \ remove the current window.\n\
-      \\n\
-      \\^Bfocuses\^B: space delimited list of focus names.\n\
-      \\n\
-      \Client:  *\n\
-      \Network: \^BNETWORK\^B\n\
-      \Channel: \^BNETWORK\^B:\^B#CHANNEL\^B\n\
-      \User:    \^BNETWORK\^B:\^BNICK\^B\n\
-      \\n\
-      \If the network part is omitted, the current network will be used.\n"
+      $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplitsDel tabActiveSplits
 
   , Command
       (pure "ignore")
       (remainingArg "masks")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    masks: List of masks\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Toggle the soft-ignore on each of the space-delimited given\n\
-      \    nicknames. Ignores can use \^B*\^B (many) and \^B?\^B (one) wildcards.\n\
-      \    Masks can be of the form: nick[[!user]@host]\n\
-      \    Masks use a case-insensitive comparison.\n\
-      \\n\
-      \    If no masks are specified the current ignore list is displayed.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /ignore\n\
-      \    /ignore nick1 nick2 nick3\n\
-      \    /ignore nick@host\n\
-      \    /ignore nick!user@host\n\
-      \    /ignore *@host\n\
-      \    /ignore *!baduser@*\n"
+      $(windowDocs `cmdDoc` "ignore")
     $ ClientCommand cmdIgnore tabIgnore
 
   , Command
       (pure "grep")
       (remainingArg "regular-expression")
-      "Set the persistent regular expression.\n\
-      \\n\
-      \\^BFlags:\^B\n\
-      \    -A n Show n messages after match\n\
-      \    -B n Show n messages before match\n\
-      \    -C n Show n messages before and after match\n\
-      \    -F   Use plain-text match instead of regular expression\n\
-      \    -i   Case insensitive match\n\
-      \    -v   Invert pattern match\n\
-      \    -m n Limit results to n matches\n\
-      \    --   Stop processing flags\n\
-      \\n\
-      \Clear the regular expression by calling this without an argument.\n\
-      \\n\
-      \\^B/grep\^O is case-sensitive.\n"
+      $(windowDocs `cmdDoc` "grep")
     $ ClientCommand cmdGrep simpleClientTab
 
   , Command
       (pure "dump")
       (simpleToken "filename")
-      "Dump current buffer to file.\n"
+      $(windowDocs `cmdDoc` "dump")
     $ ClientCommand cmdDump simpleClientTab
 
   , Command
       (pure "mentions")
       (pure ())
-      "Show a list of all message that were highlighted as important.\n\
-      \\n\
-      \When using \^B/grep\^B the important messages are those matching\n\
-      \the regular expression instead.\n"
+      $(windowDocs `cmdDoc` "mentions")
     $ ClientCommand cmdMentions noClientTab
 
   , Command
       (pure "setwindow")
       (simpleToken ("hide|show" ++ concatMap ('|':) activityFilterStrings))
-      "Set window property.\n\
-      \\n\
-      \\^Bsilent\^B / \^Bquieter\^B / \^Bquiet\^B / \^Bimponly\^B / \^Bloud\^B / \^Blouder\^B\n\
-      \    Changes the importance of normal and important messages:\n\
-      \      \^Blouder\^B: Upgrades normal to important.\n\
-      \      \^Bloud\^B: Uses default values.\n\
-      \      \^Bimponly\^B: Downgrades normal to boring.\n\
-      \      \^Bquiet\^B: Downgrades important to normal.\n\
-      \      \^Bquieter\^B: Downgrades both one step.\n\
-      \      \^Bsilent\^B: Downgrades both to boring.\n\
-      \\n\
-      \\^Bshow\^B / \^Bhide\^B\n\
-      \    Toggles if window appears in window command shortcuts.\n"
+      $(windowDocs `cmdDoc` "setwindow")
     $ ClientCommand cmdSetWindow tabSetWindow
 
   , Command
       (pure "setname")
       (optionalArg (simpleToken "[letter]"))
-      "Set window shortcut letter. If no letter is provided the next available\n\
-      \letter will automatically be assigned.\n\
-      \\n\
-      \Available letters are configured in the 'window-names' configuration setting.\n"
+      $(windowDocs `cmdDoc` "setname")
     $ ClientCommand cmdSetWindowName noClientTab
 
   ]

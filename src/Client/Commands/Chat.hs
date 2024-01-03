@@ -1,4 +1,4 @@
-{-# Language BangPatterns, OverloadedStrings #-}
+{-# Language BangPatterns, OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Chat
 Description : Common user IRC commands
@@ -31,6 +31,7 @@ import Irc.Commands
 import Irc.Identifier (Identifier, idText, mkId)
 import Irc.Message (IrcMsg(Privmsg, Notice, Ctcp), Source(Source))
 import Irc.RawIrcMsg (RawIrcMsg, parseRawIrcMsg)
+import Client.Commands.Docs (chatDocs, cmdDoc)
 
 chatCommands :: CommandSection
 chatCommands = CommandSection "IRC commands"
@@ -39,319 +40,106 @@ chatCommands = CommandSection "IRC commands"
   [ Command
       ("join" :| ["j"])
       (liftA2 (,) (simpleToken "channels") (optionalArg (simpleToken "[keys]")))
-      "\^BParameters:\^B\n\
-      \\n\
-      \    channels: Comma-separated list of channels\n\
-      \    keys:     Comma-separated list of keys\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Join the given channels. When keys are provided, they should\n\
-      \    occur in the same order as the channels.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /join #friends\n\
-      \    /join #secret thekey\n\
-      \    /join #secret1,#secret2 key1,key2\n\
-      \\n\
-      \\^BSee also:\^B channel, clear, part\n"
+      $(chatDocs `cmdDoc` "join")
     $ NetworkCommand cmdJoin simpleNetworkTab
 
   , Command
       (pure "part")
       (remainingArg "reason")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    reason: Optional message sent to channel as part reason\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Part from the current channel.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /part\n\
-      \    /part It's not me, it's you\n\
-      \\n\
-      \\^BSee also:\^B clear, join, quit\n"
+      $(chatDocs `cmdDoc` "part")
     $ ChannelCommand cmdPart simpleChannelTab
 
   , Command
       (pure "msg")
       (liftA2 (,) (simpleToken "target") (remainingArg "message"))
-      "\^BParameters:\^B\n\
-      \\n\
-      \    target:  Comma-separated list of nicknames and channels\n\
-      \    message: Formatted message body\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Send a chat message to a user or a channel. On servers\n\
-      \    with STATUSMSG support, the channel name can be prefixed\n\
-      \    with a sigil to restrict the recipients to those with the\n\
-      \    given mode.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /msg buddy I'm sending you a message.\n\
-      \    /msg #friends This message is for the whole channel.\n\
-      \    /msg him,her I'm chatting with two people.\n\
-      \    /msg @#users This message is only for ops!\n\
-      \\n\
-      \\^BSee also:\^B notice, me, say\n"
+      $(chatDocs `cmdDoc` "msg")
     $ NetworkCommand cmdMsg simpleNetworkTab
 
   , Command
       (pure "me")
       (remainingArg "message")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    message: Body of action message\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Sends an action message to the currently focused channel.\n\
-      \    Most clients will render these messages prefixed with\n\
-      \    only your nickname as though describing an action.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /me shrugs\n\
-      \\n\
-      \\^BSee also:\^B notice, msg, say\n"
+      $(chatDocs `cmdDoc` "me")
     $ ChatCommand cmdMe simpleChannelTab
 
   , Command
       (pure "say")
       (remainingArg "message")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    message: Body of message\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Send a message to the current chat window.  This can be useful\n\
-      \    for sending a chat message with a leading '/' to the current\n\
-      \    chat window.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /say /help is the right place to start!\n\
-      \\n\
-      \\^BSee also:\^B notice, me, msg\n"
+      $(chatDocs `cmdDoc` "say")
     $ ChatCommand cmdSay simpleChannelTab
 
   , Command
       ("query" :| ["q"])
       (liftA2 (,) (simpleToken "target") (remainingArg "message"))
-      "\^BParameters:\^B\n\
-      \\n\
-      \    target: Focus name\n\
-      \    message: Optional message\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    This command switches the client focus to the given\n\
-      \    target and optionally sends a message to that target.\n\
-      \\n\
-      \    Channel: \^_#channel\^_\n\
-      \    Channel: \^_network\^_:\^_#channel\^_\n\
-      \    User:    \^_nick\^_\n\
-      \    User:    \^_network\^_:\^_nick\^_\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /q fn:#haskell\n\
-      \    /q #haskell\n\
-      \    /q lambdabot @messages\n\
-      \    /q irc_friend How are you?\n\
-      \\n\
-      \\^BSee also:\^B msg channel focus\n"
+      $(chatDocs `cmdDoc` "query")
     $ ClientCommand cmdQuery simpleClientTab
 
   , Command
       (pure "notice")
       (liftA2 (,) (simpleToken "target") (remainingArg "message"))
-      "\^BParameters:\^B\n\
-      \\n\
-      \    target:  Comma-separated list of nicknames and channels\n\
-      \    message: Formatted message body\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Send a chat notice to a user or a channel. On servers\n\
-      \    with STATUSMSG support, the channel name can be prefixed\n\
-      \    with a sigil to restrict the recipients to those with the\n\
-      \    given mode. Notice messages were originally intended to be\n\
-      \    used by bots. Different clients will render these in different\n\
-      \    ways.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /notice buddy I'm sending you a message.\n\
-      \    /notice #friends This message is for the whole channel.\n\
-      \    /notice him,her I'm chatting with two people.\n\
-      \    /notice @#users This message is only for ops!\n\
-      \\n\
-      \\^BSee also:\^B me, msg, say\n"
+      $(chatDocs `cmdDoc` "notice")
     $ NetworkCommand cmdNotice simpleNetworkTab
 
   , Command
       (pure "wallops")
       (remainingArg "message to +w users")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    message: Formatted message body\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Send a network-wide WALLOPS message. These message go out\n\
-      \    to users who have the 'w' usermode set.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /wallops Hi everyone, thanks for using this network!\n\
-      \\n\
-      \\^BSee also:\^B me, msg, say\n"
+      $(chatDocs `cmdDoc` "wallops")
     $ NetworkCommand cmdWallops simpleNetworkTab
 
   , Command
       (pure "operwall")
       (remainingArg "message to +z opers")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    message: Formatted message body\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Send a network-wide WALLOPS message to opers. These message go\n\
-      \    out to opers who have the 'z' usermode set.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /operwall What's this even for?\n\
-      \\n\
-      \\^BSee also:\^B me, msg, say\n"
+      $(chatDocs `cmdDoc` "operwall")
     $ NetworkCommand cmdOperwall simpleNetworkTab
 
   , Command
       (pure "ctcp")
       (liftA3 (,,) (simpleToken "target") (simpleToken "command") (remainingArg "arguments"))
-      "\^BParameters:\^B\n\
-      \\n\
-      \    target:    Comma-separated list of nicknames and channels\n\
-      \    command:   CTCP command name\n\
-      \    arguments: CTCP command arguments\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Client-to-client protocol (CTCP) commands can be used\n\
-      \    to query information from another user's client application\n\
-      \    directly. Common CTCP commands include: ACTION, PING, VERSION,\n\
-      \    USERINFO, CLIENTINFO, and TIME. glirc does not automatically\n\
-      \    respond to CTCP commands.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /ctcp myfriend VERSION\n\
-      \    /ctcp myfriend CLIENTINFO\n"
+      $(chatDocs `cmdDoc` "ctcp")
     $ NetworkCommand cmdCtcp simpleNetworkTab
 
   , Command
       (pure "nick")
       (simpleToken "nick")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    nick: New nickname\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Change your nickname on the currently focused server.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /nick guest123\n\
-      \    /nick better_nick\n"
+      $(chatDocs `cmdDoc` "nick")
     $ NetworkCommand cmdNick simpleNetworkTab
 
   , Command
       (pure "away")
       (remainingArg "message")
-      "\^BParameters:\^B\n\
-      \\n\
-      \    message: Optional away message\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Change your nickname on the currently focused server.\n\
-      \    Omit the message parameter to clear your away status.\n\
-      \    The away message is only used by the server to update\n\
-      \    status in /whois and to provide automated responses.\n\
-      \    It is not used by this client directly.\n\
-      \\n\
-      \\^BExamples:\^B\n\
-      \\n\
-      \    /away\n\
-      \    /away Out getting some sun\n"
+      $(chatDocs `cmdDoc` "away")
     $ NetworkCommand cmdAway simpleNetworkTab
 
   , Command
       (pure "names")
       (pure ())
-      "\^BDescription:\^B\n\
-      \\n\
-      \    Show the user list for the current channel.\n\
-      \    Detailed view (default key F2) shows full hostmask.\n\
-      \    Hostmasks can be populated with /who #channel.\n\
-      \    Press ESC to exit the userlist.\n\
-      \\n\
-      \\^BSee also:\^B channelinfo, masks\n"
+      $(chatDocs `cmdDoc` "names")
     $ ChannelCommand cmdChanNames noChannelTab
 
   , Command
       (pure "channelinfo")
       (pure ())
-      "\^BDescription:\^B\n\
-      \\n\
-      \    Show information about the current channel.\n\
-      \    Press ESC to exit the channel info window.\n\
-      \\n\
-      \    Information includes topic, creation time, URL, and modes.\n\
-      \\n\
-      \\^BSee also:\^B masks, mode, topic, users\n"
+      $(chatDocs `cmdDoc` "channelinfo")
     $ ChannelCommand cmdChannelInfo noChannelTab
 
   , Command
       (pure "knock")
       (liftA2 (,) (simpleToken "channel") (remainingArg "message"))
-      "Request entry to an invite-only channel.\n"
+      $(chatDocs `cmdDoc` "knock")
     $ NetworkCommand cmdKnock simpleNetworkTab
 
   , Command
       (pure "quote")
       (remainingArg "raw IRC command")
-      "Send a raw IRC command.\n"
+      $(chatDocs `cmdDoc` "quote")
     $ NetworkCommand cmdQuote simpleNetworkTab
 
   , Command
       (pure "monitor")
       (extensionArg "[+-CLS]" monitorArgs)
-      "\^BSubcommands:\^B\n\
-      \\n\
-      \    /monitor + target[,target2]* - Add nicknames to monitor list\n\
-      \    /monitor - target[,target2]* - Remove nicknames to monitor list\n\
-      \    /monitor C                   - Clear monitor list\n\
-      \    /monitor L                   - Show monitor list\n\
-      \    /monitor S                   - Show status of nicknames on monitor list\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Monitor is a protocol for getting server-side notifications\n\
-      \    when users become online/offline.\n"
+      $(chatDocs `cmdDoc` "monitor")
     $ NetworkCommand cmdMonitor simpleNetworkTab
 
-    ]
+  ]
 
 monitorArgs :: ClientState -> String -> Maybe (Args ClientState [String])
 monitorArgs _ str =

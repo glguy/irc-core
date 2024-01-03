@@ -1,0 +1,67 @@
+= Channel Management Commands
+:toc:
+
+== /invite
+
+Invite a user to the current channel.
+
+== /kick
+
+Kick a user from the current channel.
+
+See also: kickban, remove
+
+== /kickban
+
+Ban and kick a user from the current channel.
+
+Users are banned by hostname match.
+
+See also: kick, remove
+
+== /masks
+
+Show mask lists for current channel.
+
+The `mode` argument is typically one of the following:
+
+`b`: bans +
+`i`: invite exemptions (op view only) +
+`e`: ban exemptions (op view only) +
+`q`: quiets (on Charybdis/Solanum-based networks)
+
+== /mode
+
+Set IRC modes.
+
+When executed in a channel window, mode changes are applied to the channel.
+When executed in a network window, mode changes are applied to your user.
+
+This command has parameter sensitive tab-completion.
+
+See also: masks, channelinfo
+
+=== Examples
+
+`+/mode -t+`               - Remove the topic lock +
+`+/mode +b *!*@hostname+`  - Set a ban +
+`+/mode -q *!*@hostname+`  - Remove a quiet +
+`+/mode +vv user1 user2+`  - Voice two users +
+`+/mode +v-o user1 user1+` - Demote an op to voice
+
+== /remove
+
+Remove a user from the current channel.
+
+Remove works like /kick except it results in a PART.
+
+Not all servers support removal in this manner.
+Refer to your server/network's documentation.
+
+See also: kick, kickban
+
+== /topic
+
+View or set the topic of the current channel.
+
+Tab-completion with no `message` specified will load the current topic.

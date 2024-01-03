@@ -1,0 +1,95 @@
+= Queries
+:toc:
+
+== /who
+
+Send WHO query to server with given arguments.
+
+If no query is provided, shows the results of the previous query.
+
+== /whois
+
+Send WHOIS query to server with given arguments.
+
+== /whowas
+
+Send WHOWAS query to server with given arguments.
+
+== /ison
+
+Send ISON query to server with given arguments.
+
+See also: monitor
+
+== /userhost
+
+Send USERHOST query to server with given arguments.
+
+== /time
+
+Send TIME query to server with given arguments.
+
+== /stats
+
+Send STATS query to server with given arguments.
+
+== /lusers
+
+Send LUSERS query to a given server.
+
+== /users
+
+Send USERS query to a given server.
+
+== /motd
+
+Send MOTD query to server.
+
+== /admin
+
+Send ADMIN query to server.
+
+== /rules
+
+Send RULES query to server.
+
+== /info
+
+Send INFO query to server.
+
+== /list
+
+View the list of public channels on the server.
+
+Sends a LIST query and caches the result;
+on larger networks, this may take several seconds to complete.
+The view may be exited while loading.
+
+`clientarg` is an optionally-comma-separated list of options.
+A single comma may be used to denote an empty list.
+
+`serverarg` is sent as-is to the server.
+It is generally used as the ELIST parameter to LIST.
+glirc does not validate this parameter against the ELIST ISUPPORT token.
+
+=== Client Options
+
+`>n`: Show only channels with more than `n` users. +
+`<n`: Show only channels with less than `n` users. +
+`~`: Force a refresh of the list.
+
+=== Examples
+
+`+/list+`          - List public channels.
+`+/list >99+`      - List public channels with at least 100 users.
+`+/list >50<1000+` - List public channels with between 51 and 999 users.
+`+/list ~ <20+`    - List public channels with fewer than 20 users. 
+`+/list , *-ops+`  - List public channels whose names end with "-ops".
+
+== /links
+
+Send LINKS query to server with given arguments.
+
+== /version
+
+Send VERSION query to server.

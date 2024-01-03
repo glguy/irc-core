@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, ExistentialQuantification #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, TemplateHaskell, ExistentialQuantification #-}
 
 {-|
 Module      : Client.Commands
@@ -27,6 +27,7 @@ module Client.Commands
 
 import Client.Commands.Arguments.Parser (parse)
 import Client.Commands.Arguments.Spec (optionalArg, optionalNumberArg, remainingArg, simpleToken)
+import Client.Commands.Docs (clientDocs, cmdDoc)
 import Client.Commands.Exec
 import Client.Commands.Interpolation (resolveMacroExpansions, Macro(Macro), MacroSpec(MacroSpec))
 import Client.Commands.Recognizer (fromCommands, keys, recognize, Recognition(Exact), Recognizer)
@@ -227,93 +228,55 @@ commandsList =
   [ Command
       (pure "exit")
       (pure ())
-      "Exit the client immediately.\n"
+      $(clientDocs `cmdDoc` "exit")
     $ ClientCommand cmdExit noClientTab
 
   , Command
       (pure "reload")
       (optionalArg (simpleToken "[filename]"))
-      "Reload the client configuration file.\n\
-      \\n\
-      \If \^Bfilename\^B is provided it will be used to reload.\n\
-      \Otherwise the previously loaded configuration file will be reloaded.\n"
+      $(clientDocs `cmdDoc` "reload")
     $ ClientCommand cmdReload tabReload
 
   , Command
       (pure "extension")
       (liftA2 (,) (simpleToken "extension") (remainingArg "arguments"))
-      "Calls the process_command callback of the given extension.\n\
-      \\n\
-      \\^Bextension\^B should be the name of the loaded extension.\n"
+      $(clientDocs `cmdDoc` "extension")
     $ ClientCommand cmdExtension simpleClientTab
 
   , Command
       (pure "palette")
       (pure ())
-      "Show the current palette settings and a color chart to help pick new colors.\n"
+      $(clientDocs `cmdDoc` "palette")
     $ ClientCommand cmdPalette noClientTab
 
   , Command
       (pure "digraphs")
       (pure ())
-      "\^BDescription:\^B\n\
-      \\n\
-      \    Show the table of digraphs. A digraph is a pair of characters\n\
-      \    can be used together to represent an uncommon character. Type\n\
-      \    the two-character digraph corresponding to the desired output\n\
-      \    character and then press M-k (default binding).\n\
-      \\n\
-      \    Note that the digraphs list is searchable with /grep.\n\
-      \\n\
-      \\^BSee also:\^B grep\n"
+      $(clientDocs `cmdDoc` "digraphs")
     $ ClientCommand cmdDigraphs noClientTab
 
   , Command
       (pure "keymap")
       (pure ())
-      "Show the key binding map.\n\
-      \\n\
-      \Key bindings can be changed in configuration file. See `glirc --config-format`.\n"
+      $(clientDocs `cmdDoc` "keymap")
     $ ClientCommand cmdKeyMap noClientTab
 
   , Command
       (pure "rtsstats")
       (pure ())
-      "Show the GHC RTS statistics.\n"
+      $(clientDocs `cmdDoc` "rtsstats")
     $ ClientCommand cmdRtsStats noClientTab
 
   , Command
       (pure "exec")
       (remainingArg "arguments")
-      "Execute a command synchnonously sending the to a configuration destination.\n\
-      \\n\
-      \\^Barguments\^B: [-n[network]] [-c[channel]] [-i input] command [arguments...]\n\
-      \\n\
-      \When \^Binput\^B is specified it is sent to the stdin.\n\
-      \\n\
-      \When neither \^Bnetwork\^B nor \^Bchannel\^B are specified output goes to client window (*).\n\
-      \When \^Bnetwork\^B is specified output is sent as raw IRC traffic to the network.\n\
-      \When \^Bchannel\^B is specified output is sent as chat to the given channel on the current network.\n\
-      \When \^Bnetwork\^B and \^Bchannel\^B are specified output is sent as chat to the given channel on the given network.\n\
-      \\n\
-      \\^Barguments\^B is divided on spaces into words before being processed\
-      \ by getopt. Use Haskell string literal syntax to create arguments with\
-      \ escaped characters and spaces inside.\n\
-      \\n"
+      $(clientDocs `cmdDoc` "exec")
     $ ClientCommand cmdExec simpleClientTab
 
   , Command
       (pure "url")
       optionalNumberArg
-      "Open a URL seen in chat.\n\
-      \\n\
-      \The URL is opened using the executable configured under \^Burl-opener\^B.\n\
-      \\n\
-      \When this command is active in the textbox, chat messages are filtered to\
-      \ only show ones with URLs.\n\
-      \\n\
-      \When \^Bnumber\^B is omitted it defaults to \^B1\^B. The number selects the\
-      \ URL to open counting back from the most recent.\n"
+      $(clientDocs `cmdDoc` "url")
     $ ClientCommand cmdUrl noClientTab
 
   , newCertificateCommand
@@ -321,10 +284,7 @@ commandsList =
   , Command
       (pure "help")
       (optionalArg (simpleToken "[command]"))
-      "Show command documentation.\n\
-      \\n\
-      \When \^Bcommand\^B is omitted a list of all commands is displayed.\n\
-      \When \^Bcommand\^B is specified detailed help for that command is shown.\n"
+      $(clientDocs `cmdDoc` "help")
     $ ClientCommand cmdHelp tabHelp
 
   ------------------------------------------------------------------------

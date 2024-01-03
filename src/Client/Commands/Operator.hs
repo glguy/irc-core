@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Operator
 Description : Operator command implementations
@@ -10,6 +10,7 @@ Maintainer  : emertens@gmail.com
 module Client.Commands.Operator (operatorCommands) where
 
 import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken)
+import Client.Commands.Docs (operDocs, cmdDoc)
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
 import Client.Commands.Types
 import Client.State.Network (sendMsg)
@@ -25,152 +26,153 @@ operatorCommands = CommandSection "Network operator commands"
   [ Command
       (pure "oper")
       (liftA2 (,) (simpleToken "user") (simpleToken "password"))
-      "Authenticate as a server operator.\n"
+      $(operDocs `cmdDoc` "oper")
     $ NetworkCommand cmdOper noNetworkTab
 
   , Command
       (pure "kill")
       (liftA2 (,) (simpleToken "client") (remainingArg "reason"))
-      "Kill a client connection to the server.\n"
+      $(operDocs `cmdDoc` "kill")
     $ NetworkCommand cmdKill simpleNetworkTab
 
   , Command
       (pure "kline")
       (liftA3 (,,) (simpleToken "minutes") (simpleToken "user@host") (remainingArg "reason"))
-      "Ban a client from the server.\n"
+      $(operDocs `cmdDoc` "kline")
     $ NetworkCommand cmdKline simpleNetworkTab
 
   , Command
       (pure "unkline")
       (liftA2 (,) (simpleToken "[user@]host") (optionalArg (simpleToken "[servername]")))
-      "Unban a client from the server.\n"
+      $(operDocs `cmdDoc` "unkline")
     $ NetworkCommand cmdUnkline simpleNetworkTab
 
   , Command
       (pure "undline")
       (liftA2 (,) (simpleToken "host") (optionalArg (simpleToken "[servername]")))
-      "Unban a client from the server.\n"
+      $(operDocs `cmdDoc` "undline")
     $ NetworkCommand cmdUndline simpleNetworkTab
 
   , Command
       (pure "unxline")
       (liftA2 (,) (simpleToken "gecos") (optionalArg (simpleToken "[servername]")))
-      "Unban a gecos from the server.\n"
+      $(operDocs `cmdDoc` "unxline")
     $ NetworkCommand cmdUnxline simpleNetworkTab
 
   , Command
       (pure "unresv")
       (liftA2 (,) (simpleToken "channel|nick") (optionalArg (simpleToken "[servername]")))
-      "Unban a channel or nickname from the server.\n"
+      $(operDocs `cmdDoc` "unresv")
     $ NetworkCommand cmdUnresv simpleNetworkTab
 
   , Command
       (pure "testline")
       (simpleToken "[[nick!]user@]host")
-      "Check matching I/K/D lines for a [[nick!]user@]host\n"
+      $(operDocs `cmdDoc` "testline")
     $ NetworkCommand cmdTestline simpleNetworkTab
 
   , Command
       (pure "testkline")
       (simpleToken "[user@]host")
-      "Check matching K/D lines for a [user@]host\n"
+      $(operDocs `cmdDoc` "testkline")
     $ NetworkCommand cmdTestkline simpleNetworkTab
 
   , Command
       (pure "testgecos")
       (simpleToken "gecos")
-      "Check matching X lines for a gecos\n"
+      $(operDocs `cmdDoc` "testgecos")
     $ NetworkCommand cmdTestGecos simpleNetworkTab
 
   , Command
       (pure "testmask")
       (liftA2 (,) (simpleToken "[nick!]user@host") (remainingArg "[gecos]"))
-      "Test how many local and global clients match a mask.\n"
+      $(operDocs `cmdDoc` "testmask")
     $ NetworkCommand cmdTestmask simpleNetworkTab
 
   , Command
       (pure "masktrace")
       (liftA2 (,) (simpleToken "[nick!]user@host") (remainingArg "[gecos]"))
-      "Outputs a list of local users matching the given masks.\n"
+      $(operDocs `cmdDoc` "masktrace")
     $ NetworkCommand cmdMasktrace simpleNetworkTab
 
   , Command
       (pure "chantrace")
       (simpleToken "channel")
-      "Outputs a list of channel members in etrace format.\n"
+      $(operDocs `cmdDoc` "chantrace")
     $ NetworkCommand cmdChantrace simpleNetworkTab
 
   , Command
       (pure "trace")
       (optionalArg (liftA2 (,) (simpleToken "[server|nick]") (optionalArg (simpleToken "[location]"))))
-      "Outputs a list users on a server.\n"
+      $(operDocs `cmdDoc` "trace")
     $ NetworkCommand cmdTrace simpleNetworkTab
 
   , Command
       (pure "etrace")
       (optionalArg (simpleToken "[-full|-v4|-v6|nick]"))
-      "Outputs a list users on a server.\n"
+      $(operDocs `cmdDoc` "etrace")
     $ NetworkCommand cmdEtrace simpleNetworkTab
 
   , Command
       (pure "map")
       (pure ())
-      "Display network map.\n"
+      $(operDocs `cmdDoc` "map")
     $ NetworkCommand cmdMap simpleNetworkTab
 
   , Command
       (pure "sconnect")
       (liftA2 (,) (simpleToken "connect_to") (optionalArg (liftA2 (,) (simpleToken "[port]") (optionalArg (simpleToken "[remote]")))))
-      "Connect two servers together.\n"
+      $(operDocs `cmdDoc` "sconnect")
     $ NetworkCommand cmdSconnect simpleNetworkTab
 
   , Command
       (pure "squit")
       (liftA2 (,) (simpleToken "server") (remainingArg "[reason]"))
-      "Split a server away from your side of the network.\n"
+      $(operDocs `cmdDoc` "squit")
     $ NetworkCommand cmdSquit simpleNetworkTab
 
   , Command
       (pure "modload")
       (liftA2 (,) (simpleToken "[path/]module") (optionalArg (simpleToken "[remote]")))
-      "Load an IRCd module.\n"
+      $(operDocs `cmdDoc` "modload")
     $ NetworkCommand cmdModload simpleNetworkTab
 
   , Command
       (pure "modunload")
       (liftA2 (,) (simpleToken "module") (optionalArg (simpleToken "[remote]")))
-      "Unload an IRCd module.\n"
+      $(operDocs `cmdDoc` "modunload")
     $ NetworkCommand cmdModunload simpleNetworkTab
 
   , Command
       (pure "modlist")
       (optionalArg (liftA2 (,) (simpleToken "pattern") (optionalArg (simpleToken "[remote]"))))
-      "List loaded IRCd modules.\n"
+      $(operDocs `cmdDoc` "modlist")
     $ NetworkCommand cmdModlist simpleNetworkTab
 
   , Command
       (pure "modrestart")
       (optionalArg (simpleToken "[server]"))
-      "Reload all IRCd modules.\n"
+      $(operDocs `cmdDoc` "modrestart")
     $ NetworkCommand cmdModrestart simpleNetworkTab
 
   , Command
       (pure "modreload")
       (liftA2 (,) (simpleToken "module") (optionalArg (simpleToken "[remote]")))
-      "Reload an IRCd module.\n"
+      $(operDocs `cmdDoc` "modreload")
     $ NetworkCommand cmdModreload simpleNetworkTab
 
   , Command
       (pure "grant")
       (liftA2 (,) (simpleToken "target") (simpleToken "privset"))
-      "Manually assign a privset to a user.\n"
+      $(operDocs `cmdDoc` "grant")
     $ NetworkCommand cmdGrant simpleNetworkTab
 
   , Command
       (pure "privs")
       (optionalArg (simpleToken "[target]"))
-      "Check operator privileges of the target.\n"
+      $(operDocs `cmdDoc` "privs")
     $ NetworkCommand cmdPrivs simpleNetworkTab
+
   ]
 
 cmdGrant :: NetworkCommand (String, String)

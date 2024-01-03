@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Connection
 Description : Connection command implementations
@@ -10,6 +10,7 @@ Maintainer  : emertens@gmail.com
 module Client.Commands.Connection (connectionCommands) where
 
 import Client.Commands.Arguments.Spec ( remainingArg, simpleToken )
+import Client.Commands.Docs (netDocs, cmdDoc)
 import Client.Commands.TabCompletion
 import Client.Commands.Types
 import Client.Commands.WordCompletion ( plainWordCompleteMode )
@@ -28,45 +29,37 @@ connectionCommands = CommandSection "Connection commands"
   [ Command
       (pure "connect")
       (simpleToken "network")
-      "Connect to \^Bnetwork\^B by name.\n\
-      \\n\
-      \If no name is configured the hostname is the 'name'.\n"
+      $(netDocs `cmdDoc` "connect")
     $ ClientCommand cmdConnect tabConnect
 
   , Command
       (pure "reconnect")
       (pure ())
-      "Reconnect to the current network.\n"
+      $(netDocs `cmdDoc` "reconnect")
     $ ClientCommand cmdReconnect noClientTab
 
   , Command
       (pure "disconnect")
       (pure ())
-      "Immediately terminate the current network connection.\n\
-      \\n\
-      \See also: /quit /exit\n"
+      $(netDocs `cmdDoc` "disconnect")
     $ NetworkCommand cmdDisconnect noNetworkTab
 
   , Command
       (pure "quit")
       (remainingArg "reason")
-      "Gracefully disconnect the current network connection.\n\
-      \\n\
-      \\^Breason\^B: optional quit reason\n\
-      \\n\
-      \See also: /disconnect /exit\n"
+      $(netDocs `cmdDoc` "quit")
     $ NetworkCommand cmdQuit simpleNetworkTab
 
   , Command
       (pure "cert")
       (pure ())
-      "Show the TLS certificate for the current connection.\n"
+      $(netDocs `cmdDoc` "cert")
     $ NetworkCommand cmdCert noNetworkTab
 
   , Command
       (pure "umode")
       (remainingArg "modes")
-      "Apply a user-mode change.\n"
+      $(netDocs `cmdDoc` "umode")
     $ NetworkCommand cmdUmode noNetworkTab
   ]
 

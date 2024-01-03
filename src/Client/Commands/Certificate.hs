@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Certificate
 Description : Certificate management commands
@@ -10,6 +10,7 @@ Maintainer  : emertens@gmail.com
 module Client.Commands.Certificate (newCertificateCommand) where
 
 import Client.Commands.Arguments.Spec
+import Client.Commands.Docs (netDocs, cmdDoc)
 import Client.Commands.TabCompletion (noClientTab)
 import Client.Commands.Types
 import Client.State (recordError, recordSuccess)
@@ -45,29 +46,7 @@ newCertificateCommand =
   Command
     (pure "new-self-signed-cert")
     (liftA2 (,) (simpleToken "filename") keysizeArg)
-      "\^BParameters:\^B\n\
-      \\n\
-      \    filename:   Certificate and private key PEM output\n\
-      \    keysize:    Public-key size (default 2048, range 1024-8192)\n\
-      \    passphrase: Optional AES-128 private key passphrase\n\
-      \\n\
-      \\^BDescription:\^B\n\
-      \\n\
-      \    Generate a new self-signed certificate for network service\n\
-      \    identification.\n\
-      \\n\
-      \\^BExample command:\^B\n\
-      \\n\
-      \    /new-self-signed-cert /home/me/.glirc/config/my.pem 2048 SeCrEt\n\
-      \\n\
-      \\^BExample configuration:\^B\n\
-      \    servers:\n\
-      \      * name:                    \"fn\"\n\
-      \        hostname:                \"irc.libera.chat\"\n\
-      \        sasl: mechanism:         external\n\
-      \        tls:                     yes\n\
-      \        tls-client-cert:         \"my.pem\"\n\
-      \        tls-client-key-password: \"SeCrEt\"\n"
+    $(netDocs `cmdDoc` "new-self-signed-cert")
     (ClientCommand cmdNewCert noClientTab)
 
 cmdNewCert :: ClientCommand (String, Maybe (Int, String))

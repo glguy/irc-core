@@ -1,0 +1,88 @@
+= Client Commands
+:toc:
+
+== /exit
+
+Exit the client immediately.
+
+== /reload
+
+Reload the client configuration file.
+
+If `filename` is provided it will be used to reload.
+Otherwise the previously loaded configuration file will be reloaded.
+
+== /extension
+
+Run a command provided by an extension.
+
+`extension` should be the name of a loaded extension with
+a process_command callback.
+
+== /palette
+
+Show the current palette settings and a color chart to help pick new colors.
+
+== /digraphs
+
+Show the table of digraphs. A digraph is a pair of characters
+that can be used together to represent an uncommon character.
+Type the two-character digraph corresponding to the desired
+output character and then press M-k (default binding).
+
+The digraphs list is searchable with `+/grep+`.
+
+See also: grep
+
+== /keymap
+
+Show the key binding map.
+
+Key bindings can be changed in configuration file.
+Run `+glirc --config-format+` for details.
+
+== /rtsstats
+
+Show the GHC RTS statistics.
+
+== /exec
+
+Execute a command synchnonously, optionally sending the output to IRC.
+
+Arguments to this command are:
+`+[-n[network]] [-c[channel]] [-i input] command [arguments...]+`
+
+`input` is sent to the standard input of the command.
+
+When neither `network` nor `channel` are specified,
+output goes to client window (focus name "*").
+When `network` is specified,
+output is sent as raw IRC traffic to the network.
+When `channel` is specified,
+output is sent as chat to the given channel on the current network.
+When `network` and `channel` are specified,
+output is sent as chat to the given channel on the given network.
+
+`arguments` is split on spaces into words before being
+processed by getopt. Use Haskell string literal syntax to
+create arguments with escaped characters and spaces inside.
+
+== /url
+
+Open a URL seen in chat.
+
+The URL is opened using the executable configured under `url-opener`.
+
+When this command is active in the textbox,
+chat messages are filtered to only show ones with URLs.
+
+When `number` is omitted it defaults to 1.
+The number selects the URL to open, counting back from the most recent.
+
+== /help
+
+Show command documentation.
+
+When `command` is omitted, a list of all commands and macros is shown.
+When `command` is specified, detailed help for that command is shown.
+

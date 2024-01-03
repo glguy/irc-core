@@ -1,0 +1,52 @@
+= Connection Commands
+:toc:
+
+== /connect
+
+Connect to `network` by name.
+
+If `network` does not correspond to the name of a server in the config,
+it is treated as a hostname.
+
+== /reconnect
+
+(Re)connect to the currently-focused server.
+
+== /quit
+
+Gracefully disconnect the current network connection,
+optionally sending the provided reason.
+
+See also: disconnect, exit
+
+== /disconnect
+
+Immediately terminate the current network connection.
+
+See also: quit, exit
+
+== /umode
+
+Apply a user-mode change. 
+
+== /cert
+
+Show the TLS certificate for the current connection.
+
+== /new-self-signed-cert
+
+Generate a new self-signed client certificate for
+network service identification using CertFP.
+
+The generated certificate can be used via the per-server
+`tls-client-cert` and `tls-client-key-password` (if applicable) keys
+in your config file. 
+
+This command generates an RSA key pair by default.
+This may change in the future.
+
+=== Parameters
+
+`filename`:   Certificate and private key PEM output +
+`keysize`:    Public-key size (default 2048, range 1024-8192) +
+`passphrase`: Optional AES-128 private key passphrase

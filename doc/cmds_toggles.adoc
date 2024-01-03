@@ -1,0 +1,32 @@
+= Toggles
+:toc:
+
+== /toggle-detail
+
+Toggle detailed message view.
+
+== /toggle-activity-bar
+
+Toggle detailed detailed activity information in status bar.
+
+== /toggle-show-ping
+
+Toggle visibility of ping round-trip time.
+
+== /toggle-metadata
+
+Toggle visibility of metadata in chat windows.
+
+== /toggle-layout
+
+Toggle multi-window layout mode.
+
+== /toggle-editor
+
+Toggle between single-line and multi-line editor mode.
+
+== /toggle-edit-lock
+
+Toggle editor lock mode.
+
+When the editor is locked, Enter (or C-j) does nothing.
