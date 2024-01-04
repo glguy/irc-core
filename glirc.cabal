@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                glirc
-version:             2.40.0.1
+version:             2.40.1
 synopsis:            Console IRC client
 description:         Console IRC client
                      .

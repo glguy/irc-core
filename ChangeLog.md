@@ -1,5 +1,10 @@
 # Revision history for glirc
 
+## 2.40.1
+
+* Fix exception on /exec with a non-zero exit code
+* Externalize command documentation
+
 ## 2.40.0.1
 
 * Build on GHC 9.0
