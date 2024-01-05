@@ -85,7 +85,8 @@ withVty = bracket buildVty shutdown
 -- | Generate the initial 'Vty' value and enable the features glirc uses.
 buildVty :: IO Vty
 buildVty =
- do vty <- mkVty defaultConfig
+ do cfg <- userConfig
+    vty <- mkVty cfg
     setMode (outputIface vty) BracketedPaste True
     setMode (outputIface vty) Focus True
     pure vty
