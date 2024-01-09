@@ -43,6 +43,7 @@ parseArg env spec =
       do t <- token
          subspec <- lift (parseFormat env t)
          parseArgs env subspec
+    MapEnv f inner -> parseArgs (f env) inner
 
 argumentString :: ArgumentShape -> Parser String
 argumentString TokenArgument     = token
