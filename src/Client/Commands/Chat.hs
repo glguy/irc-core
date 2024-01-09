@@ -141,7 +141,7 @@ chatCommands = CommandSection "IRC commands"
 
   ]
 
-monitorArgs :: ClientState -> String -> Maybe (Args ClientState [String])
+monitorArgs :: ArgsContext -> String -> Maybe (Args ArgsContext [String])
 monitorArgs _ str =
   case toUpper <$> str of
     "+" -> Just (wrap '+' (simpleToken "target[,target2]*"))
@@ -329,7 +329,7 @@ cmdPart channelId cs st rest =
 -- | This command is equivalent to chatting without a command. The primary use
 -- at the moment is to be able to send a leading @/@ to chat easily.
 cmdSay :: ChannelCommand String
-cmdSay _ _ st rest = executeChat rest st
+cmdSay focus cs st rest = executeChat (ChannelFocus (view csNetwork cs) focus) rest st
 
 -- | Implementation of @/me@
 cmdMe :: ChannelCommand String
@@ -349,11 +349,12 @@ cmdMe channelId cs st rest =
 
 -- | Treat the current text input as a chat message and send it.
 executeChat ::
+  Focus                                   ->
   String           {- ^ chat message   -} ->
   ClientState      {- ^ client state   -} ->
   IO CommandResult {- ^ command result -}
-executeChat msg st =
-  case view clientFocus st of
+executeChat focus msg st =
+  case focus of
     ChannelFocus network channel
       | Just !cs <- preview (clientConnection network) st ->
           do now <- getZonedTime

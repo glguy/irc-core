@@ -12,6 +12,17 @@ Reload the client configuration file.
 If `filename` is provided it will be used to reload.
 Otherwise the previously loaded configuration file will be reloaded.
 
+== /in
+
+Execute a command on a window other than the current one.
+
+`focus` is the name of a window as would be used with the `channel` command.
+
+`command` is any command that runs in a specific context
+(i.e. that does not have a context of "client").
+
+See also: channel
+
 == /extension
 
 Run a command provided by an extension.
@@ -85,4 +96,3 @@ Show command documentation.
 
 When `command` is omitted, a list of all commands and macros is shown.
 When `command` is specified, detailed help for that command is shown.
-
