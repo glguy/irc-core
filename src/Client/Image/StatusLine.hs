@@ -210,25 +210,35 @@ nometaImage focus st
 -- @-[15p]@
 activitySummary :: ClientState -> Vty.Image
 activitySummary st
-  | null indicators = Vty.emptyImage
-  | otherwise       = unpackImage bar Vty.<|>
-                      Vty.string defAttr "[" Vty.<|>
-                      Vty.horizCat indicators Vty.<|>
-                      Vty.string defAttr "]"
-  where
-    indicators = foldr aux [] windows
-    windows    = views clientWindows Map.elems st
+  | null indicators && anon == 0 = Vty.emptyImage
+  | otherwise = unpackImage bar Vty.<|>
+                Vty.string defAttr "[" Vty.<|>
+                Vty.horizCat indicators Vty.<|>
+                anonImage Vty.<|>
+                Vty.string defAttr "]"
+    where
+      pal = clientPalette st
+      (indicators, impanon, anon) = foldr aux ([], 0, 0) windows
+      spacer
+        | null indicators = Vty.string defAttr "+"
+        | otherwise       = Vty.string defAttr " +"
+      anonImage
+        | anon == 0 = Vty.emptyImage
+        | impanon == 0 = spacer Vty.<|>
+                         Vty.string (view palActivity pal) (show anon)
+        | otherwise = spacer Vty.<|>
+                      Vty.string (view palMention pal) (show impanon) Vty.<|>
+                      Vty.string defAttr "/" Vty.<|>
+                      Vty.string (view palActivity pal) (show anon)
+      windows    = views clientWindows Map.elems st
 
-    aux w rest =
-      let name = case view winName w of
-                   Nothing -> '?'
-                   Just i -> i in
-      case view winMention w of
-        WLImportant -> Vty.char (view palMention  pal) name : rest
-        WLNormal    -> Vty.char (view palActivity pal) name : rest
-        WLBoring    -> rest
-      where
-        pal = clientPalette st
+      aux :: Window -> ([Vty.Image], Int, Int) -> ([Vty.Image], Int, Int)
+      aux w (indicators', impanon', anon') = case (view winName w, view winMention w) of
+          (Nothing, WLImportant)   -> (indicators', impanon'+1, anon'+1)
+          (Nothing, WLNormal)      -> (indicators', impanon', anon'+1)
+          (Just name, WLImportant) -> (Vty.char (view palMention pal) name : indicators', impanon', anon')
+          (Just name, WLNormal)    -> (Vty.char (view palActivity pal) name : indicators', impanon', anon')
+          _                        -> (indicators', impanon', anon')
 
 -- | Multi-line activity information enabled by F3
 activityBarImages :: ClientState -> [Vty.Image]
