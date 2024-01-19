@@ -128,7 +128,7 @@ cmdMasks channel cs st rest =
            unless (connecting || listLoaded)
              (sendMsg cs (ircMode channel [Text.singleton mode]))
 
-           commandSuccess (changeSubfocus (FocusMasks mode) st)
+           commandSuccess (changeSubfocus (FocusMasks (view csNetwork cs) channel mode) st)
 
     _ -> commandFailureMsg "unknown mask mode" st
 

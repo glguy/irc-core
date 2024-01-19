@@ -159,10 +159,12 @@ cmdMonitor cs st args =
      commandSuccess st
 
 cmdChanNames :: ChannelCommand ()
-cmdChanNames _ _ st _ = commandSuccess (changeSubfocus FocusUsers st)
+cmdChanNames chan cs st _ = commandSuccess (changeSubfocus subfocus st)
+  where subfocus = FocusUsers (view csNetwork cs) chan
 
 cmdChannelInfo :: ChannelCommand ()
-cmdChannelInfo _ _ st _ = commandSuccess (changeSubfocus FocusInfo st)
+cmdChannelInfo chan cs st _ = commandSuccess (changeSubfocus subfocus st)
+  where subfocus = FocusInfo (view csNetwork cs) chan
 
 cmdKnock :: NetworkCommand (String, String)
 cmdKnock cs st (chan,message) =
