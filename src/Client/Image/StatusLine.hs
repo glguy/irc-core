@@ -22,7 +22,7 @@ import Client.Image.PackedImage
 import Client.Image.Palette
 import Client.State
 import Client.State.Channel (chanModes, chanUsers)
-import Client.State.Focus (actualFocus, focusNetwork, Focus(..), Subfocus(..), WindowsFilter(..))
+import Client.State.Focus (focusNetwork, Focus(..), Subfocus(..), WindowsFilter(..))
 import Client.State.Network
 import Client.State.Window
 import Control.Lens (view, orOf, preview, views, _Just, Ixed(ix))
@@ -31,18 +31,19 @@ import Data.Map.Strict qualified as Map
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (mapMaybe, maybeToList)
 import Data.Text (Text)
-import Data.Text qualified as Text
+import qualified Data.Text as Text
 import Data.Text.Lazy qualified as LText
 import Graphics.Vty.Attributes (Attr, defAttr, bold, withForeColor, withStyle, red)
 import Graphics.Vty.Image qualified as Vty
-import Irc.Identifier (idText)
+import Irc.Identifier (idText, mkId)
 import Numeric (showFFloat)
+import Client.WhoReply (whoQuery)
 
 clientTitle :: ClientState -> String
 clientTitle st
   = map cleanChar
   $ LText.unpack
-  $ "glirc - " <> imageText (viewFocusLabel st (view clientSubfocus st) (view clientFocus st))
+  $ "glirc - " <> imageText (currentViewImage False st (view clientSubfocus st) (view clientFocus st))
 
 bar :: Image'
 bar = char (withStyle defAttr bold) '─'
@@ -56,12 +57,13 @@ statusLineImage ::
 statusLineImage w st =
   makeLines w (common : activity ++ errorImgs)
   where
+    focus = (view clientFocus st)
     common = Vty.horizCat $
       myNickImage st :
       map unpackImage
-      [ focusImage (view clientFocus st) st
+      [ infoBubble $ currentViewImage True st (view clientSubfocus st) focus
       , detailImage st
-      , nometaImage (view clientFocus st) st
+      , nometaImage focus st
       , scrollImage st
       , filterImage st
       , lockImage st
@@ -103,9 +105,8 @@ minorStatusLineImage ::
 minorStatusLineImage focus subfocus w showHideMeta st =
   content <> mconcat (replicate fillSize bar)
   where
-    content = focusImage focus st <>
-              if showHideMeta then nometaImage focus st else mempty
-
+    nometaImage' = if showHideMeta then nometaImage focus st else mempty
+    content = infoBubble $ (currentViewImage True st subfocus focus <> nometaImage')
     fillSize = max 0 (w - imageWidth content)
 
 
@@ -244,7 +245,7 @@ activityBarImages st
                   $ unpackImage bar Vty.<|>
                     Vty.char defAttr '[' Vty.<|>
                     jumpLabel Vty.<|>
-                    focusLabel Vty.<|>
+                    unpackImage (focusLabel False st focus) Vty.<|>
                     Vty.char defAttr ':' Vty.<|>
                     Vty.string attr (show n) Vty.<|>
                     Vty.char defAttr ']'
@@ -259,11 +260,6 @@ activityBarImages st
         attr = case view winMention w of
                  WLImportant -> view palMention pal
                  _           -> view palActivity pal
-        focusLabel =
-          unpackImage $ case focus of
-            Unfocused           -> text' (view palLabel pal) (Text.pack "*")
-            NetworkFocus net    -> text' (view palLabel pal) (cleanText net)
-            ChannelFocus _ chan -> coloredIdentifier pal NormalIdentifier HashMap.empty chan
 
 
 -- | Pack a list of images into a single image spanning possibly many lines.
@@ -319,46 +315,29 @@ myNickImage st =
               | otherwise                = " " <>
                 modesImage (view palModes pal) (view palSnomask netpal) ('+':view csSnomask cs)
 
-focusImage :: Focus -> ClientState -> Image'
-focusImage focus st =
-  infoBubble $
-  case preview (clientWindows . ix focus' . winName . _Just) st of
-    Nothing -> label
-    Just n  -> char (view palWindowName pal) n <> ":" <> label
-  where
-    !pal     = clientPalette st
-    subfocus = view clientSubfocus st
-    focus'   = actualFocus subfocus focus
-    label    = viewFocusLabel st subfocus focus'
-
 parens :: Attr -> Vty.Image -> Vty.Image
 parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'
 
-viewFocusLabel :: ClientState -> Subfocus -> Focus -> Image'
-viewFocusLabel st subfocus focus =
+focusLabel :: Bool -> ClientState -> Focus -> Image'
+focusLabel showFull st focus =
   let
     !pal = clientPalette st
     netpal = clientNetworkPalette st
-    !subfocusLabel = case viewSubfocusLabel pal subfocus of
-      Just sfl -> " " <> sfl
-      Nothing -> mempty
   in case focus of
     Unfocused ->
-      char (view palError pal) '*' <> subfocusLabel
+      char (view palError pal) '*'
     NetworkFocus network ->
-      text' (view palLabel pal) (cleanText network) <> subfocusLabel
+      text' (view palLabel pal) (cleanText network)
     ChannelFocus network channel ->
       text' (view palLabel pal) (cleanText network) <>
       char defAttr ':' <>
       string (view palSigil pal) (cleanChar <$> sigils) <>
       coloredIdentifier pal NormalIdentifier HashMap.empty channel <>
-      subfocusLabel <> channelModes
-
+      channelModes
       where
         (sigils, channelModes) =
           case preview (clientConnection network) st of
-            Nothing -> ("", mempty)
-            Just cs ->
+            Just cs | showFull ->
                ( let nick = view csNick cs in
                  view (csChannels . ix channel . chanUsers . ix nick) cs
 
@@ -367,33 +346,41 @@ viewFocusLabel st subfocus focus =
                         " " <> modesImage (view palModes pal) (view palCModes netpal) ('+':Map.keys modeMap)
                     _ -> mempty
                )
+            _ -> ("", mempty)
 
-viewSubfocusLabel :: Palette -> Subfocus -> Maybe Image'
-viewSubfocusLabel pal subfocus =
+currentViewImage :: Bool -> ClientState -> Subfocus -> Focus -> Image'
+currentViewImage showFull st subfocus focus =
   case subfocus of
-    FocusMessages       -> Nothing
-    FocusWindows filt   -> Just $ string (view palLabel pal) "windows" <>
-                                opt (windowFilterName filt)
-    FocusInfo _ _       -> Just $ string (view palLabel pal) "info"
-    FocusUsers _ _      -> Just $ string (view palLabel pal) "users"
-    FocusMentions       -> Just $ string (view palLabel pal) "mentions"
-    FocusPalette        -> Just $ string (view palLabel pal) "palette"
-    FocusDigraphs       -> Just $ string (view palLabel pal) "digraphs"
-    FocusKeyMap         -> Just $ string (view palLabel pal) "keymap"
-    FocusHelp mb        -> Just $ string (view palLabel pal) "help" <> opt mb
-    FocusIgnoreList     -> Just $ string (view palLabel pal) "ignores"
-    FocusRtsStats       -> Just $ string (view palLabel pal) "rtsstats"
-    FocusCert{}         -> Just $ string (view palLabel pal) "cert"
-    FocusChanList _ _ _ -> Just $ string (view palLabel pal) "channels"
-    FocusWho _          -> Just $ string (view palLabel pal) "who"
-    FocusMasks _ _ m    -> Just $ mconcat
-      [ string (view palLabel pal) "masks"
-      , char defAttr ':'
-      , char (view palLabel pal) m
-      ]
+    FocusMessages         -> windowName <> focusLabel showFull st focus
+    FocusWindows filt     -> string defAttr "windows" <> opt (windowFilterName filt)
+    FocusInfo net chan    -> string defAttr "info" <> ctxLabel (ChannelFocus net chan)
+    FocusUsers net chan   -> string defAttr "names" <> ctxLabel (ChannelFocus net chan)
+    FocusMentions         -> string defAttr "mentions"
+    FocusPalette          -> string defAttr "palette"
+    FocusDigraphs         -> string defAttr "digraphs"
+    FocusKeyMap           -> string defAttr "keymap"
+    FocusHelp mb          -> string defAttr "help" <> opt mb
+    FocusIgnoreList       -> string defAttr "ignores"
+    FocusRtsStats         -> string defAttr "rtsstats"
+    FocusCert{}           -> string defAttr "cert"
+    FocusChanList net _ _ -> string defAttr "channels" <> ctxLabel (NetworkFocus net)
+    FocusWho net          -> string defAttr "who" <> whoTarget net
+    FocusMasks net chan m -> string defAttr "masks" <> maskLabel m <> ctxLabel (ChannelFocus net chan)
   where
+    !pal = clientPalette st
+    ctxLabel focus' = char defAttr ' ' <> focusLabel False st focus'
+    maskLabel m = char defAttr ':' <> char (view palLabel pal) m
     opt = foldMap (\cmd -> char defAttr ':' <>
                            text' (view palLabel pal) cmd)
+    windowName
+      | showFull = case preview (clientWindows . ix focus . winName . _Just) st of
+          Just n -> char (view palWindowName pal) n <> ":"
+          _      -> mempty
+      | otherwise = mempty
+    whoTarget net = case preview (clientConnection net . csWhoReply . whoQuery) st of
+      Just (query, _) | Text.null query -> ctxLabel (NetworkFocus net)
+      Just (query, _) -> ctxLabel (ChannelFocus net $ mkId query)
+      _ -> mempty
 
 windowFilterName :: WindowsFilter -> Maybe Text
 windowFilterName x =
