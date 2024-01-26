@@ -17,6 +17,7 @@ module Client.Image.StatusLine
   , clientTitle
   ) where
 
+import Client.Image.Focus
 import Client.Image.Message (cleanChar, cleanText, IdentifierColorMode (NormalIdentifier), coloredIdentifier, modesImage)
 import Client.Image.PackedImage
 import Client.Image.Palette
@@ -247,29 +248,17 @@ activityBarImages st
   $ Map.toAscList
   $ view clientWindows st
   where
-    baraux (focus,w)
+    baraux pair@(_,w)
       | view winActivityFilter w == AFSilent = Nothing
       | n == 0 = Nothing -- todo: make configurable
-      | otherwise = Just
-                  $ unpackImage bar Vty.<|>
-                    Vty.char defAttr '[' Vty.<|>
-                    jumpLabel Vty.<|>
-                    unpackImage (focusLabel FocusLabelJump st focus) Vty.<|>
-                    Vty.char defAttr ' ' Vty.<|>
-                    Vty.string attr (show n) Vty.<|>
-                    Vty.char defAttr ']'
+      | otherwise = Just $
+        unpackImage bar Vty.<|>
+        Vty.char defAttr '[' Vty.<|>
+        unpackImage (windowLabel' pair) Vty.<|>
+        Vty.char defAttr ']'
       where
-        jumpLabel =
-          case view winName w of
-            Nothing   -> mempty
-            Just name -> Vty.char (view palWindowName pal) name Vty.<|>
-                         Vty.char defAttr ':'
-        n   = view winUnread w
-        pal = clientPalette st
-        attr = case view winMention w of
-                 WLImportant -> view palMention pal
-                 _           -> view palActivity pal
-
+        windowLabel' = windowLabel st
+        n = view winUnread w
 
 -- | Pack a list of images into a single image spanning possibly many lines.
 -- The images will stack upward with the first element of the list being in
@@ -293,7 +282,6 @@ makeLines w (x:xs) = go x xs
         Vty.<|> unpackImage (mconcat (replicate fillsize bar))
       where
         fillsize = max 0 (w - Vty.imageWidth acc)
-
 
 myNickImage :: ClientState -> Vty.Image
 myNickImage st =
@@ -326,44 +314,6 @@ myNickImage st =
 
 parens :: Attr -> Vty.Image -> Vty.Image
 parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'
-
-data FocusLabelType = FocusLabelJump | FocusLabelShort | FocusLabelLong
-
-focusLabel :: FocusLabelType -> ClientState -> Focus -> Image'
-focusLabel labelType st focus =
-  let
-    !pal = clientPalette st
-    netpal = clientNetworkPalette st
-    colon = char defAttr ':'
-    networkLabel network = text' (view palLabel pal) (cleanText network)
-    channelLabel         = coloredIdentifier pal NormalIdentifier HashMap.empty
-  in case (focus, labelType) of
-    (Unfocused, _) ->
-      char (view palError pal) '*'
-    (NetworkFocus network, FocusLabelJump) -> networkLabel network <> colon
-    (NetworkFocus network, _) -> networkLabel network
-    (ChannelFocus network channel, FocusLabelJump)
-      | Just network == focusNetwork (view clientFocus st) -> channelLabel channel
-    (ChannelFocus network channel, FocusLabelLong) ->
-      networkLabel network <>
-      colon <>
-      string (view palSigil pal) (cleanChar <$> sigils) <>
-      channelLabel channel <>
-      channelModes
-      where
-        (sigils, channelModes) =
-          case preview (clientConnection network) st of
-            Just cs ->
-               ( let nick = view csNick cs in
-                 view (csChannels . ix channel . chanUsers . ix nick) cs
-               , case preview (csChannels . ix channel . chanModes) cs of
-                    Just modeMap | not (null modeMap) ->
-                        " " <> modesImage (view palModes pal) (view palCModes netpal) ('+':Map.keys modeMap)
-                    _ -> mempty
-               )
-            _ -> ("", mempty)
-    (ChannelFocus network channel, _) ->
-      networkLabel network <> colon <> channelLabel channel
 
 currentViewImage :: Bool -> ClientState -> Subfocus -> Focus -> Image'
 currentViewImage showFull st subfocus focus =

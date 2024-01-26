@@ -63,7 +63,7 @@ import Client.Commands.Queries (queryCommands)
 import Client.Commands.TabCompletion
 import Client.Commands.Toggles (togglesCommands)
 import Client.Commands.Types
-import Client.Commands.Window (windowCommands, parseFocus, focusNames)
+import Client.Commands.Window (windowCommands, focusNames)
 import Client.Commands.ZNC (zncCommands)
 
 -- | Interpret the given chat message or command. Leading @/@ indicates a

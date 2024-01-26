@@ -19,8 +19,10 @@ module Client.State.Focus
   , WindowsFilter(..)
 
   -- * Focus operations
+  , parseFocus
   , focusNetwork
   , actualFocus
+  , isPrefixOfFocus
 
   -- * Focus Prisms
   , _ChannelFocus
@@ -28,9 +30,10 @@ module Client.State.Focus
   , _Unfocused
   ) where
 
-import Control.Lens (makePrisms)
-import Data.Text (Text)
-import Irc.Identifier (Identifier)
+import           Control.Lens (makePrisms, (<&>))
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Irc.Identifier (Identifier, idPrefix, mkId)
 
 -- | Currently focused window
 data Focus
@@ -89,6 +92,31 @@ actualFocus sf = case sf of
   FocusChanList net _ _ -> const (NetworkFocus net)
   FocusWho net          -> const (NetworkFocus net)
   _ -> id
+
+-- | Parses a single focus name given a default network.
+parseFocus ::
+  Maybe Text {- ^ default network    -} ->
+  String {- ^ @[network:]target@ -} ->
+  Maybe Focus
+parseFocus mbNet x =
+  case break (==':') x of
+    ("*","")     -> pure Unfocused
+    (net,_:"")   -> pure (NetworkFocus (Text.pack net))
+    (net,_:chan) -> pure (ChannelFocus (Text.pack net) (mkId (Text.pack chan)))
+    (chan,"")    -> mbNet <&> \net ->
+                    ChannelFocus net (mkId (Text.pack chan))
+
+isPrefixOfFocus :: String -> Focus -> Bool
+isPrefixOfFocus prefix focus = case break (==':') prefix of
+  ("","")  -> True
+  ("*","") -> focus == Unfocused
+  (chan,"") -> case focus of 
+    ChannelFocus _    chanF -> idPrefix (mkId $ Text.pack chan) chanF
+    NetworkFocus netF       -> Text.isPrefixOf (Text.pack chan) netF
+    Unfocused               -> False
+  (net,_:chan) -> case focus of
+    ChannelFocus netF chanF -> netF == Text.pack net && idPrefix (mkId $ Text.pack chan) chanF
+    _ -> False
 
 -- | Filter argument for 'FocusWindows'
 data WindowsFilter

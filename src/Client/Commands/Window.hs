@@ -259,19 +259,6 @@ withSplitFocuses st str k =
            (parseFocus (views clientFocus focusNetwork st))
            (words str)
 
--- | Parses a single focus name given a default network.
-parseFocus ::
-  Maybe Text {- ^ default network    -} ->
-  String {- ^ @[network:]target@ -} ->
-  Maybe Focus
-parseFocus mbNet x =
-  case break (==':') x of
-    ("*","")     -> pure Unfocused
-    (net,_:"")   -> pure (NetworkFocus (Text.pack net))
-    (net,_:chan) -> pure (ChannelFocus (Text.pack net) (mkId (Text.pack chan)))
-    (chan,"")    -> mbNet <&> \net ->
-                    ChannelFocus net (mkId (Text.pack chan))
-
 cmdFocus :: ClientCommand (String, Maybe String)
 cmdFocus st (network, mbChannel)
   | network == "*" = commandSuccess (changeFocus Unfocused st)
