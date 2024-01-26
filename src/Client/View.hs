@@ -32,6 +32,7 @@ import Client.View.UrlSelection (urlSelectionView)
 import Client.View.UserList (userInfoImages, userListImages)
 import Client.View.Who (whoLines)
 import Client.View.Windows (windowsImages)
+import Client.View.WindowSwitch (windowSwitchImages)
 import Control.Lens (view)
 
 viewLines :: Focus -> Subfocus -> Int -> ClientState -> [Image']
@@ -39,6 +40,8 @@ viewLines focus subfocus w !st =
   case subfocus of
     _ | Just ("url",arg) <- clientActiveCommand st ->
       urlSelectionView w focus' arg st
+    _ | Just ("c",arg) <- clientActiveCommand st ->
+      windowSwitchImages arg w st
     FocusInfo network channel ->
       channelInfoImages network channel st
     FocusUsers network channel

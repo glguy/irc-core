@@ -106,6 +106,7 @@ library
     Client.Hook.Znc.Buffextras
     Client.Hooks
     Client.Image
+    Client.Image.Focus
     Client.Image.Layout
     Client.Image.LineWrap
     Client.Image.Message
@@ -148,6 +149,7 @@ library
     Client.View.UserList
     Client.View.Who
     Client.View.Windows
+    Client.View.WindowSwitch
 
   other-modules:
     ContextFilter

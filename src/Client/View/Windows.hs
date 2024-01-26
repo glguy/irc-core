@@ -13,7 +13,7 @@ module Client.View.Windows
   ( windowsImages
   ) where
 
-import           Client.Image.Message (coloredIdentifier, IdentifierColorMode (NormalIdentifier))
+import           Client.Image.Focus (focusLabel, FocusLabelType(FocusLabelShort))
 import           Client.Image.PackedImage
 import           Client.Image.Palette
 import           Client.State
@@ -21,7 +21,6 @@ import           Client.State.Focus
 import           Client.State.Window
 import           Client.State.Network
 import           Control.Lens
-import qualified Data.HashMap.Strict as HashMap
 import           Data.List
 import           Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
@@ -32,8 +31,8 @@ windowsImages :: WindowsFilter -> ClientState -> [Image']
 windowsImages filt st
   = reverse
   $ createColumns
-  $ [ renderWindowColumns pal (char (view palError pal) 'h')    k v | (k,v) <- hiddenWindows ] ++
-    [ renderWindowColumns pal (char (view palWindowName pal) (name v)) k v | (k,v) <- windows ]
+  $ [ renderWindowColumns st (char (view palError pal) 'h')    k v | (k,v) <- hiddenWindows ] ++
+    [ renderWindowColumns st (char (view palWindowName pal) (name v)) k v | (k,v) <- windows ]
   where
     pal = clientPalette st
     name = fromMaybe ' ' . view winName
@@ -66,14 +65,12 @@ windowMatcher _ _ _ = False
 
 ------------------------------------------------------------------------
 
-
-renderWindowColumns :: Palette -> Image' -> Focus -> Window -> [Image']
-renderWindowColumns pal name focus win =
+renderWindowColumns :: ClientState -> Image' -> Focus -> Window -> [Image']
+renderWindowColumns st name focus win =
   [ name
-  , renderedFocus pal focus
-  , renderedWindowInfo pal win
+  , focusLabel FocusLabelShort st focus
+  , renderedWindowInfo (clientPalette st) win
   ]
-
 
 createColumns :: [[Image']] -> [Image']
 createColumns xs = map makeRow xs
@@ -82,18 +79,6 @@ createColumns xs = map makeRow xs
     makeRow = mconcat
             . intersperse (char defAttr ' ')
             . zipWith resizeImage columnWidths
-
-renderedFocus :: Palette -> Focus -> Image'
-renderedFocus pal focus =
-  case focus of
-    Unfocused ->
-      char (view palError pal) '*'
-    NetworkFocus network ->
-      text' (view palLabel pal) network
-    ChannelFocus network channel ->
-      text' (view palLabel pal) network <>
-      char defAttr ':' <>
-      coloredIdentifier pal NormalIdentifier HashMap.empty channel
 
 renderedWindowInfo :: Palette -> Window -> Image'
 renderedWindowInfo pal win =
