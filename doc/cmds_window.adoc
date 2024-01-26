@@ -5,6 +5,9 @@
 
 Set the current focused window.
 
+When the `+/c+` alias is used,
+shows a list of applicable window names while typing the argument.
+
 See also: focus
 
 === Examples
