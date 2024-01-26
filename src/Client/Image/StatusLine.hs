@@ -57,7 +57,7 @@ statusLineImage ::
 statusLineImage w st =
   makeLines w (common : activity ++ errorImgs)
   where
-    focus = (view clientFocus st)
+    focus = view clientFocus st
     common = Vty.horizCat $
       myNickImage st :
       map unpackImage
@@ -246,7 +246,6 @@ activityBarImages st
   = mapMaybe baraux
   $ Map.toAscList
   $ view clientWindows st
-
   where
     baraux (focus,w)
       | view winActivityFilter w == AFSilent = Nothing
@@ -255,8 +254,8 @@ activityBarImages st
                   $ unpackImage bar Vty.<|>
                     Vty.char defAttr '[' Vty.<|>
                     jumpLabel Vty.<|>
-                    unpackImage (focusLabel False st focus) Vty.<|>
-                    Vty.char defAttr ':' Vty.<|>
+                    unpackImage (focusLabel FocusLabelJump st focus) Vty.<|>
+                    Vty.char defAttr ' ' Vty.<|>
                     Vty.string attr (show n) Vty.<|>
                     Vty.char defAttr ']'
       where
@@ -328,40 +327,48 @@ myNickImage st =
 parens :: Attr -> Vty.Image -> Vty.Image
 parens attr i = Vty.char attr '(' Vty.<|> i Vty.<|> Vty.char attr ')'
 
-focusLabel :: Bool -> ClientState -> Focus -> Image'
-focusLabel showFull st focus =
+data FocusLabelType = FocusLabelJump | FocusLabelShort | FocusLabelLong
+
+focusLabel :: FocusLabelType -> ClientState -> Focus -> Image'
+focusLabel labelType st focus =
   let
     !pal = clientPalette st
     netpal = clientNetworkPalette st
-  in case focus of
-    Unfocused ->
+    colon = char defAttr ':'
+    networkLabel network = text' (view palLabel pal) (cleanText network)
+    channelLabel         = coloredIdentifier pal NormalIdentifier HashMap.empty
+  in case (focus, labelType) of
+    (Unfocused, _) ->
       char (view palError pal) '*'
-    NetworkFocus network ->
-      text' (view palLabel pal) (cleanText network)
-    ChannelFocus network channel ->
-      text' (view palLabel pal) (cleanText network) <>
-      char defAttr ':' <>
+    (NetworkFocus network, FocusLabelJump) -> networkLabel network <> colon
+    (NetworkFocus network, _) -> networkLabel network
+    (ChannelFocus network channel, FocusLabelJump)
+      | Just network == focusNetwork (view clientFocus st) -> channelLabel channel
+    (ChannelFocus network channel, FocusLabelLong) ->
+      networkLabel network <>
+      colon <>
       string (view palSigil pal) (cleanChar <$> sigils) <>
-      coloredIdentifier pal NormalIdentifier HashMap.empty channel <>
+      channelLabel channel <>
       channelModes
       where
         (sigils, channelModes) =
           case preview (clientConnection network) st of
-            Just cs | showFull ->
+            Just cs ->
                ( let nick = view csNick cs in
                  view (csChannels . ix channel . chanUsers . ix nick) cs
-
                , case preview (csChannels . ix channel . chanModes) cs of
                     Just modeMap | not (null modeMap) ->
                         " " <> modesImage (view palModes pal) (view palCModes netpal) ('+':Map.keys modeMap)
                     _ -> mempty
                )
             _ -> ("", mempty)
+    (ChannelFocus network channel, _) ->
+      networkLabel network <> colon <> channelLabel channel
 
 currentViewImage :: Bool -> ClientState -> Subfocus -> Focus -> Image'
 currentViewImage showFull st subfocus focus =
   case subfocus of
-    FocusMessages         -> windowName <> focusLabel showFull st focus
+    FocusMessages         -> windowName <> focusLabel labelType st focus
     FocusWindows filt     -> string defAttr "windows" <> opt (windowFilterName filt)
     FocusInfo net chan    -> string defAttr "info" <> ctxLabel (ChannelFocus net chan)
     FocusUsers net chan   -> string defAttr "names" <> ctxLabel (ChannelFocus net chan)
@@ -377,8 +384,9 @@ currentViewImage showFull st subfocus focus =
     FocusWho net          -> string defAttr "who" <> whoTarget net
     FocusMasks net chan m -> string defAttr "masks" <> maskLabel m <> ctxLabel (ChannelFocus net chan)
   where
+    labelType = if showFull then FocusLabelLong else FocusLabelShort
     !pal = clientPalette st
-    ctxLabel focus' = char defAttr ' ' <> focusLabel False st focus'
+    ctxLabel focus' = char defAttr ' ' <> focusLabel FocusLabelShort st focus'
     maskLabel m = char defAttr ':' <> char (view palLabel pal) m
     opt = foldMap (\cmd -> char defAttr ':' <>
                            text' (view palLabel pal) cmd)
