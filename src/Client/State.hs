@@ -976,16 +976,21 @@ clientExtraFocuses st =
 -- considered important and will be jumped to first.
 jumpToActivity :: ClientState -> ClientState
 jumpToActivity st =
-  case mplus highPriority lowPriority of
-    Just (focus,_) -> changeFocus focus st
+  case locate (Nothing, 1) windowList of
+    Just focus -> changeFocus focus st
     Nothing ->
       case view clientActivityReturn st of
         Just focus -> changeFocus focus st
         Nothing    -> st
   where
-    windowList   = views clientWindows Map.toAscList st
-    highPriority = find (\x -> WLImportant == view winMention (snd x)) windowList
-    lowPriority  = find (\x -> view winUnread (snd x) > 0) windowList
+    windowList = views clientWindows Map.toAscList st
+    locate (v, _) [] = v
+    locate vp@(_, vRank) ((f,w):wins)
+      | fRank == 5 = Just f -- Short circuit
+      | fRank > vRank = locate (Just f, fRank) wins
+      | otherwise = locate vp wins
+      where
+        fRank = fromEnum (isJust $ view winName w) + 2 * fromEnum (view winMention w)
 
 -- | Jump the focus directly to a window based on its zero-based index
 -- while ignoring hidden windows.
