@@ -110,7 +110,7 @@ data WindowLineImportance
   = WLBoring -- ^ Don't update unread count
   | WLNormal -- ^ Increment unread count
   | WLImportant -- ^ Increment unread count and set important flag
-  deriving (Eq, Ord, Show, Read)
+  deriving (Eq, Ord, Show, Read, Enum)
 
 data ActivityFilter
   = AFSilent
