@@ -36,6 +36,7 @@ import Client.Configuration
 import Client.State
 import Client.State.Extensions (clientCommandExtension, clientStartExtensions)
 import Client.State.Focus
+import Client.State.Help (hsQuery, helpQueryToText)
 import Client.State.Network (csNick, isChannelIdentifier, sendMsg)
 import Client.State.Url
 import Control.Applicative (liftA2, (<|>))
@@ -58,6 +59,7 @@ import Client.Commands.Certificate (newCertificateCommand)
 import Client.Commands.Channel (channelCommands)
 import Client.Commands.Chat (chatCommands, chatCommand', executeChat)
 import Client.Commands.Connection (connectionCommands)
+import Client.Commands.Help (cmdHelp)
 import Client.Commands.Operator (operatorCommands)
 import Client.Commands.Queries (queryCommands)
 import Client.Commands.TabCompletion
@@ -65,6 +67,7 @@ import Client.Commands.Toggles (togglesCommands)
 import Client.Commands.Types
 import Client.Commands.Window (windowCommands, focusNames)
 import Client.Commands.ZNC (zncCommands)
+import Data.Maybe (maybeToList)
 
 -- | Interpret the given chat message or command. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message will
@@ -357,9 +360,9 @@ commandsList =
 
   , Command
       (pure "help")
-      (optionalArg (simpleToken "[command]"))
+      (optionalArg (simpleToken "[topic]"))
       $(clientDocs `cmdDoc` "help")
-    $ ClientCommand cmdHelp tabHelp
+    $ WindowCommand (cmdHelp commandsList commands) tabHelp
 
   ------------------------------------------------------------------------
   ],
@@ -394,16 +397,11 @@ cmdRtsStats st _ =
        Just{}  -> commandSuccess $ set clientRtsStats mb
                                  $ changeSubfocus FocusRtsStats st
 
--- | Implementation of @/help@ command. Set subfocus to Help.
-cmdHelp :: ClientCommand (Maybe String)
-cmdHelp st mb = commandSuccess (changeSubfocus focus st)
+tabHelp :: Bool -> WindowCommand String
+tabHelp isReversed _ st _ =
+  simpleTabCompletion plainWordCompleteMode cached commandNames isReversed st
   where
-    focus = FocusHelp (fmap Text.pack mb)
-
-tabHelp :: Bool -> ClientCommand String
-tabHelp isReversed st _ =
-  simpleTabCompletion plainWordCompleteMode [] commandNames isReversed st
-  where
+    cached = maybeToList $ helpQueryToText $ view (clientHelp . hsQuery) st
     commandNames = fst <$> expandAliases (concatMap cmdSectionCmds commandsList)
 
 -- | Implementation of @/reload@

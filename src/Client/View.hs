@@ -16,11 +16,11 @@ module Client.View
 import Client.Image.PackedImage (Image')
 import Client.State
 import Client.State.Focus
+import Client.State.Help (hsImages)
 import Client.View.Cert (certViewLines)
 import Client.View.ChannelList (channelListLines)
 import Client.View.ChannelInfo (channelInfoImages)
 import Client.View.Digraphs (digraphLines)
-import Client.View.Help (helpImageLines)
 import Client.View.IgnoreList (ignoreListLines)
 import Client.View.KeyMap (keyMapLines)
 import Client.View.MaskList (maskListImages)
@@ -54,7 +54,6 @@ viewLines focus subfocus w !st =
     FocusPalette      -> paletteViewLines pal
     FocusDigraphs     -> digraphLines w st
     FocusKeyMap       -> keyMapLines st
-    FocusHelp mb      -> helpImageLines st mb pal
     FocusRtsStats     -> rtsStatsLines (view clientRtsStats st) pal
     FocusIgnoreList   -> ignoreListLines (view clientIgnores st) pal
     FocusCert         -> certViewLines st
@@ -62,7 +61,8 @@ viewLines focus subfocus w !st =
       channelListLines network w st (min', max')
     FocusWho network ->
       whoLines network w st
-    _ -> chatMessageImages focus w st -- No need to use focus' here.
+    FocusHelp         -> view (clientHelp . hsImages) st
+    _ -> chatMessageImages focus w st
   where
     pal = clientPalette st
     focus' = actualFocus subfocus focus

@@ -55,7 +55,7 @@ data Subfocus
   | FocusMentions    -- ^ Show all mentions
   | FocusDigraphs    -- ^ Show all digraphs
   | FocusKeyMap      -- ^ Show key bindings
-  | FocusHelp (Maybe Text) -- ^ Show help window with optional command
+  | FocusHelp        -- ^ Show help window
   | FocusRtsStats    -- ^ Show GHC RTS statistics
   | FocusIgnoreList  -- ^ Show ignored masks
   | FocusCert        -- ^ Show rendered certificate

@@ -79,6 +79,7 @@ module Client.State
   , clientActiveCommand
   , clientNextWindowName
   , clientWindowHint
+  , clientHelp
 
   , clientExtraFocuses
   , currentNickCompletionMode
@@ -126,6 +127,7 @@ import           Client.Network.Async
 import           Client.State.Channel
 import qualified Client.State.EditBox as Edit
 import           Client.State.Focus
+import           Client.State.Help
 import           Client.State.Network
 import           Client.State.Window
 import           ContextFilter
@@ -206,6 +208,7 @@ data ClientState = ClientState
 
   , _clientStsPolicy         :: !(HashMap Text StsPolicy) -- ^ STS policy entries
   , _clientHighlights        :: !(HashMap Identifier Highlight) -- ^ highlights
+  , _clientHelp              :: !HelpState                -- ^ cached help text
   }
 
 data Matcher = Matcher
@@ -293,6 +296,7 @@ withClientState cfgPath cfg k =
         , _clientRtsStats          = Nothing
         , _clientStsPolicy         = sts
         , _clientHighlights        = HashMap.empty
+        , _clientHelp              = makeHelp Nothing []
         }
 
 withExtensionState :: (ExtensionState -> IO a) -> IO a
@@ -919,6 +923,7 @@ applyMessageToClientState time irc network cs st =
   where
     Apply reply cs' = applyMessage time irc cs
     st' = applyWindowRenames network irc
+        . applyHelpIfAwaiting network irc
         $ set (clientConnections . ix network) cs' st
 
 -- | When a nick change happens and there is an open query window for that nick
@@ -950,6 +955,10 @@ applyWindowRenames network (Nick old new) st
 
 applyWindowRenames _ _ st = st
 
+applyHelpIfAwaiting :: Text {- ^ network -} -> IrcMsg -> ClientState -> ClientState
+applyHelpIfAwaiting network irc st
+  | awaitingHelp (_clientHelp st) == Just network = over clientHelp (applyHelpReply (clientPalette st) irc) st
+  | otherwise = st
 
 ------------------------------------------------------------------------
 -- Scrolling

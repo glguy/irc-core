@@ -78,6 +78,7 @@ library
     Client.Commands.Connection
     Client.Commands.Docs
     Client.Commands.Exec
+    Client.Commands.Help
     Client.Commands.Interpolation
     Client.Commands.Operator
     Client.Commands.Queries
@@ -127,6 +128,7 @@ library
     Client.State.EditBox.Content
     Client.State.Extensions
     Client.State.Focus
+    Client.State.Help
     Client.State.Network
     Client.State.Url
     Client.State.Window
@@ -137,7 +139,6 @@ library
     Client.View.ChannelList
     Client.View.ChannelInfo
     Client.View.Digraphs
-    Client.View.Help
     Client.View.IgnoreList
     Client.View.KeyMap
     Client.View.MaskList

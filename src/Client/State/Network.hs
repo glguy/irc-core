@@ -729,6 +729,9 @@ squelchReply rpl =
     RPL_LISTSTART       -> True
     RPL_LIST            -> True
     RPL_LISTEND         -> True
+    RPL_HELPSTART       -> True
+    RPL_HELPTXT         -> True
+    RPL_ENDOFHELP       -> True
     _                   -> False
 
 -- | Return 'True' for messages that should be hidden outside of

@@ -24,6 +24,7 @@ import Client.Image.Palette
 import Client.State
 import Client.State.Channel (chanModes, chanUsers)
 import Client.State.Focus (focusNetwork, Focus(..), Subfocus(..), WindowsFilter(..))
+import Client.State.Help (hsQuery, HelpQuery (..))
 import Client.State.Network
 import Client.State.Window
 import Control.Lens (view, orOf, preview, views, _Just, Ixed(ix))
@@ -326,7 +327,7 @@ currentViewImage showFull st subfocus focus =
     FocusPalette          -> string defAttr "palette"
     FocusDigraphs         -> string defAttr "digraphs"
     FocusKeyMap           -> string defAttr "keymap"
-    FocusHelp mb          -> string defAttr "help" <> opt mb
+    FocusHelp             -> string defAttr "help" <> helpQuery
     FocusIgnoreList       -> string defAttr "ignores"
     FocusRtsStats         -> string defAttr "rtsstats"
     FocusCert{}           -> string defAttr "cert"
@@ -337,8 +338,8 @@ currentViewImage showFull st subfocus focus =
     labelType = if showFull then FocusLabelLong else FocusLabelShort
     !pal = clientPalette st
     ctxLabel focus' = char defAttr ' ' <> focusLabel FocusLabelShort st focus'
-    maskLabel m = char defAttr ':' <> char (view palLabel pal) m
-    opt = foldMap (\cmd -> char defAttr ':' <>
+    maskLabel m = char defAttr ' ' <> char (view palLabel pal) m
+    opt = foldMap (\cmd -> char defAttr ' ' <>
                            text' (view palLabel pal) cmd)
     windowName
       | showFull = case preview (clientWindows . ix focus . winName . _Just) st of
@@ -349,6 +350,15 @@ currentViewImage showFull st subfocus focus =
       Just (query, _) | Text.null query -> ctxLabel (NetworkFocus net)
       Just (query, _) -> ctxLabel (ChannelFocus net $ mkId query)
       _ -> mempty
+    helpQuery = case view (clientHelp . hsQuery) st of
+      HelpList ->
+        mempty
+      HelpCmd txt ->
+        char defAttr ' ' <> text' defAttr txt
+      HelpNet net txt ->
+        char defAttr ' ' <> text' (view palLabel pal) (cleanText net) <> char defAttr ':' <> text' defAttr txt
+      HelpNetPartial net txt _ ->
+        char defAttr ' ' <> text' (view palLabel pal) (cleanText net) <> char defAttr ':' <> text' defAttr txt
 
 windowFilterName :: WindowsFilter -> Maybe Text
 windowFilterName x =
