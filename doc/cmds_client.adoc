@@ -97,7 +97,19 @@ The number selects the URL to open, counting back from the most recent.
 
 == /help
 
-Show command documentation.
+Show documentation.
 
-When `command` is omitted, a list of all commands and macros is shown.
-When `command` is specified, detailed help for that command is shown.
+When `topic` is omitted, a list of all commands and macros is shown.
+
+When `topic` contains a colon, sends the portion after the first colon
+as a `+HELP+` message to the network specified before the first colon
+(or the currently-focused network if empty), then shows the result.
+
+Otherwise, interprets `topic` as a command name and shows its documentation.
+
+=== Examples
+
+`+/help+`
+`+/help c+`
+`+/help :index`
+`+/help libera:accept+`
