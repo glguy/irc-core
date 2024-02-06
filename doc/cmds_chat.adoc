@@ -105,6 +105,10 @@ Omit the `message` parameter to clear your away status.
 Show information about the current channel.
 Information includes topic, creation time, URL, and modes.
 
+If you are not in the current channel,
+sends `+MODE+` and `+TOPIC+` messages to the server,
+the latter of which may fail due to certain channel modes.
+
 See also: masks, mode, topic, users
 
 == /ctcp
@@ -149,7 +153,11 @@ when users become online/offline.
 Show the user list for the current channel.
 Detailed view (default key F2) shows full hostmask.
 
-See also: channelinfo, masks
+If you are not in the current channel,
+sends a `+NAMES+` message to the server,
+which will typically only return a small subset of users in the channel.
+
+See also: channelinfo, masks, who
 
 == /nick
 

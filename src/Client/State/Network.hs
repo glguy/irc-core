@@ -23,6 +23,7 @@ module Client.State.Network
   , AuthenticateState(..)
   , ConnectRestriction(..)
   , newNetworkState
+  , csChannelFresh
 
   -- * Lenses
   , csNick
@@ -71,6 +72,7 @@ module Client.State.Network
   , Apply(..)
   , applyMessage
   , hideMessage
+  , recreateChanIfStale
 
   -- * Timer information
   , PingStatus(..)
@@ -123,6 +125,7 @@ import Irc.RawIrcMsg
 import Irc.UserInfo
 import LensUtils (overStrict, setStrict)
 import System.Random qualified as Random
+import Control.Monad (mfilter)
 
 -- | State tracked for each IRC connection
 data NetworkState = NetworkState
@@ -1035,8 +1038,20 @@ createOnJoin :: UserInfo -> Identifier -> NetworkState -> NetworkState
 createOnJoin who chan cs
   | userNick who == view csNick cs =
         set csUserInfo who -- great time to learn our userinfo
-      $ set (csChannels . at chan) (Just newChannel) cs
+      $ set (csChannels . at chan) (Just $ newChannel False) cs
   | otherwise = cs
+
+-- | Retrieves non-stale channel state from the given network state.
+csChannelFresh :: Identifier -> NetworkState -> Maybe ChannelState
+csChannelFresh chan = mfilter (not . view chanStale) . view (csChannels . at chan)
+
+-- | Ensures channel state exists and has been cleared if it's stale.
+recreateChanIfStale :: Identifier -> NetworkState -> NetworkState
+recreateChanIfStale chan = over (csChannels . at chan) updateChan
+  where
+    updateChan mChan = case mfilter (not . view chanStale) mChan of
+      Just chan' -> Just chan'
+      Nothing -> Just (newChannel True)
 
 updateMyNick :: Identifier -> Identifier -> NetworkState -> NetworkState
 updateMyNick oldNick newNick cs

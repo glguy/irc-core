@@ -17,6 +17,7 @@ module Client.State.Channel
   (
   -- * Channel state
     ChannelState(..)
+  , chanStale
   , chanTopic
   , chanTopicProvenance
   , chanUrl
@@ -58,7 +59,9 @@ import Irc.UserInfo (UserInfo)
 
 -- | Dynamic information about the state of an IRC channel
 data ChannelState = ChannelState
-  { _chanTopic :: !Text
+  { _chanStale :: Bool
+        -- ^ whether the channel state may be stale because we're not actually in it
+  , _chanTopic :: !Text
         -- ^ topic text
   , _chanTopicProvenance :: !(Maybe TopicProvenance)
         -- ^ author and timestamp for topic
@@ -92,9 +95,10 @@ makeLenses ''TopicProvenance
 makeLenses ''MaskListEntry
 
 -- | Construct an empty 'ChannelState'
-newChannel :: ChannelState
-newChannel = ChannelState
-  { _chanTopic = Text.empty
+newChannel :: Bool -> ChannelState
+newChannel stale = ChannelState
+  { _chanStale = stale
+  , _chanTopic = Text.empty
   , _chanUrl = Nothing
   , _chanTopicProvenance = Nothing
   , _chanUsers = HashMap.empty

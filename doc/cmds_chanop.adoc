@@ -21,7 +21,10 @@ See also: kick, remove
 
 == /masks
 
-Show mask lists for current channel.
+Show the values of list modes (e.g. bans) for current channel.
+
+Sends a `+MODE+` query to the server.
+The result is cached if and only if you are in the current channel.
 
 The `mode` argument is typically one of the following:
 

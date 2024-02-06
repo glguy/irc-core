@@ -124,11 +124,11 @@ cmdMasks channel cs st rest =
     [mode] | mode `elem` view (csModeTypes . modesLists) cs ->
 
         do let connecting = has (csPingStatus . _PingConnecting) cs
-               listLoaded = has (csChannels . ix channel . chanLists . ix mode) cs
+               listLoaded = maybe False (has (chanLists . ix mode)) (csChannelFresh channel cs)
+           let cs' = recreateChanIfStale channel cs
            unless (connecting || listLoaded)
-             (sendMsg cs (ircMode channel [Text.singleton mode]))
-
-           commandSuccess (changeSubfocus (FocusMasks (view csNetwork cs) channel mode) st)
+             (sendMsg cs' (ircMode channel [Text.singleton mode]))
+           commandSuccessUpdateCS cs' (changeSubfocus (FocusMasks (view csNetwork cs) channel mode) st)
 
     _ -> commandFailureMsg "unknown mask mode" st
 

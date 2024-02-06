@@ -17,10 +17,10 @@ import Client.Message
 import Client.State
 import Client.State.Extensions (clientChatExtension)
 import Client.State.Focus (focusNetwork, Focus(ChannelFocus), Subfocus(FocusInfo, FocusUsers))
-import Client.State.Network (csNetwork, csUserInfo, sendMsg, NetworkState)
+import Client.State.Network
 import Control.Applicative (liftA2, liftA3)
-import Control.Lens (view, preview, views)
-import Control.Monad (when)
+import Control.Lens (has, view, preview, views)
+import Control.Monad (unless, when)
 import Data.Char (toUpper)
 import Data.Foldable (foldl')
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -30,8 +30,9 @@ import Data.Time (getZonedTime)
 import Irc.Commands
 import Irc.Identifier (Identifier, idText, mkId)
 import Irc.Message (IrcMsg(Privmsg, Notice, Ctcp), Source(Source))
-import Irc.RawIrcMsg (RawIrcMsg, parseRawIrcMsg)
+import Irc.RawIrcMsg (RawIrcMsg, parseRawIrcMsg, rawIrcMsg)
 import Client.Commands.Docs (chatDocs, cmdDoc)
+import Data.Maybe (isJust)
 
 chatCommands :: CommandSection
 chatCommands = CommandSection "IRC commands"
@@ -159,12 +160,22 @@ cmdMonitor cs st args =
      commandSuccess st
 
 cmdChanNames :: ChannelCommand ()
-cmdChanNames chan cs st _ = commandSuccess (changeSubfocus subfocus st)
-  where subfocus = FocusUsers (view csNetwork cs) chan
+cmdChanNames channel cs st _  =
+    do let connecting = has (csPingStatus . _PingConnecting) cs
+           listLoaded = isJust (csChannelFresh channel cs)
+       let cs' = recreateChanIfStale channel cs
+       unless (connecting || listLoaded)
+         (sendMsg cs' (rawIrcMsg "NAMES" [idText channel])) -- TODO: Replace with ircNames when irc-core gets it.
+       commandSuccessUpdateCS cs' (changeSubfocus (FocusUsers (view csNetwork cs) channel) st)
 
 cmdChannelInfo :: ChannelCommand ()
-cmdChannelInfo chan cs st _ = commandSuccess (changeSubfocus subfocus st)
-  where subfocus = FocusInfo (view csNetwork cs) chan
+cmdChannelInfo channel cs st _ =
+    do let connecting = has (csPingStatus . _PingConnecting) cs
+           listLoaded = isJust (csChannelFresh channel cs)
+       let cs' = recreateChanIfStale channel cs
+       unless (connecting || listLoaded)
+         (sendMsg cs' (ircMode channel []) >> sendMsg cs' (ircTopic channel ""))
+       commandSuccessUpdateCS cs' (changeSubfocus (FocusInfo (view csNetwork cs) channel) st)
 
 cmdKnock :: NetworkCommand (String, String)
 cmdKnock cs st (chan,message) =
