@@ -130,6 +130,7 @@ library
     Client.State.Focus
     Client.State.Help
     Client.State.Network
+    Client.State.Target
     Client.State.Url
     Client.State.Window
     Client.UserHost
