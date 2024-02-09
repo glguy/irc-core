@@ -71,7 +71,6 @@ module Client.State.Network
   -- * NetworkState update
   , Apply(..)
   , applyMessage
-  , hideMessage
   , recreateChanIfStale
 
   -- * Timer information
@@ -335,17 +334,6 @@ buildMessageHooks = mapMaybe \(HookConfig name args) ->
      hookFun args
 
 data Apply = Apply [RawIrcMsg] NetworkState
-
-hideMessage :: IrcMsg -> Bool
-hideMessage m =
-  case m of
-    Authenticate{} -> True
-    BatchStart{} -> True
-    BatchEnd{} -> True
-    Ping{} -> True
-    Pong{} -> True
-    Reply _ RPL_WHOSPCRPL [_,"616",_,_,_,_] -> True
-    _ -> False
 
 -- | Used for updates to a 'NetworkState' that require no reply.
 noReply :: NetworkState -> Apply

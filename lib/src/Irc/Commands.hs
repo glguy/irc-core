@@ -18,6 +18,7 @@ module Irc.Commands
   , ircCnotice
   , ircCprivmsg
   , ircEtrace
+  , ircHelp
   , ircInfo
   , ircInvite
   , ircIson
@@ -34,6 +35,7 @@ module Irc.Commands
   , ircMode
   , ircMonitor
   , ircMotd
+  , ircNames
   , ircNick
   , ircNotice
   , ircOper
@@ -450,6 +452,18 @@ ircUser ::
   Text {- ^ username -} ->
   Text {- ^ realname -} -> RawIrcMsg
 ircUser user real = rawIrcMsg "USER" [user, "0", "*", real]
+
+-- | NAMES command
+ircNames ::
+  Identifier {- ^ channel -} ->
+  RawIrcMsg
+ircNames chan = rawIrcMsg "NAMES" [idText chan]
+
+-- | HELP command
+ircHelp ::
+  Text {- ^ topic -} ->
+  RawIrcMsg
+ircHelp topic = rawIrcMsg "HELP" [topic]
 
 -- | CAP REQ command
 ircCapReq ::
