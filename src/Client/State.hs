@@ -130,6 +130,7 @@ import           Client.State.Focus
 import           Client.State.Help
 import           Client.State.Network
 import           Client.State.Window
+import           Client.State.Target (MessageTarget(..))
 import           ContextFilter
 import           Control.Applicative
 import           Control.Concurrent.MVar
@@ -155,7 +156,7 @@ import           Data.Time
 import           Foreign.StablePtr
 import           Irc.Codes
 import           Irc.Identifier
-import           Irc.Message
+import           Irc.Message hiding (MessageTarget(..))
 import           Irc.RawIrcMsg
 import           Irc.UserInfo
 import           LensUtils
@@ -496,6 +497,7 @@ recordIrcMessage ::
 recordIrcMessage network target msg st =
   updateTransientError (NetworkFocus network) msg $
   case target of
+    TargetDrop         -> st
     TargetNetwork      -> recordNetworkMessage msg st
     TargetExisting win -> recordChannelMessage' False network win  msg st
     TargetWindow chan  -> recordChannelMessage' True  network chan msg st

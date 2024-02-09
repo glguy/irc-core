@@ -236,7 +236,6 @@ parseCtcp txt =
 -- | Targets used to direct a message to a window for display
 data MessageTarget
   = TargetUser     !Identifier -- ^ Metadata update for a user
-  | TargetExisting !Identifier -- ^ Directed message to window that already exists
   | TargetWindow   !Identifier -- ^ Directed message to channel or from user
   | TargetNetwork              -- ^ Network-level message
   deriving (Show)
@@ -272,7 +271,7 @@ msgTarget me msg =
     Account user _           -> TargetUser (userNick (srcUser user))
     Chghost user _ _         -> TargetUser (userNick (srcUser user))
     Wallops _ _              -> TargetNetwork
-    Away user _              -> TargetExisting (userNick (srcUser user))
+    Away user _              -> TargetUser (userNick (srcUser user))
     Tagmsg src tgt           -> directed (srcUser src) tgt
   where
     directed src tgt

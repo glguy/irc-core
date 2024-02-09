@@ -37,6 +37,7 @@ import Client.State.EditBox qualified as Edit
 import Client.State.Extensions
 import Client.State.Focus (Subfocus(FocusMessages))
 import Client.State.Network
+import Client.State.Target (msgTarget)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, Exception(fromException), catch)
 import Control.Lens
@@ -60,7 +61,7 @@ import GHC.IO.Exception (IOErrorType(..), ioe_type)
 import Graphics.Vty
 import Hookup (ConnectionFailure(..))
 import Irc.Codes (pattern RPL_STARTTLS)
-import Irc.Message (IrcMsg(Reply, Notice), cookIrcMsg, msgTarget)
+import Irc.Message (IrcMsg(Reply, Notice), cookIrcMsg)
 import Irc.RawIrcMsg (RawIrcMsg, TagEntry(..), asUtf8, msgTags, parseRawIrcMsg)
 import LensUtils (setStrict)
 import System.Process.Typed (startProcess, setStdin, setStdout, setStderr, nullStream)
@@ -333,9 +334,7 @@ doNetworkLine networkId time line st =
                     let st2 =
                           case viewHook irc of
                             Nothing -> st1 -- Message hidden
-                            Just irc'
-                              | hideMessage irc' -> st1
-                              | otherwise -> recordIrcMessage network target msg st1
+                            Just irc' -> recordIrcMessage network target msg st1
                               where
                                 myNick = view csNick cs
                                 target = msgTarget myNick irc
