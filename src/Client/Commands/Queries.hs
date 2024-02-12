@@ -11,13 +11,13 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Queries (queryCommands) where
 
-import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken, extensionArg, Args)
+import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken, extensionArg, Args, tokenArg)
 import Client.Commands.Docs (queriesDocs, cmdDoc)
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
 import Client.Commands.Types (commandSuccess, commandSuccessUpdateCS, Command(Command), CommandImpl(NetworkCommand), CommandSection(CommandSection), NetworkCommand)
 import Client.State (changeSubfocus, ClientState)
 import Client.State.Focus (Subfocus(FocusChanList, FocusWho))
-import Client.State.Network (sendMsg, csChannelList, clsElist, csPingStatus, _PingConnecting, csWhoReply)
+import Client.State.Network (sendMsg, csChannelList, clsElist, csPingStatus, _PingConnecting, csWhoReply, csNetwork)
 import Client.WhoReply (newWhoReply)
 import Control.Applicative (liftA2)
 import Control.Lens (has, set, view)
@@ -109,7 +109,7 @@ queryCommands = CommandSection "Queries"
 
   , Command
       (pure "list")
-      (optionalArg (extensionArg "[clientarg]" listArgs))
+      (optionalArg (liftA2 (,) (tokenArg "[clientopts]" (const lsaParse)) (optionalArg (simpleToken "[elist]"))))
       $(queriesDocs `cmdDoc` "list")
     $ NetworkCommand cmdList simpleNetworkTab
 
@@ -139,34 +139,28 @@ cmdVersion cs st mbservername =
                                 Nothing -> ""
      commandSuccess st
 
-cmdList :: NetworkCommand (Maybe ListArgs)
+cmdList :: NetworkCommand (Maybe (ListArgs, Maybe String))
 cmdList cs st rest =
     do
-      let lsa = fromMaybe lsaDefault rest
+      let (lsa, maybeElist) = fromMaybe (lsaDefault, Nothing) rest
       let connecting = has (csPingStatus . _PingConnecting) cs
-      let elist = Just (Text.pack (fromMaybe "" (_lsaElist lsa)))
+      let elist = Just (Text.pack (fromMaybe "" maybeElist))
       let cached = elist == view (csChannelList . clsElist) cs
-      let sendM = sendMsg cs (ircList (Text.pack <$> maybeToList (_lsaElist lsa)))
+      let sendM = sendMsg cs (ircList (Text.pack <$> maybeToList maybeElist))
       unless (connecting || (cached && not (_lsaRefresh lsa))) sendM
       let cs' = set (csChannelList . clsElist) elist cs 
-      let subfocus = FocusChanList (_lsaMin lsa) (_lsaMax lsa)
+      let subfocus = FocusChanList (view csNetwork cs) (_lsaMin lsa) (_lsaMax lsa)
       commandSuccessUpdateCS cs' (changeSubfocus subfocus st)
 
-listArgs :: ClientState -> String -> Maybe (Args ClientState ListArgs)
-listArgs _ = fmap (withElist (optionalArg (simpleToken "[serverarg]"))) . lsaParse
-    where withElist arg a = fmap (\s -> a { _lsaElist = s }) arg
-
 data ListArgs = ListArgs
-  { _lsaElist   :: Maybe String
-  , _lsaRefresh :: Bool
+  { _lsaRefresh :: Bool
   , _lsaMin     :: Maybe Int
   , _lsaMax     :: Maybe Int
   }
 
 lsaDefault :: ListArgs
 lsaDefault = ListArgs
-  { _lsaElist = Nothing
-  , _lsaRefresh = False
+  { _lsaRefresh = False
   , _lsaMin = Nothing
   , _lsaMax = Nothing
   }
@@ -240,14 +234,14 @@ cmdWhois cs st rest =
      commandSuccess st
 
 cmdWho :: NetworkCommand (Maybe (String, Maybe String))
-cmdWho _  st Nothing = commandSuccess (changeSubfocus FocusWho st)
+cmdWho cs  st Nothing = commandSuccess $ changeSubfocus (FocusWho (view csNetwork cs)) st
 cmdWho cs st (Just (query, arg)) =
   do
     let query' = Text.pack query
     let arg' = fromMaybe "" arg
     let cs' = set csWhoReply (newWhoReply query' arg') cs
     sendMsg cs (ircWho (query' : maybeToList (Text.pack <$> arg)))
-    commandSuccessUpdateCS cs' (changeSubfocus FocusWho st)
+    commandSuccessUpdateCS cs' $ changeSubfocus (FocusWho (view csNetwork cs)) st
 
 cmdWhowas :: NetworkCommand String
 cmdWhowas cs st rest =

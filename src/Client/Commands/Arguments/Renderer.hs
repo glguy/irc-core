@@ -98,6 +98,8 @@ renderArg pal r placeholders spec = putState $
          else
            return (draw rest)
 
+    MapEnv f inner -> getState $ renderArgs pal (f r) placeholders inner
+
 token :: String -> ((String, String), String)
 token xs =
   let (lead, xs1) = span  (' '==) xs

@@ -152,7 +152,7 @@ processConnectCmd now cs st0 cmdTxt =
              Text.pack . formatTime defaultTimeLocale "%H:%M:%S"
                <$> utcToLocalZonedTime t
      let failureCase e = recordError now (view csNetwork cs) ("Bad connect-cmd: " <> e)
-     case resolveMacroExpansions (commandExpansion dc st0) (const Nothing) cmdTxt of
+     case resolveMacroExpansions (commandExpansion Nothing dc st0) (const Nothing) cmdTxt of
        Nothing -> return $! failureCase "Unable to expand connect command" st0
        Just cmdTxt' ->
          do res <- executeUserCommand dc (Text.unpack cmdTxt') st0

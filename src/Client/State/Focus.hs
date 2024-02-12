@@ -20,6 +20,7 @@ module Client.State.Focus
 
   -- * Focus operations
   , focusNetwork
+  , actualFocus
 
   -- * Focus Prisms
   , _ChannelFocus
@@ -43,9 +44,9 @@ makePrisms ''Focus
 -- | Subfocus view
 data Subfocus
   = FocusMessages    -- ^ Show messages
-  | FocusInfo        -- ^ Show channel metadata
-  | FocusUsers       -- ^ Show channel user list
-  | FocusMasks !Char -- ^ Show channel mask list for given mode
+  | FocusInfo  !Text !Identifier       -- ^ Show channel metadata
+  | FocusUsers !Text !Identifier       -- ^ Show channel user list
+  | FocusMasks !Text !Identifier !Char -- ^ Show channel mask list for given mode
   | FocusWindows WindowsFilter -- ^ Show client windows
   | FocusPalette     -- ^ Show current palette
   | FocusMentions    -- ^ Show all mentions
@@ -55,8 +56,8 @@ data Subfocus
   | FocusRtsStats    -- ^ Show GHC RTS statistics
   | FocusIgnoreList  -- ^ Show ignored masks
   | FocusCert        -- ^ Show rendered certificate
-  | FocusChanList (Maybe Int) (Maybe Int) -- ^ Show channel list
-  | FocusWho -- ^ Show last reply to a WHO query
+  | FocusChanList !Text (Maybe Int) (Maybe Int) -- ^ Show channel list
+  | FocusWho !Text -- ^ Show last reply to a WHO query
   deriving (Eq,Show)
 
 -- | Unfocused first, followed by focuses sorted by network.
@@ -78,6 +79,16 @@ focusNetwork :: Focus -> Maybe Text {- ^ network -}
 focusNetwork Unfocused = Nothing
 focusNetwork (NetworkFocus network) = Just network
 focusNetwork (ChannelFocus network _) = Just network
+
+-- | Returns what focus a subfocus is actually for.
+actualFocus :: Subfocus -> Focus -> Focus
+actualFocus sf = case sf of
+  FocusInfo  net chan   -> const (ChannelFocus net chan)
+  FocusUsers net chan   -> const (ChannelFocus net chan)
+  FocusMasks net chan _ -> const (ChannelFocus net chan)
+  FocusChanList net _ _ -> const (NetworkFocus net)
+  FocusWho net          -> const (NetworkFocus net)
+  _ -> id
 
 -- | Filter argument for 'FocusWindows'
 data WindowsFilter

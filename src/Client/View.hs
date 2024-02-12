@@ -36,33 +36,30 @@ import Control.Lens (view)
 
 viewLines :: Focus -> Subfocus -> Int -> ClientState -> [Image']
 viewLines focus subfocus w !st =
-  case (network', channel', subfocus) of
+  case subfocus of
     _ | Just ("url",arg) <- clientActiveCommand st ->
-      urlSelectionView w focus arg st
-    (Just network, Just channel, FocusInfo) ->
+      urlSelectionView w focus' arg st
+    FocusInfo network channel ->
       channelInfoImages network channel st
-    (Just network, Just channel, FocusUsers)
+    FocusUsers network channel
       | view clientDetailView st -> userInfoImages network channel st
       | otherwise                -> userListImages network channel w st
-    (Just network, Just channel, FocusMasks mode) ->
+    FocusMasks network channel mode ->
       maskListImages mode network channel w st
-    (_, _, FocusWindows filt) -> windowsImages filt st
-    (_, _, FocusMentions)     -> mentionsViewLines w st
-    (_, _, FocusPalette)      -> paletteViewLines pal
-    (_, _, FocusDigraphs)     -> digraphLines w st
-    (_, _, FocusKeyMap)       -> keyMapLines st
-    (_, _, FocusHelp mb)      -> helpImageLines st mb pal
-    (_, _, FocusRtsStats)     -> rtsStatsLines (view clientRtsStats st) pal
-    (_, _, FocusIgnoreList)   -> ignoreListLines (view clientIgnores st) pal
-    (_, _, FocusCert)         -> certViewLines st
-    (Just network, _, FocusChanList min' max') ->
+    FocusWindows filt -> windowsImages filt st
+    FocusMentions     -> mentionsViewLines w st
+    FocusPalette      -> paletteViewLines pal
+    FocusDigraphs     -> digraphLines w st
+    FocusKeyMap       -> keyMapLines st
+    FocusHelp mb      -> helpImageLines st mb pal
+    FocusRtsStats     -> rtsStatsLines (view clientRtsStats st) pal
+    FocusIgnoreList   -> ignoreListLines (view clientIgnores st) pal
+    FocusCert         -> certViewLines st
+    FocusChanList network min' max' ->
       channelListLines network w st (min', max')
-    (Just network, _, FocusWho) ->
+    FocusWho network ->
       whoLines network w st
-    _ -> chatMessageImages focus w st
+    _ -> chatMessageImages focus w st -- No need to use focus' here.
   where
-    (network', channel') = case focus of
-      Unfocused -> (Nothing, Nothing)
-      NetworkFocus network -> (Just network, Nothing)
-      ChannelFocus network channel -> (Just network, Just channel)
     pal = clientPalette st
+    focus' = actualFocus subfocus focus
