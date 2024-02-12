@@ -1,15 +1,15 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, TemplateHaskell, ExistentialQuantification #-}
+    {-# LANGUAGE BangPatterns, OverloadedStrings, TemplateHaskell, ExistentialQuantification #-}
 
-{-|
-Module      : Client.Commands
-Description : Implementation of slash commands
-Copyright   : (c) Eric Mertens, 2016
-License     : ISC
-Maintainer  : emertens@gmail.com
+    {-|
+    Module      : Client.Commands
+    Description : Implementation of slash commands
+    Copyright   : (c) Eric Mertens, 2016
+    License     : ISC
+    Maintainer  : emertens@gmail.com
 
-This module renders the lines used in the channel mask list. A mask list
-can show channel bans, quiets, invites, and exceptions.
--}
+    This module renders the lines used in the channel mask list. A mask list
+    can show channel bans, quiets, invites, and exceptions.
+    -}
 
 module Client.Commands
   ( CommandResult(..)
@@ -29,7 +29,7 @@ import Client.Commands.Arguments.Parser (parse)
 import Client.Commands.Arguments.Spec (optionalArg, optionalNumberArg, remainingArg, simpleToken, extensionArg, mapArgEnv, Args)
 import Client.Commands.Docs (clientDocs, cmdDoc)
 import Client.Commands.Exec
-import Client.Commands.Interpolation (resolveMacroExpansions, Macro(Macro), MacroSpec(MacroSpec))
+import Client.Commands.Interpolation (resolveMacroExpansions, Macro(Macro), MacroSpec(MacroSpec), ExpansionChunk)
 import Client.Commands.Recognizer (fromCommands, keys, recognize, Recognition(Exact), Recognizer)
 import Client.Commands.WordCompletion (caseText, plainWordCompleteMode, wordComplete)
 import Client.Configuration
@@ -93,6 +93,29 @@ executeUserCommand ::
   IO CommandResult {- ^ command result     -}
 executeUserCommand = executeUserCommandIn Nothing
 
+executeMacro ::
+  Maybe Focus ->
+  Maybe Text ->
+  [[ExpansionChunk]] ->
+  ClientState ->
+  [String] ->
+  IO CommandResult
+executeMacro focusOverride discoTime cmdExs st args =
+  case traverse (resolveMacro (map Text.pack args)) cmdExs of
+    Nothing -> commandFailureMsg "macro expansions failed" st
+    Just cmds -> process cmds st
+  where
+    resolveMacro args' = resolveMacroExpansions (commandExpansion focusOverride discoTime st) (expandInt args')
+    expandInt :: [a] -> Integer -> Maybe a
+    expandInt args' i = preview (ix (fromInteger i)) args'
+    process [] st0 = commandSuccess st0
+    process (c:cs) st0 =
+      do res <- executeCommand Nothing focusOverride (Text.unpack c) st0
+         case res of
+           CommandSuccess st1 -> process cs st1
+           CommandFailure st1 -> process cs st1 -- ?
+           CommandQuit st1    -> return (CommandQuit st1)
+
 -- | Execute command provided by user, resolve aliases if necessary,
 -- optionally in the provided focus instead of the current one.
 --
@@ -108,47 +131,30 @@ executeUserCommandIn ::
 executeUserCommandIn focusOverride discoTime command st = do
   let key = Text.takeWhile (/=' ') (Text.pack command)
       rest = dropWhile (==' ') (dropWhile (/=' ') command)
-
   case views (clientConfig . configMacros) (recognize key) st of
     Exact (Macro _ (MacroSpec spec) cmdExs) ->
-      case doExpansion spec cmdExs rest of
-        Nothing   -> commandFailureMsg "macro expansions failed" st
-        Just cmds -> process cmds st
+      case parse st spec rest of
+        Nothing -> commandFailureMsg "bad macro arguments" st
+        Just args -> executeMacro focusOverride discoTime cmdExs st args
     _ -> executeCommand Nothing focusOverride command st
-  where
-    doExpansion spec cmdExs rest =
-      do args <- parse st spec rest
-         traverse (resolveMacro (map Text.pack args)) cmdExs
-
-    resolveMacro args = resolveMacroExpansions (commandExpansion discoTime st) (expandInt args)
-
-    expandInt :: [a] -> Integer -> Maybe a
-    expandInt args i = preview (ix (fromInteger i)) args
-
-    process [] st0 = commandSuccess st0
-    process (c:cs) st0 =
-      do res <- executeCommand Nothing focusOverride (Text.unpack c) st0
-         case res of
-           CommandSuccess st1 -> process cs st1
-           CommandFailure st1 -> process cs st1 -- ?
-           CommandQuit st1    -> return (CommandQuit st1)
 
 -- | Compute the replacement value for the given expansion variable.
 commandExpansion ::
+  Maybe Focus {- ^ focus override     -} ->
   Maybe Text  {- ^ disconnect time    -} ->
   ClientState {- ^ client state       -} ->
   Text        {- ^ expansion variable -} ->
   Maybe Text  {- ^ expansion value    -}
-commandExpansion discoTime st v =
+commandExpansion focusOverride discoTime st v =
   case v of
-    "network" -> views clientFocus focusNetwork st
-    "channel" -> previews (clientFocus . _ChannelFocus . _2) idText st
-    "nick"    -> do net <- views clientFocus focusNetwork st
+    "network" -> focusNetwork focus
+    "channel" -> previews (_ChannelFocus . _2) idText focus
+    "nick"    -> do net <- focusNetwork focus
                     cs  <- preview (clientConnection net) st
                     return (views csNick idText cs)
     "disconnect" -> discoTime
     _         -> Nothing
-
+  where focus = fromMaybe (view clientFocus st) focusOverride
 
 -- | Respond to the TAB key being pressed. This can dispatch to a command
 -- specific completion mode when relevant. Otherwise this will complete
@@ -165,7 +171,6 @@ tabCompletion isReversed st =
 data ContextFreeCommand = forall a. ContextFreeCommand
   { cfCmdCtx  :: ArgsContext
   , cfCmdArgs :: Args ArgsContext a
-  , cfCmdIsClientCmd :: Bool 
   , cfCmdExec :: ClientState -> a -> IO CommandResult
   , cfCmdTab  :: Bool -> ClientState -> String -> IO CommandResult
   }
@@ -182,35 +187,46 @@ executeContextFreeCommand ContextFreeCommand{cfCmdCtx=ctx, cfCmdArgs=spec, cfCmd
 cfCmdAsArgs :: ContextFreeCommand -> Args ArgsContext (ClientState -> IO CommandResult)
 cfCmdAsArgs ContextFreeCommand{cfCmdArgs=spec, cfCmdExec=exec} = fmap (flip exec) spec
 
+-- | Look up a command or macro by name and return a @ContextFreeCommand@s.
+prepareMacro :: Focus -> String -> ClientState -> Either Text ContextFreeCommand
+prepareMacro focus cmd st =
+  case views (clientConfig . configMacros) (recognize $ Text.pack cmd) st of
+    Exact (Macro _ (MacroSpec args) chunks) -> Right $ ContextFreeCommand
+      { cfCmdCtx=ArgsContext {argsContextSt=st, argsContextFocus=focus}
+      , cfCmdArgs=args
+      , cfCmdExec=executeMacro (Just focus) Nothing chunks
+      , cfCmdTab=(\rev st' _ -> nickTabCompletion rev st')
+      }
+    _ -> prepareCommand focus cmd st
+
 -- | Look up a command by name and return a @ContextFreeCommand@.
 prepareCommand :: Focus -> String -> ClientState -> Either Text ContextFreeCommand
 prepareCommand focus cmd st =
   case recognize (Text.toLower $ Text.pack cmd) commands of
     Exact Command{cmdImplementation=impl, cmdArgumentSpec=argSpec} ->
       let
-        cfCmd exec tab isClient = Right $ ContextFreeCommand
+        cfCmd exec tab = Right $ ContextFreeCommand
           { cfCmdCtx=ArgsContext {argsContextSt=st, argsContextFocus=focus}
           , cfCmdArgs=argSpec
           , cfCmdExec=exec
           , cfCmdTab=tab
-          , cfCmdIsClientCmd=isClient
           }
       in case impl of
         ClientCommand exec tab ->
-          cfCmd exec tab True
+          cfCmd exec tab
 
         WindowCommand exec tab ->
-          cfCmd (exec focus) (`tab` focus) False
+          cfCmd (exec focus) (`tab` focus)
 
         NetworkCommand exec tab
           | Just network <- focusNetwork focus
           , Just cs      <- preview (clientConnection network) st ->
-              cfCmd (exec cs) (`tab` cs) False
+              cfCmd (exec cs) (`tab` cs)
           | otherwise -> Left "command requires focused network"
 
         MaybeChatCommand exec tab
           | Just cs <- maybeNetwork ->
-              cfCmd (exec maybeChat cs) (\x -> tab x maybeChat cs) False
+              cfCmd (exec maybeChat cs) (\x -> tab x maybeChat cs)
           | otherwise -> Left "command requires focused network"
           where
             maybeChat
@@ -224,13 +240,13 @@ prepareCommand focus cmd st =
           | ChannelFocus network channelId <- focus
           , Just cs <- preview (clientConnection network) st
           , isChannelIdentifier cs channelId ->
-              cfCmd (exec channelId cs) (\x -> tab x channelId cs) False
+              cfCmd (exec channelId cs) (\x -> tab x channelId cs)
           | otherwise -> Left "command requires focused channel"
 
         ChatCommand exec tab
           | ChannelFocus network channelId <- focus
           , Just cs <- preview (clientConnection network) st ->
-              cfCmd (exec channelId cs) (\x -> tab x channelId cs) False
+              cfCmd (exec channelId cs) (\x -> tab x channelId cs)
           | otherwise -> Left "command requires focused chat window"
 
     _ -> Left "unknown command"
@@ -545,11 +561,11 @@ inArgs ArgsContext{argsContextFocus=focus} focusOverride =
   where
     parsedFocus = parseFocus (focusNetwork focus) focusOverride
     changeArgsFocus focus' argsContext = argsContext {argsContextFocus=focus'}
-    filterCfCmd (Right v@ContextFreeCommand{cfCmdIsClientCmd=False}) = Just v
-    filterCfCmd _ = Nothing
+    rightToMaybe (Right v) = Just v
+    rightToMaybe _ = Nothing
     inArgsCmd :: ArgsContext -> String -> Maybe (Args ArgsContext (ClientState -> IO CommandResult))
     inArgsCmd ArgsContext{argsContextFocus=focus', argsContextSt=st'} cmdName =
-      cfCmdAsArgs <$> (filterCfCmd $ prepareCommand focus' cmdName st')
+      cfCmdAsArgs <$> (rightToMaybe $ prepareMacro focus' cmdName st')
 
 -- | Implementation of @/in@.
 cmdIn :: ClientCommand (ClientState -> IO CommandResult)
