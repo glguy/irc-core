@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language CPP, OverloadedStrings #-}
 
 {-|
 Module      : Client.Docs
@@ -28,10 +28,19 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
+import qualified Data.Text.Lazy.Builder as Builder
 import           Data.Text.Encoding (decodeUtf8)
 import           Language.Haskell.TH (Exp, Q, runIO)
 import           Language.Haskell.TH.Syntax (lift)
-import qualified Data.Text.Lazy.Builder as Builder
+
+#if MIN_VERSION_template_haskell(2,19,0)
+import Language.Haskell.TH.Syntax (addDependentFile, makeRelativeToProject)
+addRelativeDependentFile :: FilePath -> Q ()
+addRelativeDependentFile relPath = makeRelativeToProject relPath >>= addDependentFile
+#else
+addRelativeDependentFile :: FilePath -> Q ()
+addRelativeDependentFile _ = return ()
+#endif
 
 type Docs = HashMap String LText.Text
 
@@ -45,7 +54,7 @@ makeHeader :: LText.Text -> LText.Text
 makeHeader header = LText.append "\^B" (LText.append header ":\^B\n")
 
 loadDoc :: (String -> String) -> FilePath -> Q Docs
-loadDoc keymod path = runIO (readFile splicePath >>= renderDoc)
+loadDoc keymod path = addRelativeDependentFile splicePath >> runIO (readFile splicePath >>= renderDoc)
   where
     splicePath = "doc/" ++ path ++ ".adoc"
     renderDoc doc = case Parse.parseOnly lineParser $ decodeUtf8 doc of
