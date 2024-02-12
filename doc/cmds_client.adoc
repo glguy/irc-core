@@ -18,10 +18,15 @@ Execute a command on a window other than the current one.
 
 `focus` is the name of a window as would be used with the `channel` command.
 
-`command` is any command that runs in a specific context
-(i.e. that does not have a context of "client").
+`command` is the name of a command or macro followed by its arguments.
+Macro expansions will be resolved as if `focus` was the current focus.
 
 See also: channel
+
+=== Examples
+
+`+/in libera: list+` +
+`+/in #glirc setwindow louder+`
 
 == /extension
 
