@@ -16,11 +16,12 @@ module Client.State.Target
   , msgTarget
   ) where
 
+import qualified Data.Text as Text
 import           Irc.Codes
-import           Irc.Identifier (Identifier)
+import           Irc.Identifier (Identifier, mkId)
 import           Irc.Message (IrcMsg(..), srcUser)
 import qualified Irc.Message as Msg
-import           Irc.UserInfo (userNick)
+import           Irc.UserInfo (userNick, parseUserInfo)
 
 data MessageTarget
   = TargetDrop                 -- ^ Do not record the message anywhere.
@@ -38,6 +39,10 @@ msgTarget nick msg =
     Ping{}         -> TargetDrop
     Pong{}         -> TargetDrop
     Away user _    -> TargetExisting (userNick (srcUser user))
+    Reply _ RPL_MONONLINE [_,who]  | [who'] <- Text.split (==',') who ->
+      TargetWindow (userNick $ parseUserInfo who')
+    Reply _ RPL_MONOFFLINE [_,who] | [who'] <- Text.split (==',') who ->
+      TargetWindow (mkId who')
     Reply _ RPL_WHOSPCRPL [_,"616",_,_,_,_] -> TargetDrop
     _ -> case Msg.msgTarget nick msg of
       Msg.TargetUser id'   -> TargetUser id'
