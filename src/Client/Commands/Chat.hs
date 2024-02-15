@@ -130,7 +130,7 @@ chatCommands = CommandSection "IRC commands"
     $ NetworkCommand cmdKnock simpleNetworkTab
 
   , Command
-      (pure "quote")
+      ("quote" :| ["/"])
       (remainingArg "raw IRC command")
       $(chatDocs `cmdDoc` "quote")
     $ NetworkCommand cmdQuote simpleNetworkTab
