@@ -439,6 +439,8 @@ msgImportance msg st =
                      | otherwise -> WLBoring
         Kick _ _ kicked _ | isMe kicked -> WLImportant
                           | otherwise   -> WLNormal
+        Invite _ tgt _    | isMe tgt    -> WLImportant
+                          | otherwise   -> WLNormal
         Error{} -> WLImportant
 
         -- away notices
@@ -472,6 +474,7 @@ ircIgnorable msg !st =
     Ctcp who _ "ACTION" _ -> checkUser who
     -- notice ctcp responses are not already metadata
     CtcpNotice who _ _ _ -> checkUser who
+    Invite who _ _       -> checkUser who
     _                    -> Nothing
   where
     checkUser !who
