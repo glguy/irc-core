@@ -13,21 +13,69 @@ Kill a client connection to the server.
 
 Ban a client from the server.
 
+Specify "on" to set bans on remote servers.
+
+This command is intended for Charybdis/Solanum servers.
+Refer to your IRCd's documentation before using it.
+
+See also: unkline
+
+== /dline
+
+Ban an IP address from the server.
+
+Specify "on" to set bans on remote servers.
+
+This command is intended for Charybdis/Solanum servers.
+Refer to your IRCd's documentation before using it.
+
+See also: undline
+
+== /xline
+
+Ban a gecos from the server.
+
+Specify "on" to set bans on remote servers.
+
+This command is intended for Charybdis/Solanum servers.
+Refer to your IRCd's documentation before using it.
+
+See also: unxline
+
+== /resv
+
+Ban a channel or nickname from the server.
+
+Specify "on" to set bans on remote servers.
+
+This command is intended for Charybdis/Solanum servers.
+Refer to your IRCd's documentation before using it.
+
+See also: unresv
+
 == /unkline
 
 Unban a client from the server.
 
+See also: kline
+
 == /undline
 
-Unban a client from the server.
+Unban an IP address from the server.
+
+See also: dline
 
 == /unxline
 
 Unban a gecos from the server.
 
+See also: xline
+
 == /unresv
 
 Unban a channel or nickname from the server.
+
+See also: resv
 
 == /testline
 
@@ -55,11 +103,16 @@ Outputs a list of channel members in etrace format.
 
 == /trace
 
-Outputs a list users on a server.
+Outputs a list of users on a server.
+
+See also: etrace
 
 == /etrace
 
-Outputs a list users on a server.
+Outputs a list of users on a server,
+including the contents of the USER messages they sent during registration.
+
+See also: trace
 
 == /map
 

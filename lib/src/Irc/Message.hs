@@ -28,6 +28,7 @@ module Irc.Message
   , msgSource
 
   -- * Helper functions
+  , isNickChar
   , nickSplit
   , computeMaxMessageLength
   , capCmdText

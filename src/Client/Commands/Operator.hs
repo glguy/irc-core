@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings, TemplateHaskell #-}
+{-# Language BlockArguments, OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Operator
 Description : Operator command implementations
@@ -9,13 +9,14 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Operator (operatorCommands) where
 
-import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken)
+import Client.Commands.Arguments.Spec (Args, optionalArg, remainingArg, simpleToken, extensionArg)
 import Client.Commands.Docs (operDocs, cmdDoc)
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
 import Client.Commands.Types
 import Client.State.Network (sendMsg)
 import Control.Applicative (liftA2, liftA3)
 import Data.Maybe (fromMaybe, maybeToList)
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Irc.Commands
 import Irc.RawIrcMsg (rawIrcMsg)
@@ -37,9 +38,27 @@ operatorCommands = CommandSection "Network operator commands"
 
   , Command
       (pure "kline")
-      (liftA3 (,,) (simpleToken "minutes") (simpleToken "user@host") (remainingArg "reason"))
+      (liftA3 (,,) (extensionArg "minutes|on" banLineArgs) (simpleToken "user@host") (remainingArg "reason"))
       $(operDocs `cmdDoc` "kline")
-    $ NetworkCommand cmdKline simpleNetworkTab
+    $ NetworkCommand (cmdBanLine "KLINE") simpleNetworkTab -- Don't use ircKline because it doesn't do remotes.
+
+  , Command
+      (pure "dline")
+      (liftA3 (,,) (extensionArg "minutes|on" banLineArgs) (simpleToken "ip") (remainingArg "reason"))
+      $(operDocs `cmdDoc` "dline")
+    $ NetworkCommand (cmdBanLine "DLINE") noNetworkTab
+
+  , Command
+      (pure "xline")
+      (liftA3 (,,) (extensionArg "minutes|on" banLineArgs) (simpleToken "gecos") (remainingArg "reason"))
+      $(operDocs `cmdDoc` "xline")
+    $ NetworkCommand (cmdBanLine "XLINE") noNetworkTab
+
+  , Command
+      (pure "resv")
+      (liftA3 (,,) (extensionArg "minutes|on" banLineArgs) (simpleToken "nick|channel") (remainingArg "reason"))
+      $(operDocs `cmdDoc` "resv")
+    $ NetworkCommand (cmdBanLine "RESV") noNetworkTab
 
   , Command
       (pure "unkline")
@@ -231,10 +250,19 @@ cmdKill cs st (client,rest) =
   do sendMsg cs (ircKill (Text.pack client) (Text.pack rest))
      commandSuccess st
 
-cmdKline :: NetworkCommand (String, String, String)
-cmdKline cs st (minutes, mask, reason) =
-  do sendMsg cs (ircKline (Text.pack minutes) (Text.pack mask) (Text.pack reason))
-     commandSuccess st
+cmdBanLine :: Text -> NetworkCommand ((Maybe String, String), String, String)
+cmdBanLine lineName cs st ((server, duration), target, reason) = do
+  let
+    remote = case server of
+      Just server' -> ["ON", Text.pack server']
+      Nothing      -> []
+    args = [Text.pack duration, Text.pack target] ++ remote ++ [Text.pack reason]
+  sendMsg cs (rawIrcMsg lineName args)
+  commandSuccess st
+
+banLineArgs :: ArgsContext -> String -> Maybe (Args ArgsContext (Maybe String, String))
+banLineArgs _ "on" = Just (liftA2 (,) (Just <$> simpleToken "servername") (simpleToken "minutes"))
+banLineArgs _ mins = Just (liftA2 (,) (pure Nothing) (pure mins))
 
 cmdUnkline :: NetworkCommand (String, Maybe String)
 cmdUnkline cs st (mask, server) =

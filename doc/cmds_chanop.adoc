@@ -1,13 +1,47 @@
 = Channel Management Commands
 :toc:
 
+== /op
+
+Grant channel operator privileges to yourself or another user.
+
+Sends an OP command to ChanServ if you are not opped and
+the current channel is in your configured `chanserv-channels`.
+
+== /deop
+
+Remove channel operator privileges from yourself or another user.
+
+Sends a DEOP command to ChanServ if you are not opped and
+the current channel is in your configured `chanserv-channels`.
+
+== /voice
+
+Grant voice to yourself or another user.
+
+Sends a VOICE command to ChanServ if you are not opped and
+the current channel is in your configured `chanserv-channels`.
+
+== /devoice
+
+Remove voice from yourself or another user.
+
+Sends a DEVOICE command to ChanServ if you are not opped and
+the current channel is in your configured `chanserv-channels`.
+
 == /invite
 
 Invite a user to the current channel.
 
+Can acquire operator status from ChanServ if the current channel is in
+your configured `chanserv-channels`.
+
 == /kick
 
 Kick a user from the current channel.
+
+Can acquire operator status from ChanServ if the current channel is in
+your configured `chanserv-channels`.
 
 See also: kickban, remove
 
@@ -16,6 +50,9 @@ See also: kickban, remove
 Ban and kick a user from the current channel.
 
 Users are banned by hostname match.
+
+Can acquire operator status from ChanServ if the current channel is in
+your configured `chanserv-channels`.
 
 See also: kick, remove
 
@@ -42,6 +79,9 @@ When executed in a network window, mode changes are applied to your user.
 
 This command has parameter sensitive tab-completion.
 
+Can acquire operator status from ChanServ if the current channel is in
+your configured `chanserv-channels`.
+
 See also: masks, channelinfo
 
 === Examples
@@ -52,6 +92,18 @@ See also: masks, channelinfo
 `+/mode +vv user1 user2+`  - Voice two users +
 `+/mode +v-o user1 user1+` - Demote an op to voice
 
+== /quiet
+
+Quiet a user, preventing them from speaking unless voiced.
+
+This command only works on networks that have
+channel mode `q` as a list mode (e.g. Charybdis/Solanum-based networks).
+Some networks implement this functionality as an extban,
+which is not supported by this command.
+
+Can acquire operator status from ChanServ if the current channel is in
+your configured `chanserv-channels`.
+
 == /remove
 
 Remove a user from the current channel.
@@ -60,6 +112,9 @@ Remove works like /kick except it results in a PART.
 
 Not all servers support removal in this manner.
 Refer to your server/network's documentation.
+
+Can acquire operator status from ChanServ if the current channel is in
+your configured `chanserv-channels`.
 
 See also: kick, kickban
 

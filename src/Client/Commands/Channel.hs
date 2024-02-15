@@ -20,18 +20,18 @@ import Client.State.EditBox qualified as Edit
 import Client.State.Focus
 import Client.State.Network
 import Client.UserHost ( UserAndHost(UserAndHost) )
-import Control.Applicative (liftA2)
 import Control.Lens
 import Control.Monad (unless)
 import Data.Foldable (traverse_)
 import Data.HashMap.Strict qualified as HashMap
 import Data.List.Split (chunksOf)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Irc.Commands (ircInvite, ircKick, ircMode, ircRemove)
-import Irc.Identifier (Identifier, mkId)
+import Irc.Commands (ircInvite, ircKick, ircMode, ircPrivmsg, ircRemove)
+import Irc.Identifier (Identifier, mkId, idText)
 import Irc.Modes
+import Irc.Message (isNickChar)
 import Irc.UserInfo (UserInfo(UserInfo), renderUserInfo)
 
 channelCommands :: CommandSection
@@ -74,11 +74,40 @@ channelCommands = CommandSection "IRC channel management"
     $ ChannelCommand cmdKickBan simpleChannelTab
 
   , Command
+      (pure "quiet")
+      (simpleToken "nick|mask")
+      $(chanopDocs `cmdDoc` "quiet")
+    $ ChannelCommand cmdQuiet simpleChannelTab
+
+  , Command
       (pure "remove")
       (liftA2 (,) (simpleToken "nick") (remainingArg "reason"))
       $(chanopDocs `cmdDoc` "remove")
     $ ChannelCommand cmdRemove simpleChannelTab
 
+  , Command
+      (pure "op")
+      (optionalArg $ simpleToken "[nick]")
+      $(chanopDocs `cmdDoc` "op")
+    $ ChannelCommand (cmdStatus "OP" "+o") simpleChannelTab
+
+  , Command
+      (pure "deop")
+      (optionalArg $ simpleToken "[nick]")
+      $(chanopDocs `cmdDoc` "deop")
+    $ ChannelCommand (cmdStatus "DEOP" "-o") simpleChannelTab
+
+  , Command
+      (pure "voice")
+      (optionalArg $ simpleToken "[nick]")
+      $(chanopDocs `cmdDoc` "voice")
+    $ ChannelCommand (cmdStatus "VOICE" "+v") simpleChannelTab
+
+  , Command
+      (pure "devoice")
+      (optionalArg $ simpleToken "[nick]")
+      $(chanopDocs `cmdDoc` "devoice")
+    $ ChannelCommand (cmdStatus "DEVOICE" "-v") simpleChannelTab
   ]
 
 cmdRemove :: ChannelCommand (String, String)
@@ -109,6 +138,16 @@ cmdKickBan channelId cs st (who,reason) =
      cs' <- sendModeration channelId cmds cs
      commandSuccessUpdateCS cs' st
 
+cmdQuiet :: ChannelCommand String
+cmdQuiet channelId cs st who
+  | elem 'q' $ view (csModeTypes . modesLists) cs = do
+    let
+      whoTxt = Text.pack who
+      mask = if Text.all isNickChar whoTxt then renderUserInfo (computeBanUserInfo (mkId whoTxt) cs) else whoTxt
+    cs' <- sendModeration channelId [ircMode channelId ["q", mask]] cs
+    commandSuccessUpdateCS cs' st
+  | otherwise = commandFailureMsg "no list mode q on network" st
+
 cmdInvite :: ChannelCommand String
 cmdInvite channelId cs st nick =
   do let freeTarget = has (csChannels . ix channelId . chanModes . ix 'g') cs
@@ -132,9 +171,23 @@ cmdMasks channel cs st rest =
 
     _ -> commandFailureMsg "unknown mask mode" st
 
+cmdStatus :: Text -> Text -> ChannelCommand (Maybe String)
+cmdStatus servCmd modeChg chan cs st target
+  | useChanServ chan cs = do
+    let command = [servCmd, idText chan] ++ maybeToList targetText
+    sendMsg cs $ ircPrivmsg "ChanServ" $ Text.unwords command
+    commandSuccessUpdateCS cs st
+  | otherwise = do
+    let target' = fromMaybe (idText $ view csNick cs) targetText
+    sendMsg cs $ ircMode chan [modeChg, target']
+    commandSuccessUpdateCS cs st
+  where
+    targetText = Text.pack <$> target
+
 computeBanUserInfo :: Identifier -> NetworkState    -> UserInfo
 computeBanUserInfo who cs =
   case view (csUser who) cs of
+    -- TODO: Maybe have multiple ways of computing this.
     Nothing                     -> UserInfo who "*" "*"
     Just (UserAndHost _ host _) -> UserInfo "*" "*" host
 
