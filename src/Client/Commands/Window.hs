@@ -65,19 +65,19 @@ windowCommands = CommandSection "Window management"
     $ ClientCommand cmdWindows tabWindows
 
   , Command
-      (pure "splits")
+      ("splits" :| ["s"])
       (remainingArg "focuses")
       $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplits tabSplits
 
   , Command
-      (pure "splits+")
+      ("splits+" :| ["s+"])
       (remainingArg "focuses")
       $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplitsAdd tabSplits
 
   , Command
-      (pure "splits-")
+      ("splits-" :| ["s-"])
       (remainingArg "focuses")
       $(windowDocs `cmdDoc` "splits")
     $ ClientCommand cmdSplitsDel tabActiveSplits
@@ -89,7 +89,7 @@ windowCommands = CommandSection "Window management"
     $ ClientCommand cmdIgnore tabIgnore
 
   , Command
-      (pure "grep")
+      ("grep" :| ["g"])
       (remainingArg "regular-expression")
       $(windowDocs `cmdDoc` "grep")
     $ ClientCommand cmdGrep simpleClientTab

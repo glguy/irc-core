@@ -752,7 +752,9 @@ clientMatcher ::
   Maybe Matcher {- ^ optional predicate -}
 clientMatcher st =
   case clientActiveCommand st of
+    -- Refer to the grep command in Client.Commands.Window
     Just ("grep" , reStr) -> buildMatcher reStr
+    Just ("g" , reStr)    -> buildMatcher reStr
     _ -> case view clientRegex st of
            Nothing -> Nothing
            Just r  -> Just r
