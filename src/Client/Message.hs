@@ -39,11 +39,12 @@ module Client.Message
 import Control.Lens
 import Data.Maybe (isJust)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Time (ZonedTime)
-import Irc.Codes (ReplyCode, pattern RPL_NOWAWAY, pattern RPL_UNAWAY )
+import Irc.Codes (ReplyCode, pattern RPL_NOWAWAY, pattern RPL_UNAWAY, pattern RPL_MONONLINE, pattern RPL_MONOFFLINE )
 import Irc.Identifier (Identifier, mkId)
 import Irc.Message (IrcMsg(..), ircMsgText, Source(srcUser))
-import Irc.UserInfo ( UserInfo(userNick) )
+import Irc.UserInfo (UserInfo(userNick), parseUserInfo, uiNick)
 
 data MessageBody
   = IrcBody    !IrcMsg
@@ -76,6 +77,7 @@ data IrcSummary
   | ChngSummary {-# UNPACK #-} !Identifier -- ^ Chghost command
   | AcctSummary {-# UNPACK #-} !Identifier -- ^ Account command
   | AwaySummary {-# UNPACK #-} !Identifier !Bool
+  | MonSummary {-# UNPACK #-} !Identifier !Bool -- ^ MONITOR numeric replies
   | NoSummary
   deriving (Eq, Show)
 
@@ -92,7 +94,6 @@ msgSummary (IrcBody    irc) = ircSummary irc
 msgSummary (ErrorBody  _  ) = NoSummary
 msgSummary (NormalBody _  ) = NoSummary
 
-
 ircSummary :: IrcMsg -> IrcSummary
 ircSummary msg =
   case msg of
@@ -107,6 +108,10 @@ ircSummary msg =
     CtcpNotice who _ _ _ -> ChatSummary (srcUser who)
     Reply _ RPL_NOWAWAY (who:_) -> AwaySummary (mkId who) True
     Reply _ RPL_UNAWAY  (who:_) -> AwaySummary (mkId who) False
+    Reply _ RPL_MONONLINE [_,who]  | [who'] <- Text.split (==',') who ->
+      MonSummary (view uiNick $ parseUserInfo who') True
+    Reply _ RPL_MONOFFLINE [_,who] | [who'] <- Text.split (==',') who ->
+      MonSummary (mkId who') False
     Reply _ code _  -> ReplySummary code
     Account who _   -> AcctSummary (userNick (srcUser who))
     Chghost who _ _ -> ChngSummary (userNick (srcUser who))
@@ -132,4 +137,5 @@ summaryActor s =
     ChngSummary who   -> Just who
     AwaySummary who _ -> Just who
     ReplySummary {}   -> Nothing
+    MonSummary who _  -> Just who
     NoSummary         -> Nothing

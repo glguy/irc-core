@@ -1214,6 +1214,8 @@ metadataImg pal msg =
     AcctSummary who       -> Just (char (view palUsrChg pal) '*', who, Nothing)
     AwaySummary who True  -> Just (char (view palAway pal)   'a', who, Nothing)
     AwaySummary who False -> Just (char (view palUsrChg pal) 'b', who, Nothing)
+    MonSummary who True   -> Just (char (view palJoin pal `withStyle` italic) '+', who, Nothing)
+    MonSummary who False  -> Just (char (view palPart pal `withStyle` italic) 'x', who, Nothing)
     _                     -> Nothing
 
 -- | Image used when treating ignored chat messages as metadata
