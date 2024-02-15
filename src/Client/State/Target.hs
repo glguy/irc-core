@@ -33,12 +33,13 @@ data MessageTarget
 msgTarget :: Identifier -> IrcMsg -> MessageTarget
 msgTarget nick msg =
   case msg of
-    Authenticate{} -> TargetDrop
-    BatchStart{}   -> TargetDrop
-    BatchEnd{}     -> TargetDrop
-    Ping{}         -> TargetDrop
-    Pong{}         -> TargetDrop
-    Away user _    -> TargetExisting (userNick (srcUser user))
+    Authenticate{}  -> TargetDrop
+    BatchStart{}    -> TargetDrop
+    BatchEnd{}      -> TargetDrop
+    Ping{}          -> TargetDrop
+    Pong{}          -> TargetDrop
+    Away user _     -> TargetExisting (userNick (srcUser user))
+    Invite _ _ chan -> TargetWindow chan
     Reply _ RPL_MONONLINE [_,who]  | [who'] <- Text.split (==',') who ->
       TargetWindow (userNick $ parseUserInfo who')
     Reply _ RPL_MONOFFLINE [_,who] | [who'] <- Text.split (==',') who ->
