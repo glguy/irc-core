@@ -25,7 +25,7 @@ module Client.Commands.Exec
   , runExecCmd
   ) where
 
-import Control.Exception (Exception(displayException), try)
+import Control.Exception (Exception(displayException))
 import Control.Lens (view, (??), set, makeLenses)
 import Data.ByteString.Lazy qualified as L
 import Data.List (unfoldr)

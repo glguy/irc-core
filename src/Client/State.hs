@@ -137,7 +137,7 @@ import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
-import           Control.Monad
+import           Control.Monad()
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
