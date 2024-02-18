@@ -18,11 +18,10 @@ module Client.Image.StatusLine
   ) where
 
 import Client.Image.Focus
-import Client.Image.Message (cleanChar, cleanText, IdentifierColorMode (NormalIdentifier), coloredIdentifier, modesImage)
+import Client.Image.Message (cleanChar, cleanText, modesImage)
 import Client.Image.PackedImage
 import Client.Image.Palette
 import Client.State
-import Client.State.Channel (chanModes, chanUsers)
 import Client.State.Focus (focusNetwork, Focus(..), Subfocus(..), WindowsFilter(..))
 import Client.State.Help (hsQuery, HelpQuery (..))
 import Client.State.Network
@@ -30,7 +29,6 @@ import Client.State.Window
 import Control.Lens (view, orOf, preview, views, _Just, Ixed(ix))
 import Data.Foldable (for_)
 import Data.Map.Strict qualified as Map
-import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (mapMaybe, maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as Text

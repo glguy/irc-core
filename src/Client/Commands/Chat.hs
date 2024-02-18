@@ -18,7 +18,7 @@ import Client.State
 import Client.State.Extensions (clientChatExtension)
 import Client.State.Focus (focusNetwork, Focus(ChannelFocus), Subfocus(FocusInfo, FocusUsers))
 import Client.State.Network
-import Control.Applicative (liftA3)
+import Control.Applicative (liftA2, liftA3)
 import Control.Lens (has, view, preview, views)
 import Control.Monad (unless, when)
 import Data.Char (toUpper)

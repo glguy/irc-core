@@ -20,6 +20,7 @@ import Client.State.EditBox qualified as Edit
 import Client.State.Focus
 import Client.State.Network
 import Client.UserHost ( UserAndHost(UserAndHost) )
+import Control.Applicative (liftA2)
 import Control.Lens
 import Control.Monad (unless)
 import Data.Foldable (traverse_)

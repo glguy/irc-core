@@ -11,11 +11,11 @@ Maintainer  : emertens@gmail.com
 
 module Client.Commands.Queries (queryCommands) where
 
-import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken, extensionArg, Args, tokenArg)
+import Client.Commands.Arguments.Spec (optionalArg, remainingArg, simpleToken, tokenArg)
 import Client.Commands.Docs (queriesDocs, cmdDoc)
 import Client.Commands.TabCompletion (noNetworkTab, simpleNetworkTab)
 import Client.Commands.Types (commandSuccess, commandSuccessUpdateCS, Command(Command), CommandImpl(NetworkCommand), CommandSection(CommandSection), NetworkCommand)
-import Client.State (changeSubfocus, ClientState)
+import Client.State (changeSubfocus)
 import Client.State.Focus (Subfocus(FocusChanList, FocusWho))
 import Client.State.Network (sendMsg, csChannelList, clsElist, csPingStatus, _PingConnecting, csWhoReply, csNetwork)
 import Client.WhoReply (newWhoReply)
