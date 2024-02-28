@@ -32,6 +32,7 @@ import qualified Data.Text.Lazy.Builder as Builder
 import           Data.Text.Encoding (decodeUtf8)
 import           Language.Haskell.TH (Exp, Q, runIO)
 import           Language.Haskell.TH.Syntax (lift)
+import           System.FilePath ((</>), (<.>))
 
 #if MIN_VERSION_template_haskell(2,19,0)
 import Language.Haskell.TH.Syntax (addDependentFile, makeRelativeToProject)
@@ -56,7 +57,7 @@ makeHeader header = LText.append "\^B" (LText.append header ":\^B\n")
 loadDoc :: (String -> String) -> FilePath -> Q Docs
 loadDoc keymod path = addRelativeDependentFile splicePath >> runIO (readFile splicePath >>= renderDoc)
   where
-    splicePath = "doc/" ++ path ++ ".adoc"
+    splicePath = "doc" </> path <.> "adoc"
     renderDoc doc = case Parse.parseOnly lineParser $ decodeUtf8 doc of
       Right docs -> return $ buildDocs keymod docs
       Left errorMsg -> fail ("Parser failed on `" ++ splicePath ++ "`: " ++ errorMsg)
