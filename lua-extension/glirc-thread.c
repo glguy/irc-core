@@ -14,7 +14,12 @@ new_thread_state(lua_State *L, size_t n)
         lua_rotate(L, -2, 1);
         lua_setuservalue(L, -2);
         lua_rawsetp(L, LUA_REGISTRYINDEX, st);
-        st->L = L;
+
+        // Save the main thread and not a coroutine we happen to be on
+        lua_rawgeti(L, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+        st->L = lua_tothread(L, -1);
+        lua_pop(L, 1);
+
         return st;
 }
 
