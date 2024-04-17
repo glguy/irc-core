@@ -41,7 +41,7 @@ channelCommands = CommandSection "IRC channel management"
       (pure "mode")
       (fromMaybe [] <$> optionalArg (extensionArg "[modes]" modeParamArgs))
       $(chanopDocs `cmdDoc` "mode")
-    $ NetworkCommand cmdMode tabMode
+    $ MaybeChatCommand cmdMode tabMode
 
   , Command
       (pure "masks")
@@ -128,7 +128,7 @@ cmdMasks channel cs st rest =
            unless (connecting || listLoaded)
              (sendMsg cs (ircMode channel [Text.singleton mode]))
 
-           commandSuccess (changeSubfocus (FocusMasks mode) st)
+           commandSuccess (changeSubfocus (FocusMasks (view csNetwork cs) channel mode) st)
 
     _ -> commandFailureMsg "unknown mask mode" st
 
@@ -155,22 +155,22 @@ tabTopic _ channelId cs st rest
 
   | otherwise = commandFailure st
 
-cmdMode :: NetworkCommand [String]
-cmdMode cs st xs = modeCommand (Text.pack <$> xs) cs st
+cmdMode :: MaybeChatCommand [String]
+cmdMode chan cs st xs = modeCommand chan (Text.pack <$> xs) cs st
 
 modeCommand ::
-  [Text] {- mode parameters -} ->
-  NetworkState                 ->
-  ClientState                  ->
+  Maybe Identifier {- channel -} ->
+  [Text] {- mode parameters -}   ->
+  NetworkState                   ->
+  ClientState                    ->
   IO CommandResult
-modeCommand modes cs st =
-  case view clientFocus st of
-
-    NetworkFocus _ ->
+modeCommand maybeChan modes cs st =
+  case maybeChan of
+    Nothing ->
       do sendMsg cs (ircMode (view csNick cs) modes)
          commandSuccess st
 
-    ChannelFocus _ chan ->
+    Just chan ->
       case modes of
         [] -> success False [[]]
         flags:params ->
@@ -195,13 +195,10 @@ modeCommand modes cs st =
                       else cs <$ traverse_ (sendMsg cs) cmds
              commandSuccessUpdateCS cs' st
 
-    _ -> commandFailure st
-
-tabMode :: Bool -> NetworkCommand String
-tabMode isReversed cs st rest =
-  case view clientFocus st of
-
-    ChannelFocus _ channel
+tabMode :: Bool -> MaybeChatCommand String
+tabMode isReversed maybeChan cs st rest =
+  case maybeChan of
+    Just channel
       | flags:params     <- Text.words (Text.pack rest)
       , Just parsedModes <- splitModes (view csModeTypes cs) flags params
       , let parsedModesWithParams =
@@ -215,9 +212,9 @@ tabMode isReversed cs st rest =
   where
     paramIndex = length $ words $ uncurry take $ clientLine st
 
-modeParamArgs :: ClientState -> String -> Maybe (Args ClientState [String])
-modeParamArgs st str =
-  case view clientFocus st of
+modeParamArgs :: ArgsContext -> String -> Maybe (Args ArgsContext [String])
+modeParamArgs ArgsContext{argsContextSt=st, argsContextFocus=focus} str =
+  case focus of
     Unfocused      -> Nothing
     NetworkFocus _ -> Just (pure [str])
     ChannelFocus net _ ->

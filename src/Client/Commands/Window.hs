@@ -7,7 +7,7 @@ License     : ISC
 Maintainer  : emertens@gmail.com
 -}
 
-module Client.Commands.Window (windowCommands, parseFocus) where
+module Client.Commands.Window (windowCommands, parseFocus, focusNames) where
 
 import Client.Commands.Arguments.Spec
 import Client.Commands.Docs (windowDocs, cmdDoc)
@@ -55,7 +55,7 @@ windowCommands = CommandSection "Window management"
       (pure "clear")
       (optionalArg (liftA2 (,) (simpleToken "[network]") (optionalArg (simpleToken "[channel]"))))
       $(windowDocs `cmdDoc` "clear")
-    $ ClientCommand cmdClear tabFocus
+    $ WindowCommand cmdClear (\rev _ -> tabFocus rev)
 
   , Command
       (pure "windows")
@@ -97,7 +97,7 @@ windowCommands = CommandSection "Window management"
       (pure "dump")
       (simpleToken "filename")
       $(windowDocs `cmdDoc` "dump")
-    $ ClientCommand cmdDump simpleClientTab
+    $ WindowCommand cmdDump (\rev _ -> simpleClientTab rev)
 
   , Command
       (pure "mentions")
@@ -109,24 +109,23 @@ windowCommands = CommandSection "Window management"
       (pure "setwindow")
       (simpleToken ("hide|show" ++ concatMap ('|':) activityFilterStrings))
       $(windowDocs `cmdDoc` "setwindow")
-    $ ClientCommand cmdSetWindow tabSetWindow
+    $ WindowCommand cmdSetWindow tabSetWindow
 
   , Command
       (pure "setname")
       (optionalArg (simpleToken "[letter]"))
       $(windowDocs `cmdDoc` "setname")
-    $ ClientCommand cmdSetWindowName noClientTab
-
+    $ WindowCommand cmdSetWindowName (\rev _ -> noClientTab rev)
   ]
 
-cmdSetWindowName :: ClientCommand (Maybe String)
-cmdSetWindowName st arg =
+cmdSetWindowName :: WindowCommand (Maybe String)
+cmdSetWindowName focus st arg =
   -- unset current name so that it becomes available
-  let mbSt1 = failover (clientWindows . ix (view clientFocus st) . winName) (\_ -> Nothing) st in
+  let mbSt1 = failover (clientWindows . ix focus . winName) (\_ -> Nothing) st in
   case mbSt1 of
     Nothing -> commandFailureMsg "no current window" st
     Just st1 ->
-      let next = clientNextWindowName (clientWindowHint (view clientFocus st) st) st
+      let next = clientNextWindowName (clientWindowHint focus st) st
           mbName =
             case arg of
               Just [n] | n `elem` clientWindowNames st -> Right n
@@ -139,16 +138,16 @@ cmdSetWindowName st arg =
         Right name ->
           let unset n = if n == Just name then Nothing else n in
           commandSuccess
-            $ set  (clientWindows . ix (view clientFocus st) . winName) (Just name)
-            $ over (clientWindows . each                     . winName) unset
+            $ set  (clientWindows . ix focus . winName) (Just name)
+            $ over (clientWindows . each     . winName) unset
             $ st1
 
-cmdSetWindow :: ClientCommand String
-cmdSetWindow st cmd =
+cmdSetWindow :: WindowCommand String
+cmdSetWindow focus st cmd =
   case mbFun of
     Nothing -> commandFailureMsg "bad window setting" st
     Just f ->
-      case failover (clientWindows . ix (view clientFocus st)) f st of
+      case failover (clientWindows . ix focus) f st of
         Nothing -> commandFailureMsg "no such window" st
         Just st' -> commandSuccess st'
   where
@@ -158,8 +157,8 @@ cmdSetWindow st cmd =
         "hide"    -> Just (set winName Nothing . set winHidden True)
         other     -> set winActivityFilter <$> readActivityFilter other
 
-tabSetWindow :: Bool {- ^ reversed -} -> ClientCommand String
-tabSetWindow isReversed st _ =
+tabSetWindow :: Bool {- ^ reversed -} -> WindowCommand String
+tabSetWindow isReversed _ st _ =
   simpleTabCompletion plainWordCompleteMode [] completions isReversed st
   where
     completions = "hide":"show": map Text.pack activityFilterStrings
@@ -310,10 +309,10 @@ tabActiveSplits isReversed st _ =
 -- joined to this command will clear the messages but
 -- preserve the window. When used on a window that the
 -- user is not joined to this command will delete the window.
-cmdClear :: ClientCommand (Maybe (String, Maybe String))
-cmdClear st args =
+cmdClear :: WindowCommand (Maybe (String, Maybe String))
+cmdClear focusDefault st args =
   case args of
-    Nothing                      -> clearFocus (view clientFocus st)
+    Nothing                      -> clearFocus focusDefault
     Just ("*",     Nothing     ) -> clearFocus Unfocused
     Just (network, Nothing     ) -> clearFocus (NetworkFocus (Text.pack network))
     Just (network, Just "*"    ) -> clearNetworkWindows network
@@ -378,6 +377,14 @@ renderSplitFocus Unfocused          = "*"
 renderSplitFocus (NetworkFocus x)   = x <> ":"
 renderSplitFocus (ChannelFocus x y) = x <> ":" <> idText y
 
+focusNames :: ClientState -> [Text]
+focusNames st = currentNet <> allWindows
+  where
+    allWindows  = renderSplitFocus <$> views clientWindows Map.keys st
+    currentNet  = case views clientFocus focusNetwork st of
+                    Just net -> idText <$> channelWindowsOnNetwork net st
+                    Nothing  -> []
+
 -- | When tab completing the first parameter of the focus command
 -- the current networks are used.
 tabFocus :: Bool -> ClientCommand String
@@ -407,13 +414,7 @@ tabChannel ::
   Bool {- ^ reversed order -} ->
   ClientCommand String
 tabChannel isReversed st _ =
-  simpleTabCompletion plainWordCompleteMode [] completions isReversed st
-  where
-    completions = currentNet <> allWindows
-    allWindows  = renderSplitFocus <$> views clientWindows Map.keys st
-    currentNet  = case views clientFocus focusNetwork st of
-                    Just net -> idText <$> channelWindowsOnNetwork net st
-                    Nothing  -> []
+  simpleTabCompletion plainWordCompleteMode [] (focusNames st) isReversed st
 
 -- | Return the list of identifiers for open channel windows on
 -- the given network name.
@@ -427,16 +428,14 @@ channelWindowsOnNetwork network st =
 
 -- | Implementation of @/dump@. Writes detailed contents of focused buffer
 -- to the given filename.
-cmdDump :: ClientCommand String
-cmdDump st fp =
+cmdDump :: WindowCommand String
+cmdDump focus st fp =
   do res <- try (LText.writeFile fp (LText.unlines outputLines))
      case res of
        Left e  -> commandFailureMsg (Text.pack (displayException (e :: SomeException))) st
        Right{} -> commandSuccess st
 
   where
-    focus = view clientFocus st
-
     outputLines
       = reverse
       $ clientFilter st id

@@ -16,7 +16,7 @@ module Client.State.Url
 
 import           Client.Message (summaryActor)
 import           Client.State
-import           Client.State.Focus (Subfocus(..), focusNetwork, Focus)
+import           Client.State.Focus (Subfocus(..), focusNetwork, Focus, actualFocus)
 import           Client.State.Network
 import           Client.State.Window
 import           Client.WhoReply
@@ -70,15 +70,15 @@ urlList st = urlDedup $ urlListForFocus focus subfocus st
 
 urlListForFocus :: Focus -> Subfocus -> ClientState -> [UrlPair]
 urlListForFocus focus subfocus st = case (netM, subfocus) of
-  (Just cs, FocusChanList min' max') ->
+  (Just cs, FocusChanList _ min' max') ->
     matchesTopic st min' max' cs
-  (Just cs, FocusWho) ->
+  (Just cs, FocusWho _) ->
     matchesWhoReply st cs
   (_, _) ->
     toListOf (clientWindows . ix focus . winMessages . each . folding (matchesMsg st)) st
   where
     netM = do
-      net <- focusNetwork focus
+      net <- focusNetwork $ actualFocus subfocus focus
       view (clientConnections . at net) st
 
 matchesMsg :: ClientState -> WindowLine -> [UrlPair]

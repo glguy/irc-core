@@ -14,13 +14,14 @@ module Client.View.Help
   ( helpImageLines
   ) where
 
-import           Client.State (ClientState, clientConfig)
+import           Client.State (ClientState, clientConfig, clientFocus)
 import           Client.Configuration (configMacros)
 import           Client.Commands
 import           Client.Commands.Interpolation
 import           Client.Commands.Arguments.Spec
 import           Client.Commands.Arguments.Renderer
 import           Client.Commands.Recognizer
+import           Client.Commands.Types (makeArgsContext)
 import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Client.Image.Palette
@@ -60,7 +61,7 @@ commandHelpLines st cmdName pal =
       suggestions = Text.unpack $ Text.intercalate " " ((cmdName <>) <$> sfxs)
     Exact Command{cmdNames = names, cmdImplementation = impl,
                   cmdArgumentSpec = spec, cmdDocumentation = doc} ->
-      reverse $ heading "Syntax: " <> commandSummary st pal (pure cmdName) spec
+      reverse $ heading "Syntax: " <> commandSummary (makeArgsContext st) pal (pure cmdName) spec
               : emptyLine
               : aliasLines
              ++ explainContext impl
@@ -85,10 +86,12 @@ explainContext ::
 explainContext impl =
   heading "Context: " <>
   case impl of
-    ClientCommand {} -> "client (works everywhere)"
-    NetworkCommand{} -> "network (works when focused on active network)"
-    ChannelCommand{} -> "channel (works when focused on active channel)"
-    ChatCommand   {} -> "chat (works when focused on an active channel or private message)"
+    ClientCommand {}   -> "client (works everywhere)"
+    WindowCommand {}   -> "window (works on the current window)"
+    NetworkCommand{}   -> "network (works when focused on active network)"
+    MaybeChatCommand{} -> "network (works when focused on active network)" -- Intentional duplicate.
+    ChatCommand{}      -> "chat (works when focused on an active channel or private message)"
+    ChannelCommand{}   -> "channel (works when focused on active channel)"
 
 
 -- | Generate the lines for the help window showing all commands.
@@ -124,7 +127,7 @@ listCommandSection ::
   [Image']       {- ^ help lines      -}
 listCommandSection st pal sec
   = text' (withStyle defAttr bold) (cmdSectionName sec)
-  : [ commandSummary st pal names spec
+  : [ commandSummary (makeArgsContext st) pal names spec
     | -- pattern needed due to existential quantification
       Command { cmdNames        = names
               , cmdArgumentSpec = spec

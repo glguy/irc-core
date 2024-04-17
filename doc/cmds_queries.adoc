@@ -65,10 +65,10 @@ Sends a LIST query and caches the result;
 on larger networks, this may take several seconds to complete.
 The view may be exited while loading.
 
-`clientarg` is an optionally-comma-separated list of options.
+`clientopts` is an optionally-comma-separated list of options.
 A single comma may be used to denote an empty list.
 
-`serverarg` is sent as-is to the server.
+`elist` is sent as-is to the server.
 It is generally used as the ELIST parameter to LIST.
 glirc does not validate this parameter against the ELIST ISUPPORT token.
 
@@ -83,7 +83,7 @@ glirc does not validate this parameter against the ELIST ISUPPORT token.
 `+/list+`          - List public channels.
 `+/list >99+`      - List public channels with at least 100 users.
 `+/list >50<1000+` - List public channels with between 51 and 999 users.
-`+/list ~ <20+`    - List public channels with fewer than 20 users. 
+`+/list ~ <20+`    - List public channels with fewer than 20 users.
 `+/list , *-ops+`  - List public channels whose names end with "-ops".
 
 == /links

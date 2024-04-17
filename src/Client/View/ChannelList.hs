@@ -57,8 +57,8 @@ channelListLines' cs width st (min', max')
                  string defAttr (show (length entries))
 
     queryPart = mconcat $
-      [text' (view palLabel pal) " More-than: " <> string defAttr (show lo) | FocusChanList (Just lo) _ <- [st^.clientSubfocus]] ++
-      [text' (view palLabel pal) " Less-than: " <> string defAttr (show hi) | FocusChanList _ (Just hi) <- [st^.clientSubfocus]] ++
+      [text' (view palLabel pal) " More-than: " <> string defAttr (show lo) | FocusChanList _ (Just lo) _ <- [st^.clientSubfocus]] ++
+      [text' (view palLabel pal) " Less-than: " <> string defAttr (show hi) | FocusChanList _ _ (Just hi) <- [st^.clientSubfocus]] ++
       [text' (view palLabel pal) " Elist: " <> text' defAttr txt | Just txt <- [els], not (Text.null txt)]
 
     entries = chanList^.clsItems

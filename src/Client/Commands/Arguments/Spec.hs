@@ -19,6 +19,7 @@ module Client.Commands.Arguments.Spec
   , optionalNumberArg
   , extensionArg
   , tokenArg
+  , mapArgEnv
 
   , ArgumentShape(..)
   , Arg(..)
@@ -38,6 +39,7 @@ data Arg :: Type -> Type -> Type where
   Argument  :: ArgumentShape -> String -> (r -> String -> Maybe a) -> Arg r a
   Optional  :: Args r a -> Arg r (Maybe a)
   Extension :: String -> (r -> String -> Maybe (Args r a)) -> Arg r a
+  MapEnv    :: (r -> s) -> Args s a -> Arg r a
 
 tokenArg :: String -> (r -> String -> Maybe a) -> Args r a
 tokenArg name parser = liftAp (Argument TokenArgument name parser)
@@ -59,6 +61,9 @@ numberArg = tokenArg "number" (\_ -> readMaybe)
 
 optionalNumberArg :: Args r (Maybe Int)
 optionalNumberArg = optionalArg (tokenArg "[number]" (\_ -> readMaybe))
+
+mapArgEnv :: (r -> s) -> Args s a -> Args r a
+mapArgEnv f = liftAp . MapEnv f
 
 tokenList ::
   [String] {- ^ required names -} ->

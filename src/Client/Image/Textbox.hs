@@ -21,6 +21,7 @@ import Client.Commands.Arguments.Renderer (render)
 import Client.Commands.Arguments.Parser (parse)
 import Client.Commands.Interpolation (Macro(macroSpec), MacroSpec(..))
 import Client.Commands.Recognizer
+import Client.Commands.Types (makeArgsContext)
 import Client.Image.LineWrap (fullLineWrap, terminate)
 import Client.Image.Message (cleanChar, parseIrcTextWithNicks, Highlight)
 import Client.Image.MircFormatting (parseIrcText', plainText)
@@ -197,7 +198,7 @@ renderLine st pal hilites macros focused input =
                    <> string attr cleanCmd <> continue rest
       where
         specAttr spec =
-          case parse st spec rest of
+          case parse (makeArgsContext st) spec rest of
             Nothing -> view palCommand      pal
             Just{}  -> view palCommandReady pal
 
@@ -209,7 +210,7 @@ renderLine st pal hilites macros focused input =
           = case recognize (Text.toLower (Text.pack cmd)) allCommands of
               Exact (Right Command{cmdArgumentSpec = spec}) ->
                 ( specAttr spec
-                , render pal st focused spec
+                , render pal (makeArgsContext st) focused spec
                 )
               Exact (Left (MacroSpec spec)) ->
                 ( specAttr spec
