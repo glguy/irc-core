@@ -112,7 +112,9 @@ cleanChar x
   | otherwise   = x
 
 cleanText :: Text -> Text
-cleanText = Text.map cleanChar
+cleanText = Text.concatMap f where
+  f c | c == '\8203' = Text.empty -- remove the zero width space the haskell bridge uses
+  f c = Text.singleton (cleanChar c)
 
 ctxt :: Text -> Image'
 ctxt = text' defAttr . cleanText
