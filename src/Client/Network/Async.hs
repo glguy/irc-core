@@ -27,6 +27,7 @@ module Client.Network.Async
   , NetworkEvent(..)
   , createConnection
   , Client.Network.Async.send
+  , sendNext
   , Client.Network.Async.recv
   , upgrade
 
@@ -120,6 +121,13 @@ instance Exception TerminationReason where
 -- newline terminator.
 send :: NetworkConnection -> ByteString -> IO ()
 send c msg = atomically (writeTQueue (connOutQueue c) msg)
+
+-- | Insert a message to be transmitted on the network connection immediately.
+-- These messages are sent unmodified. The message should contain a
+-- newline terminator. This should be used for very high priority messages
+-- that must not get stuck in the queue.
+sendNext :: NetworkConnection -> ByteString -> IO ()
+sendNext c msg = atomically (unGetTQueue (connOutQueue c) msg)
 
 recv :: NetworkConnection -> STM [NetworkEvent]
 recv = flushTQueue . connInQueue

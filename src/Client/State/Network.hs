@@ -230,6 +230,11 @@ defaultChannelTypes = "#&"
 csNick :: Lens' NetworkState Identifier
 csNick = csUserInfo . uiNick
 
+-- | Transmit a 'RawIrcMsg' with high priority. This is done without
+-- the message splitting that 'sendMsg' usually does.
+sendMsgNext :: NetworkState -> RawIrcMsg -> IO ()
+sendMsgNext cs msg = send (view csSocket cs) (renderRawIrcMsg msg)
+
 -- | Transmit a 'RawIrcMsg' on the connection associated
 -- with the given network. For @PRIVMSG@ and @NOTICE@ overlong
 -- commands are detected and transmitted as multiple messages.
@@ -1229,7 +1234,7 @@ applyTimedAction action cs =
 
     TimedSendPing ->
       do now <- getCurrentTime
-         sendMsg cs (ircPing ["ping"])
+         sendMsgNext cs (ircPing ["ping"])
          return $! set csNextPingTime (Just $! addUTCTime 60 now)
                 $  set csPingStatus   (PingSent now) cs
 
