@@ -21,11 +21,13 @@ import Client.State.Network (csNetwork, csUserInfo, sendMsg, NetworkState)
 import Control.Applicative (liftA2, liftA3)
 import Control.Lens (view, preview, views)
 import Control.Monad (when)
+import Data.ByteString qualified as B
 import Data.Char (toUpper)
-import Data.Foldable (foldl')
+import Data.Foldable (foldl', traverse_)
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time (getZonedTime)
 import Irc.Commands
 import Irc.Identifier (Identifier, idText, mkId)
@@ -172,12 +174,41 @@ cmdKnock cs st (chan,message) =
      commandSuccess st
 
 cmdJoin :: NetworkCommand (String, Maybe String)
-cmdJoin cs st (channels, mbKeys) =
-  do let network = view csNetwork cs
-     let channelId = mkId (Text.pack (takeWhile (/=',') channels))
-     sendMsg cs (ircJoin (Text.pack channels) (Text.pack <$> mbKeys))
-     commandSuccess
-        $ changeFocus (ChannelFocus network channelId) st
+cmdJoin cs st (channelsStr, mbKeys) =
+ do let network = view csNetwork cs
+    let channelId = mkId (Text.pack (takeWhile (',' /=) channelsStr))
+    let channels = Text.split (',' ==) (Text.pack channelsStr)
+    let keys = maybe [] (Text.split (',' ==) . Text.pack) mbKeys
+    traverse_ (sendMsg cs) (chunkJoins channels keys)
+    commandSuccess (changeFocus (ChannelFocus network channelId) st)
+
+chunkJoins :: [Text] -> [Text] -> [RawIrcMsg]
+chunkJoins cs0 ks0 =
+  case (cs0, ks0) of
+    (c:cs, k:ks) -> go (cost c + cost k) [c] [k] cs ks
+    (c:cs, []) -> go (cost c) [c] [] cs []
+    _ -> []
+  where
+    limit = 500 -- "JOIN__:\r\n"
+    cost x = 1 + B.length (Text.encodeUtf8 x)
+
+    finishChannels = Text.intercalate "," . reverse
+    finishKeys [] = Nothing
+    finishKeys ks = Just (finishChannels ks)
+
+    go n acc1 acc2 (c:cs) []
+      | n + x > limit = ircJoin (finishChannels acc1) (finishKeys acc2) : go x [c] [] cs []
+      | otherwise = go (n + x) (c : acc1) acc2 cs []
+      where
+        x = cost c
+
+    go n acc1 acc2 (c:cs) (k:ks)
+      | n + x > limit = ircJoin (finishChannels acc1) (finishKeys acc2) : go x [c] [k] cs ks
+      | otherwise = go (n + x) (c : acc1) (k : acc2) cs ks
+      where
+        x = cost c + cost k
+
+    go _ acc1 acc2 [] _ = [ircJoin (finishChannels acc1) (finishKeys acc2)]
 
 -- | @/query@ command. Takes a channel or nickname and switches
 -- focus to that target on the current network.
@@ -257,7 +288,7 @@ cmdMsg cs st (target, rest)
           (ircPrivmsg tgtTxt restTxt)
           (\src tgt -> Privmsg src tgt restTxt)
           tgtTxt cs st
-        
+
 
 
 -- | Common logic for @/msg@ and @/notice@
