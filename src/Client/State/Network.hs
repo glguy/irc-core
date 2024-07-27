@@ -51,6 +51,7 @@ module Client.State.Network
   , csAuthenticationState
   , csSeed
   , csAway
+  , csJoinedChannels
   , clsElist
   , clsDone
   , clsItems
@@ -356,8 +357,14 @@ noReply = reply []
 reply :: [RawIrcMsg] -> NetworkState -> Apply
 reply = Apply
 
+-- Fold over the channels we're currently joined
+csJoinedChannels :: Fold NetworkState ChannelState
+csJoinedChannels = csChannels . folded . filtered _chanJoined
+
+-- | Apply an update function to a channel. If the channel doesn't
+-- exist the update function is applied to a fresh channel
 overChannel :: Identifier -> (ChannelState -> ChannelState) -> NetworkState -> NetworkState
-overChannel chan = overStrict (csChannels . ix chan)
+overChannel chan f = overStrict (csChannels . at chan) (Just . f . fromMaybe newChannel)
 
 overChannels :: (ChannelState -> ChannelState) -> NetworkState -> NetworkState
 overChannels = overStrict (csChannels . traverse)
@@ -438,7 +445,7 @@ applyMessage' msgWhen msg cs =
   where
     exitChannel chan nick
       | nick == view csNick cs = noReply $ pruneUsers
-                               $ over csChannels (sans chan) cs
+                               $ set (csChannels . ix chan . chanJoined) False cs
 
       | otherwise              = noReply $ forgetUser' nick
                                $ overChannel chan (partChannel nick) cs
@@ -448,7 +455,8 @@ applyMessage' msgWhen msg cs =
 pruneUsers :: NetworkState -> NetworkState
 pruneUsers cs = over csUsers (`HashMap.intersection` u) cs
   where
-    u = foldOf (csChannels . folded . chanUsers) cs
+    -- only considers joined (actively updated) channels
+    u = foldOf (csJoinedChannels . chanUsers) cs
 
 -- | 001 'RPL_WELCOME' is the first message received when transitioning
 -- from the initial handshake to a connected state. At this point we know
@@ -698,12 +706,10 @@ saveList ::
   NetworkState -> NetworkState
 saveList mode tgt cs
    = set csTransaction NoTransaction
-   $ setStrict
-        (csChannels . ix (mkId tgt) . chanLists . at mode)
-        (Just $! newList)
-        cs
+   $ overChannel (mkId tgt) upd cs
   where
     newList = HashMap.fromList (view (csTransaction . _BanTransaction) cs)
+    upd = set (chanLists . at mode) (Just $! newList)
 
 
 -- | These replies are interpreted by the client and should only be shown
@@ -771,7 +777,7 @@ doMode _ _ _ _ _ cs = noReply cs -- ignore bad mode command
 -- | Predicate to test if the connection has op in a given channel.
 iHaveOp :: Identifier -> NetworkState -> Bool
 iHaveOp channel cs =
-  elemOf (csChannels . ix channel . chanUsers . ix me . folded) '@' cs
+  elemOf (csChannels . ix channel . filtered _chanJoined . chanUsers . ix me . folded) '@' cs
   where
     me = view csNick cs
 
@@ -1037,8 +1043,10 @@ createOnJoin :: UserInfo -> Identifier -> NetworkState -> NetworkState
 createOnJoin who chan cs
   | userNick who == view csNick cs =
         set csUserInfo who -- great time to learn our userinfo
-      $ set (csChannels . at chan) (Just newChannel) cs
+      $ set (csChannels . at chan) (Just newJoinedChannel) cs
   | otherwise = cs
+  where
+    newJoinedChannel = newChannel { _chanJoined = True }
 
 updateMyNick :: Identifier -> Identifier -> NetworkState -> NetworkState
 updateMyNick oldNick newNick cs
@@ -1163,8 +1171,9 @@ massRegistration cs
   where
     infos = view (csTransaction . _WhoTransaction) cs
 
+    -- users in channels we're joined to
     channelUsers =
-      HashSet.fromList (views (csChannels . folded . chanUsers) HashMap.keys cs)
+      HashSet.fromList (views (csJoinedChannels . chanUsers) HashMap.keys cs)
 
     updateUsers users = foldl' updateUser users infos
 

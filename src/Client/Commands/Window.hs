@@ -19,6 +19,7 @@ import Client.State
 import Client.State.EditBox qualified as Edit
 import Client.State.Focus
 import Client.State.Network (csChannels)
+import Client.State.Channel (chanJoined)
 import Client.State.Window (windowClear, wlText, winMessages, winHidden, winActivityFilter, winName, activityFilterStrings, readActivityFilter)
 import Control.Applicative (liftA2)
 import Control.Exception (SomeException, Exception(displayException), try)
@@ -326,11 +327,19 @@ cmdClear focusDefault st args =
 
     clearFocus focus = commandSuccess (clearFocus1 focus st)
 
-    clearFocus1 focus st' = focusEffect (windowEffect st')
+    clearFocus1 focus st' = channelEffect (focusEffect (windowEffect st'))
       where
+        channelEffect =
+          case focus of
+            ChannelFocus network channel | not isActive ->
+              over (clientConnection network . csChannels) (sans channel)
+            _ -> id
+
+        -- clear or delete the window buffer
         windowEffect = over (clientWindows . at focus)
                            (if isActive then fmap windowClear else const Nothing)
 
+        -- stay on the current focus or find a new one
         focusEffect
           | noChangeNeeded    = id
           | prevExists        = changeFocus prev
@@ -341,12 +350,13 @@ cmdClear focusDefault st args =
 
             prev              = view clientPrevFocus st
 
+        -- active windows are cleared instead of deleted
         isActive =
           case focus of
-            Unfocused                    -> False
-            NetworkFocus network         -> has (clientConnection network) st'
-            ChannelFocus network channel -> has (clientConnection network
-                                                .csChannels . ix channel) st'
+            Unfocused -> False
+            NetworkFocus network -> has (clientConnection network) st'
+            ChannelFocus network channel ->
+              orOf (clientConnection network . csChannels . ix channel . chanJoined) st'
 
 -- | Tab completion for @/splits[+]@. When given no arguments this
 -- populates the current list of splits, otherwise it tab completes
