@@ -17,14 +17,15 @@ module Client.State.Channel
   (
   -- * Channel state
     ChannelState(..)
+  , chanCreation
+  , chanJoined
+  , chanLists
+  , chanModes
+  , chanQueuedModeration
   , chanTopic
   , chanTopicProvenance
   , chanUrl
   , chanUsers
-  , chanModes
-  , chanLists
-  , chanCreation
-  , chanQueuedModeration
 
   -- * Mask list entries
   , MaskListEntry(..)
@@ -58,7 +59,9 @@ import Irc.UserInfo (UserInfo)
 
 -- | Dynamic information about the state of an IRC channel
 data ChannelState = ChannelState
-  { _chanTopic :: !Text
+  { _chanJoined :: !Bool
+        -- ^ client is currently connected to this channel
+  , _chanTopic :: !Text
         -- ^ topic text
   , _chanTopicProvenance :: !(Maybe TopicProvenance)
         -- ^ author and timestamp for topic
@@ -94,7 +97,8 @@ makeLenses ''MaskListEntry
 -- | Construct an empty 'ChannelState'
 newChannel :: ChannelState
 newChannel = ChannelState
-  { _chanTopic = Text.empty
+  { _chanJoined = False
+  , _chanTopic = Text.empty
   , _chanUrl = Nothing
   , _chanTopicProvenance = Nothing
   , _chanUsers = HashMap.empty
