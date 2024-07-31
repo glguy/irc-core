@@ -75,6 +75,7 @@ data IrcMsg
   | Wallops  !Source !Text -- ^ Braodcast message: Source, message
   | Invite !Source !Identifier !Identifier -- ^ sender target channel
   | Away !Source (Maybe Text)
+  | Tagmsg !Source !Identifier -- ^ source target
   deriving Show
 
 data Source = Source { srcUser :: {-# UNPACK #-}!UserInfo, srcAcct :: !Text }
@@ -213,6 +214,12 @@ cookIrcMsg msg =
            , message <- view msgParams msg ->
            Away source (listToMaybe message)
 
+    "TAGMSG"
+      | Just source <- msgSource msg
+      , [target] <- view msgParams msg ->
+      Tagmsg source (mkId target)
+
+
     _      -> UnknownMsg msg
 
 -- | Parse a CTCP encoded message:
@@ -247,7 +254,7 @@ msgTarget me msg =
     Part _ chan _            -> TargetWindow chan
     Quit user _              -> TargetUser (userNick (srcUser user))
     Kick _ chan _ _          -> TargetWindow chan
-    Kill _ _ _               -> TargetNetwork
+    Kill{}                   -> TargetNetwork
     Topic _ chan _           -> TargetWindow chan
     Invite{}                 -> TargetNetwork
     Privmsg src tgt _        -> directed (srcUser src) tgt
@@ -266,6 +273,7 @@ msgTarget me msg =
     Chghost user _ _         -> TargetUser (userNick (srcUser user))
     Wallops _ _              -> TargetNetwork
     Away user _              -> TargetExisting (userNick (srcUser user))
+    Tagmsg src tgt           -> directed (srcUser src) tgt
   where
     directed src tgt
       | Text.null (userHost src) = TargetNetwork -- server message
@@ -308,6 +316,7 @@ msgActor msg =
     Chghost x _ _ -> Just x
     Wallops x _   -> Just x
     Away x _      -> Just x
+    Tagmsg x _    -> Just x
 
 renderSource :: Source -> Text
 renderSource (Source u "") = renderUserInfo u
@@ -340,11 +349,12 @@ ircMsgText msg =
     Authenticate{} -> ""
     BatchStart{}   -> ""
     BatchEnd{}     -> ""
-    Invite _ _ _   -> ""
+    Invite{}       -> ""
     Chghost x a b  -> Text.unwords [renderSource x, a, b]
     Wallops x t    -> Text.unwords [renderSource x, t]
     Away x (Just t) -> Text.unwords [renderSource x, "away", t]
     Away x Nothing  -> Text.unwords [renderSource x, "back"]
+    Tagmsg x _     -> renderSource x
 
 capCmdText :: CapCmd -> Text
 capCmdText cmd =

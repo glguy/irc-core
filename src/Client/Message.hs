@@ -71,11 +71,12 @@ data IrcSummary
   | PartSummary {-# UNPACK #-} !Identifier
   | NickSummary {-# UNPACK #-} !Identifier {-# UNPACK #-} !Identifier
   | ReplySummary {-# UNPACK #-} !ReplyCode
-  | ChatSummary {-# UNPACK #-} !UserInfo
+  | ChatSummary {-# UNPACK #-} !UserInfo -- userinfo to help with ignore rules
   | CtcpSummary {-# UNPACK #-} !Identifier
   | ChngSummary {-# UNPACK #-} !Identifier -- ^ Chghost command
   | AcctSummary {-# UNPACK #-} !Identifier -- ^ Account command
   | AwaySummary {-# UNPACK #-} !Identifier !Bool
+  | TagmSummary {-# UNPACK #-} !Identifier -- ^ TAGMSG command
   | NoSummary
   deriving (Eq, Show)
 
@@ -111,6 +112,7 @@ ircSummary msg =
     Account who _   -> AcctSummary (userNick (srcUser who))
     Chghost who _ _ -> ChngSummary (userNick (srcUser who))
     Away who mb     -> AwaySummary (userNick (srcUser who)) (isJust mb)
+    Tagmsg who _    -> TagmSummary (userNick (srcUser who))
     _               -> NoSummary
 
 quitKind :: Maybe Text -> QuitKind
@@ -131,5 +133,6 @@ summaryActor s =
     AcctSummary who   -> Just who
     ChngSummary who   -> Just who
     AwaySummary who _ -> Just who
+    TagmSummary who   -> Just who
     ReplySummary {}   -> Nothing
     NoSummary         -> Nothing

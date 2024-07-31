@@ -42,6 +42,7 @@ module Client.Image.Palette
   , palModes
   , palUsrChg
   , palIgnore
+  , palTagmsg
 
   -- * Lenses (Network)
   , palCModes
@@ -95,6 +96,7 @@ data Palette = Palette
   , _palPart          :: Attr
   , _palUsrChg        :: Attr
   , _palIgnore        :: Attr
+  , _palTagmsg        :: Attr -- ^ color of TAGMSG sigil
   }
   deriving Show
 
@@ -139,6 +141,7 @@ defaultPalette = Palette
   , _palModes              = metaLo
   , _palUsrChg             = metaLo
   , _palIgnore             = withForeColor defAttr white
+  , _palTagmsg             = metaLo
   }
   where
     metaNo = withForeColor defAttr brightBlack

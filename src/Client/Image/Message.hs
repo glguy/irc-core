@@ -286,6 +286,7 @@ ircLinePrefix !rp body =
 
     Account user _ -> who user <> " account:"
     Chghost ui _ _ -> who ui <> " chghost:"
+    Tagmsg{} -> mempty
 
 
 -- | Render a chat message given a rendering mode, the sigils of the user
@@ -308,6 +309,7 @@ ircLineImage !rp body =
     Nick        {} -> mempty
     Authenticate{} -> "***"
     Away        {} -> mempty
+    Tagmsg      {} -> mempty
 
     Error                   txt -> parseIrcText pal txt
     Topic _ _ txt ->
@@ -542,6 +544,10 @@ fullIrcLineImage !rp body =
 
     Away user Nothing ->
       string (view palUsrChg pal) "back " <>
+      who user
+
+    Tagmsg user _ ->
+      string quietAttr "tagm " <>
       who user
 
 
@@ -1214,6 +1220,7 @@ metadataImg pal msg =
     AcctSummary who       -> Just (char (view palUsrChg pal) '*', who, Nothing)
     AwaySummary who True  -> Just (char (view palAway pal)   'a', who, Nothing)
     AwaySummary who False -> Just (char (view palUsrChg pal) 'b', who, Nothing)
+    TagmSummary who       -> Just (char (view palTagmsg pal) 't', who, Nothing)
     _                     -> Nothing
 
 -- | Image used when treating ignored chat messages as metadata
