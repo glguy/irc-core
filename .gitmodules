@@ -4,3 +4,7 @@
 [submodule "config-value"]
 	path = config-value
 	url = https://github.com/glguy/config-value.git
+[submodule "HsOpenSSL"]
+	path = HsOpenSSL
+	url = https://github.com/glguy/HsOpenSSL
+	branch = glguy/pointer-fixes
