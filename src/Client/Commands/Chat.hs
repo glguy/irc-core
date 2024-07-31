@@ -1,4 +1,4 @@
-{-# Language BangPatterns, OverloadedStrings, TemplateHaskell #-}
+{-# Language BangPatterns, BlockArguments, OverloadedStrings, TemplateHaskell #-}
 {-|
 Module      : Client.Commands.Chat
 Description : Common user IRC commands
@@ -15,15 +15,17 @@ import Client.Commands.Types
 import Client.Commands.Window (parseFocus)
 import Client.Message
 import Client.State
+import Client.State.Channel (chanJoined)
 import Client.State.Extensions (clientChatExtension)
 import Client.State.Focus (focusNetwork, Focus(ChannelFocus), Subfocus(FocusInfo, FocusUsers))
-import Client.State.Network (csNetwork, csUserInfo, sendMsg, NetworkState)
+import Client.State.Network
 import Control.Applicative (liftA2, liftA3)
-import Control.Lens (view, preview, views)
-import Control.Monad (when)
+import Control.Lens (filteredBy, has, ix, view, preview, views)
+import Control.Monad (when, unless)
 import Data.ByteString qualified as B
 import Data.Char (toUpper)
 import Data.Foldable (foldl', traverse_)
+import Data.HashMap.Strict qualified as HashMap
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -118,7 +120,7 @@ chatCommands = CommandSection "IRC commands"
     $ ChannelCommand cmdChanNames noChannelTab
 
   , Command
-      (pure "channelinfo")
+      ("channelinfo" :| ["cinfo"])
       (pure ())
       $(chatDocs `cmdDoc` "channelinfo")
     $ ChannelCommand cmdChannelInfo noChannelTab
@@ -161,11 +163,22 @@ cmdMonitor cs st args =
      commandSuccess st
 
 cmdChanNames :: ChannelCommand ()
-cmdChanNames chan cs st _ = commandSuccess (changeSubfocus subfocus st)
+cmdChanNames chan cs st _ = do
+    -- TODO: Uncomment when RPL_NAMREPLY actually creates a ChannelState.
+    -- let connecting = has (csPingStatus . _PingConnecting) cs
+    --     isJoined   = has (csChannels . ix chan . filteredBy chanJoined) cs
+    -- unless (connecting || isJoined)
+    --   (sendMsg cs (ircNames chan))
+    commandSuccess (changeSubfocus subfocus st)
   where subfocus = FocusUsers (view csNetwork cs) chan
 
 cmdChannelInfo :: ChannelCommand ()
-cmdChannelInfo chan cs st _ = commandSuccess (changeSubfocus subfocus st)
+cmdChannelInfo chan cs st _ = do
+    let connecting = has (csPingStatus . _PingConnecting) cs
+        isJoined   = has (csChannels . ix chan . filteredBy chanJoined) cs
+    unless (connecting || isJoined)
+      (sendMsg cs (ircMode chan []) >> sendMsg cs (ircTopic chan ""))
+    commandSuccess (changeSubfocus subfocus st)
   where subfocus = FocusInfo (view csNetwork cs) chan
 
 cmdKnock :: NetworkCommand (String, String)
