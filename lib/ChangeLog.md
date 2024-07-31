@@ -1,5 +1,9 @@
 # Revision history for irc-core
 
+## 2.13
+
+* Added constructors for TAGMSG from messages-tags
+
 ## 2.12
 
 * Added constructors for AWAY

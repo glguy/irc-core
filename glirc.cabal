@@ -181,7 +181,7 @@ library
     githash              ^>=0.1.6,
     hashable             >=1.2.4  && <1.6,
     hookup               ^>=0.8,
-    irc-core             ^>=2.12,
+    irc-core             ^>=2.13,
     kan-extensions       >=5.0    && <5.3,
     lens                 >=4.14   && <5.4,
     random               >=1.1    && <1.3,

@@ -14,7 +14,7 @@ module Client.View.Help
   ( helpImageLines
   ) where
 
-import           Client.State (ClientState, clientConfig, clientFocus)
+import           Client.State (ClientState, clientConfig)
 import           Client.Configuration (configMacros)
 import           Client.Commands
 import           Client.Commands.Interpolation
