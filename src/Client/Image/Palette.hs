@@ -203,4 +203,5 @@ paletteMap =
   , ("part"             , Lens palPart)
   , ("user-change"      , Lens palUsrChg)
   , ("ignore"           , Lens palIgnore)
+  , ("tagmsg"           , Lens palTagmsg)
   ]
