@@ -22,6 +22,7 @@ import           Client.Configuration (configMacros)
 import           Client.Image.MircFormatting
 import           Client.Image.PackedImage
 import           Client.Image.Palette
+import           Client.Image.Message
 import           Client.State
 import           Client.State.Focus (focusNetwork, Subfocus(FocusHelp))
 import           Client.State.Help
@@ -33,21 +34,23 @@ import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.Vty.Attributes
-import           Irc.RawIrcMsg (rawIrcMsg)
+import           Irc.Commands (ircHelp)
 
 displayHelp :: ClientState -> HelpState -> IO CommandResult
 displayHelp st help = commandSuccess . changeSubfocus FocusHelp $ set clientHelp help st
 
 -- | Implementation of @/help@ command.
 cmdHelp :: [CommandSection] -> Recognizer Command -> WindowCommand (Maybe String)
-cmdHelp commandsList commands focus st (Just (':':queryStr)) = case focusNetwork focus of
-  Nothing -> commandFailureMsg "empty network prefix requires focused network" st
-  Just net -> cmdHelp commandsList commands focus st (Just $ Text.unpack net ++ (':':queryStr)) -- Network name better not start with a colon! ;)
+cmdHelp commandsList commands focus st (Just (':':queryStr)) =
+  case focusNetwork focus of
+    Nothing -> commandFailureMsg "empty network prefix requires focused network" st
+    Just net -> cmdHelp commandsList commands focus st (Just (Text.unpack net ++ ':' : queryStr))
+                -- Network name better not start with a colon! ;)
 cmdHelp _ commands _ st (Just queryStr)
   | Just queryText == savedQueryText = commandSuccess (changeSubfocus FocusHelp st)
   | otherwise = loadHelp commands queryText st
   where
-    savedQueryText = helpQueryToText $ view (clientHelp . hsQuery) st
+    savedQueryText = views (clientHelp . hsQuery) helpQueryToText st
     queryText = Text.pack queryStr
 cmdHelp commandsList _ _ st Nothing = loadHelpList commandsList st
 
@@ -55,23 +58,66 @@ loadHelpList :: [CommandSection] -> ClientState -> IO CommandResult
 loadHelpList commandList st = displayHelp st $ makeHelp Nothing $ listAllCommands commandList st
 
 loadHelp :: Recognizer Command -> Text -> ClientState -> IO CommandResult
-loadHelp commands query st = case Text.break (==':') query of
-  (cmdName,"") -> loadHelpCmd commands cmdName st
-  (net,topic) -> sendHelpQuery net (Text.tail topic) st
+loadHelp commands query st =
+  case Text.break (':' ==) query of
+    (cmdName, "") -> loadHelpCmd commands cmdName st
+    (net, topic) -> sendHelpQuery net (Text.tail topic) st
 
 sendHelpQuery :: Text -> Text -> ClientState -> IO CommandResult
-sendHelpQuery net topic st = case preview (clientConnection net) st of
-  Just cs -> do
-    sendMsg cs (rawIrcMsg "HELP" [topic]) -- TODO: Turns out irc-core doesn't have an ircHelp function.
-    displayHelp st $ awaitHelp net topic
-  Nothing -> commandFailureMsg (Text.append "not connected to " net) st
+sendHelpQuery net topic st =
+  case preview (clientConnection net) st of
+    Just cs -> do
+      sendMsg cs (ircHelp topic)
+      displayHelp st (awaitHelp net topic)
+    Nothing -> commandFailureMsg ("not connected to " <> net) st
 
 loadHelpCmd :: Recognizer Command -> Text -> ClientState -> IO CommandResult
-loadHelpCmd commands cmdName st = case recognize cmdName commands of
-  Invalid -> commandFailureMsg "unknown command, try /help with no argument" st
-  Prefix sfxs -> commandFailureMsg (Text.append "unknown command, did you mean: " suggestions) st
-    where suggestions = Text.intercalate " " ((cmdName <>) <$> sfxs)
-  Exact cmd -> displayHelp st $ makeHelp (Just cmdName) $ commandHelpLines st cmdName cmd
+loadHelpCmd commands cmdName st =
+  case views (clientConfig . configMacros) (recognize cmdName) st of
+    Exact macro -> displayHelp st $ makeHelp (Just cmdName) $ macroHelpLines st cmdName macro
+    Invalid -> commandCase []
+    Prefix sfxs -> commandCase sfxs
+  where
+    commandCase macroSfxs =
+      case recognize cmdName commands of
+        Invalid -> failureCase macroSfxs
+        Prefix sfxs -> failureCase (macroSfxs <> sfxs)
+        Exact cmd -> displayHelp st $ makeHelp (Just cmdName) $ commandHelpLines st cmdName cmd
+
+    failureCase sfxs
+      | null sfxs = commandFailureMsg "unknown command, try /help with no argument" st
+      | otherwise = commandFailureMsg ("unknown command, did you mean: " <> suggestions) st
+        where suggestions = Text.intercalate " " ((cmdName <>) <$> sfxs)
+
+-- | Generate detailed help for macro expansions
+macroHelpLines ::
+  ClientState {- ^ client state -} ->
+  Text        {- ^ name         -} ->
+  Macro       {- ^ macro        -} ->
+  [Image']    {- ^ lines        -}
+macroHelpLines
+  st
+  name
+  Macro{ macroSpec = MacroSpec spec, macroCommands = commands }
+  = reverse
+      $ heading "Syntax: " <> commandSummary (makeArgsContext st) pal (pure name) spec
+      : emptyLine
+      : heading "Macro Expansion:"
+      : map (\x -> "    " <> foldMap explainExpansion x) commands
+  where
+    pal = clientPalette st
+    attr = withForeColor defAttr cyan
+    explainExpansion chunk =
+      case chunk of
+        LiteralChunk txt -> text' defAttr (cleanText txt)
+        VariableChunk var -> text' attr ("${" <> cleanText var <> "}")
+        IntegerChunk i -> string attr ("${" <> show i <> "}")
+        DefaultChunk c txt ->
+          text' attr "${" <>
+          explainExpansion c <>
+          text' attr "|" <>
+          text' defAttr (cleanText txt) <>
+          text' attr "}"
 
 -- | Generate detailed help lines for the command with the given name.
 commandHelpLines ::
