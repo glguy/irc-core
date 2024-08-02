@@ -365,7 +365,7 @@ keyBindingSpec = actBindingSpec <!> cmdBindingSpec <!> unbindingSpec
 actBindingSpec :: ValueSpec (KeyMap -> KeyMap)
 actBindingSpec = sectionsSpec "action-binding" $
   do ~(m,k) <- reqSection' "bind" keySpec
-               "Key to be bound (e.g. a, C-b, M-c C-M-d)"
+               "Key to be bound (e.g. \"a\", \"C-b\", \"M-c\", \"C-M-d\")"
      a      <- reqSection "action"
                "Action name (see `/keymap`)"
      return (addKeyBinding m k a)
@@ -373,7 +373,7 @@ actBindingSpec = sectionsSpec "action-binding" $
 cmdBindingSpec :: ValueSpec (KeyMap -> KeyMap)
 cmdBindingSpec = sectionsSpec "command-binding" $
   do ~(m,k) <- reqSection' "bind" keySpec
-               "Key to be bound (e.g. a, C-b, M-c C-M-d)"
+               "Key to be bound (e.g. \"a\", \"C-b\", \"M-c\", \"C-M-d\")"
      cmd    <- reqSection "command"
                "Client command to execute (exclude leading `/`)"
      return (addKeyBinding m k (ActCommand cmd))
@@ -381,7 +381,7 @@ cmdBindingSpec = sectionsSpec "command-binding" $
 unbindingSpec :: ValueSpec (KeyMap -> KeyMap)
 unbindingSpec = sectionsSpec "remove-binding" $
   do ~(m,k) <- reqSection' "unbind" keySpec
-               "Key to be unbound (e.g. a, C-b, M-c C-M-d)"
+               "Key to be unbound (e.g. \"a\", \"C-b\", \"M-c\", \"C-M-d\")"
      return (removeKeyBinding m k)
 
 
