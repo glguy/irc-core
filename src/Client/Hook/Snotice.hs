@@ -64,20 +64,18 @@ patterns :: [(Int, Identifier, Regex)]
 patterns = map toPattern
     [
     -- PATTERN LIST, most common snotes
+    (1, "k", [str|^Rejecting [DKX]-Lined user|]),
+
     -- Client connecting, more complete regex: ^Client connecting: [^ ]+ \([^ ]+@[^ ]+\) \[[^ ]+\] \{[^ ]+\} \[.*\]$
     (1, "c", [str|^Client connecting: |]),
     -- Client exiting, more complete regex: ^Client exiting: [^ ]+ \([^ ]+@[^ ]+\) \[.*\] \[[^ ]+\]$
     (0, "c", [str|^Client exiting: |]),
     -- Nick change
     (0, "c", [str|^Nick change: From |]),
-    -- Connection limit, more complete regex: ^Too many user connections for [^ ]+![^ ]+@[^ ]+$
-    (1, "u", [str|^Too many user connections for |]),
     -- Join alerts, more complete regex: ^User [^ ]+ \([^ ]+@[^ ]+\) trying to join #[^ ]* is a possible spambot$
     (1, "a", [str|^User [^ ]+ \([^ ]+\) trying to join #[^ ]* is a possible spambot|]),
     -- Kline hitting user
     (1, "k", [str|^K/DLINE active for|]),
-    -- Connection limit, more complete regex: ^Too many local connections for [^ ]+![^ ]+@[^ ]+$
-    (1, "u", [str|^Too many local connections for |]),
     -- Global kline added, more complete regex: ^[^ ]+![^ ]+@[^ ]+\{[^ ]+\} added global [0-9]+ min. K-Line for \[[^ ]+\] \[.*\]$
     (2, "k", [str|^[^ ]+ added global [0-9]+ min. K-Line for |]),
     (2, "k", [str|^[^ ]+ added global [0-9]+ min. X-Line for |]),
@@ -114,7 +112,6 @@ patterns = map toPattern
     (1, "f", [str|^Failed (OPER|CHALLENGE) attempt - host mismatch|]),
     (3, "f", [str|^Failed (OPER|CHALLENGE) attempt|]), -- ORDER IMPORTANT - catch all failed attempts that aren't host mismatch
 
-    (1, "k", [str|^Rejecting [DKX]-Lined user|]),
     (1, "k", [str|^Disconnecting [DKX]-Lined user|]),
     (1, "k", [str|^KLINE active for|]),
     (1, "k", [str|^XLINE active for|]),
@@ -212,10 +209,13 @@ patterns = map toPattern
     (3, "o", [str|^ERROR |]),
     (3, "o", [str|^No response from [^ ]+, closing link$|]),
 
-    (1, "u", [str|^Too many global connections for [^ ]+![^ ]+@[^ ]+$|]),
+    (1, "u", [str|^Too many user connections for |]),
+    (1, "u", [str|^Too many local connections for |]),
+    (1, "u", [str|^Too many global connections for |]),
+    (1, "u", [str|^I-line is full for |]),
+
     (0, "u", [str|^Invalid username: |]),
     (0, "u", [str|^HTTP Proxy disconnected: |]),
     (2, "u", [str|^Unauthorised client connection from |]),
     (2, "u", [str|^[^ ]+( \([^ ]+\))? sent the password for the MARKED account|]),
     (2, "u", [str|^Not restoring mark|])]
--- -}
