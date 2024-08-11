@@ -3,6 +3,7 @@
 ## 2.13
 
 * Added constructors for TAGMSG from messages-tags
+* Removed `TargetExisting` (added in 2.12 as part of AWAY handling)
 
 ## 2.12
 
