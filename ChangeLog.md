@@ -1,5 +1,21 @@
 # Revision history for glirc
 
+## 2.41
+
+* glirc now requests the `extended-monitor`, `invite-notify`, and `message-tags` capabilities
+* Add `/in` to run commands and macros on windows other than the focused one
+* Add ChanServ-aware `/op`, `/deop`, `/quiet`, `/voice`, and `/devoice`
+* Add `/dline`, `/resv`, `/xline`, and remote `/kline`
+* Add server-side help and macro expansions to `/help`
+* Retain channel metadata for channels glirc isn't joined to. `/clear` removes stale metadata
+* Tidier status line
+* Show window list while typing `/c` commands
+* `jumpToActivity` (`M-a`) now prioritizes named windows
+* Improve routing and display of `INVITE` and `MONITOR`-related messages
+* Automatically split overlong `/join` commands
+* Improve connection reliability when sending very large numbers of messages
+* Build on GHC 9.10
+
 ## 2.40.1
 
 * Fix exception on /exec with a non-zero exit code
