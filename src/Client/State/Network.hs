@@ -751,6 +751,7 @@ squelchReply rpl =
 -- relevant information.
 squelchIrcMsg :: IrcMsg -> Bool
 squelchIrcMsg (Reply _ rpl _) = squelchReply rpl
+squelchIrcMsg (Tagmsg _ _)    = True -- TODO: Remove after implementing TAGMSG filtering
 squelchIrcMsg _               = False
 
 doMode ::
