@@ -64,19 +64,33 @@ instance Semigroup Image' where
 
 instance IsString Image' where fromString = string defAttr
 
+-- | Predicate for characters that should be output to screen.
+isOutput :: Char -> Bool
+isOutput '\x200b' = False -- zero-width space that terminals typically misdraw
+isOutput _ = True
+
 text' :: Attr -> S.Text -> Image'
 text' a s
-  | S.null s  = EmptyImage'
-  | otherwise = HorizText' a s (wcswidth (S.unpack s)) (S.length s) EmptyImage'
+  | S.null s         = EmptyImage'
+  -- optimization to avoid copying the text if nothing will be filtered
+  | S.all isOutput s = HorizText' a s (wcswidth (S.unpack s)) (S.length s) EmptyImage'
+  | S.null s'        = EmptyImage'
+  | otherwise        = HorizText' a s' (wcswidth (S.unpack s')) (S.length s') EmptyImage'
+  where
+    s' = S.filter isOutput s
 
 char :: Attr -> Char -> Image'
-char a c = HorizText' a (S.singleton c) (wcwidth c) 1 EmptyImage'
+char a c
+  | isOutput c = HorizText' a (S.singleton c) (wcwidth c) 1 EmptyImage'
+  | otherwise = EmptyImage'
 
 string :: Attr -> String -> Image'
 string a s
   | null s    = EmptyImage'
-  | otherwise = HorizText' a t (wcswidth s) (S.length t) EmptyImage'
-  where t = S.pack s
+  | otherwise = HorizText' a t (wcswidth s') (S.length t) EmptyImage'
+  where
+    s' = filter isOutput s
+    t = S.pack s'
 
 splitImage :: Int {- ^ image width -} -> Image' -> (Image',Image')
 splitImage _ EmptyImage' = (EmptyImage', EmptyImage')
