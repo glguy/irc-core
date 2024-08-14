@@ -12,16 +12,32 @@ This module contains glirc-specific overrides of the message routing provided by
 
 module Client.State.Target
   (
-    MessageTarget(..)
+    Routing(..)
+  , defaultRouting
+  , routeMonToNet
+
+  , MessageTarget(..)
   , msgTarget
   ) where
 
+import           Control.Lens
 import qualified Data.Text as Text
 import           Irc.Codes
 import           Irc.Identifier (Identifier, mkId)
 import           Irc.Message (IrcMsg(..), srcUser)
 import qualified Irc.Message as Msg
 import           Irc.UserInfo (userNick, parseUserInfo)
+
+data Routing = Routing
+  { _routeMonToNet :: !Bool -- ^ Put RPL_MON* messages in the network window instead of user windows
+  } deriving Show
+
+defaultRouting :: Routing
+defaultRouting =  Routing
+  { _routeMonToNet = False
+  }
+
+makeLenses ''Routing
 
 data MessageTarget
   = TargetDrop                 -- ^ Do not record the message anywhere.
@@ -30,8 +46,8 @@ data MessageTarget
   | TargetExisting !Identifier -- ^ As @TargetWindow@ but only for existing windows.
   | TargetNetwork              -- ^ Record the message in the network window.
 
-msgTarget :: Identifier -> IrcMsg -> MessageTarget
-msgTarget nick msg =
+msgTarget :: Routing -> Identifier -> IrcMsg -> MessageTarget
+msgTarget routing nick msg =
   case msg of
     Authenticate{}  -> TargetDrop
     BatchStart{}    -> TargetDrop
@@ -40,6 +56,8 @@ msgTarget nick msg =
     Pong{}          -> TargetDrop
     Away user _     -> TargetExisting (userNick (srcUser user))
     Invite _ _ chan -> TargetWindow chan
+    Reply _ RPL_MONONLINE _  | _routeMonToNet routing -> TargetNetwork
+    Reply _ RPL_MONOFFLINE _ | _routeMonToNet routing -> TargetNetwork
     Reply _ RPL_MONONLINE [_,who]  | [who'] <- Text.split (==',') who ->
       TargetWindow (userNick $ parseUserInfo who')
     Reply _ RPL_MONOFFLINE [_,who] | [who'] <- Text.split (==',') who ->

@@ -21,7 +21,7 @@ import Client.CApi (ThreadEntry, popTimer)
 import Client.Commands (CommandResult(..), execute, executeUserCommand, tabCompletion)
 import Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs, configNotifications)
 import Client.Configuration.Notifications (notifyCmd)
-import Client.Configuration.ServerSettings ( ssReconnectAttempts )
+import Client.Configuration.ServerSettings ( ssReconnectAttempts, ssRouting )
 import Client.EventLoop.Actions (keyToAction, Action(..))
 import Client.EventLoop.Errors (exceptionToLines)
 import Client.EventLoop.Network (clientResponse)
@@ -337,7 +337,7 @@ doNetworkLine networkId time line st =
                             Just irc' -> recordIrcMessage network target msg st1
                               where
                                 myNick = view csNick cs
-                                target = msgTarget myNick irc
+                                target = msgTarget (view (csSettings . ssRouting) cs) myNick irc
                                 msg = ClientMessage
                                       { _msgTime    = time'
                                       , _msgNetwork = network
@@ -357,7 +357,7 @@ startTLSLine network cs st raw =
   do now <- getZonedTime
      let irc = cookIrcMsg raw
          myNick = view csNick cs
-         target = msgTarget myNick irc
+         target = msgTarget (view (csSettings . ssRouting) cs) myNick irc
          msg = ClientMessage
              { _msgTime    = now
              , _msgNetwork = network

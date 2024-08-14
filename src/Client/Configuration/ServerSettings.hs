@@ -59,6 +59,7 @@ module Client.Configuration.ServerSettings
   , ssCapabilities
   , ssWindowHints
   , ssPalette
+  , ssRouting
 
   -- * SASL Mechanisms
   , SaslMechanism(..)
@@ -95,6 +96,7 @@ import Client.Configuration.Colors (attrSpec)
 import Client.Configuration.Macros (macroCommandSpec)
 import Client.Image.Palette (NetworkPalette (..), defaultNetworkPalette)
 import Client.State.Focus ( Focus (NetworkFocus, ChannelFocus) )
+import Client.State.Target (Routing (..), defaultRouting)
 import Client.State.Window (ActivityFilter (..))
 import Config.Schema.Spec
 import Control.Exception (Exception, displayException, throwIO, try)
@@ -165,6 +167,7 @@ data ServerSettings = ServerSettings
   , _ssCapabilities     :: ![Text] -- ^ Extra capabilities to unconditionally request
   , _ssWindowHints      :: Map Focus WindowHint
   , _ssPalette          :: NetworkPalette
+  , _ssRouting          :: Routing
   }
   deriving Show
 
@@ -263,6 +266,7 @@ defaultServerSettings =
        , _ssCapabilities     = []
        , _ssWindowHints      = Map.empty
        , _ssPalette          = defaultNetworkPalette
+       , _ssRouting          = defaultRouting
        }
 
 serverSpec :: ValueSpec (Maybe Text, ServerSettings -> ServerSettings)
@@ -399,6 +403,9 @@ serverSpec = sectionsSpec "server-settings" $
       
       , req "palette" ssPalette netPaletteSpec
         "Network-specific palette overrides"
+
+      , req "routing" ssRouting routingSpec
+        "Overrides for which windows receive which messages"
       ]
 
 windowHintsSpec :: ValueSpec (Map Focus WindowHint)
@@ -615,3 +622,14 @@ netPaletteSpec =
     colorMapSpec = HashMap.fromList . concatMap expand <$> assocSpec attrSpec
       where
         expand (modes, style) = [(mode, style) | mode <- Text.unpack modes, isLetter mode]
+
+routingSpec :: ValueSpec Routing
+routingSpec =
+  sectionsSpec "routing" $
+  do _routeMonToNet <- fromMaybe False <$> optSection' "monitor" routeMonSpec
+                       "Which window to send RPL_MON* messages to"
+     pure Routing{..}
+  where
+    routeMonSpec =
+      False <$ atomSpec "user" <!>
+      True  <$ atomSpec "network"
