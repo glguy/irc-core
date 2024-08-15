@@ -107,7 +107,8 @@ data ActivityLevel = NoActivity | NormalActivity | HighActivity
 
 -- | Flag for the important of a message being added to a window
 data WindowLineImportance
-  = WLBoring -- ^ Don't update unread count
+  = WLSquelch -- ^ Hide the message entirely outside of detailed mode
+  | WLBoring -- ^ Don't update unread count
   | WLNormal -- ^ Increment unread count
   | WLImportant -- ^ Increment unread count and set important flag
   deriving (Eq, Ord, Show, Read, Enum)
@@ -181,7 +182,7 @@ addToWindow !msg !win = (win', nowImportant)
         { _winMessages = msg :- view winMessages win
         , _winTotal    = view winTotal win + 1
         , _winMarker   = (+1) <$!> view winMarker win
-        , _winUnread   = if msgImportance == WLBoring
+        , _winUnread   = if msgImportance <= WLBoring
                          then view winUnread win
                          else view winUnread win + 1
         , _winMention  = max oldMention msgImportance

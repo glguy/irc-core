@@ -420,7 +420,7 @@ msgImportance msg st =
     NormalBody{} -> WLImportant
     ErrorBody{}  -> WLImportant
     IrcBody irc
-      | squelchIrcMsg irc -> WLBoring
+      | squelchIrcMsg irc -> WLSquelch
       | isJust (ircIgnorable irc st) -> WLBoring
       | otherwise ->
       case irc of
