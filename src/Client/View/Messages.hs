@@ -61,7 +61,7 @@ chatMessageImages focus w st =
           if hideMeta
             then detailedImagesWithoutMetadata st
             else map (view wlFullImage)
-      | otherwise = windowLinesToImages st w hideMeta . filter ((/= WLSquelch) . _wlImportance)
+      | otherwise = windowLinesToImages st w hideMeta . filter (hasn't (wlImportance . only WLSquelch))
 
 detailedImagesWithoutMetadata :: ClientState -> [WindowLine] -> [Image']
 detailedImagesWithoutMetadata st wwls =

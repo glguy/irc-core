@@ -41,7 +41,7 @@ import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (ZonedTime)
-import Irc.Codes ( pattern RPL_NOWAWAY, pattern RPL_UNAWAY, pattern RPL_MONONLINE, pattern RPL_MONOFFLINE )
+import Irc.Codes (pattern RPL_NOWAWAY, pattern RPL_UNAWAY, pattern RPL_MONONLINE, pattern RPL_MONOFFLINE)
 import Irc.Identifier (Identifier, mkId)
 import Irc.Message (IrcMsg(..), ircMsgText, Source(srcUser))
 import Irc.UserInfo (UserInfo(userNick), parseUserInfo, uiNick)
