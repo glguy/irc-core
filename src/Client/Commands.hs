@@ -37,13 +37,14 @@ import Client.State
 import Client.State.Extensions (clientCommandExtension, clientStartExtensions)
 import Client.State.Focus
 import Client.State.Help (hsQuery, helpQueryToText)
-import Client.State.Network (csNick, isChannelIdentifier, sendMsg)
+import Client.State.Network (csNick, csSettings, isChannelIdentifier, sendMsg)
 import Client.State.Url
 import Control.Applicative (liftA2, (<|>))
 import Control.Exception (displayException, try)
 import Control.Lens
 import Control.Monad (guard, foldM)
 import Data.Foldable (foldl', toList)
+import Data.HashMap.Strict qualified as HashMap
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -415,10 +416,15 @@ cmdReload st mbPath =
        Left e -> commandFailureMsg (describeProblem e) st
        Right (path',cfg) ->
          do st1 <- clientStartExtensions
+                 $ over clientConnections (HashMap.mapWithKey updateNetConfig)
                  $ set clientConfig cfg
                  $ set clientConfigPath path' st
             commandSuccess st1
-
+         where
+            updateNetConfig name cs =
+                case HashMap.lookup name $ _configServers cfg of
+                  Nothing -> cs
+                  Just netcfg -> set csSettings netcfg cs
   where
     describeProblem err =
       Text.pack $
