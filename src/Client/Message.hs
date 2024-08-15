@@ -41,7 +41,7 @@ import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (ZonedTime)
-import Irc.Codes (ReplyCode, pattern RPL_NOWAWAY, pattern RPL_UNAWAY, pattern RPL_MONONLINE, pattern RPL_MONOFFLINE )
+import Irc.Codes ( pattern RPL_NOWAWAY, pattern RPL_UNAWAY, pattern RPL_MONONLINE, pattern RPL_MONOFFLINE )
 import Irc.Identifier (Identifier, mkId)
 import Irc.Message (IrcMsg(..), ircMsgText, Source(srcUser))
 import Irc.UserInfo (UserInfo(userNick), parseUserInfo, uiNick)
@@ -71,7 +71,6 @@ data IrcSummary
   | QuitSummary {-# UNPACK #-} !Identifier !QuitKind
   | PartSummary {-# UNPACK #-} !Identifier
   | NickSummary {-# UNPACK #-} !Identifier {-# UNPACK #-} !Identifier
-  | ReplySummary {-# UNPACK #-} !ReplyCode
   | ChatSummary {-# UNPACK #-} !UserInfo -- userinfo to help with ignore rules
   | CtcpSummary {-# UNPACK #-} !Identifier
   | ChngSummary {-# UNPACK #-} !Identifier -- ^ Chghost command
@@ -113,7 +112,6 @@ ircSummary msg =
       MonSummary (view uiNick $ parseUserInfo who') True
     Reply _ RPL_MONOFFLINE [_,who] | [who'] <- Text.split (==',') who ->
       MonSummary (mkId who') False
-    Reply _ code _  -> ReplySummary code
     Account who _   -> AcctSummary (userNick (srcUser who))
     Chghost who _ _ -> ChngSummary (userNick (srcUser who))
     Away who mb     -> AwaySummary (userNick (srcUser who)) (isJust mb)
@@ -139,6 +137,5 @@ summaryActor s =
     ChngSummary who   -> Just who
     AwaySummary who _ -> Just who
     TagmSummary who   -> Just who
-    ReplySummary {}   -> Nothing
     MonSummary who _  -> Just who
     NoSummary         -> Nothing
