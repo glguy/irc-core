@@ -10,7 +10,8 @@ This module selects the correct view based on the current state.
 
 -}
 module Client.View
-  ( viewLines
+  ( viewMainLines
+  , viewExtraLines
   ) where
 
 import Client.Image.PackedImage (Image')
@@ -35,13 +36,18 @@ import Client.View.Windows (windowsImages)
 import Client.View.WindowSwitch (windowSwitchImages)
 import Control.Lens (view)
 
-viewLines :: Focus -> Subfocus -> Int -> ClientState -> [Image']
-viewLines focus subfocus w !st =
+-- | Generate the lines for the main window (the one associated with text input)
+viewMainLines :: Focus -> Subfocus -> Int -> ClientState -> [Image']
+viewMainLines focus subfocus w !st
+  | Just ("url",arg) <- clientActiveCommand st = urlSelectionView w (actualFocus subfocus focus) arg st
+  | Just ("c"  ,arg) <- clientActiveCommand st = windowSwitchImages arg w st
+  | otherwise                                  = viewExtraLines focus subfocus w st
+
+-- | Generate the lines for an extra window. This is like 'viewMainLines' except
+-- it doesn't react to the current state of the input bar.
+viewExtraLines :: Focus -> Subfocus -> Int -> ClientState -> [Image']
+viewExtraLines focus subfocus w !st =
   case subfocus of
-    _ | Just ("url",arg) <- clientActiveCommand st ->
-      urlSelectionView w focus' arg st
-    _ | Just ("c",arg) <- clientActiveCommand st ->
-      windowSwitchImages arg w st
     FocusInfo network channel ->
       channelInfoImages network channel st
     FocusUsers network channel
@@ -65,4 +71,3 @@ viewLines focus subfocus w !st =
     _ -> chatMessageImages focus w st
   where
     pal = clientPalette st
-    focus' = actualFocus subfocus focus

@@ -16,7 +16,7 @@ import Client.Image.StatusLine (statusLineImage, minorStatusLineImage)
 import Client.Image.Textbox (textboxImage)
 import Client.State
 import Client.State.Focus ( Focus, Subfocus )
-import Client.View (viewLines)
+import Client.View (viewMainLines, viewExtraLines)
 import Control.Lens (view)
 import Graphics.Vty.Attributes (defAttr)
 import Graphics.Vty.Image
@@ -57,7 +57,7 @@ drawLayoutOne st extrafocus =
     -- don't count textbox or the main status line against the main window's height
     saveRows = 1 + imageHeight (statusLineImage w st)
 
-    extraLines = [ (focus, subfocus, viewLines focus subfocus w st)
+    extraLines = [ (focus, subfocus, viewExtraLines focus subfocus w st)
                    | (focus, subfocus) <- extrafocus ]
 
 -- | Layout algorithm for all windows in a single column.
@@ -85,7 +85,7 @@ drawLayoutTwo st extrafocus =
     divider = charFill (view palWindowDivider pal) ' ' 1 rows
     rows    = view clientHeight st
 
-    extraLines = [ (focus, subfocus, viewLines focus subfocus wr st)
+    extraLines = [ (focus, subfocus, viewExtraLines focus subfocus wr st)
                    | (focus, subfocus) <- extrafocus ]
 
 drawMain ::
@@ -99,7 +99,7 @@ drawMain w h scroll st = (overscroll, row, col, nextOffset, msgs <-> bottomImg)
     focus = view clientFocus st
     subfocus = view clientSubfocus st
 
-    msgLines = viewLines focus subfocus w st
+    msgLines = viewMainLines focus subfocus w st
 
     (overscroll, msgs) = messagePane w h' scroll msgLines
 
