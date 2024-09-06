@@ -38,6 +38,7 @@ module Client.State.Network
   , csStatusMsg
   , csSettings
   , csUserInfo
+  , csAccount
   , csUsers
   , csUser
   , csModeCount
@@ -140,6 +141,7 @@ data NetworkState = NetworkState
   , _csStatusMsg    :: ![Char] -- ^ modes that prefix statusmsg channel names
   , _csSettings     :: !ServerSettings -- ^ settings used for this connection
   , _csUserInfo     :: !UserInfo -- ^ usermask used by the server for this connection
+  , _csAccount      :: !Text -- ^ account name for this connection or ""
   , _csUsers        :: !(HashMap Identifier UserAndHost) -- ^ user and hostname for other nicks
   , _csModeCount    :: !Int -- ^ maximum mode changes per MODE command
   , _csNetwork      :: !Text -- ^ name of network connection
@@ -306,6 +308,7 @@ newNetworkState ::
   NetworkState      {- ^ new network state         -}
 newNetworkState network settings sock ping seed = NetworkState
   { _csUserInfo     = UserInfo "*" "" ""
+  , _csAccount      = ""
   , _csChannels     = HashMap.empty
   , _csChannelList  = newChannelList Nothing Nothing
   , _csWhoReply     = finishWhoReply $ newWhoReply "" ""

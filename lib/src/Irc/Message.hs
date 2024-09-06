@@ -79,7 +79,7 @@ data IrcMsg
   | Tagmsg !Source !Identifier -- ^ source target
   deriving Show
 
-data Source = Source { srcUser :: {-# UNPACK #-}!UserInfo, srcAcct :: !Text }
+data Source = Source { srcUser :: {-# UNPACK #-}!UserInfo, srcAcct :: !Text, srcIdentified :: !Bool }
   deriving Show
 
 data CapMore = CapMore | CapDone
@@ -112,11 +112,13 @@ msgSource :: RawIrcMsg -> Maybe Source
 msgSource msg =
   case view msgPrefix msg of
     Nothing -> Nothing
-    Just p ->
-      case [a | TagEntry "account" a <- view msgTags msg ] of
-        []  -> Just (Source p "")
-        a:_ -> Just (Source p a)
-
+    Just p -> Just Source{ srcUser = p, srcAcct = acct, srcIdentified = identified }
+      where
+        acct = 
+          case [a | TagEntry "account" a <- view msgTags msg ] of
+            []  -> ""
+            a:_ -> a
+        identified = not (null [() | TagEntry "solanum.chat/identified" _ <- view msgTags msg ])
 
 -- | Interpret a low-level 'RawIrcMsg' as a high-level 'IrcMsg'.
 -- Messages that can't be understood are wrapped in 'UnknownMsg'.
@@ -319,8 +321,8 @@ msgActor msg =
     Tagmsg x _    -> Just x
 
 renderSource :: Source -> Text
-renderSource (Source u "") = renderUserInfo u
-renderSource (Source u a) = renderUserInfo u <> "(" <> a <> ")"
+renderSource (Source u "" _) = renderUserInfo u
+renderSource (Source u a _) = renderUserInfo u <> "(" <> a <> ")"
 
 -- | Text representation of an IRC message to be used for matching with
 -- regular expressions.

@@ -360,7 +360,7 @@ recordChannelMessage' create network channel msg st
       , rendUserSigils  = computeMsgLineSigils network channel' msg st
       , rendHighlights  = highlights
       , rendPalette     = clientPalette st
-      , rendAccounts    = accounts
+      , rendAccounts    = view (csSettings . ssShowAccounts) cs
       , rendNetPalette  = clientNetworkPalette st
       , rendChanTypes   = "#&!+" -- TODO: Don't hardcode this, use CHANTYPES ISUPPORT.
       }
@@ -371,11 +371,6 @@ recordChannelMessage' create network channel msg st
     (statusModes, channel') = splitStatusMsgModes possibleStatusModes channel
     importance              = msgImportance msg st
     highlights              = clientHighlightsFocus (ChannelFocus network channel) st
-
-    accounts =
-      if view (csSettings . ssShowAccounts) cs
-      then Just (view csUsers cs)
-      else Nothing
 
 
 recordLogLine ::

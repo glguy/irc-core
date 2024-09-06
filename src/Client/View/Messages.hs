@@ -23,13 +23,11 @@ import           Client.Image.Palette
 import           Client.Message
 import           Client.State
 import           Client.State.Focus
-import           Client.State.Network
 import           Client.State.Window
 import           Control.Lens
 import           Control.Monad
 import           Data.List
 import           Irc.Identifier
-import           Irc.Message
 import           Irc.UserInfo
 
 

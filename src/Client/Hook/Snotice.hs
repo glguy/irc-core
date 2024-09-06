@@ -30,12 +30,14 @@ snoticeHook = MessageHook "snotice" True remap
 remap ::
   IrcMsg -> MessageResult
 
-remap (Notice (Source (UserInfo u "" "") _) _ msg)
+remap (Notice (Source (UserInfo u "" "") _ _) _ msg)
   | Just msg1 <- Text.stripPrefix "*** Notice -- " msg
   , let msg2 = Text.filter (\x -> x /= '\x02' && x /= '\x0f') msg1
   , Just (lvl, cat) <- characterize msg2
   = if lvl < 1 then OmitMessage
-               else RemapMessage (Notice (Source (UserInfo u "" "*") "") cat msg1)
+               else RemapMessage (Notice (Source (UserInfo u "" "*") "" True) cat msg1)
+                    -- @*@ host causes the client not to treat this as a server message
+                    -- which would then be routed to the server window
 
 remap _ = PassMessage
 

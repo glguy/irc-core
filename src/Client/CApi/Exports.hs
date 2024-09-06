@@ -248,7 +248,7 @@ glirc_inject_chat stab netPtr netLen srcPtr srcLen tgtPtr tgtLen msgPtr msgLen =
      now  <- getZonedTime
 
      let msg = ClientMessage
-                 { _msgBody    = IrcBody (Privmsg (Source (parseUserInfo src) "") tgt txt)
+                 { _msgBody    = IrcBody (Privmsg (Source (parseUserInfo src) "" False) tgt txt)
                  , _msgTime    = now
                  , _msgNetwork = net
                  }

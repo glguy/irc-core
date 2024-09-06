@@ -44,7 +44,7 @@ import Control.Exception (displayException, try)
 import Control.Lens
 import Control.Monad (guard, foldM)
 import Data.Foldable (foldl', toList)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (getZonedTime)
@@ -67,7 +67,6 @@ import Client.Commands.Toggles (togglesCommands)
 import Client.Commands.Types
 import Client.Commands.Window (windowCommands, focusNames)
 import Client.Commands.ZNC (zncCommands)
-import Data.Maybe (maybeToList)
 
 -- | Interpret the given chat message or command. Leading @/@ indicates a
 -- command. Otherwise if a channel or user query is focused a chat message will

@@ -38,9 +38,7 @@ import Client.Image.PackedImage (char, imageWidth, string, text', Image')
 import Client.Image.Palette
 import Client.Message
 import Client.State.Window (unpackTimeOfDay, wlImage, wlPrefix, wlTimestamp, WindowLine)
-import Client.UserHost ( uhAccount, UserAndHost )
-import Control.Applicative ((<|>))
-import Control.Lens (view, (^?), filtered, folded, views, Ixed(ix), At (at))
+import Control.Lens (view, views, At (at))
 import Data.Char (ord, chr, isControl)
 import Data.Hashable (hash)
 import Data.HashMap.Strict (HashMap)
@@ -65,7 +63,7 @@ data MessageRendererParams = MessageRendererParams
   , rendUserSigils :: [Char] -- ^ sender sigils
   , rendHighlights :: HashMap Identifier Highlight -- ^ words to highlight
   , rendPalette    :: Palette -- ^ nick color palette
-  , rendAccounts   :: Maybe (HashMap Identifier UserAndHost)
+  , rendAccounts   :: Bool -- ^ should we indicate account and identified status?
   , rendNetPalette :: NetworkPalette
   , rendChanTypes  :: [Char] -- ^ A list of valid channel name prefixes.
   }
@@ -77,7 +75,7 @@ defaultRenderParams = MessageRendererParams
   , rendUserSigils  = ""
   , rendHighlights  = HashMap.empty
   , rendPalette     = defaultPalette
-  , rendAccounts    = Nothing
+  , rendAccounts    = False
   , rendNetPalette  = defaultNetworkPalette
   , rendChanTypes   = "#&!+" -- Default for if we aren't told otherwise by ISUPPORT.
   }
@@ -220,22 +218,18 @@ ircLinePrefix !rp body =
 
       who n   = string (view palSigil pal) sigils <> ui
         where
-          baseUI    = coloredUserInfo pal rm hilites (srcUser n)
-          ui = case rendAccounts rp of
-                 Nothing -> baseUI -- not tracking any accounts
-                 Just accts ->
-                   let tagAcct = if Text.null (srcAcct n) then Nothing else Just (srcAcct n)
-
-                       isKnown acct = not (Text.null acct || acct == "*")
-                       lkupAcct = accts
-                             ^? ix (userNick (srcUser n))
-                              . uhAccount
-                              . filtered isKnown in
-                   case tagAcct <|> lkupAcct of
-                     Just acct
-                       | mkId acct == userNick (srcUser n) -> baseUI
-                       | otherwise -> baseUI <> "(" <> ctxt acct <> ")"
-                     Nothing -> "~" <> baseUI
+          ui = prefix <> coloredUserInfo pal rm hilites (srcUser n) <> suffix
+          prefix
+            | rendAccounts rp, not (srcIdentified n) = "~"
+            | otherwise = mempty
+          
+          suffix
+            | rendAccounts rp
+            , not (Text.null (srcAcct n))
+            , mkId (srcAcct n) /= userNick (srcUser n)
+            ="(" <> ctxt (srcAcct n) <> ")"
+            | otherwise = mempty
+                   
   in
   case body of
     Join       {} -> mempty
@@ -381,11 +375,9 @@ fullIrcLineImage !rp body =
         -- nick!user@host
         plainWho (srcUser n) <>
 
-        case rendAccounts rp ^? folded . ix (userNick (srcUser n)) . uhAccount of
-          _ | not (Text.null (srcAcct n)) -> text' quietAttr ("(" <> cleanText (srcAcct n) <> ")")
-          Just acct
-            | not (Text.null acct) -> text' quietAttr ("(" <> cleanText acct <> ")")
-          _ -> ""
+        if rendAccounts rp && not (Text.null (srcAcct n))
+          then text' quietAttr ("(" <> cleanText (srcAcct n) <> ")")
+          else ""
   in
   case body of
     Nick old new ->
