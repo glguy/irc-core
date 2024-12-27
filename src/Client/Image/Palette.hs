@@ -21,6 +21,8 @@ module Client.Image.Palette
   , palTime
   , palMeta
   , palSigil
+  , palUnidentSigil
+  , palOperSigil
   , palLabel
   , palLatency
   , palWindowName
@@ -74,7 +76,9 @@ data Palette = Palette
   , _palSelfHighlight :: Attr -- ^ own nickname(s) in mentions
   , _palTime          :: Attr -- ^ message timestamps
   , _palMeta          :: Attr -- ^ coalesced metadata
-  , _palSigil         :: Attr -- ^ sigils (e.g. @+)
+  , _palSigil         :: Attr -- ^ channel mode sigils (e.g. @+)
+  , _palUnidentSigil  :: Attr -- ^ unidentified sigil (~)
+  , _palOperSigil     :: Attr -- ^ operator sigil (◆)
   , _palLabel         :: Attr -- ^ information labels
   , _palLatency       :: Attr -- ^ ping latency
   , _palWindowName    :: Attr -- ^ window name
@@ -120,6 +124,8 @@ defaultPalette = Palette
   , _palTime               = withForeColor defAttr brightBlack
   , _palMeta               = metaNo
   , _palSigil              = defAttr `withStyle` bold `withForeColor` brightYellow
+  , _palUnidentSigil       = withForeColor defAttr brightBlack
+  , _palOperSigil          = withForeColor defAttr brightBlack
   , _palLabel              = withForeColor defAttr cyan
   , _palLatency            = withForeColor defAttr green
   , _palWindowName         = withForeColor defAttr brightCyan
@@ -183,6 +189,8 @@ paletteMap =
   , ("meta"             , Lens palMeta)
   , ("modes"            , Lens palModes)
   , ("sigil"            , Lens palSigil)
+  , ("unidentsigil"     , Lens palUnidentSigil)
+  , ("opersigil"        , Lens palOperSigil)
   , ("label"            , Lens palLabel)
   , ("latency"          , Lens palLatency)
   , ("window-name"      , Lens palWindowName)

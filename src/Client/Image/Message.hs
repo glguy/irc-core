@@ -223,10 +223,11 @@ ircLinePrefix !rp body =
           oprefix =
             case srcOper n of
               "" -> mempty
-              _  -> "◆"
+              _  -> text' (view palOperSigil pal) "◆"
 
           prefix
-            | rendAccounts rp, not (srcIdentified n) = "~"
+            | rendAccounts rp, not (srcIdentified n) =
+                text' (view palUnidentSigil pal) "~"
             | otherwise = mempty
 
           suffix
@@ -387,7 +388,7 @@ fullIrcLineImage !rp body =
 
         -- ~ for unidentified use of nickname
         (if rendAccounts rp && not (srcIdentified n) then
-          text' quietAttr "~"
+          text' (view palUnidentSigil pal) "~"
         else mempty) <>
 
         -- nick!user@host
