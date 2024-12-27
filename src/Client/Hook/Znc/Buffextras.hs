@@ -52,7 +52,7 @@ remap _ _ = PassMessage
 prefixedParser :: Identifier -> Parser IrcMsg
 prefixedParser chan = do
     pfx <- prefixParser
-    let src = Source pfx "" False
+    let src = Source pfx "" "" False
     choice
       [ Join src chan "" "" <$ skipToken "joined"
       , Quit src . filterEmpty <$ skipToken "quit:" <*> P.takeText

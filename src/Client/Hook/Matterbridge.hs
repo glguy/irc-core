@@ -46,9 +46,9 @@ matterbridgeHook (nick:chans) = Just (MessageHook "matterbridge" False (remap (m
 remap :: Identifier -> (Identifier -> Bool) -> IrcMsg -> MessageResult
 remap nick chanfilter ircmsg =
   case ircmsg of
-    Privmsg (Source ui _ _) chan msg
+    Privmsg (Source ui _ _ _) chan msg
       | view uiNick ui == nick, chanfilter chan -> remap' Msg ui chan msg
-    Ctcp (Source ui _ _) chan "ACTION" msg
+    Ctcp (Source ui _ _ _) chan "ACTION" msg
       | view uiNick ui == nick, chanfilter chan -> remap' Act ui chan msg
     _ -> PassMessage
 
@@ -63,4 +63,4 @@ newmsg Msg src chan msg = Privmsg src chan msg
 newmsg Act src chan msg = Ctcp src chan "ACTION" msg
 
 fakeUser :: Text -> UserInfo -> Source
-fakeUser nick ui = Source (set uiNick (mkId nick) ui) "" False
+fakeUser nick ui = Source (set uiNick (mkId nick) ui) "" "" False

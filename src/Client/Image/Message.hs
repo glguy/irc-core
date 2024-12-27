@@ -218,18 +218,31 @@ ircLinePrefix !rp body =
 
       who n   = string (view palSigil pal) sigils <> ui
         where
-          ui = prefix <> coloredUserInfo pal rm hilites (srcUser n) <> suffix
+          ui = oprefix <> prefix <> coloredUserInfo pal rm hilites (srcUser n) <> suffix <> osuffix
+
+          oprefix =
+            case srcOper n of
+              "" -> mempty
+              _  -> "◆"
+
           prefix
             | rendAccounts rp, not (srcIdentified n) = "~"
             | otherwise = mempty
-          
+
           suffix
             | rendAccounts rp
             , not (Text.null (srcAcct n))
             , mkId (srcAcct n) /= userNick (srcUser n)
-            ="(" <> ctxt (srcAcct n) <> ")"
+            = "(" <> ctxt (srcAcct n) <> ")"
             | otherwise = mempty
-                   
+
+          osuffix
+            | rendAccounts rp
+            , not (Text.null (srcOper n))
+            , Text.toLower (srcOper n) /= Text.toLower (srcAcct n)
+            = "{" <> ctxt (srcOper n) <> "}"
+            | otherwise = mempty
+
   in
   case body of
     Join       {} -> mempty

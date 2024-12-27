@@ -35,7 +35,7 @@ droneblRelayHook args = Just (MessageHook "droneblrelay" False (remap (map mkId 
 -- | Remap messages from #dronebl that match one of the
 -- rewrite rules.
 remap :: [Identifier] -> IrcMsg -> MessageResult
-remap nicks (Privmsg (Source (UserInfo nick _ _) _ _) chan@"#dronebl" msg)
+remap nicks (Privmsg (Source (UserInfo nick _ _) _ _ _) chan@"#dronebl" msg)
   | nick `elem` nicks
   , Just sub <- rules chan msg = RemapMessage sub
 remap _ _ = PassMessage
@@ -121,7 +121,7 @@ joinMsg ::
   IrcMsg
 joinMsg chan srv nick user host =
   Join
-    (Source (UserInfo (mkId (nick <> "@" <> srv)) user host) "" False)
+    (Source (UserInfo (mkId (nick <> "@" <> srv)) user host) "" "" False)
     chan
     "" -- account
     "" -- gecos
@@ -189,7 +189,7 @@ modeMsg chan srv nick modes =
 userInfo ::
   Text {- ^ nickname -} ->
   Source
-userInfo nick = Source (UserInfo (mkId nick) "" "") "" False
+userInfo nick = Source (UserInfo (mkId nick) "" "") "" "" False
 
 ------------------------------------------------------------------------
 

@@ -331,7 +331,7 @@ chatCommand' ::
 chatCommand' con targetTxts cs st =
   do now <- getZonedTime
      let targetIds = mkId <$> targetTxts
-         !myNick = Source (view csUserInfo cs) (view csAccount cs) True
+         !myNick = Source (view csUserInfo cs) (view csAccount cs) "" True
          network = view csNetwork cs
          entries = [ (targetId,
                           ClientMessage
@@ -382,7 +382,7 @@ cmdMe :: ChannelCommand String
 cmdMe channelId cs st rest =
   do now <- getZonedTime
      let actionTxt = Text.pack ("\^AACTION " ++ rest ++ "\^A")
-         !myNick = Source (view csUserInfo cs) (view csAccount cs) True
+         !myNick = Source (view csUserInfo cs) (view csAccount cs) "" True
          network = view csNetwork cs
          entry = ClientMessage
                     { _msgTime = now
@@ -411,7 +411,7 @@ executeChat focus msg st =
 
              when allow (sendMsg cs (ircPrivmsg tgtTxt msgTxt))
 
-             let myNick = Source (view csUserInfo cs) (view csAccount cs) True
+             let myNick = Source (view csUserInfo cs) (view csAccount cs) "" True
                  entry = ClientMessage
                    { _msgTime    = now
                    , _msgNetwork = network
