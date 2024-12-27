@@ -385,12 +385,23 @@ fullIrcLineImage !rp body =
         -- sigils
         string (view palSigil pal) sigils <>
 
+        -- ~ for unidentified use of nickname
+        (if rendAccounts rp && not (srcIdentified n) then
+          text' quietAttr "~"
+        else mempty) <>
+
         -- nick!user@host
         plainWho (srcUser n) <>
 
-        if rendAccounts rp && not (Text.null (srcAcct n))
-          then text' quietAttr ("(" <> cleanText (srcAcct n) <> ")")
-          else ""
+        -- (nickserv account){operator account}
+        if rendAccounts rp then
+          (if not (Text.null (srcAcct n)) then
+            text' quietAttr ("(" <> cleanText (srcAcct n) <> ")")
+          else mempty) <>
+          (if not (Text.null (srcOper n)) then
+            text' quietAttr ("{" <> cleanText (srcOper n) <> "}")
+          else mempty)
+        else mempty
   in
   case body of
     Nick old new ->
