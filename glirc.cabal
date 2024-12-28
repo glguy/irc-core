@@ -28,7 +28,7 @@ custom-setup
 
 source-repository head
   type: git
-  location: git://github.com/glguy/irc-core.git
+  location: https://github.com/glguy/irc-core.git
   branch: v2
 
 executable glirc
