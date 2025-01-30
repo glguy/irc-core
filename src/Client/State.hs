@@ -139,7 +139,7 @@ import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
-import           Control.Monad()
+import           Control.Monad (mplus)
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -1002,17 +1002,20 @@ clientExtraFocuses st =
 -- considered important and will be jumped to first.
 jumpToActivity :: ClientState -> ClientState
 jumpToActivity st =
-  case locate (Nothing, minimumRank) windowList of
+  case locate (Nothing, minimumRank) windowList `mplus` view clientActivityReturn st of
     Just focus -> changeFocus focus st
-    Nothing ->
-      case view clientActivityReturn st of
-        Just focus -> changeFocus focus st
-        Nothing    -> st
+    Nothing    -> st
   where
     minimumRank = (WLBoring, True) -- windows have to be more interesting than this to qualify
     maximumRank = (WLImportant, True) -- the most interesting a window can be
 
-    windowList = views clientWindows Map.toAscList st
+    -- Order the search such that in the case of a tie we prefer the lexicographically
+    -- next element in the list. This helps ensure that lexicographically small but
+    -- active channels don't continue to dominate the result
+    windowList =
+      case Map.split (view clientFocus st) (view clientWindows st) of
+        (l, r) -> Map.toAscList r <> Map.toAscList l
+
     locate (v, _) [] = v
     locate vp@(_, vRank) ((f,w):wins)
       | fRank == maximumRank = Just f -- Short circuit
