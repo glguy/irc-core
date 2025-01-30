@@ -243,9 +243,7 @@ activitySummary st
 -- | Multi-line activity information enabled by F3
 activityBarImages :: ClientState -> [Vty.Image]
 activityBarImages st
-  = mapMaybe baraux
-  $ Map.toAscList
-  $ view clientWindows st
+  = mapMaybe baraux . windowList $ st
   where
     baraux pair@(_,w)
       | view winActivityFilter w == AFSilent = Nothing

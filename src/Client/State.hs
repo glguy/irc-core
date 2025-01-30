@@ -110,6 +110,8 @@ module Client.State
   , esActive
   , esMVar
   , esStablePtr
+
+  , windowList
   ) where
 
 import           Client.CApi
@@ -137,7 +139,6 @@ import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
 import           Control.Exception
 import           Control.Lens
-import           Control.Monad (mplus)
 import           Data.Foldable
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -149,6 +150,7 @@ import           Data.List
 import           Data.Maybe
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Ord (Down(Down))
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
@@ -986,28 +988,24 @@ clientExtraFocuses st =
 -- Some events like errors or chat messages mentioning keywords are
 -- considered important and will be jumped to first.
 jumpToActivity :: ClientState -> ClientState
-jumpToActivity st =
-  case locate (Nothing, minimumRank) windowList `mplus` view clientActivityReturn st of
-    Just focus -> changeFocus focus st
-    Nothing    -> st
+jumpToActivity st = m st st
   where
-    minimumRank = (WLBoring, True) -- windows have to be more interesting than this to qualify
-    maximumRank = (WLImportant, True) -- the most interesting a window can be
+    f = (<|>)
+        <$> fmap fst . listToMaybe . windowList
+        <*> view clientActivityReturn
+    m = maybe id changeFocus . f
 
-    -- Order the search such that in the case of a tie we prefer the lexicographically
-    -- next element in the list. This helps ensure that lexicographically small but
-    -- active channels don't continue to dominate the result
-    windowList =
+windowList :: ClientState -> [(Focus, Window)]
+windowList st = sortOn (Down . rank) windows
+  where
+    -- Order the search such that in the case of a tie we prefer the
+    -- lexicographically next element in the list. This helps ensure
+    -- that lexicographically small but active channels don't continue
+    -- to dominate the result
+    windows =
       case Map.split (view clientFocus st) (view clientWindows st) of
         (l, r) -> Map.toAscList r <> Map.toAscList l
-
-    locate (v, _) [] = v
-    locate vp@(_, vRank) ((f,w):wins)
-      | fRank == maximumRank = Just f -- Short circuit
-      | fRank > vRank = locate (Just f, fRank) wins
-      | otherwise = locate vp wins
-      where
-        fRank = (view winMention w, views winName isJust w)
+    rank (_, w) = (view winMention w, views winName isJust w)
 
 -- | Jump the focus directly to a window based on its zero-based index
 -- while ignoring hidden windows.
