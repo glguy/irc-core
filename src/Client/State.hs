@@ -153,6 +153,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import           Data.Time
+import           Data.Tuple (swap)
 import           Foreign.StablePtr
 import           Irc.Codes
 import           Irc.Identifier
@@ -997,7 +998,18 @@ jumpToActivity st =
     minimumRank = (WLBoring, True) -- windows have to be more interesting than this to qualify
     maximumRank = (WLImportant, True) -- the most interesting a window can be
 
-    windowList = views clientWindows Map.toAscList st
+    windowList :: [(Focus, Window)]
+    windowList = reHead current . views clientWindows Map.toAscList $ st
+      where
+        -- | Rotating the windows list until the current focused one
+        -- is the head. Guarantees that when jumping to activity, we
+        -- come back to the initial window at the end of a cycle, so
+        -- channels with less frequent messages get pruned rather than
+        -- jumping back multiple times to those with frequent messages
+        current :: (Focus, a) -> Bool
+        current = (view clientFocus st ==) . fst
+        reHead :: (a -> Bool) -> [a] -> [a]
+        reHead predicate = uncurry (<>) . swap . break predicate
     locate (v, _) [] = v
     locate vp@(_, vRank) ((f,w):wins)
       | fRank == maximumRank = Just f -- Short circuit
