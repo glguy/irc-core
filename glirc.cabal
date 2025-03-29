@@ -24,7 +24,9 @@ tested-with:         GHC == 9.0.2, GHC == 9.4.8, GHC == 9.8.2
 custom-setup
   setup-depends: base     >=4.12 && <4.22,
                  filepath >=1.4  && <1.6,
-                 Cabal    >=2.2  && <4
+                 Cabal    >=2.2  && <4,
+                 bytestring,
+                 containers,
 
 source-repository head
   type: git
@@ -177,7 +179,7 @@ library
     bytestring           >=0.10.8 && <0.13,
     config-schema        ^>=1.3.0.0,
     config-value         ^>=0.8,
-    containers           >=0.5.7  && <0.8,
+    containers           >=0.5.7  && <0.9,
     curve25519           ^>=0.2.5,
     directory            >=1.2.6  && <1.4,
     filepath             >=1.4.1  && <1.6,
@@ -188,7 +190,7 @@ library
     irc-core             ^>=2.13,
     kan-extensions       >=5.0    && <5.3,
     lens                 >=4.14   && <5.4,
-    random               >=1.1    && <1.3,
+    random               >=1.1    && <1.4,
     network              >=2.6.2  && <3.3,
     typed-process        ^>=0.2.10,
     psqueues             >=0.2.7  && <0.3,
@@ -203,7 +205,7 @@ library
     unix                 >=2.7    && <2.9,
     unordered-containers >=0.2.11 && <0.3,
     vector               >=0.11   && <0.14,
-    vty                  ^>=6.2,
+    vty                  ^>=6.4,
 
 test-suite test
   type:                exitcode-stdio-1.0
