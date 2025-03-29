@@ -1,3 +1,4 @@
+{-# Language CPP #-}
 {-|
 Module      : Main
 Description : Custom setup script
@@ -22,11 +23,19 @@ import           Distribution.Simple
 import           Distribution.Simple.LocalBuildInfo (LocalBuildInfo, installedPkgs, withLibLBI)
 import           Distribution.Simple.PackageIndex (allPackages)
 import           Distribution.Simple.Setup (configVerbosity, fromFlag)
-import           Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFileEx)
 import           Distribution.Verbosity (Verbosity)
 import           System.FilePath ((</>), (<.>))
 
+#if MIN_VERSION_Cabal(3,14,0)
+import           Distribution.Simple.Build (AutogenFile(AutogenModule), writeAutogenFiles)
+import           Distribution.Simple.Utils (Suffix(..))
+import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.Map as Map
+import qualified Distribution.ModuleName as M
+#else
 import           Distribution.Simple.BuildPaths (autogenComponentModulesDir)
+import           Distribution.Simple.Utils (createDirectoryIfMissingVerbose, rewriteFileEx)
+#endif
 
 
 -- | Default Setup main extended to generate a Build module and to validate
@@ -63,22 +72,29 @@ generateBuildModule ::
   IO ()
 generateBuildModule verbosity pkg lbi pkgs =
   withLibLBI pkg lbi $ \_lib clbi ->
-  do let dir = autogenComponentModulesDir lbi clbi
-         modname = buildModuleName pkg
+  do let modname = buildModuleName pkg
+
+#if MIN_VERSION_Cabal(3,14,0)
+     writeAutogenFiles verbosity lbi clbi $
+       Map.singleton (AutogenModule (M.fromString modname) (Suffix "hs")) $
+       B.pack $
+#else
+     let dir = autogenComponentModulesDir lbi clbi
          file    = dir </> modname <.> "hs"
      createDirectoryIfMissingVerbose verbosity True dir
-     rewriteFileEx verbosity file
-       $ unlines
-       [ "{-|"
-       , "Module      : " ++ modname
-       , "Description : Dynamically generated configuration module"
-       , "-}"
-       , "module " ++ modname ++ " (deps) where"
-       , ""
-       , "-- | Transitive dependencies for this package computed at configure-time"
-       , "deps :: [(String,[Int])] -- ^ package name, version number"
-       , "deps = " ++ renderDeps pkgs
-       ]
+     rewriteFileEx verbosity file $
+#endif
+       unlines
+             [ "{-|"
+             , "Module      : " ++ modname
+             , "Description : Dynamically generated configuration module"
+             , "-}"
+             , "module " ++ modname ++ " (deps) where"
+             , ""
+             , "-- | Transitive dependencies for this package computed at configure-time"
+             , "deps :: [(String,[Int])] -- ^ package name, version number"
+             , "deps = " ++ renderDeps pkgs
+             ]
 
 
 -- | Render the transitive package dependencies as a Haskell expression
