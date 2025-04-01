@@ -1,0 +1,11 @@
+[package]
+name = "exampleplugin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+glirc_plugin = {path = "../glirc_plugin"}
+
+[lib]
+name = "exampleplugin"
+crate-type = ["cdylib"]
