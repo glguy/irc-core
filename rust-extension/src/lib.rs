@@ -4,9 +4,8 @@
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::ffi::CStr;
-use std::mem;
+use std::marker::PhantomData;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 use std::panic;
@@ -14,34 +13,52 @@ use std::ptr;
 use std::slice;
 use std::str;
 
-// Example of some state
-type command_callback = fn(&glirc, &[&str]);
-
-struct my_state<'a> {
-    commands: HashMap<&'a str, command_callback>,
+#[derive(Copy, Clone)]
+pub struct Glirc<'a> {
+    token: *mut glirc,
+    _lifetime: PhantomData<&'a ()>,
 }
 
-impl glirc {
+#[derive(Copy, Clone)]
+enum MessageCode {
+    Normal,
+    Error,
+}
 
-    fn write_message(&self, code: message_code, msg: &str) {
+impl MessageCode {
+    fn as_MESSAGE_CODE(self) -> message_code {
+        match self {
+            MessageCode::Normal => message_code_NORMAL_MESSAGE,
+            MessageCode::Error => message_code_ERROR_MESSAGE,
+        }
+    }
+}
+
+impl<'a> Glirc<'a> {
+    pub fn write_message(&self, code: MessageCode, msg: &str) {
         unsafe {
-            glirc_print(mem::transmute(self), code, msg.as_ptr() as *const i8, msg.len());
+            glirc_print(self.token, code.as_MESSAGE_CODE(), msg.as_ptr() as *const i8, msg.len());
         }
     }
 
     #[allow(dead_code)]
-    fn list_networks(&self) -> Vec<String> {
-        unsafe { import_strings(glirc_list_networks(mem::transmute(self))) }
+    fn list_networks(&mut self) -> Vec<String> {
+        unsafe { import_strings(glirc_list_networks(self.token)) }
     }
 
     #[allow(dead_code)]
-    fn list_channels(&self, net: &str) -> Vec<String> {
-        unsafe { import_strings(glirc_list_channels(mem::transmute(self), export_string(net))) }
+    fn list_channels(&mut self, net: &str) -> Vec<String> {
+        unsafe {
+            import_strings(glirc_list_channels(
+                self.token,
+                net.as_ptr() as *const i8,
+                net.len(),
+            ))
+        }
     }
 
     #[allow(dead_code)]
     fn irc_command(&self, net: &str, cmd: &str, args: &[&str]) {
-
         let v: Vec<glirc_string> = args.iter().map(|&x| export_string(x)).collect();
 
         let gmsg = glirc_message {
@@ -53,26 +70,27 @@ impl glirc {
         };
 
         unsafe {
-            glirc_send_message(mem::transmute(self), &gmsg);
+            glirc_send_message(self.token, &gmsg);
         }
     }
-
 
     #[allow(dead_code)]
     fn list_channel_users(&self, net: &str, chan: &str) -> Vec<String> {
         unsafe {
-            import_strings(glirc_list_channel_users(mem::transmute(self),
-                                                    export_string(net),
-                                                    export_string(chan)))
+            import_strings(glirc_list_channel_users(
+                self.token,
+                net.as_ptr() as *const i8,
+                net.len(),
+                chan.as_ptr() as *const i8,
+                chan.len(),
+            ))
         }
     }
 
     #[allow(dead_code)]
     fn my_nick(&self, net: &str) -> Option<String> {
         unsafe {
-            let ptr = glirc_my_nick(mem::transmute(self),
-                                    net.as_ptr() as *const i8,
-                                    net.len());
+            let ptr = glirc_my_nick(self.token, net.as_ptr() as *const i8, net.len());
             if ptr == ptr::null_mut() {
                 None
             } else {
@@ -86,37 +104,16 @@ impl glirc {
  * Marshaling of structs
  */
 
-unsafe fn import_string<'a>(_: &'a glirc, gstr: &glirc_string) -> &'a str {
-    let slc = slice::from_raw_parts(gstr.str as *const u8, gstr.len);
+unsafe fn import_string<'a>(gstr: &glirc_string) -> &'a str {
+    let slc = slice::from_raw_parts(gstr.str_ as *const u8, gstr.len);
     str::from_utf8_unchecked(slc)
 }
 
 fn export_string(s: &str) -> glirc_string {
     glirc_string {
-        str: s.as_ptr() as *const i8,
+        str_: s.as_ptr() as *const i8,
         len: s.len(),
     }
-}
-
-unsafe fn import_command<'a>(G: &'a glirc, cmd: *const glirc_command) -> Vec<&'a str> {
-    let cmdref = &*cmd;
-    let mut v = Vec::with_capacity(cmdref.params_n);
-    for x in slice::from_raw_parts(cmdref.params, cmdref.params_n) {
-        v.push(import_string(G, x))
-    }
-    v
-}
-
-unsafe fn close_session<'a>(sptr: *mut c_void) -> my_state<'a> {
-    *Box::from_raw(sptr as *mut my_state)
-}
-
-unsafe fn use_session<'a>(_: &'a glirc, sptr: *mut c_void) -> &'a mut my_state {
-    &mut *(sptr as *mut my_state)
-}
-
-fn export_session(s: my_state) -> *mut c_void {
-    Box::into_raw(Box::new(s)) as *mut c_void
 }
 
 unsafe fn import_strings(p: *mut *mut c_char) -> Vec<String> {
@@ -138,59 +135,16 @@ unsafe fn import_strings(p: *mut *mut c_char) -> Vec<String> {
  * Wrappers for client API
  */
 
-
-
 #[allow(dead_code)]
 fn identifier_cmp(x: &str, y: &str) -> Ordering {
-    unsafe { glirc_identifier_cmp(export_string(x), export_string(y)).cmp(&0) }
-}
-
-/*
- * Entry points from client
- */
-
-fn my_start<'a>(G: &glirc, path: &str) -> my_state<'a> {
-
-    let msg = format!("Rust extension started: {}", path);
-    G.write_message(message_code::NORMAL_MESSAGE, &msg);
-
-    panic::set_hook(Box::new(|_| ()));
-
-    let mut cmds: HashMap<&str, command_callback> = HashMap::new();
-    cmds.insert("nick", nick_command);
-    cmds.insert("networks", networks_command);
-
-    my_state { commands: cmds }
-}
-
-fn nick_command(G: &glirc, params: &[&str]) {
-    //if params.len() > 0 {
-    if let Some(nick) = G.my_nick(params[0]) {
-        G.write_message(message_code::NORMAL_MESSAGE, &nick)
-    }
-    //}
-}
-
-fn networks_command(G: &glirc, _params: &[&str]) {
-    for x in G.list_networks() {
-        G.write_message(message_code::NORMAL_MESSAGE, &format!("Network: {}", x))
-    }
-}
-
-fn my_stop(G: &glirc, _session: my_state) {
-    G.write_message(message_code::NORMAL_MESSAGE, "Rust extension stopped");
-}
-
-fn my_process_command(G: &glirc, session: &my_state, params: Vec<&str>) {
-
-    match params.split_first() {
-        None => G.write_message(message_code::ERROR_MESSAGE, "No command"),
-        Some((cmd, args)) => {
-            match session.commands.get(cmd) {
-                None => G.write_message(message_code::ERROR_MESSAGE, "Missing command"),
-                Some(f) => f(G, args),
-            }
-        }
+    unsafe {
+        glirc_identifier_cmp(
+            x.as_ptr() as *const i8,
+            x.len(),
+            y.as_ptr() as *const i8,
+            y.len(),
+        )
+        .cmp(&0)
     }
 }
 
@@ -198,31 +152,38 @@ fn my_process_command(G: &glirc, session: &my_state, params: Vec<&str>) {
  * Extension entry points
  */
 
-unsafe extern "C" fn start_entry(G: *mut glirc, path: *const c_char) -> *mut c_void {
-    let g = &*G;
+unsafe extern "C" fn start_entry<T: GlircPlugin>(
+    token: *mut glirc,
+    path: *const c_char,
+    args: *const glirc_string,
+    args_len: usize,
+) -> *mut c_void {
+    let G = Glirc { token, _lifetime: PhantomData::default() };
     let p = CStr::from_ptr(path).to_str().unwrap();
-    let def = my_state { commands: HashMap::new() };
-    let st = handle_panics(g, || my_start(g, p), def);
-    export_session(st)
+    let mut a = Vec::with_capacity(args_len);
+    for i in 0..args_len {
+        a.push(import_string(&*args.offset(i as isize)));
+    }
+    handle_panics(G, ||
+        Box::into_raw(T::start_plugin(G, p, &a)) as *mut c_void
+        , std::ptr::null_mut())
 }
 
-unsafe extern "C" fn stop_entry(G: *mut glirc, sptr: *mut c_void) {
-    let g = &*G;
-    let st = close_session(sptr);
-    handle_panics(g, || my_stop(g, st), ())
+unsafe extern "C" fn stop_entry<T: GlircPlugin>(sptr: *mut c_void) {
+    Box::from_raw(sptr as *mut T);
 }
 
-unsafe extern "C" fn process_command_entry(G: *mut glirc,
-                                           sptr: *mut c_void,
-                                           rawcmd: *const glirc_command) {
-    let g = &*G;
-    let session = use_session(g, sptr);
-    let params = import_command(g, rawcmd);
-    handle_panics(g, || my_process_command(g, session, params), ());
+unsafe extern "C" fn process_command_entry<T: GlircPlugin>(
+    sptr: *mut c_void,
+    rawcmd: *const glirc_command,
+) {
+    let s = unsafe { &mut *(sptr as *mut T) };
+    let cmdstr = import_string(& (*rawcmd).command);
+    s.process_command(cmdstr);
 }
 
-fn handle_panics<F: FnOnce() -> R + panic::UnwindSafe, R>(G: &glirc, f: F, def: R) -> R {
-    match panic::catch_unwind(f) {
+fn handle_panics<F: FnOnce() -> R + panic::UnwindSafe, R>(G: Glirc, f: F, def: R) -> R {
+    match panic::catch_unwind(f()) {
         Ok(x) => x,
         Err(e) => {
             let msg = e
@@ -230,24 +191,34 @@ fn handle_panics<F: FnOnce() -> R + panic::UnwindSafe, R>(G: &glirc, f: F, def: 
                 .map(|x| x as &str)
                 .unwrap_or("unknown");
             let msg1 = format!("Panic in rust extension: {}", msg);
-            G.write_message(message_code::ERROR_MESSAGE, &msg1);
+            G.write_message(MessageCode::Error, &msg1);
             def
         }
     }
+}
+
+trait GlircPlugin {
+    fn start_plugin(G: Glirc, path: &str, args: &[&str]) -> Box<Self>;
+    fn process_command(&mut self, command: &str);
 }
 
 /*
  * Extension metadata
  */
 
-#[no_mangle]
-pub static mut extension: glirc_extension = glirc_extension {
-    name: "rust\0" as *const str as *const c_char,
-    major_version: 1,
-    minor_version: 0,
-    start: Some(start_entry),
-    stop: Some(stop_entry),
-    process_message: None,
-    process_chat: None,
-    process_command: Some(process_command_entry),
-};
+macro_rules! declare_glirc_plugin {
+    ($T: ty) => {
+        #[no_mangle]
+        pub static mut glirc_extension = glirc_extension {
+            name: "rust\0" as *const str as *const c_char,
+            major_version: 1,
+            minor_version: 0,
+            start: Some(start_entry::<$T>),
+            stop: Some(stop_entry::<$T>),
+            process_message: None,
+            process_chat: None,
+            process_command: Some(process_command_entry),
+        };
+        
+    };
+}

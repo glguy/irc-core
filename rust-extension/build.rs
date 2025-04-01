@@ -16,8 +16,8 @@ fn main() {
         // bindings for.
         .header("../include/glirc-api.h")
         .generate_comments(true)
-        .whitelisted_function("glirc_.*")
-        .whitelisted_type("glirc_.*")
+        .allowlist_function("glirc_.*")
+        .allowlist_type("glirc_.*")
         .derive_default(true)
         // Finish the builder and generate the bindings.
         .generate()
