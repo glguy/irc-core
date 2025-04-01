@@ -14,7 +14,7 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("../include/glirc-api.h")
+        .header("../../include/glirc-api.h")
         .generate_comments(true)
         .allowlist_function("glirc_.*")
         .allowlist_type("glirc_.*")

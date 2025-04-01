@@ -1,0 +1,11 @@
+[package]
+name = "glirc_plugin"
+version = "0.1.0"
+authors = ["Eric Mertens <emertens@gmail.com>"]
+build = "build.rs"
+edition = "2024"
+
+[build-dependencies]
+bindgen="0.71.1"
+
+[lib]

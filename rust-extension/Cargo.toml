@@ -1,12 +1,6 @@
-[package]
-name = "extension"
-version = "0.1.0"
-authors = ["Eric Mertens <emertens@galois.com>"]
-build = "build.rs"
-
-[build-dependencies]
-bindgen="0.71.1"
-
-[lib]
-name = "myextension"
-crate-type = ["cdylib"]
+[workspace]
+resolver = "3"
+members = [
+    "example_plugin",
+    "glirc_plugin",
+]
