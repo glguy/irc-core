@@ -1,11 +1,8 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
+#![allow(unsafe_op_in_unsafe_fn)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use std::cmp::Ordering;
 use std::ffi::CStr;
-use std::marker::PhantomData;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 use std::slice;
@@ -16,14 +13,43 @@ pub struct Glirc {
     token: *mut glirc,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum MessageCode {
     Normal,
     Error,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct Focus<'a> {
+    network: &'a str,
+    target: &'a str,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Command<'a> {
+    pub command: &'a str,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Message<'a> {
+    pub network: &'a str,
+    pub prefix_nick: &'a str,
+    pub prefix_user: &'a str,
+    pub prefix_host: &'a str,
+    pub command: &'a str,
+    pub params: &'a [&'a str],
+    pub tags: &'a [(&'a str, &'a str)],
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Chat<'a> {
+    pub network: &'a str,
+    pub target: &'a str,
+    pub message: &'a str,
+}
+
 impl MessageCode {
-    fn as_MESSAGE_CODE(self) -> message_code {
+    fn as_message_code(self) -> message_code {
         match self {
             MessageCode::Normal => message_code_NORMAL_MESSAGE,
             MessageCode::Error => message_code_ERROR_MESSAGE,
@@ -36,23 +62,23 @@ impl Glirc {
         unsafe {
             glirc_print(
                 self.token,
-                code.as_MESSAGE_CODE(),
+                code.as_message_code(),
                 msg.as_ptr() as *const i8,
                 msg.len(),
             );
         }
     }
 
-    pub fn inject_chat(self, network: &str, src: &str, tgt: &str, msg: &str) -> bool {
+    pub fn inject_chat(self, focus: Focus, src: &str, msg: &str) -> bool {
         unsafe {
             glirc_inject_chat(
                 self.token,
-                network.as_ptr() as _,
-                network.len(),
+                focus.network.as_ptr() as _,
+                focus.network.len(),
                 src.as_ptr() as _,
                 src.len(),
-                tgt.as_ptr() as _,
-                tgt.len(),
+                focus.target.as_ptr() as _,
+                focus.target.len(),
                 msg.as_ptr() as _,
                 msg.len(),
             ) != 0
@@ -89,14 +115,14 @@ impl Glirc {
         }
     }
 
-    pub fn list_channel_users(self, net: &str, chan: &str) -> Vec<String> {
+    pub fn list_channel_users(self, focus: Focus) -> Vec<String> {
         unsafe {
             import_strings(glirc_list_channel_users(
                 self.token,
-                net.as_ptr() as *const i8,
-                net.len(),
-                chan.as_ptr() as *const i8,
-                chan.len(),
+                focus.network.as_ptr() as *const i8,
+                focus.network.len(),
+                focus.target.as_ptr() as *const i8,
+                focus.target.len(),
             ))
         }
     }
@@ -115,26 +141,26 @@ impl Glirc {
         }
     }
 
-    pub fn set_focus(self, network: &str, target: &str) {
+    pub fn set_focus(self, focus: Focus) {
         unsafe {
             glirc_set_focus(
                 self.token,
-                network.as_ptr() as _,
-                network.len(),
-                target.as_ptr() as _,
-                target.len(),
+                focus.network.as_ptr() as _,
+                focus.network.len(),
+                focus.target.as_ptr() as _,
+                focus.target.len(),
             );
         }
     }
 
-    pub fn clear_window(self, network: &str, target: &str) {
+    pub fn clear_window(self, focus: Focus) {
         unsafe {
             glirc_clear_window(
                 self.token,
-                network.as_ptr() as _,
-                network.len(),
-                target.as_ptr() as _,
-                target.len(),
+                focus.network.as_ptr() as _,
+                focus.network.len(),
+                focus.target.as_ptr() as _,
+                focus.target.len(),
             );
         }
     }
@@ -245,29 +271,6 @@ pub unsafe extern "C" fn process_chat_entry<T: GlircPlugin>(
         target: import_string(&raw.target),
         message: import_string(&raw.message),
     }) as u32
-}
-
-#[derive(Copy, Clone)]
-pub struct Command<'a> {
-    pub command: &'a str,
-}
-
-#[derive(Copy, Clone)]
-pub struct Message<'a> {
-    pub network: &'a str,
-    pub prefix_nick: &'a str,
-    pub prefix_user: &'a str,
-    pub prefix_host: &'a str,
-    pub command: &'a str,
-    pub params: &'a [&'a str],
-    pub tags: &'a [(&'a str, &'a str)],
-}
-
-#[derive(Copy, Clone)]
-pub struct Chat<'a> {
-    pub network: &'a str,
-    pub target: &'a str,
-    pub message: &'a str,
 }
 
 pub unsafe extern "C" fn process_message_entry<T: GlircPlugin>(
