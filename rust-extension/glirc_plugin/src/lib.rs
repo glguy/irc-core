@@ -1,8 +1,9 @@
-#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(non_snake_case, non_camel_case_types, non_upper_case_globals, unsafe_op_in_unsafe_fn)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use std::cmp::Ordering;
 use std::ffi::CStr;
+use std::mem::MaybeUninit;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 use std::slice;
@@ -58,6 +59,11 @@ impl MessageCode {
 }
 
 impl Glirc {
+    /// Writes a message to the client with the specified message code and content.
+    ///
+    /// # Arguments
+    /// * `code` - The type of message (e.g., normal or error).
+    /// * `msg` - The message content to display.
     pub fn write_message(self, code: MessageCode, msg: &str) {
         unsafe {
             glirc_print(
@@ -69,6 +75,15 @@ impl Glirc {
         }
     }
 
+    /// Injects a chat message into the client for the specified focus.
+    ///
+    /// # Arguments
+    /// * `focus` - The network and target where the message will be sent.
+    /// * `src` - The source of the message (e.g., a nickname).
+    /// * `msg` - The message content to inject.
+    ///
+    /// # Returns
+    /// `true` if the injection was successful, `false` otherwise.
     pub fn inject_chat(self, focus: Focus, src: &str, msg: &str) -> bool {
         unsafe {
             glirc_inject_chat(
@@ -85,10 +100,21 @@ impl Glirc {
         }
     }
 
+    /// Retrieves a list of all networks currently connected to the client.
+    ///
+    /// # Returns
+    /// The connected network names.
     pub fn list_networks(self) -> Vec<String> {
         unsafe { import_strings(glirc_list_networks(self.token)) }
     }
 
+    /// Retrieves a list of channels for the specified network.
+    ///
+    /// # Arguments
+    /// * `net` - The name of the network.
+    ///
+    /// # Returns
+    /// The connected channel names.
     pub fn list_channels(self, net: &str) -> Vec<String> {
         unsafe {
             import_strings(glirc_list_channels(
@@ -99,8 +125,14 @@ impl Glirc {
         }
     }
 
+    /// Sends an IRC command to the specified network.
+    ///
+    /// # Arguments
+    /// * `net` - The name of the network.
+    /// * `cmd` - The IRC command to send.
+    /// * `args` - The arguments for the command.
     pub fn irc_command(self, net: &str, cmd: &str, args: &[&str]) {
-        let v: Vec<glirc_string> = args.iter().map(|&x| export_string(x)).collect();
+        let v: Vec<glirc_string> = args.into_iter().map(|x| export_string(x)).collect();
 
         let gmsg = glirc_message {
             network: export_string(net),
@@ -115,6 +147,13 @@ impl Glirc {
         }
     }
 
+    /// Retrieves a list of users in a specific channel.
+    ///
+    /// # Arguments
+    /// * `focus` - The network and channel to query.
+    ///
+    /// # Returns
+    /// A vector of usernames as strings.
     pub fn list_channel_users(self, focus: Focus) -> Vec<String> {
         unsafe {
             import_strings(glirc_list_channel_users(
@@ -127,20 +166,28 @@ impl Glirc {
         }
     }
 
+    /// Retrieves the current focus of the client.
+    ///
+    /// # Returns
+    /// The current network and target.
     pub fn current_focus(self) -> (String, String) {
         unsafe {
-            let mut net = ptr::null_mut();
-            let mut net_len = 0;
-            let mut tgt = ptr::null_mut();
-            let mut tgt_len = 0;
-            glirc_current_focus(self.token, &mut net, &mut net_len, &mut tgt, &mut tgt_len);
+            let mut net = MaybeUninit::uninit();
+            let mut net_len = MaybeUninit::uninit();
+            let mut tgt = MaybeUninit::uninit();
+            let mut tgt_len = MaybeUninit::uninit();
+            glirc_current_focus(self.token, net.as_mut_ptr(), net_len.as_mut_ptr(), tgt.as_mut_ptr(), tgt_len.as_mut_ptr());
             (
-                str::from_utf8_unchecked(slice::from_raw_parts(net as _, net_len)).to_string(),
-                str::from_utf8_unchecked(slice::from_raw_parts(tgt as _, tgt_len)).to_string(),
+                str::from_utf8_unchecked(slice::from_raw_parts(tgt.assume_init() as _, tgt_len.assume_init())).to_string(),
+                str::from_utf8_unchecked(slice::from_raw_parts(net.assume_init() as _, net_len.assume_init())).to_string(),
             )
         }
     }
 
+    /// Sets the focus of the client to the specified network and target.
+    ///
+    /// # Arguments
+    /// * `focus` - The network and target to set as the focus.
     pub fn set_focus(self, focus: Focus) {
         unsafe {
             glirc_set_focus(
@@ -153,6 +200,10 @@ impl Glirc {
         }
     }
 
+    /// Clears the window for the specified focus.
+    ///
+    /// # Arguments
+    /// * `focus` - The network and target whose window will be cleared.
     pub fn clear_window(self, focus: Focus) {
         unsafe {
             glirc_clear_window(
@@ -165,6 +216,13 @@ impl Glirc {
         }
     }
 
+    /// Retrieves the client's nickname for the specified network.
+    ///
+    /// # Arguments
+    /// * `net` - The name of the network.
+    ///
+    /// # Returns
+    /// An `Option` containing the nickname as a string, or `None` if unavailable.
     pub fn my_nick(self, net: &str) -> Option<String> {
         unsafe {
             let ptr = glirc_my_nick(self.token, net.as_ptr() as *const i8, net.len());
@@ -236,13 +294,13 @@ pub unsafe extern "C" fn start_entry<T: GlircPlugin>(
     args: *const glirc_string,
     args_len: usize,
 ) -> *mut c_void {
-    let G = Glirc { token };
+    let glirc = Glirc { token };
     let p = CStr::from_ptr(path).to_str().unwrap();
     let args: Vec<&str> = slice::from_raw_parts(args, args_len)
         .into_iter()
         .map(|s| import_string(s))
         .collect();
-    let plugin = T::start_plugin(G, p, &args);
+    let plugin = T::start_plugin(glirc, p, &args);
     Box::into_raw(plugin) as *mut c_void
 }
 
@@ -307,7 +365,7 @@ pub trait GlircPlugin {
     const MAJOR: u8;
     const MINOR: u8;
 
-    fn start_plugin(G: Glirc, path: &str, args: &[&str]) -> Box<Self>;
+    fn start_plugin(glirc: Glirc, path: &str, args: &[&str]) -> Box<Self>;
 
     #[allow(unused_variables)]
     fn process_command(&mut self, command: Command) {}
