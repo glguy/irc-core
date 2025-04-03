@@ -1,4 +1,9 @@
-#![allow(non_snake_case, non_camel_case_types, non_upper_case_globals, unsafe_op_in_unsafe_fn)]
+#![allow(
+    non_snake_case,
+    non_camel_case_types,
+    non_upper_case_globals,
+    unsafe_op_in_unsafe_fn
+)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use std::cmp::Ordering;
@@ -8,6 +13,11 @@ use std::os::raw::{c_char, c_void};
 use std::ptr;
 use std::slice;
 use std::str;
+
+#[derive(Copy, Clone, Debug)]
+pub enum Error {
+    NotFound,
+}
 
 #[derive(Copy, Clone)]
 pub struct Glirc {
@@ -114,14 +124,15 @@ impl Glirc {
     /// * `net` - The name of the network.
     ///
     /// # Returns
-    /// The connected channel names.
-    pub fn list_channels(self, net: &str) -> Vec<String> {
+    /// The connected channel names if network is active.
+    pub fn list_channels(self, net: &str) -> Result<Vec<String>, Error> {
         unsafe {
-            import_strings(glirc_list_channels(
-                self.token,
-                net.as_ptr() as *const i8,
-                net.len(),
-            ))
+            let ptr = glirc_list_channels(self.token, net.as_ptr() as *const i8, net.len());
+            if ptr.is_null() {
+                Err(Error::NotFound)
+            } else {
+                Ok(import_strings(ptr))
+            }
         }
     }
 
@@ -131,7 +142,7 @@ impl Glirc {
     /// * `net` - The name of the network.
     /// * `cmd` - The IRC command to send.
     /// * `args` - The arguments for the command.
-    pub fn irc_command(self, net: &str, cmd: &str, args: &[&str]) {
+    pub fn irc_command(self, net: &str, cmd: &str, args: &[&str]) -> Result<(), Error> {
         let v: Vec<glirc_string> = args.into_iter().map(|x| export_string(x)).collect();
 
         let gmsg = glirc_message {
@@ -143,7 +154,11 @@ impl Glirc {
         };
 
         unsafe {
-            glirc_send_message(self.token, &gmsg);
+            if 0 == glirc_send_message(self.token, &gmsg) {
+                Ok(())
+            } else {
+                Err(Error::NotFound)
+            }
         }
     }
 
@@ -154,15 +169,20 @@ impl Glirc {
     ///
     /// # Returns
     /// A vector of usernames as strings.
-    pub fn list_channel_users(self, focus: Focus) -> Vec<String> {
+    pub fn list_channel_users(self, focus: Focus) -> Result<Vec<String>, Error> {
         unsafe {
-            import_strings(glirc_list_channel_users(
+            let ptr = glirc_list_channel_users(
                 self.token,
                 focus.network.as_ptr() as *const i8,
                 focus.network.len(),
                 focus.target.as_ptr() as *const i8,
                 focus.target.len(),
-            ))
+            );
+            if ptr.is_null() {
+                Err(Error::NotFound)
+            } else {
+                Ok(import_strings(ptr))
+            }
         }
     }
 
@@ -176,11 +196,33 @@ impl Glirc {
             let mut net_len = MaybeUninit::uninit();
             let mut tgt = MaybeUninit::uninit();
             let mut tgt_len = MaybeUninit::uninit();
-            glirc_current_focus(self.token, net.as_mut_ptr(), net_len.as_mut_ptr(), tgt.as_mut_ptr(), tgt_len.as_mut_ptr());
-            (
-                str::from_utf8_unchecked(slice::from_raw_parts(tgt.assume_init() as _, tgt_len.assume_init())).to_string(),
-                str::from_utf8_unchecked(slice::from_raw_parts(net.assume_init() as _, net_len.assume_init())).to_string(),
-            )
+            glirc_current_focus(
+                self.token,
+                net.as_mut_ptr(),
+                net_len.as_mut_ptr(),
+                tgt.as_mut_ptr(),
+                tgt_len.as_mut_ptr(),
+            );
+            let net = net.assume_init();
+            let net_len = net_len.assume_init();
+            let tgt = tgt.assume_init();
+            let tgt_len = tgt_len.assume_init();
+
+            let result = (
+                str::from_utf8_unchecked(slice::from_raw_parts(
+                    tgt as _,
+                    tgt_len,
+                ))
+                .to_string(),
+                str::from_utf8_unchecked(slice::from_raw_parts(
+                    net as _,
+                    net_len,
+                ))
+                .to_string(),
+            );
+            glirc_free_string(net);
+            glirc_free_string(tgt);
+            result
         }
     }
 
@@ -223,13 +265,15 @@ impl Glirc {
     ///
     /// # Returns
     /// An `Option` containing the nickname as a string, or `None` if unavailable.
-    pub fn my_nick(self, net: &str) -> Option<String> {
+    pub fn my_nick(self, net: &str) -> Result<String, Error> {
         unsafe {
             let ptr = glirc_my_nick(self.token, net.as_ptr() as *const i8, net.len());
             if ptr == ptr::null_mut() {
-                None
+                Err(Error::NotFound)
             } else {
-                Some(CStr::from_ptr(ptr).to_string_lossy().into_owned())
+                let result = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+                glirc_free_string(ptr);
+                Ok(result)
             }
         }
     }
