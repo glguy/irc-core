@@ -54,7 +54,7 @@ import Irc.Codes
 import Irc.Identifier (Identifier, idText, mkId)
 import Irc.Message
 import Irc.RawIrcMsg (msgCommand, msgParams, msgPrefix)
-import Irc.UserInfo (UserInfo(userHost, userNick, userName))
+import Irc.UserInfo (UserInfo(userHost, userNick, userName), parseUserHost)
 import Text.Read (readMaybe)
 
 -- | Parameters used when rendering messages
@@ -670,6 +670,7 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
         RPL_ENDOFLINKS   -> params_2_3_Image
         RPL_PRIVS        -> privsImage
         RPL_LOGGEDIN     -> loggedInImage
+        RPL_UMODEGMSG    -> umodeGImage
 
         ERR_NOPRIVS      -> params_2_3_Image
         ERR_HELPNOTFOUND -> params_2_3_Image
@@ -1064,6 +1065,13 @@ renderReplyCode pal rm srv code@(ReplyCode w) params =
           ctxt chan <>
           label " mode" <> ctxt mode <>
           label " mlock" <> ctxt mlock
+        _ -> rawParamsImage
+
+    umodeGImage =
+      case params of
+        [_, nick, userhost, text] ->
+          coloredUserInfo pal DetailedRender HashMap.empty (parseUserHost nick userhost) <>
+          ctxt " " <> ctxt text
         _ -> rawParamsImage
 
 parseCLineFlags :: Text -> [Text]

@@ -450,6 +450,9 @@ msgImportance msg st =
         Reply _ RPL_TOPIC _    -> WLBoring
         Reply _ RPL_INVITING _ -> WLBoring
 
+        -- unignored user bouncing off of a umode
+        Reply _ RPL_UMODEGMSG _ -> WLImportant
+
         -- remaining replies go to network window
         Reply _ cmd _ ->
           case replyCodeType (replyCodeInfo cmd) of
@@ -470,6 +473,9 @@ ircIgnorable msg !st =
     -- notice ctcp responses are not already metadata
     CtcpNotice who _ _ _ -> checkUser who
     Invite who _ _       -> checkUser who
+    -- special numerics that need separate handling
+    Reply _ RPL_UMODEGMSG (_ : nick : userhost : _) ->
+      checkUser $ srcFromUserInfo $ parseUserHost nick userhost
     _                    -> Nothing
   where
     checkUser !who

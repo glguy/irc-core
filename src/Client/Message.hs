@@ -41,10 +41,10 @@ import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Time (ZonedTime)
-import Irc.Codes (pattern RPL_NOWAWAY, pattern RPL_UNAWAY, pattern RPL_MONONLINE, pattern RPL_MONOFFLINE)
+import Irc.Codes (pattern RPL_NOWAWAY, pattern RPL_UNAWAY, pattern RPL_MONONLINE, pattern RPL_MONOFFLINE, pattern RPL_UMODEGMSG)
 import Irc.Identifier (Identifier, mkId)
 import Irc.Message (IrcMsg(..), ircMsgText, Source(srcUser))
-import Irc.UserInfo (UserInfo(userNick), parseUserInfo, uiNick)
+import Irc.UserInfo (UserInfo(userNick), parseUserInfo, uiNick, parseUserHost)
 
 data MessageBody
   = IrcBody    !IrcMsg
@@ -106,6 +106,8 @@ ircSummary msg =
     Ctcp who _ "ACTION" _ -> ChatSummary (srcUser who)
     Ctcp who _ _ _ -> CtcpSummary (userNick (srcUser who))
     CtcpNotice who _ _ _ -> ChatSummary (srcUser who)
+    Reply _ RPL_UMODEGMSG (_:nick:userhost:_) ->
+      ChatSummary (parseUserHost nick userhost)
     Reply _ RPL_NOWAWAY (who:_) -> AwaySummary (mkId who) True
     Reply _ RPL_UNAWAY  (who:_) -> AwaySummary (mkId who) False
     Reply _ RPL_MONONLINE [_,who]  | [who'] <- Text.split (==',') who ->

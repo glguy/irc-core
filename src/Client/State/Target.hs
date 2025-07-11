@@ -40,6 +40,7 @@ msgTarget nick msg =
     Pong{}          -> TargetDrop
     Away user _     -> TargetExisting (userNick (srcUser user))
     Invite _ _ chan -> TargetWindow chan
+    Reply _ RPL_UMODEGMSG (_:nick':_) -> TargetWindow (mkId nick')
     Reply _ RPL_MONONLINE [_,who]  | [who'] <- Text.split (==',') who ->
       TargetWindow (userNick $ parseUserInfo who')
     Reply _ RPL_MONOFFLINE [_,who] | [who'] <- Text.split (==',') who ->
