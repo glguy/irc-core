@@ -34,6 +34,7 @@ module Irc.Message
   , capCmdText
 
   , Source(..)
+  , srcFromUserInfo
   ) where
 
 import           Control.Monad
@@ -123,6 +124,12 @@ msgSource msg =
           case [a | TagEntry "solanum.chat/oper" a <- view msgTags msg ] of
             []  -> ""
             a:_ -> a
+
+-- | Wrap a 'UserInfo' in a 'Source' with all other fields of the 'Source'
+-- set to defualts.
+srcFromUserInfo :: UserInfo -> Source
+srcFromUserInfo ui =
+  Source { srcUser = ui, srcAcct = "", srcIdentified = False, srcOper = ""}
 
 -- | Interpret a low-level 'RawIrcMsg' as a high-level 'IrcMsg'.
 -- Messages that can't be understood are wrapped in 'UnknownMsg'.

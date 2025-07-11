@@ -20,6 +20,7 @@ module Irc.UserInfo
   -- * Parser and printer
   , renderUserInfo
   , parseUserInfo
+  , parseUserHost
 
   -- * Lenses
   , uiNick
@@ -72,3 +73,12 @@ parseUserInfo x = UserInfo
   where
   (nickuser,host) = Text.break (=='@') x
   (nick,user) = Text.break (=='!') nickuser
+
+-- | Split up a userhost (@user\@host@) and use the provided nick.
+parseUserHost :: Text -> Text -> UserInfo
+parseUserHost nick userhost = UserInfo
+  { userNick = mkId nick
+  , userName = user
+  , userHost = Text.drop 1 host
+  }
+  where (user, host) = Text.break (=='@') userhost
