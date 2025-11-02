@@ -102,6 +102,7 @@ library
     Client.EventLoop.Actions
     Client.EventLoop.Errors
     Client.EventLoop.Network
+    Client.EventLoop.Notifications
     Client.Hook
     Client.Hook.DroneBLRelay
     Client.Hook.Matterbridge
