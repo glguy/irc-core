@@ -182,7 +182,7 @@ processLogEntries =
 processNotifications :: ClientState -> IO ()
 processNotifications st =
   case notifyCmd (view (clientConfig . configNotifications) st) of
-    Just cmd | not (view clientUiFocused st) -> traverse_ (spawn cmd) (view clientNotifications st)
+    Just cmd | clientMayNotify st -> traverse_ (spawn cmd) (view clientNotifications st)
     _ -> return ()
   where
     -- TODO: May be a nicer way to handle notification failure than just silently squashing the exception

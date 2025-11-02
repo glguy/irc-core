@@ -61,6 +61,7 @@ module Client.State
   , buildMatcher
   , clientToggleHideMeta
   , channelUserList
+  , clientMayNotify
 
   , consumeInput
   , currentCompletionList
@@ -115,6 +116,7 @@ module Client.State
 import           Client.CApi
 import           Client.Commands.WordCompletion
 import           Client.Configuration
+import           Client.Configuration.Notifications (NotifyWhile(..))
 import           Client.Configuration.ServerSettings
 import           Client.Configuration.Sts
 import           Client.Image.Message
@@ -671,6 +673,13 @@ addNotify True  focus wl st
     focusText Unfocused = "Application Notice"
     focusText (NetworkFocus net) = LText.fromChunks ["Notice from ", net]
     focusText (ChannelFocus net chan) = LText.fromChunks ["Activity on ", net, ":", idText chan]
+
+clientMayNotify :: ClientState -> Bool
+clientMayNotify st = case view (clientConfig . configNotifyWhile) st of
+  NotifyWhileUnfocused -> not $ _clientUiFocused st
+  NotifyWhileFocused -> _clientUiFocused st
+  NotifyWhileAlways -> True
+
 
 toWindowLine :: MessageRendererParams -> WindowLineImportance -> ClientMessage -> WindowLine
 toWindowLine params importance msg = WindowLine

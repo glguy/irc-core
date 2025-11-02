@@ -6,7 +6,7 @@ Copyright   : (c) TheDaemoness, 2023
 License     : ISC
 Maintainer  : emertens@gmail.com
 -}
-module Client.Configuration.Notifications ( NotifyWith(..), notifyCmd, notifySpec, notifyWithDefault ) where
+module Client.Configuration.Notifications ( NotifyWith(..), NotifyWhile(..), notifyCmd, notifySpec, notifyWithDefault, notifyWhileSpec ) where
 
 import           Config.Schema (ValueSpec, atomSpec, nonemptySpec, stringSpec, (<!>))
 import qualified Data.Text.Lazy as LText
@@ -19,6 +19,12 @@ data NotifyWith
   | NotifyWithNotifySend
   | NotifyWithOsaScript
   | NotifyWithTerminalNotifier
+  deriving Show
+
+data NotifyWhile
+  = NotifyWhileUnfocused
+  | NotifyWhileFocused
+  | NotifyWhileAlways
   deriving Show
 
 notifyCmd :: NotifyWith -> Maybe ((LText.Text, LText.Text) -> ProcessConfig () () ())
@@ -49,3 +55,9 @@ notifySpec =
   NotifyWithOsaScript        <$ atomSpec "osascript" <!>
   NotifyWithTerminalNotifier <$ atomSpec "terminal-notifier" <!>
   NotifyWithCustom . NonEmpty.toList <$> nonemptySpec stringSpec
+
+notifyWhileSpec :: ValueSpec NotifyWhile
+notifyWhileSpec =
+  NotifyWhileUnfocused <$ atomSpec "unfocused" <!>
+  NotifyWhileFocused <$ atomSpec "focused" <!>
+  NotifyWhileAlways <$ atomSpec "always"
