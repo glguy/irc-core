@@ -289,7 +289,8 @@ msgTarget me msg =
     Tagmsg src tgt           -> directed (srcUser src) tgt
   where
     directed src tgt
-      | Text.null (userHost src) = TargetNetwork -- server message
+      | Text.null (userName src)
+      , Text.null (userHost src) = TargetNetwork -- server message
       | tgt == me = TargetWindow (userNick src)
       | otherwise = TargetWindow tgt
 
