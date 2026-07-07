@@ -6,8 +6,8 @@ project('glirc-lua', 'c',
 
 add_global_arguments('-Werror=vla', language: 'c')
 
-foreach name : ['lua', 'lua5.3', 'lua-5.3', 'lua53', 'lua5.4', 'lua-5.4', 'lua54']
-    luaDep = dependency(name, version: ['>=5.3', '<5.5'], required: false)
+foreach name : ['lua', 'lua5.3', 'lua-5.3', 'lua53', 'lua5.4', 'lua-5.4', 'lua54', 'lua-5.5', 'lua55', 'lua5.5']
+    luaDep = dependency(name, version: ['>=5.3', '<5.6'], required: false)
     if luaDep.found()
         break
     endif

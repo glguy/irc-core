@@ -28,7 +28,7 @@ executable irc-core-bot
     Bot.Config
 
   build-depends:
-    base       >=4.9  && <4.22,
+    base       >=4.9  && <4.23,
     bytestring >=0.10 && <0.13,
     hookup     ^>=0.8,
     irc-core   ^>=2.13,

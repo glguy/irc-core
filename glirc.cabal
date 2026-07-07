@@ -22,7 +22,7 @@ bug-reports:         https://github.com/glguy/irc-core/issues
 tested-with:         GHC == 9.0.2, GHC == 9.4.8, GHC == 9.8.2
 
 custom-setup
-  setup-depends: base     >=4.12 && <4.22,
+  setup-depends: base     >=4.12 && <4.23,
                  filepath >=1.4  && <1.6,
                  Cabal    >=2.2  && <4,
                  bytestring,
@@ -44,7 +44,7 @@ executable glirc
   -- Constraints can be found on the library itself
   build-depends:
     base, glirc, lens, text, vty,
-    vty-unix             ^>=0.2.0.0,
+    vty-unix             ^>=0.3.0.0,
 
   if os(Linux)
     ld-options: -Wl,--dynamic-list=exec/linux_exported_symbols.txt
@@ -171,7 +171,7 @@ library
     Build_glirc
 
   build-depends:
-    base                 >=4.15   && <4.22,
+    base                 >=4.15   && <4.23,
     HsOpenSSL            >=0.11   && <0.12,
     async                >=2.2    && <2.3,
     attoparsec           ^>=0.14,
@@ -198,14 +198,14 @@ library
     semigroupoids        >=5.1    && <6.1,
     split                >=0.2    && <0.3,
     stm                  >=2.4    && <2.6,
-    template-haskell     >=2.11   && <2.24,
+    template-haskell     >=2.11   && <2.25,
     text                 >=1.2.2  && <2.2,
-    time                 >=1.9    && <1.15,
+    time                 >=1.9    && <1.17,
     transformers         >=0.5.2  && <0.7,
     unix                 >=2.7    && <2.9,
     unordered-containers >=0.2.11 && <0.3,
     vector               >=0.11   && <0.14,
-    vty                  ^>=6.4,
+    vty                  >=6.4,
 
 test-suite test
   type:                exitcode-stdio-1.0
