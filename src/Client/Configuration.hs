@@ -77,7 +77,7 @@ import Client.Commands.Interpolation (Macro)
 import Client.Commands.Recognizer (Recognizer)
 import Client.Configuration.Colors (attrSpec)
 import Client.Configuration.Macros (macroMapSpec)
-import Client.Configuration.Notifications (NotifyWith, NotifyWhile(NotifyWhileUnfocused), notifySpec, notifyWithDefault, notifyWhileSpec)
+import Client.Configuration.Notifications (NotifyWith(NotifyWithDefault), NotifyWhile(NotifyWhileUnfocused), notifySpec, notifyWhileSpec)
 import Client.Configuration.ServerSettings
 import Client.EventLoop.Actions
 import Client.Image.Palette
@@ -299,7 +299,7 @@ configurationSpec = sectionsSpec "config-file" $
                                "Initial setting for visibility of ping times"
      _configDigraphs        <- sec' mempty "extra-digraphs" (Map.fromList <$> listSpec digraphSpec)
                                "Extra digraphs"
-     _configNotifications   <- sec' notifyWithDefault "notifications" notifySpec
+     _configNotifications   <- sec' NotifyWithDefault "notifications" notifySpec
                                "Whether and how to show notifications. Notification data is passed as arguments to custom commands."
      _configNotifyWhile     <- sec' NotifyWhileUnfocused "notify-while" notifyWhileSpec
                                "When notifications (if enabled) may be displayed"

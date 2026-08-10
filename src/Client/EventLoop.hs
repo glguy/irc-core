@@ -20,11 +20,11 @@ module Client.EventLoop
 import Client.CApi (ThreadEntry, popTimer)
 import Client.Commands (CommandResult(..), execute, executeUserCommand, tabCompletion)
 import Client.Configuration (configJumpModifier, configKeyMap, configWindowNames, configDigraphs, configNotifications)
-import Client.Configuration.Notifications (notifyCmd)
 import Client.Configuration.ServerSettings ( ssReconnectAttempts )
 import Client.EventLoop.Actions (keyToAction, Action(..))
 import Client.EventLoop.Errors (exceptionToLines)
 import Client.EventLoop.Network (clientResponse)
+import Client.EventLoop.Notifications (doNotify)
 import Client.Hook (applyMessageHooks, messageHookStateful)
 import Client.Image (clientPicture)
 import Client.Image.Layout (scrollAmount)
@@ -39,9 +39,9 @@ import Client.State.Focus (Subfocus(FocusMessages))
 import Client.State.Network
 import Client.State.Target (msgTarget)
 import Control.Concurrent.STM
-import Control.Exception (SomeException, Exception(fromException), catch)
+import Control.Exception (SomeException, Exception(fromException))
 import Control.Lens
-import Control.Monad (when, MonadPlus(mplus), foldM, unless, void)
+import Control.Monad (when, MonadPlus(mplus), foldM, unless)
 import Data.ByteString (ByteString)
 import Data.Char (isSpace)
 import Data.Foldable (Foldable(foldl'), find, asum, traverse_)
@@ -64,8 +64,6 @@ import Irc.Codes (pattern RPL_STARTTLS)
 import Irc.Message (IrcMsg(Reply, Notice), cookIrcMsg)
 import Irc.RawIrcMsg (RawIrcMsg, TagEntry(..), asUtf8, msgTags, parseRawIrcMsg)
 import LensUtils (setStrict)
-import System.Process.Typed (startProcess, setStdin, setStdout, setStderr, nullStream)
-
 
 -- | Sum of the five possible event types the event loop handles
 data ClientEvent
@@ -180,18 +178,10 @@ processLogEntries =
   traverse_ writeLogLine . reverse . view clientLogQueue
 
 processNotifications :: ClientState -> IO ()
-processNotifications st =
-  case notifyCmd (view (clientConfig . configNotifications) st) of
-    Just cmd | clientMayNotify st -> traverse_ (spawn cmd) (view clientNotifications st)
-    _ -> return ()
-  where
-    -- TODO: May be a nicer way to handle notification failure than just silently squashing the exception
-    handleException :: SomeException -> IO ()
-    handleException _ = return ()
-    spawn cmd pair = do
-      let procCfg = setStdin nullStream . setStdout nullStream . setStderr nullStream $ cmd pair
-      -- Maybe find a nicer way to get an error out of here.
-      catch (void (startProcess procCfg)) handleException
+processNotifications st
+  | clientMayNotify st = traverse_ doNotify' (view clientNotifications st)
+  | otherwise = return ()
+  where doNotify' = doNotify $ view (clientConfig . configNotifications) st
 
 -- | Respond to a network connection successfully connecting.
 doNetworkOpen ::
